@@ -1,0 +1,45 @@
+[package]
+name = "oxide_proxy"
+version = "0.1.0"
+edition = "2021"
+authors = ["Antigravity <advanced-engineering@deepmind.com>"]
+description = "OxideProxy: Modern L4/L7 Asynchronous Zero-Copy Proxy for Ultra-Low Latency Gaming & High Traffic"
+
+[[bin]]
+name = "oxide_proxy"
+path = "src/main.rs"
+
+[[bin]]
+name = "cert_gen"
+path = "src/bin/cert_gen.rs"
+
+[dependencies]
+tokio = { version = "1.36", features = ["full"] }
+bytes = "1.5"
+nom = "7.1"
+rustls = "0.21"
+tokio-rustls = "0.24"
+rustls-pemfile = "1.0"
+rcgen = "0.11"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+rustc-hash = "1.1"
+dashmap = "5.5"
+socket2 = { version = "0.5", features = ["all"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+thiserror = "1.0"
+hyper = { version = "0.14", features = ["full"] }
+http = "0.2"
+flate2 = "1.0"
+percent-encoding = "2.3"
+httparse = "1.8"
+async-compression = { version = "0.4", features = ["tokio", "gzip", "brotli"] }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true

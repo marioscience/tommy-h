@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OxideProxy • L7 Control Plane v2.0</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Barra de Navegación Superior -->
+        <header class="glass-navbar">
+            <div class="nav-brand">
+                <div class="brand-logo">
+                    <i class="fa-solid fa-shield-halved brand-icon"></i>
+                </div>
+                <div class="brand-title">
+                    <h1>OxideProxy</h1>
+                    <span class="badge badge-glow">NATIVE TELEMETRY v2.0</span>
+                </div>
+            </div>
+
+            <!-- Pestañas de Navegación Cero Scroll -->
+            <nav class="nav-tabs">
+                <button class="tab-btn active" data-tab="tab-telemetry">
+                    <i class="fa-solid fa-chart-pie"></i> Telemetría
+                </button>
+                <button class="tab-btn" data-tab="tab-firewall">
+                    <i class="fa-solid fa-shield-virus"></i> Firewall & eBPF
+                </button>
+                <button class="tab-btn" data-tab="tab-config">
+                    <i class="fa-solid fa-route"></i> Ruteo & Ingress
+                </button>
+                <button class="tab-btn" data-tab="tab-console">
+                    <i class="fa-solid fa-terminal"></i> Consola en Vivo
+                </button>
+            </nav>
+            
+            <div class="nav-status">
+                <div class="status-indicator">
+                    <div class="pulse-dot online" id="nav-pulse"></div>
+                    <span id="nav-status-text">Conectado a Tokio Engine</span>
+                </div>
+                <div class="nav-actions">
+                    <button id="btn-save-config" class="btn btn-primary glow-btn">
+                        <i class="fa-solid fa-floppy-disk"></i> Guardar YAML Extendida
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Contenido Principal -->
+        <main class="main-content">
+            <!-- ================= PESTAÑA 1: TELEMETRÍA EN VIVO ================= -->
+            <div class="tab-pane active" id="tab-telemetry">
+                <!-- Fila 1: Tarjetas de Estado y Métricas Rápidas -->
+                <section class="metrics-grid">
+                    <div class="glass-card stat-card">
+                        <div class="stat-header">
+                            <h3>Estado eBPF / XDP</h3>
+                            <i class="fa-solid fa-shield-virus stat-icon"></i>
+                        </div>
+                        <div class="stat-value status-online" id="stat-ebpf-status">ACTIVE (eth0)</div>
+                        <div class="stat-subtext" id="stat-ebpf-mode">Modo: STRICT_GAMING</div>
+                    </div>
+
+                    <div class="glass-card stat-card">
+                        <div class="stat-header">
+                            <h3>Congestión TCP</h3>
+                            <i class="fa-solid fa-gauge-high stat-icon"></i>
+                        </div>
+                        <div class="stat-value status-cyan" id="stat-tcp-cc">BBR</div>
+                        <div class="stat-subtext">TCP_NODELAY Activo</div>
+                    </div>
+
+                    <div class="glass-card stat-card">
+                        <div class="stat-header">
+                            <h3>Rendimiento Global</h3>
+                            <i class="fa-solid fa-bolt stat-icon"></i>
+                        </div>
+                        <div class="stat-value" id="stat-total-pps">0 PPS</div>
+                        <div class="stat-subtext" id="stat-bandwidth">0.00 Mbps Ingress</div>
+                    </div>
+
+                    <div class="glass-card stat-card">
+                        <div class="stat-header">
+                            <h3>Carga de CPU & RAM</h3>
+                            <i class="fa-solid fa-microchip stat-icon"></i>
+                        </div>
+                        <div class="stat-value" id="stat-sys-load">0.0% RAM</div>
+                        <div class="stat-subtext" id="stat-cpu-cores">Cores: 4</div>
+                    </div>
+                </section>
+
+                <!-- Fila 2: Cuadrícula de Telemetría Nativa (3 Gráficos Simultáneos) -->
+                <section class="native-charts-grid">
+                    <!-- Gráfico 1: Conexiones & Ancho de Banda -->
+                    <div class="glass-card chart-card">
+                        <div class="card-header">
+                            <div class="header-title">
+                                <i class="fa-solid fa-chart-area"></i>
+                                <h2>Ancho de Banda & Conexiones</h2>
+                            </div>
+                            <span class="live-badge"><i class="fa-solid fa-circle live-dot"></i> LIVE</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chartThroughput"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Gráfico 2: Rendimiento L4/L7 (TCP vs UDP PPS) -->
+                    <div class="glass-card chart-card">
+                        <div class="card-header">
+                            <div class="header-title">
+                                <i class="fa-solid fa-wave-square"></i>
+                                <h2>Rendimiento L4/L7 (PPS)</h2>
+                            </div>
+                            <span class="live-badge"><i class="fa-solid fa-circle live-dot"></i> LIVE</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chartPps"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Gráfico 3: Mitigación eBPF & Carga de Sistema -->
+                    <div class="glass-card chart-card">
+                        <div class="card-header">
+                            <div class="header-title">
+                                <i class="fa-solid fa-shield-halved"></i>
+                                <h2>Mitigación eBPF & Descarte</h2>
+                            </div>
+                            <span class="live-badge"><i class="fa-solid fa-circle live-dot"></i> LIVE</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chartSystem"></canvas>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- ================= PESTAÑA 2: FIREWALL & eBPF ================= -->
+            <div class="tab-pane" id="tab-firewall">
+                <!-- Fila 3.5: Gestión de Firewall y Listas Negras en Tiempo Real -->
+                <section class="firewall-section" style="width: 100%;">
+                    <div class="glass-card firewall-container" style="padding-bottom: 1.5rem;">
+                        <div class="card-header">
+                            <div class="header-title">
+                                <i class="fa-solid fa-shield-halved" style="color: var(--danger-glow);"></i>
+                                <h2>Gestión de Firewall & Listas Negras en Tiempo Real (eBPF/XDP)</h2>
+                            </div>
+                            <button id="btn-save-firewall" class="btn btn-primary glow-btn small-btn">
+                                <i class="fa-solid fa-shield-virus"></i> Aplicar Reglas al Motor
+                            </button>
+                        </div>
+                        <div class="firewall-grid" style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 1.5rem; padding: 1.5rem;">
+                            <!-- Columna Izquierda: Ajustes de Mitigación -->
+                            <div class="tuning-box">
+                                <h3><i class="fa-solid fa-sliders"></i> Ajustes de Mitigación DDoS</h3>
+                                <div class="form-group">
+                                    <label for="fw-ebpf-mode">Modo eBPF / XDP</label>
+                                    <select id="fw-ebpf-mode" class="glass-input">
+                                        <option value="STRICT_GAMING">STRICT_GAMING (Máxima Protección)</option>
+                                        <option value="STANDARD">STANDARD (Balanceado)</option>
+                                        <option value="RELAXED">RELAXED (Permisivo)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="fw-ebpf-pps">Límite Paquetes/Seg (PPS) por IP</label>
+                                    <input type="number" id="fw-ebpf-pps" class="glass-input" value="25000">
+                                </div>
+                                <div class="form-group">
+                                    <label for="fw-sec-conns">Límite Conexiones Simultáneas por IP</label>
+                                    <input type="number" id="fw-sec-conns" class="glass-input" value="150">
+                                </div>
+                            </div>
+
+                            <!-- Columna Derecha: Lista Negra Dinámica -->
+                            <div class="tuning-box" style="gap: 1rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.75rem;">
+                                    <h3><i class="fa-solid fa-user-shield"></i> Lista Negra de Direcciones IP (Blacklist)</h3>
+                                    <span class="badge badge-glow" id="fw-blacklist-count">0 IPs Bloqueadas</span>
+                                </div>
+                                <div style="display: flex; gap: 0.75rem;">
+                                    <input type="text" id="fw-new-ip" class="glass-input" placeholder="Añadir IP maliciosa (Ej. 192.168.1.50)">
+                                    <button id="btn-add-blacklist" class="btn btn-secondary glass-btn" style="white-space: nowrap;">
+                                        <i class="fa-solid fa-plus"></i> Añadir IP
+                                    </button>
+                                </div>
+                                <div class="table-container" style="padding: 0; max-height: 200px; overflow-y: auto; border: 1px solid var(--glass-border); border-radius: 0.5rem;">
+                                    <table class="glass-table" style="margin: 0;">
+                                        <thead>
+                                            <tr>
+                                                <th>Dirección IP</th>
+                                                <th style="width: 100px; text-align: center;">Acción</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="fw-blacklist-tbody">
+                                            <!-- IPs inyectadas por JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Fila 3: Sintonización Extrema del Motor (Engine Advanced Tuning) -->
+                <section class="tuning-section">
+                    <div class="glass-card tuning-container">
+                        <div class="card-header">
+                            <div class="header-title">
+                                <i class="fa-solid fa-cogs"></i>
+                                <h2>Sintonización Extrema del Motor (Kernel & Tokio Runtime)</h2>
+                            </div>
+                        </div>
+                        <div class="tuning-grid">
+                            <!-- Columna 1: eBPF / XDP Mitigation -->
+                            <div class="tuning-box">
+                                <h3><i class="fa-solid fa-shield-virus"></i> eBPF / XDP DDoS Mitigation</h3>
+                                <div class="form-group">
+                                    <label for="ebpf-iface">Interfaz de Red</label>
+                                    <input type="text" id="ebpf-iface" class="glass-input" value="eth0">
+                                </div>
+                                <div class="form-group">
+                                    <label for="ebpf-mode">Modo de Filtrado</label>
+                                    <select id="ebpf-mode" class="glass-input">
+                                        <option value="STRICT_GAMING">STRICT_GAMING (Filtro L4 Rápido)</option>
+                                        <option value="STANDARD">STANDARD (Reglas Generales)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="ebpf-pps">Max Paquetes/Seg por IP</label>
+                                    <input type="number" id="ebpf-pps" class="glass-input" value="25000">
+                                </div>
+                            </div>
+
+                            <!-- Columna 2: TCP & Kernel Tuning -->
+                            <div class="tuning-box">
+                                <h3><i class="fa-solid fa-gauge-high"></i> Optimización TCP & Kernel</h3>
+                                <div class="form-group">
+                                    <label for="tcp-cc">Control de Congestión</label>
+                                    <select id="tcp-cc" class="glass-input">
+                                        <option value="bbr">BBR (Bottleneck Bandwidth and RTT)</option>
+                                        <option value="cubic">CUBIC (Tradicional Linux)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group-row">
+                                    <div class="form-group">
+                                        <label for="rcv-buf">SO_RCVBUF (B)</label>
+                                        <input type="number" id="rcv-buf" class="glass-input" value="1048576">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="snd-buf">SO_SNDBUF (B)</label>
+                                        <input type="number" id="snd-buf" class="glass-input" value="1048576">
+                                    </div>
+                                </div>
+                                <div class="form-switch-group">
+                                    <label class="switch-label">TCP_NODELAY (Sin Nagle)</label>
+                                    <label class="switch"><input type="checkbox" id="tcp-nodelay" checked><span class="slider round"></span></label>
+                                </div>
+                            </div>
+
+                            <!-- Columna 3: Tokio Runtime & Seguridad -->
+                            <div class="tuning-box">
+                                <h3><i class="fa-solid fa-microchip"></i> Tokio Runtime & Seguridad</h3>
+                                <div class="form-group">
+                                    <label for="rate-limit">Max Conexiones por IP</label>
+                                    <input type="number" id="rate-limit" class="glass-input" value="150">
+                                </div>
+                                <div class="form-group">
+                                    <label for="hs-timeout">Handshake Timeout (ms)</label>
+                                    <input type="number" id="hs-timeout" class="glass-input" value="1500">
+                                </div>
+                                <div class="form-switch-group">
+                                    <label class="switch-label">Afinidad de CPU (Core Pinning)</label>
+                                    <label class="switch"><input type="checkbox" id="core-pinning" checked><span class="slider round"></span></label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- ================= PESTAÑA 3: RUTEO & INGRESS ================= -->
+            <div class="tab-pane" id="tab-config">
+                <!-- Fila 4: Gestión de Configuración Global y Ruteo de Juegos -->
+                <section class="config-section" style="width: 100%;">
+                    <div class="config-grid">
+                        <!-- Columna Izquierda: Configuración Global Ingress -->
+                        <div class="glass-card config-card">
+                            <div class="card-header">
+                                <div class="header-title">
+                                    <i class="fa-solid fa-sliders"></i>
+                                    <h2>Ajustes Globales Ingress</h2>
+                                </div>
+                            </div>
+                            <form id="form-global-config" class="config-form">
+                                <div class="form-group">
+                                    <label for="tcp-addr"><i class="fa-solid fa-lock"></i> Escucha TCP (Web / TLS)</label>
+                                    <input type="text" id="tcp-addr" class="glass-input" value="0.0.0.0:8443">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="udp-addr"><i class="fa-solid fa-gamepad"></i> Escucha UDP (Gaming Zero-Copy)</label>
+                                    <input type="text" id="udp-addr" class="glass-input" value="0.0.0.0:8080">
+                                </div>
+
+                                <div class="form-group-row">
+                                    <div class="form-group">
+                                        <label for="max-conn"><i class="fa-solid fa-users"></i> Max Conexiones</label>
+                                        <input type="number" id="max-conn" class="glass-input" value="1000000">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="buf-size"><i class="fa-solid fa-box-archive"></i> Búfer Inicial (B)</label>
+                                        <input type="number" id="buf-size" class="glass-input" value="4096">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="web-backend"><i class="fa-solid fa-server"></i> Backend Web Default</label>
+                                    <input type="text" id="web-backend" class="glass-input" value="10.5.0.12:80">
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Columna Derecha: Tabla de Ruteo O(1) de Servidores de Juego -->
+                        <div class="glass-card routes-card">
+                            <div class="card-header">
+                                <div class="header-title">
+                                    <i class="fa-solid fa-route"></i>
+                                    <h2>Tabla de Ruteo O(1) de Videojuegos</h2>
+                                </div>
+                                <button id="btn-add-route" class="btn btn-secondary glass-btn small-btn">
+                                    <i class="fa-solid fa-plus"></i> Añadir Servidor
+                                </button>
+                            </div>
+                            <div class="table-container">
+                                <table class="glass-table">
+                                    <thead>
+                                        <tr>
+                                            <th>GameID</th>
+                                            <th>Protocolo</th>
+                                            <th>Dirección Backend</th>
+                                            <th>Descripción</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="routes-table-body">
+                                        <!-- Las rutas se cargarán dinámicamente mediante JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- ================= PESTAÑA 4: CONSOLA EN VIVO ================= -->
+            <div class="tab-pane" id="tab-console">
+                <!-- Fila 5: Consola de Trazas en Vivo (Live Terminal & Log Filtering) -->
+                <section class="live-console-section" style="width: 100%; margin: 0;">
+                    <div class="glass-card console-card" style="height: calc(100vh - 180px);">
+                        <div class="card-header console-header">
+                            <div class="header-title">
+                                <i class="fa-solid fa-terminal console-icon"></i>
+                                <h2>Consola de Trazas en Vivo (Rust Tokio Engine)</h2>
+                            </div>
+                            <div class="console-actions">
+                                <div class="filter-box">
+                                    <label for="log-filter-select"><i class="fa-solid fa-filter"></i> Filtrar por Servidor:</label>
+                                    <select id="log-filter-select" class="glass-input small-input">
+                                        <option value="ALL">Mostrar Todos (ALL)</option>
+                                        <option value="SYS">Sistema / eBPF (SYS)</option>
+                                    </select>
+                                </div>
+                                <button id="btn-console-pause" class="btn btn-secondary glass-btn small-btn">
+                                    <i class="fa-solid fa-pause"></i> <span id="console-pause-text">Pausar</span>
+                                </button>
+                                <button id="btn-console-clear" class="btn btn-secondary glass-btn small-btn">
+                                    <i class="fa-solid fa-trash"></i> Limpiar
+                                </button>
+                            </div>
+                        </div>
+                        <div class="console-body" id="log-console-body" style="flex: 1; height: auto;">
+                            <!-- Líneas de log inyectadas dinámicamente -->
+                        </div>
+                    </div>
+                </section>
+        </main>
+    </div>
+
+    <!-- Modal para Añadir/Editar Ruta de Juego con Presets de 1-Clic -->
+    <div class="modal-backdrop" id="route-modal">
+        <div class="glass-card modal-card large-modal">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-gamepad"></i> Configurar Servidor de Juego</h2>
+                <button class="modal-close" id="modal-close-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <!-- Presets Rápidos de Videojuegos -->
+                <div class="presets-container">
+                    <label class="presets-label"><i class="fa-solid fa-wand-magic-sparkles"></i> Presets Rápidos de 1-Clic:</label>
+                    <div class="presets-grid">
+                        <button type="button" class="btn preset-btn" onclick="applyPreset('fivem')"><i class="fa-solid fa-car"></i> FiveM</button>
+                        <button type="button" class="btn preset-btn" onclick="applyPreset('mc_java')"><i class="fa-solid fa-cube"></i> MC Java</button>
+                        <button type="button" class="btn preset-btn" onclick="applyPreset('mc_bedrock')"><i class="fa-solid fa-cubes"></i> MC Bedrock</button>
+                        <button type="button" class="btn preset-btn" onclick="applyPreset('cs2')"><i class="fa-solid fa-gun"></i> CS2</button>
+                        <button type="button" class="btn preset-btn" onclick="applyPreset('ark')"><i class="fa-solid fa-dragon"></i> ARK</button>
+                        <button type="button" class="btn preset-btn" onclick="applyPreset('valheim')"><i class="fa-solid fa-shield-halved"></i> Valheim</button>
+                    </div>
+                </div>
+
+                <form id="form-route-modal">
+                    <div class="form-group-row">
+                        <div class="form-group">
+                            <label for="modal-game-id">GameID (16-bit Integer)</label>
+                            <input type="number" id="modal-game-id" class="glass-input" placeholder="Ej. 1003" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="modal-protocol">Protocolo</label>
+                            <select id="modal-protocol" class="glass-input">
+                                <option value="UDP">UDP (Zero-Copy Gaming)</option>
+                                <option value="TCP">TCP (Flujo Continuo)</option>
+                                <option value="DUAL">DUAL (UDP + TCP Combinados)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group-row">
+                        <div class="form-group">
+                            <label for="modal-backend-addr">Backend Address (IP:Port)</label>
+                            <input type="text" id="modal-backend-addr" class="glass-input" placeholder="Ej. 10.5.0.15:30120" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="modal-port-range">Rango de Puertos</label>
+                            <input type="text" id="modal-port-range" class="glass-input" placeholder="Ej. 30120 o 7777-7778" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="modal-desc">Descripción</label>
+                        <input type="text" id="modal-desc" class="glass-input" placeholder="Ej. Servidor FiveM Principal" required>
+                    </div>
+
+                    <!-- Configuración de Health Check -->
+                    <div class="health-check-box">
+                        <div class="form-switch-group">
+                            <label class="switch-label"><i class="fa-solid fa-heart-pulse"></i> Activar Health Check Automático</label>
+                            <label class="switch"><input type="checkbox" id="modal-hc-enabled" checked><span class="slider round"></span></label>
+                        </div>
+                        <div class="form-group-row" style="margin-top: 0.75rem;">
+                            <div class="form-group">
+                                <label for="modal-hc-interval">Intervalo (s)</label>
+                                <input type="number" id="modal-hc-interval" class="glass-input" value="10">
+                            </div>
+                            <div class="form-group">
+                                <label for="modal-hc-timeout">Timeout (s)</label>
+                                <input type="number" id="modal-hc-timeout" class="glass-input" value="2">
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary glass-btn" id="modal-cancel-btn">Cancelar</button>
+                <button class="btn btn-primary glow-btn" id="modal-save-btn">Guardar Servidor</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Telemetría Individual por Servidor (Per-Backend Analytics Popup) -->
+    <div class="modal-backdrop" id="server-chart-modal">
+        <div class="glass-card modal-card large-modal">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-chart-line"></i> Telemetría en Vivo del Servidor</h2>
+                <button class="modal-close" id="modal-chart-close-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" id="server-chart-modal-body">
+                <!-- Tarjeta de telemetría inyectada dinámicamente -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenedor de Toast Notifications -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Custom JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>

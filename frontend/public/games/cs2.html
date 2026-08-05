@@ -1,0 +1,26 @@
+<template class="game-module-rcon">
+<div id="rcon-panel-cs2" class="hidden">
+                                <h4 style="margin-bottom:15px; color:#3b82f6; font-weight:bold;"><i
+                                        class="fa-solid fa-gamepad"></i> Live Matchpad</h4>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px;">
+                                    <button class="btn" onclick="sendMatchpadCmd('mp_pause')"
+                                        style="background:rgba(59,130,246,0.2); border:1px solid #3b82f6; color:#fff;"><i
+                                            class="fa-solid fa-pause"></i> Pausar</button>
+                                    <button class="btn" onclick="sendMatchpadCmd('mp_unpause')"
+                                        style="background:rgba(59,130,246,0.2); border:1px solid #3b82f6; color:#fff;"><i
+                                            class="fa-solid fa-play"></i> Reanudar</button>
+                                    <button class="btn" onclick="sendMatchpadCmd('mp_restartgame 1')"
+                                        style="background:rgba(239,68,68,0.2); border:1px solid #ef4444; color:#fff; grid-column:span 2;"><i
+                                            class="fa-solid fa-rotate-left"></i> Reiniciar Partido</button>
+                                </div>
+                                <h5 style="margin-bottom:8px; color:#93c5fd; font-size:0.85rem;">Cambiar Mapa</h5>
+                                <div style="display:flex; gap:10px;">
+                                    <input type="text" id="cs2-map-input" class="input"
+                                        placeholder="de_dust2, de_mirage..." style="margin:0; padding:8px;">
+                                    <button class="btn"
+                                        onclick="sendMatchpadCmd('changelevel ' + document.getElementById('cs2-map-input').value)"
+                                        style="background:#3b82f6; color:#fff; padding:8px 15px;"><i
+                                            class="fa-solid fa-map"></i> Cambiar</button>
+                                </div>
+                            </div>
+</template>

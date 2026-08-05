@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>RageNodes | Acceso Denegado</title>
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { display: flex; align-items: center; justify-content: center; height: 100vh; background-color: var(--bg); color: white; font-family: var(--font-main); margin: 0; }
+    .error-card { text-align: center; padding: 50px; max-width: 450px; }
+    .error-icon { font-size: 4.5rem; color: var(--danger); margin-bottom: 20px; text-shadow: 0 0 20px rgba(239, 68, 68, 0.4); animation: pulse 2s infinite; }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+  </style>
+</head>
+<body>
+
+  <div class="orb-container">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+  </div>
+
+  <div class="error-card glass-panel hover-lift">
+    <div class="error-icon"><i class="fa-solid fa-shield-halved"></i></div>
+    <h1 style="margin-bottom: 10px; font-size: 2rem;">Acceso Restringido</h1>
+    <p style="color: var(--muted); margin-bottom: 30px; line-height: 1.5;">Esta área está protegida por políticas de seguridad de red. Tu conexión ha sido rechazada por el firewall.<br><br><strong style="color:white; font-family:var(--font-mono)">Error 403: Forbidden</strong></p>
+    <a href="/" class="btn" style="text-decoration: none; padding: 12px 24px; font-size: 1rem;"><i class="fa-solid fa-house"></i> Volver al Inicio</a>
+  </div>
+</body>
+</html>

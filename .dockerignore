@@ -1,0 +1,39 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pickle
+credentials*.json
+
+# Dependencies and build artifacts
+node_modules/
+venv/
+.venv/
+dist/
+build/
+coverage/
+.cache/
+
+# Runtime data
+backend/uploads/
+backend/scratch/
+scratch/
+*.sqlite
+*.sqlite3
+*.db
+*.log
+backup.log
+
+# VCS and editor state
+.git/
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+*.bak
+*.backup
+frontend/public/*_backup.html

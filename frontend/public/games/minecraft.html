@@ -1,0 +1,193 @@
+<template class="game-module-rcon">
+    <div id="rcon-panel-minecraft" class="hidden">
+        <div style="background: rgba(15, 15, 18, 0.6); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 16px; padding: 30px; margin-top: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+            
+            <!-- Player Manager -->
+            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 15px;">
+                <div style="display: flex; justify-content: center; align-items: center; width: 45px; height: 45px; border-radius: 12px; background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.2);">
+                    <i class="fa-solid fa-users" style="font-size: 1.2rem; color: #22c55e;"></i>
+                </div>
+                <div>
+                    <h4 style="margin: 0; color: white; font-weight: 800; font-size: 1.2rem;">Administrador de Jugadores</h4>
+                    <span style="color: #94a3b8; font-size: 0.9rem;">Gestiona Whitelist y Operadores (OP)</span>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 30px;">
+                <input type="text" id="mc-player-name" class="input" placeholder="Nombre del jugador..." style="flex-grow: 1; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 10px; color: white;">
+                <button class="btn" onclick="sendMcCmd('whitelist add ' + document.getElementById('mc-player-name').value)" style="background: rgba(34,197,94,0.2); color: #86efac; border: 1px solid #22c55e; padding: 10px 20px;">
+                    <i class="fa-solid fa-check"></i> Whitelist
+                </button>
+                <button class="btn" onclick="sendMcCmd('op ' + document.getElementById('mc-player-name').value)" style="background: rgba(249,115,22,0.2); color: #fdba74; border: 1px solid #f97316; padding: 10px 20px;">
+                    <i class="fa-solid fa-crown"></i> Dar OP
+                </button>
+                <button class="btn" onclick="sendMcCmd('ban ' + document.getElementById('mc-player-name').value)" style="background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid #ef4444; padding: 10px 20px;">
+                    <i class="fa-solid fa-gavel"></i> Banear
+                </button>
+            </div>
+
+            <!-- Server Properties -->
+            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 15px;">
+                <div style="display: flex; justify-content: center; align-items: center; width: 45px; height: 45px; border-radius: 12px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2);">
+                    <i class="fa-solid fa-sliders" style="font-size: 1.2rem; color: #38bdf8;"></i>
+                </div>
+                <div style="flex-grow:1;">
+                    <h4 style="margin: 0; color: white; font-weight: 800; font-size: 1.2rem;">Server Properties</h4>
+                    <span style="color: #94a3b8; font-size: 0.9rem;">Configuración visual del servidor</span>
+                </div>
+                <button class="btn btn-primary" onclick="saveMcProperties()"><i class="fa-solid fa-save"></i> Guardar</button>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                <div>
+                    <label class="form-label" style="color:white; margin-bottom:8px; display:block;">Online Mode (Premium)</label>
+                    <select id="mc-online-mode" class="input" style="width:100%; background:rgba(0,0,0,0.4);">
+                        <option value="true">Activado (Solo Premium)</option>
+                        <option value="false">Desactivado (No Premium)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label" style="color:white; margin-bottom:8px; display:block;">Dificultad</label>
+                    <select id="mc-difficulty" class="input" style="width:100%; background:rgba(0,0,0,0.4);">
+                        <option value="peaceful">Pacífico</option>
+                        <option value="easy">Fácil</option>
+                        <option value="normal">Normal</option>
+                        <option value="hard">Difícil</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label" style="color:white; margin-bottom:8px; display:block;">Max Players</label>
+                    <input type="number" id="mc-max-players" class="input" style="width:100%; background:rgba(0,0,0,0.4);">
+                </div>
+                <div style="grid-column: 1 / -1;">
+                    <label class="form-label" style="color:white; margin-bottom:8px; display:block;">Mensaje del Día (MOTD)</label>
+                    <input type="text" id="mc-motd" class="input" style="width:100%; background:rgba(0,0,0,0.4);">
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Gestor de Plugins (Spigot) -->
+        <div style="background: rgba(15, 15, 18, 0.6); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 16px; padding: 30px; margin-top: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 15px;">
+                <div style="display: flex; justify-content: center; align-items: center; width: 45px; height: 45px; border-radius: 12px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2);">
+                    <i class="fa-solid fa-puzzle-piece" style="font-size: 1.2rem; color: #10b981;"></i>
+                </div>
+                <div style="flex-grow: 1;">
+                    <h4 style="margin: 0; color: white; font-weight: 800; font-size: 1.2rem;">Gestor de Plugins (Spiget/Spigot)</h4>
+                    <span style="color: #94a3b8; font-size: 0.9rem;">Busca e instala plugins `.jar` en un clic</span>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <input type="text" id="mc-plugin-search" class="input" placeholder="Ej: ClearLag, EssentialsX, Vault..." style="flex-grow: 1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1);">
+                <button class="btn btn-primary" onclick="searchMcPlugins()"><i class="fa-solid fa-search"></i> Buscar</button>
+            </div>
+            
+            <div id="mc-plugins-results" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; max-height: 400px; overflow-y: auto;">
+                <div style="color: var(--muted); padding: 20px; text-align: center; grid-column: 1 / -1;">Busca un plugin para comenzar...</div>
+            </div>
+        </div>
+
+    </div>
+    <script>
+        async function sendMcCmd(cmd) {
+            if(!cmd || cmd.trim().split(' ').length < 2) return showToast('Introduce un nombre de jugador válido', 'warning');
+            try {
+                const res = await Nexus.api(`/api/rcon/${currentServerId}/command`, { method: 'POST', body: JSON.stringify({command: cmd}) });
+                if(res.error) throw new Error(res.error);
+                showToast(res.output || 'Comando enviado con éxito', 'success');
+            } catch(e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function loadMcProperties() {
+            try {
+                const props = await Nexus.api(`/api/minecraft/${currentServerId}/properties`);
+                if(props.error) return;
+                document.getElementById('mc-online-mode').value = props['online-mode'] || 'true';
+                document.getElementById('mc-difficulty').value = props['difficulty'] || 'easy';
+                document.getElementById('mc-max-players').value = props['max-players'] || '20';
+                document.getElementById('mc-motd').value = props['motd'] || 'Un servidor de RageNodes';
+            } catch(e) { console.error('Error loading MC props:', e); }
+        }
+
+        async function saveMcProperties() {
+            const body = {
+                'online-mode': document.getElementById('mc-online-mode').value,
+                'difficulty': document.getElementById('mc-difficulty').value,
+                'max-players': document.getElementById('mc-max-players').value,
+                'motd': document.getElementById('mc-motd').value
+            };
+            try {
+                const res = await Nexus.api(`/api/minecraft/${currentServerId}/properties`, { method: 'POST', body: JSON.stringify(body) });
+                if(res.error) throw new Error(res.error);
+                showToast('Propiedades guardadas. Requiere reiniciar el servidor.', 'success');
+            } catch(e) {
+                showToast('Error: ' + e.message, 'error');
+            }
+        }
+
+        async function searchMcPlugins() {
+            const q = document.getElementById('mc-plugin-search').value;
+            const container = document.getElementById('mc-plugins-results');
+            if(!q) return showToast('Escribe algo para buscar', 'error');
+            
+            container.innerHTML = '<div style="color:var(--primary); grid-column: 1/-1; text-align:center;"><i class="fa-solid fa-spinner fa-spin"></i> Buscando...</div>';
+            
+            try {
+                const res = await Nexus.api(`/api/plugins/search?game=minecraft&q=${encodeURIComponent(q)}`);
+                if(res.error) throw new Error(res.error);
+                
+                if(!res.items || res.items.length === 0) {
+                    container.innerHTML = '<div style="color:var(--muted); grid-column: 1/-1; text-align:center;">No se encontraron resultados.</div>';
+                    return;
+                }
+                
+                let html = '';
+                res.items.forEach(p => {
+                    html += `
+                        <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 15px; display: flex; flex-direction: column; gap: 10px;">
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <img src="${p.iconUrl}" onerror="this.src='https://static.wikia.nocookie.net/minecraft_gamepedia/images/4/44/Grass_Block_Revision_6.png'" style="width:40px; height:40px; border-radius:8px; object-fit:cover;">
+                                <div>
+                                    <h5 style="margin:0; font-size:1rem; color:white;">${p.name}</h5>
+                                    <span style="font-size:0.8rem; color:var(--muted);">${p.author} | <i class="fa-solid fa-download"></i> ${p.downloads}</span>
+                                </div>
+                            </div>
+                            <p style="font-size:0.85rem; color:#94a3b8; margin:0; flex-grow:1;">${p.description}</p>
+                            <button class="btn btn-primary" onclick="installPlugin('${p.id}', 'minecraft', this)" style="width:100%;"><i class="fa-solid fa-download"></i> Instalar (1-Clic)</button>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            } catch(e) {
+                container.innerHTML = `<div style="color:var(--danger); grid-column: 1/-1; text-align:center;">Error: ${e.message}</div>`;
+            }
+        }
+
+        async function installPlugin(pluginId, game, btn) {
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Instalando...';
+            btn.disabled = true;
+            try {
+                const res = await Nexus.api(`/api/plugins/install/${currentServerId}`, {
+                    method: 'POST',
+                    body: JSON.stringify({ pluginId, game })
+                });
+                if(res.error) throw new Error(res.error);
+                showToast(res.message, 'success');
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> Instalado';
+                btn.style.background = 'var(--success)';
+            } catch(e) {
+                showToast(e.message, 'error');
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Auto-load if this panel is shown
+        setTimeout(() => { if(currentServer && currentServer.template === 'minecraft') loadMcProperties(); }, 1000);
+    </script>
+</template>

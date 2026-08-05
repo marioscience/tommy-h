@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RageNodes | Política de Privacidad</title>
+    <link rel="icon" type="image/png" href="/assets/favicon.png">
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at 15% 12%, rgba(99, 102, 241, 0.10), transparent 34%),
+                radial-gradient(circle at 88% 42%, rgba(16, 185, 129, 0.08), transparent 35%),
+                linear-gradient(180deg, #050507 0%, #07080d 100%);
+        }
+
+        .navbar {
+            position: fixed; top: 0; left: 0; width: 100%; z-index: 500;
+            background: rgba(5, 5, 7, 0.72); backdrop-filter: blur(18px) saturate(130%);
+            border-bottom: 1px solid rgba(255,255,255,0.07); padding: 14px 5%; display: flex;
+            justify-content: space-between; align-items: center; box-sizing: border-box;
+            box-shadow: 0 16px 60px rgba(0,0,0,0.28);
+        }
+
+        .legal-brand {
+            text-decoration: none;
+            color: inherit;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 900;
+        }
+
+        .legal-brand img {
+            height: 2rem;
+            width: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 0 22px rgba(99,102,241,0.22);
+        }
+
+        .legal-brand span {
+            font-size: 1rem;
+            letter-spacing: 0.8px;
+            font-weight: 900;
+            color: white;
+        }
+
+        .legal-shell {
+            width: min(100% - 32px, 920px);
+            margin: 118px auto 72px auto;
+        }
+        
+        .legal-container {
+            position: relative;
+            overflow: hidden;
+            padding: 48px 56px;
+            border-radius: 18px;
+            background:
+                radial-gradient(circle at 15% 0%, rgba(99, 102, 241, 0.12), transparent 32%),
+                linear-gradient(180deg, rgba(18,18,28,0.88), rgba(8,9,14,0.94)) !important;
+            border: 1px solid rgba(155, 160, 255, 0.16) !important;
+            box-shadow: 0 28px 90px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.06);
+        }
+
+        .legal-container::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0.045;
+            background-image:
+                linear-gradient(rgba(255,255,255,.12) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,.12) 1px, transparent 1px);
+            background-size: 24px 24px;
+            mask-image: linear-gradient(to bottom, black, transparent 84%);
+            -webkit-mask-image: linear-gradient(to bottom, black, transparent 84%);
+        }
+
+        .legal-container > * { position: relative; z-index: 1; }
+        .legal-container h1 { font-size: clamp(2rem, 4vw, 2.75rem); color: white; margin-bottom: 12px; letter-spacing: -0.03em; line-height: 1.05; }
+        .legal-container .last-updated { font-size: 0.78rem; color: #8b8cff; font-weight: 800; margin-bottom: 42px; display: inline-flex; letter-spacing: 0.04em; text-transform: uppercase; }
+        .legal-container h2 { font-size: 1.18rem; color: white; margin-top: 42px; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.07); padding-bottom: 12px; letter-spacing: -0.02em; }
+        .legal-container p, .legal-container li { font-size: 0.98rem; color: rgba(210,214,226,0.76); line-height: 1.78; margin-bottom: 16px; }
+        .legal-container ul { margin-left: 0; padding-left: 20px; }
+        .legal-container li::marker { color: #8b8cff; }
+        .legal-container strong { color: #eef2ff; }
+        .legal-container code { color: #dbeafe; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 6px; }
+
+        @media (max-width: 720px) {
+            .navbar { padding: 12px 18px; }
+            .legal-brand span { font-size: 0.9rem; }
+            .legal-shell { width: min(100% - 24px, 920px); margin-top: 92px; }
+            .legal-container { padding: 32px 24px; border-radius: 14px; }
+            .btn-ghost { padding: 10px 12px !important; font-size: 0.82rem !important; }
+        }
+    </style>
+</head>
+<body>
+
+  <div class="orb-container">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+  </div>
+
+    <nav class="navbar">
+        <div class="logo">
+           <a href="/" class="legal-brand">
+               <img src="/assets/favicon.png" alt="RageNodes">
+               <span>AGENODES</span>
+           </a>
+        </div>
+        <div>
+          <a href="/" class="btn-ghost"><i class="fa-solid fa-arrow-left" style="margin-right: 8px;"></i> Volver al Inicio</a>
+        </div>
+    </nav>
+
+    <main class="legal-shell"><div class="legal-container glass-panel">
+        <h1>Política de Privacidad</h1>
+        <span class="last-updated">Última actualización: Marzo de 2026</span>
+
+        <p>En <strong>RageNodes</strong> nos tomamos muy en serio la privacidad de nuestros usuarios. Esta Política de Privacidad describe cómo recopilamos, utilizamos, almacenamos y protegemos tu información personal cuando utilizas nuestros servicios de alojamiento de servidores de juego.</p>
+
+        <h2>1. Información que recopilamos</h2>
+        <p>Para poder ofrecerte nuestros servicios, recopilamos los siguientes tipos de información:</p>
+        <ul>
+            <li><strong>Datos de la Cuenta:</strong> Nombre de usuario, dirección de correo electrónico y contraseñas (almacenadas de forma encriptada mediante hashes criptográficos).</li>
+            <li><strong>Datos de Pago:</strong> No almacenamos directamente números de tarjetas de crédito. Todos los pagos son procesados de forma segura a través de pasarelas de terceros reguladas (como PayPal). Solo guardamos identificadores de transacciones y estados de suscripción.</li>
+            <li><strong>Datos del Servidor:</strong> Archivos subidos, bases de datos (MySQL) y configuraciones de tu servidor alojado en nuestra infraestructura.</li>
+            <li><strong>Datos de Uso:</strong> Direcciones IP, registros de acceso (logs) y métricas de consumo de hardware (CPU, RAM, Disco) para garantizar la estabilidad del nodo.</li>
+        </ul>
+
+        <h2>2. Uso de tu Información</h2>
+        <p>Utilizamos la información recopilada exclusivamente para los siguientes fines:</p>
+        <ul>
+            <li>Crear, gestionar y mantener tu cuenta y tus servidores activos.</li>
+            <li>Procesar tus pagos y evitar transacciones fraudulentas.</li>
+            <li>Brindar soporte técnico y solucionar problemas en la plataforma.</li>
+            <li>Mejorar nuestros servicios, la seguridad de la red y la protección Anti-DDoS.</li>
+            <li>Enviarte notificaciones importantes sobre tu suscripción o incidencias técnicas.</li>
+        </ul>
+
+        <h2>3. Protección y Seguridad de los Datos</h2>
+        <p>Implementamos medidas de seguridad líderes en la industria para proteger tus datos. Cada servidor corre en un contenedor Docker aislado para prevenir fugas de información entre clientes. Tus contraseñas se encriptan utilizando algoritmos robustos (Bcrypt). Sin embargo, debes tener en cuenta que ningún método de transmisión o almacenamiento en Internet es 100% seguro.</p>
+
+        <h2>4. Retención y Eliminación de Datos</h2>
+        <p>Mantenemos tu información personal y los datos de tu servidor mientras tu cuenta permanezca activa. Si decides cancelar tu suscripción o si tu cuenta es eliminada por falta de pago o violación de términos, tus archivos y bases de datos alojados podrán ser destruidos irreversiblemente de nuestros servidores.</p>
+        <p>Puedes solicitar la eliminación permanente de tu cuenta y tus datos personales en cualquier momento contactando con nuestro soporte técnico.</p>
+
+        <h2>5. Compartir Información con Terceros</h2>
+        <p>RageNodes <strong>no vende, alquila ni comercializa</strong> tu información personal. Solo compartiremos tus datos con terceros en los siguientes casos excepcionales:</p>
+        <ul>
+            <li>Proveedores de servicios esenciales (como PayPal para la facturación).</li>
+            <li>Cumplimiento de la ley, si nos vemos obligados legalmente a entregar información mediante una orden judicial válida.</li>
+        </ul>
+
+        <h2>6. Cookies y Tecnologías de Rastreo</h2>
+        <p>Utilizamos tecnologías de almacenamiento local en tu navegador (como <code>localStorage</code>) estrictamente para mantener tu sesión activa de forma segura. No utilizamos cookies de rastreo para publicidad de terceros.</p>
+
+        <h2>7. Contacto</h2>
+        <p>Si tienes alguna pregunta, inquietud o reclamación sobre esta Política de Privacidad o sobre cómo manejamos tus datos, por favor, ponte en contacto con nosotros a través de nuestro servidor de Discord o mediante los canales de soporte oficiales provistos en tu panel de control.</p>
+    </div></main>
+
+</body>
+</html>

@@ -1,0 +1,207 @@
+<template class="game-module-rcon">
+    <div id="rcon-panel-rust" class="hidden">
+        <div style="background: rgba(15, 15, 18, 0.6); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 16px; padding: 30px; margin-top: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px;">
+                
+                <!-- Wipe Central -->
+                <div>
+                    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 15px;">
+                        <div style="display: flex; justify-content: center; align-items: center; width: 45px; height: 45px; border-radius: 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2);">
+                            <i class="fa-solid fa-bomb" style="font-size: 1.2rem; color: #ef4444;"></i>
+                        </div>
+                        <div>
+                            <h4 style="margin: 0; color: white; font-weight: 800; font-size: 1.2rem;">Wipe Central</h4>
+                            <span style="color: #94a3b8; font-size: 0.9rem;">Borrado de progresos (Requiere servidor apagado)</span>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <button class="btn" onclick="executeRustWipe('map')" style="background: rgba(239,68,68,0.1); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); padding: 12px; text-align: left; transition: all 0.3s;" onmouseover="this.style.background='rgba(239,68,68,0.2)'" onmouseout="this.style.background='rgba(239,68,68,0.1)'">
+                            <i class="fa-solid fa-map" style="width: 25px;"></i> <strong>Wipe de Mapa</strong> <span style="font-size:0.8rem; color:#94a3b8; margin-left:5px;">(Borra construcciones)</span>
+                        </button>
+                        <button class="btn" onclick="executeRustWipe('bp')" style="background: rgba(249,115,22,0.1); color: #fdba74; border: 1px solid rgba(249,115,22,0.3); padding: 12px; text-align: left; transition: all 0.3s;" onmouseover="this.style.background='rgba(249,115,22,0.2)'" onmouseout="this.style.background='rgba(249,115,22,0.1)'">
+                            <i class="fa-solid fa-scroll" style="width: 25px;"></i> <strong>Wipe de Blueprints</strong> <span style="font-size:0.8rem; color:#94a3b8; margin-left:5px;">(Borra aprendizaje)</span>
+                        </button>
+                        <button class="btn" onclick="executeRustWipe('full')" style="background: rgba(185,28,28,0.2); color: #fecaca; border: 1px solid rgba(185,28,28,0.5); padding: 12px; text-align: left; transition: all 0.3s;" onmouseover="this.style.background='rgba(185,28,28,0.3)'" onmouseout="this.style.background='rgba(185,28,28,0.2)'">
+                            <i class="fa-solid fa-skull" style="width: 25px;"></i> <strong>Full Wipe</strong> <span style="font-size:0.8rem; color:#94a3b8; margin-left:5px;">(Borra mapa y BPs)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Identity Settings -->
+                <div>
+                    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 15px;">
+                        <div style="display: flex; justify-content: center; align-items: center; width: 45px; height: 45px; border-radius: 12px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2);">
+                            <i class="fa-solid fa-id-card" style="font-size: 1.2rem; color: #38bdf8;"></i>
+                        </div>
+                        <div style="flex-grow:1;">
+                            <h4 style="margin: 0; color: white; font-weight: 800; font-size: 1.2rem;">Identidad del Servidor</h4>
+                            <span style="color: #94a3b8; font-size: 0.9rem;">Variables de server.cfg</span>
+                        </div>
+                        <button class="btn btn-primary" onclick="saveRustSettings()"><i class="fa-solid fa-save"></i> Guardar</button>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        <div>
+                            <label class="form-label" style="color:white; margin-bottom:5px; display:block; font-size:0.85rem;">Hostname (Nombre)</label>
+                            <input type="text" id="rust-hostname" class="input" style="width:100%; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1);">
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <div style="flex: 1;">
+                                <label class="form-label" style="color:white; margin-bottom:5px; display:block; font-size:0.85rem;">Seed (Semilla)</label>
+                                <input type="number" id="rust-seed" class="input" style="width:100%; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1);" placeholder="Ej. 1337">
+                            </div>
+                            <div style="flex: 1;">
+                                <label class="form-label" style="color:white; margin-bottom:5px; display:block; font-size:0.85rem;">Map Size (Tamaño)</label>
+                                <input type="number" id="rust-mapsize" class="input" style="width:100%; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1);" placeholder="Ej. 3500">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Kill Feed -->
+            <div style="margin-top: 40px;">
+                <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 15px;">
+                    <div style="display: flex; justify-content: center; align-items: center; width: 45px; height: 45px; border-radius: 12px; background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.2);">
+                        <i class="fa-solid fa-skull-crossbones" style="font-size: 1.2rem; color: #fbbf24;"></i>
+                    </div>
+                    <div>
+                        <h4 style="margin: 0; color: white; font-weight: 800; font-size: 1.2rem;">Kill Feed en Vivo</h4>
+                        <span style="color: #94a3b8; font-size: 0.9rem;">Registro de muertes recientes (Requiere Rust activo)</span>
+                    </div>
+                </div>
+                <div id="rust-killfeed-list" style="display:flex; flex-direction:column; gap:8px; max-height:200px; overflow-y:auto;"></div>
+            </div>
+
+        </div>
+
+        <!-- Gestor de Plugins -->
+        <div style="background: rgba(15, 15, 18, 0.6); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 16px; padding: 30px; margin-top: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 15px;">
+                <div style="display: flex; justify-content: center; align-items: center; width: 45px; height: 45px; border-radius: 12px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2);">
+                    <i class="fa-solid fa-puzzle-piece" style="font-size: 1.2rem; color: #10b981;"></i>
+                </div>
+                <div style="flex-grow: 1;">
+                    <h4 style="margin: 0; color: white; font-weight: 800; font-size: 1.2rem;">Gestor de Plugins (uMod)</h4>
+                    <span style="color: #94a3b8; font-size: 0.9rem;">Busca e instala plugins en un clic</span>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <input type="text" id="rust-plugin-search" class="input" placeholder="Ej: Gather Manager, Kits, NTeleportation..." style="flex-grow: 1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1);">
+                <button class="btn btn-primary" onclick="searchRustPlugins()"><i class="fa-solid fa-search"></i> Buscar</button>
+            </div>
+            
+            <div id="rust-plugins-results" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; max-height: 400px; overflow-y: auto;">
+                <div style="color: var(--muted); padding: 20px; text-align: center; grid-column: 1 / -1;">Busca un plugin para comenzar...</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        async function executeRustWipe(type) {
+            if(confirm('¿Estás seguro de que deseas hacer este wipe? ¡Los datos no se podrán recuperar! Recomendamos que el servidor esté APAGADO antes de hacerlo.')) {
+                try {
+                    const res = await Nexus.api(`/api/rust/wipe/${currentServerId}`, { method: 'POST', body: JSON.stringify({type}) });
+                    if(res.error) throw new Error(res.error);
+                    showToast(res.message || 'Wipe ejecutado correctamente', 'success');
+                } catch(e) {
+                    showToast(e.message, 'error');
+                }
+            }
+        }
+
+        async function loadRustSettings() {
+            try {
+                const config = await Nexus.api(`/api/rust/config/${currentServerId}`);
+                if(config.error) return;
+                document.getElementById('rust-hostname').value = config['server.hostname'] || '';
+                document.getElementById('rust-seed').value = config['server.seed'] || '';
+                document.getElementById('rust-mapsize').value = config['server.worldsize'] || '';
+            } catch(e) {}
+        }
+
+        async function saveRustSettings() {
+            const body = {};
+            const hostname = document.getElementById('rust-hostname').value;
+            const seed = document.getElementById('rust-seed').value;
+            const mapsize = document.getElementById('rust-mapsize').value;
+
+            if(hostname) body['server.hostname'] = hostname;
+            if(seed) body['server.seed'] = seed;
+            if(mapsize) body['server.worldsize'] = mapsize;
+
+            try {
+                const res = await Nexus.api(`/api/rust/config/${currentServerId}`, { method: 'POST', body: JSON.stringify(body) });
+                if(res.error) throw new Error(res.error);
+                showToast('Configuración guardada (Reinicio requerido)', 'success');
+            } catch(e) {
+                showToast('Error: ' + e.message, 'error');
+            }
+        }
+
+        async function searchRustPlugins() {
+            const q = document.getElementById('rust-plugin-search').value;
+            const container = document.getElementById('rust-plugins-results');
+            if(!q) return showToast('Escribe algo para buscar', 'error');
+            
+            container.innerHTML = '<div style="color:var(--primary); grid-column: 1/-1; text-align:center;"><i class="fa-solid fa-spinner fa-spin"></i> Buscando...</div>';
+            
+            try {
+                const res = await Nexus.api(`/api/plugins/search?game=rust&q=${encodeURIComponent(q)}`);
+                if(res.error) throw new Error(res.error);
+                
+                if(!res.items || res.items.length === 0) {
+                    container.innerHTML = '<div style="color:var(--muted); grid-column: 1/-1; text-align:center;">No se encontraron resultados.</div>';
+                    return;
+                }
+                
+                let html = '';
+                res.items.forEach(p => {
+                    html += `
+                        <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 15px; display: flex; flex-direction: column; gap: 10px;">
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <img src="${p.iconUrl}" onerror="this.src='https://umod.org/images/icon.png'" style="width:40px; height:40px; border-radius:8px;">
+                                <div>
+                                    <h5 style="margin:0; font-size:1rem; color:white;">${p.name}</h5>
+                                    <span style="font-size:0.8rem; color:var(--muted);">${p.author} | <i class="fa-solid fa-download"></i> ${p.downloads}</span>
+                                </div>
+                            </div>
+                            <p style="font-size:0.85rem; color:#94a3b8; margin:0; flex-grow:1;">${p.description}</p>
+                            <button class="btn btn-primary" onclick="installPlugin('${p.id}', 'rust', this)" style="width:100%;"><i class="fa-solid fa-download"></i> Instalar (1-Clic)</button>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            } catch(e) {
+                container.innerHTML = `<div style="color:var(--danger); grid-column: 1/-1; text-align:center;">Error: ${e.message}</div>`;
+            }
+        }
+
+        async function installPlugin(pluginId, game, btn) {
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Instalando...';
+            btn.disabled = true;
+            try {
+                const res = await Nexus.api(`/api/plugins/install/${currentServerId}`, {
+                    method: 'POST',
+                    body: JSON.stringify({ pluginId, game })
+                });
+                if(res.error) throw new Error(res.error);
+                showToast(res.message, 'success');
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> Instalado';
+                btn.style.background = 'var(--success)';
+            } catch(e) {
+                showToast(e.message, 'error');
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        setTimeout(() => { if(currentServer && currentServer.template === 'rust') loadRustSettings(); }, 1000);
+    </script>
+</template>

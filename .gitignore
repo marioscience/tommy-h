@@ -1,0 +1,51 @@
+node_modules/
+.env
+
+
+# Local environment and secrets
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pickle
+credentials*.json
+
+# Dependencies
+venv/
+.venv/
+
+# Runtime data and generated artifacts
+backend/uploads/
+backend/scratch/
+scratch/
+backend/database.sqlite
+*.sqlite
+*.sqlite3
+*.db
+*.log
+backup.log
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+*.bak
+*.backup
+frontend/public/*_backup.html
+
+# Build outputs
+target/
+backend/rust-util/target/
+oxideproxy/target/
+
+# Local backup and dump artifacts
+*.before-*
+*.remote
+*.dump
+*.sql
+oxideproxy/config/logs/
+frontend/public/backup_parts/
+sync.log
+basura_historica/

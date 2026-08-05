@@ -1,0 +1,116 @@
+services:
+  postgres-staging:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: [ .env ]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}_staging
+      POSTGRES_USER: ${POSTGRES_USER}_staging
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}_staging
+    volumes:
+      - postgres_data_staging:/var/lib/postgresql/data
+    networks:
+      - ragenodes_net_staging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}_staging -d ${POSTGRES_DB}_staging"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  mariadb-staging:
+    image: mariadb:10.11
+    restart: unless-stopped
+    env_file: [ .env ]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${CENTRAL_DB_PASS}_staging
+    volumes:
+      - mariadb_data_staging:/var/lib/mysql
+    ports:
+      - "127.0.0.1:3316:3306" # Puerto 3316 para no chocar
+    networks:
+      - ragenodes_net_staging
+
+  backend-staging:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    init: true
+    env_file: [ .env ]
+    environment:
+      CONTAINER_PREFIX: ragenodes-staging-
+      DOCKER_NETWORK: ragenodes_net_staging
+      PORT_BASE_OFFSET: 10000
+      INSTANCE_DATA_ROOT: /srv/ragenodes-staging-data
+      DB_HOST: postgres-staging
+      DB_USER: ${POSTGRES_USER}_staging
+      DB_PASS: ${POSTGRES_PASSWORD}_staging
+      DB_NAME: ${POSTGRES_DB}_staging
+    networks:
+      - ragenodes_net_staging
+    depends_on:
+      postgres-staging:
+        condition: service_healthy
+      mariadb-staging:
+        condition: service_started
+    volumes:
+      - ${DOCKER_SOCKET}:${DOCKER_SOCKET}
+      - /srv/ragenodes-staging-data:/srv/ragenodes-staging-data
+      - ${BACKUP_ROOT}:${BACKUP_ROOT}
+      - ./backend/src:/app/src
+      - ./fivem-base:/app/fivem-base
+      - ./certs:/opt/ragenodes-ultimate/certs:ro
+    ports:
+      - "127.0.0.1:3011:3006" # Puerto 3011 para el panel de Staging
+    cap_add:
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+
+  worker-docker-events-staging:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    init: true
+    env_file: [ .env ]
+    environment:
+      - RAGENODES_ROLE=worker-docker-events
+      - CONTAINER_PREFIX=ragenodes-staging-
+      - DOCKER_NETWORK=ragenodes_net_staging
+      - PORT_BASE_OFFSET=10000
+      - INSTANCE_DATA_ROOT=/srv/ragenodes-staging-data
+      - DB_HOST=postgres-staging
+      - DB_USER=${POSTGRES_USER}_staging
+      - DB_PASS=${POSTGRES_PASSWORD}_staging
+      - DB_NAME=${POSTGRES_DB}_staging
+    command: ["npm", "run", "worker:docker-events"]
+    networks:
+      - ragenodes_net_staging
+    depends_on:
+      backend-staging:
+        condition: service_started
+    volumes:
+      - ${DOCKER_SOCKET}:${DOCKER_SOCKET}
+      - /srv/ragenodes-staging-data:/srv/ragenodes-staging-data
+      - /srv/ragenodes-staging-data/templates:/srv/ragenodes-staging-data/templates:ro
+      - ${BACKUP_ROOT}:${BACKUP_ROOT}
+      - ./backend/src:/app/src
+    cap_add:
+      - NET_ADMIN
+
+  redis-staging:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - ragenodes_net_staging
+    volumes:
+      - redis_data_staging:/data
+
+networks:
+  ragenodes_net_staging:
+    name: ragenodes_net_staging
+
+volumes:
+  postgres_data_staging:
+  mariadb_data_staging:
+  redis_data_staging:

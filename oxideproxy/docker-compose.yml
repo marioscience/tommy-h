@@ -1,0 +1,123 @@
+networks:
+  oxide_staging_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/16
+  ragenodes_net:
+    external: true
+
+volumes:
+  grafana_data:
+  prometheus_data:
+  oxide_config:
+
+services:
+  oxide_proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oxide_proxy_engine
+    cap_add:
+      - NET_ADMIN
+      - SYS_NICE
+    networks:
+      oxide_staging_net:
+        ipv4_address: 10.5.0.5
+      ragenodes_net:
+        aliases:
+          - frontend
+    ports:
+      - "80:80/tcp"
+      - "443:8443/tcp"
+      - "8088:8088/tcp"
+      - "8080:8080/udp"
+      - "50129:30129/tcp"
+      - "50129:30129/udp"
+      - "57777:7777/tcp"
+      - "57777:7777/udp"
+      - "50120:30120/tcp"
+      - "50120:30120/udp"
+      - "50144:30144/tcp"
+      - "50144:30144/udp"
+      - "50139:30139/tcp"
+      - "50139:30139/udp"
+      - "50136:30136/tcp"
+      - "50136:30136/udp"
+      - "50127:30127/tcp"
+      - "50127:30127/udp"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - oxide_config:/app/config
+      - ../frontend/public:/var/www/frontend:ro
+    restart: unless-stopped
+
+  mock_game_mmo:
+    profiles: ["lab"]
+    image: python:3.10-alpine
+    container_name: oxide_mock_mmo
+    networks:
+      oxide_staging_net:
+        ipv4_address: 10.5.0.10
+    command: >
+      python -c "import socket;
+      s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM);
+      s.bind(('0.0.0.0', 9001));
+      print('Mock MMO Game Server (UDP:9001) listo en 10.5.0.10...');
+      [print(f'MMO Recibio: {data.hex()}') for data, addr in iter(lambda: s.recvfrom(1024), b'')]"
+
+  mock_game_fps:
+    profiles: ["lab"]
+    image: python:3.10-alpine
+    container_name: oxide_mock_fps
+    networks:
+      oxide_staging_net:
+        ipv4_address: 10.5.0.11
+    command: >
+      python -c "import socket;
+      s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM);
+      s.bind(('0.0.0.0', 9002));
+      print('Mock FPS Game Server (UDP:9002) listo en 10.5.0.11...');
+      [print(f'FPS Recibio: {data.hex()}') for data, addr in iter(lambda: s.recvfrom(1024), b'')]"
+
+  mock_web_api:
+    profiles: ["lab"]
+    image: nginxdemos/hello:plain-text
+    container_name: oxide_mock_web
+    networks:
+      oxide_staging_net:
+        ipv4_address: 10.5.0.12
+
+  oxide_control_panel:
+    build:
+      context: ./node_panel
+      dockerfile: Dockerfile
+    image: ragenodes/oxide-control-panel:local
+    container_name: oxide_control_panel
+    volumes:
+      - oxide_config:/app/rust_config
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - oxide_staging_net
+      - ragenodes_net
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: oxide_prometheus
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - oxide_staging_net
+
+  grafana:
+    image: grafana/grafana-enterprise:latest
+    container_name: oxide_grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - oxide_staging_net
+    ports:
+      - "3001:3000"

@@ -1,0 +1,3055 @@
+diff --git a/frontend/public/panel.html b/frontend/public/panel.html
+index 828f4cf..3ec94b9 100644
+--- a/frontend/public/panel.html
++++ b/frontend/public/panel.html
+@@ -41,6 +41,13 @@
+       .badge.stopped { background: rgba(245, 158, 11, 0.1); color: #fbbf24; border: 1px solid rgba(245,158,11,0.2); }
+       .badge.outline { background: transparent; border: 1px solid var(--line); color: var(--text); }
+ 
++      .badge-platinum { position: relative; overflow: hidden; background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(56, 189, 248, 0.2) 40%, rgba(14, 165, 233, 0.3) 70%, rgba(255, 255, 255, 0.2) 100%); color: #e0f2fe; border: 1px solid rgba(224, 242, 254, 0.8); text-shadow: 0 0 10px rgba(56, 189, 248, 0.8), 0 0 2px #fff; font-weight: 900; box-shadow: 0 0 12px rgba(56, 189, 248, 0.5), inset 0 0 6px rgba(255, 255, 255, 0.6); padding: 4px 14px; letter-spacing: 1px; }
++      .badge-platinum::after { content: ''; position: absolute; top: -50%; left: -150%; width: 50%; height: 200%; background: linear-gradient(to right, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.8) 50%, rgba(255, 255, 255, 0) 100%); transform: rotate(30deg); animation: shine 3s infinite; }
++      @keyframes shine { 0% { left: -150%; } 100% { left: 250%; } }
++
++      .server-header.running .fallback-rotating-ring { animation: rotate-ring 6s linear infinite; transform-origin: center; }
++      @keyframes rotate-ring { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
++
+       .btn, .btn-ghost, .btn-danger, .btn-success, .btn-warning, .btn-info { cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: 600; border: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 0.85rem; transition: 0.2s; }
+       .btn { background: var(--primary); color: white; }
+       .btn:hover:not(:disabled) { background: #4f46e5; transform: translateY(-1px); }
+@@ -91,18 +98,18 @@
+       .sidebar-overlay.active { display: block; }
+       .mobile-nav-toggle { display: none; font-size: 1.5rem; cursor: pointer; color: white; margin-right: 15px; }
+ 
+-      .main { display: flex; flex-direction: column; padding: 0 40px 30px 40px; height: 100vh; background: #0a0a0c; overflow: hidden; }
+-      .topbar { display: flex; justify-content: space-between; align-items: center; padding: 25px 0; margin-bottom: 40px; flex-shrink: 0; position: sticky; top: 0; z-index: 100; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); background: rgba(10, 10, 12, 0.7); border-bottom: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 30px rgba(0,0,0,0.1); }
++      .main { display: flex; flex-direction: column; padding: 0 40px 30px 40px; height: 100vh; background: #0a0a0c; overflow-y: auto; overflow-x: hidden; }
++      .topbar { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; margin-bottom: 20px; flex-shrink: 0; position: sticky; top: 0; z-index: 100; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); background: rgba(10, 10, 12, 0.7); border-bottom: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 30px rgba(0,0,0,0.1); }
+ 
+-      .view-fullscreen { flex-grow: 1; display: flex; flex-direction: column; min-height: 0; }
++      .view-fullscreen { flex-grow: 1; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; }
+       .hidden { display: none !important; }
+ 
+-      .card { background: rgba(18, 18, 20, 0.6); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--line); border-radius: 12px; padding: 25px; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, border-color 0.3s ease; }
++      .card { background: rgba(18, 18, 20, 0.6); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, border-color 0.3s ease; }
+       .card:hover { transform: translateY(-2px); box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.12); }
+       .card-header { margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;}
+       .card-header h3 { margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; font-weight: 600; }
+ 
+-      .server-header { display: flex; justify-content: space-between; align-items: center; background: rgba(18, 18, 20, 0.6); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--line); border-radius: 12px; padding: 25px 30px; margin-bottom: 20px; position: relative; flex-shrink: 0; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05); }
++      .server-header { display: flex; justify-content: space-between; align-items: center; background: rgba(18, 18, 20, 0.6); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--line); border-radius: 12px; padding: 15px 20px; margin-bottom: 15px; position: relative; flex-shrink: 0; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05); }
+       .server-header::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--success); transition: background 0.3s; z-index: 2; }
+       .server-header.stopped::before { background: var(--warning); }
+       .server-header::after { content: ''; position: absolute; inset: 0; background-image: radial-gradient(rgba(255, 255, 255, 0.6) 1px, transparent 1px); background-size: 14px 14px; opacity: 0.04; pointer-events: none; z-index: 1; border-radius: 12px; }
+@@ -111,7 +118,7 @@
+           0%, 100% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.1), inset 0 0 5px rgba(16, 185, 129, 0.05); border-color: rgba(16, 185, 129, 0.2); }
+           50% { box-shadow: 0 0 40px rgba(16, 185, 129, 0.4), inset 0 0 15px rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.6); }
+       }
+-      .server-icon { width: 64px; height: 64px; border-radius: 12px; background: #1a1a1e; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: var(--primary); margin-right: 20px; overflow:hidden; position:relative;}
++      .server-icon { width: 64px; height: 64px; flex-shrink: 0; border-radius: 12px; background: #1a1a1e; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: var(--primary); margin-right: 20px; overflow: hidden; position:relative;}
+       
+       /* --- EFECTO DE RAYOS ZIGZAG (NÚCLEO PROTEGIDO) --- */
+       .lightning-container { 
+@@ -169,8 +176,8 @@
+       .server-header.running .server-icon { border-color: rgba(56, 189, 248, 0.5); box-shadow: 0 0 15px rgba(56, 189, 248, 0.2); }
+       .server-header.stopped .server-icon { border-color: rgba(255,255,255,0.05); }
+ 
+-      .dashboard-grid { display: grid; grid-template-columns: 1fr 350px; gap: 20px; flex-grow: 1; min-height: 0; overflow-y: auto; padding-bottom: 20px; padding-right: 10px; }
+-      .col-left, .col-right { display: flex; flex-direction: column; gap: 20px; min-height: 0; height: max-content; }
++      .dashboard-grid { display: grid; grid-template-columns: 1fr 350px; gap: 15px; flex-grow: 1; padding-bottom: 10px; padding-right: 10px; }
++      .col-left, .col-right { display: flex; flex-direction: column; gap: 15px; min-height: 0; }
+ 
+       /* Nueva grid de settings sin scroll */
+       /* --- SETTINGS & PROFILE PREMIUM --- */
+@@ -225,13 +232,13 @@
+ 
+       .charts-wrapper { display: flex; justify-content: space-evenly; align-items: center; flex-grow: 1; padding: 20px 0; gap: 15px; }
+       .chart-box { 
+-          display: flex; flex-direction: column; align-items: center; width: 32%; max-width: 200px; 
++          display: flex; flex-direction: column; align-items: center; width: 32%; max-width: 150px; 
+           background: radial-gradient(circle at center, rgba(255,255,255,0.03) 0%, transparent 70%); 
+-          padding: 15px; border-radius: 20px; transition: 0.3s;
++          padding: 5px; border-radius: 20px; transition: 0.3s;
+       }
+       .chart-box:hover { background: radial-gradient(circle at center, rgba(255,255,255,0.06) 0%, transparent 75%); transform: scale(1.05); }
+       
+-      .circular-chart { display: block; width: 100%; max-height: 160px; filter: drop-shadow(0 0 8px rgba(0,0,0,0.4)); }
++      .circular-chart { display: block; width: 100%; max-height: 110px; filter: drop-shadow(0 0 8px rgba(0,0,0,0.4)); }
+       .circle-bg { fill: none; stroke: rgba(255,255,255,0.05); stroke-width: 2.5; }
+       .circle { fill: none; stroke-width: 3; stroke-linecap: round; transition: stroke-dasharray 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+       .circle-glow { fill: none; stroke-width: 5; stroke-linecap: round; opacity: 0.4; filter: blur(4px); transition: stroke-dasharray 0.6s ease; }
+@@ -464,34 +471,77 @@
+ 
+   <div class="dashboard">
+     <aside class="sidebar" id="sidebar">
+-      <div class="logo">RAGENODES</div>
++      <div class="logo" style="display: flex; align-items: center; gap: 8px; margin-bottom: 35px;">
++          <img src="/assets/favicon.png" alt="R" style="height: 1.9rem; width: auto;">
++          <span style="font-size: 1.05rem; letter-spacing: 1px; font-weight: 800; color: white;">AGENODES</span>
++      </div>
+ 
+-      <div class="menu-label">Principal</div>
+-      <div class="nav-item active" onclick="switchView('servers', this)"><i class="fa-solid fa-server" style="width:20px; color: var(--primary);"></i> Mi Servidor</div>
+-      <div class="nav-item" id="nav-marketplace" onclick="switchView('marketplace', this)"><i class="fa-solid fa-shop" style="width:20px; color: var(--info);"></i> Script Market <span class="badge" style="margin-left:auto; font-size:0.5rem; background:rgba(99,102,241,0.2); color:var(--primary); border:none;">NUEVO</span></div>
+-      <div class="nav-item" id="nav-my-licenses" onclick="switchView('my-licenses', this)"><i class="fa-solid fa-key" style="width:20px; color: var(--success);"></i> Mis Licencias</div>
+-      
+-      <div class="nav-item" id="nav-vendor-portal" onclick="switchView('vendor-portal', this)" style="display:none">
+-          <i class="fa-solid fa-cloud-arrow-up" style="width:20px; color: var(--success);"></i> Vender Scripts
++      <!-- SECCIÓN: PRINCIPAL -->
++      <div class="menu-label" onclick="toggleMenuSection(this)" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
++          <span>Principal</span>
++          <i class="fa-solid fa-chevron-down" style="font-size: 10px; transition: transform 0.3s;"></i>
++      </div>
++      <div class="menu-items-group" style="display: block;">
++          <div class="nav-item active" id="nav-servers" onclick="switchView('servers', this)"><i class="fa-solid fa-server" style="width:20px; color: var(--primary);"></i> Mi Servidor</div>
++          <div class="nav-item" id="nav-marketplace" onclick="switchView('marketplace', this)"><i class="fa-solid fa-shop" style="width:20px; color: var(--info);"></i> Script Market <span class="badge" style="margin-left:auto; font-size:0.5rem; background:rgba(99,102,241,0.2); color:var(--primary); border:none;">NUEVO</span></div>
++          <div class="nav-item" id="nav-my-licenses" onclick="switchView('my-licenses', this)"><i class="fa-solid fa-key" style="width:20px; color: var(--success);"></i> Mis Licencias</div>
++          <div class="nav-item" id="nav-vendor-portal" onclick="switchView('vendor-portal', this)" style="display:none">
++              <i class="fa-solid fa-cloud-arrow-up" style="width:20px; color: var(--success);"></i> Vender Scripts
++          </div>
+       </div>
+ 
+-      <div class="menu-label" style="margin-top:20px;">Gestión Técnica</div>
+-      <div class="nav-item" id="nav-editor" onclick="switchView('editor', this)" style="display:none"><i class="fa-solid fa-folder-open" style="width:20px; color: var(--warning);"></i> Gestor de Archivos</div>
+-      <div class="nav-item" id="nav-logs" onclick="switchView('logs', this)" style="display:none"><i class="fa-solid fa-terminal" style="width:20px; color: var(--info);"></i> Consola Live</div>
+-      <div class="nav-item" id="nav-database" onclick="switchView('database', this)" style="display:none"><i class="fa-solid fa-database" style="width:20px; color: var(--primary);"></i> Base de Datos</div>
+-      <div class="nav-item" id="nav-txadmin" onclick="switchView('txadmin', this)" style="display:none"><i class="fa-solid fa-shield-halved" style="width:20px; color: var(--danger);"></i> txAdmin Web</div>
+-      <div class="nav-item" id="nav-backups" onclick="switchView('backups', this)" style="display:none"><i class="fa-solid fa-cloud-arrow-up" style="width:20px; color: var(--success);"></i> Backups</div>
+-
+-      <div class="menu-label" style="margin-top:20px;">Multimedia</div>
+-      <div class="nav-item" id="nav-blender" style="display:none" onclick="switchView('blender', this)">
+-          <i class="fa-solid fa-cube" style="width:20px; color: var(--success);"></i> Editor 3D
+-          <span class="live-badge-sidebar hidden" id="badge-blender-live" style="margin-left:6px;">LIVE</span>
++      <!-- SECCIÓN: GESTIÓN TÉCNICA -->
++      <div class="menu-label" onclick="toggleMenuSection(this)" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
++          <span>Gestión Técnica</span>
++          <i class="fa-solid fa-chevron-down" style="font-size: 10px; transition: transform 0.3s;"></i>
++      </div>
++      <div class="menu-items-group" style="display: block;">
++          <div class="nav-item" id="nav-editor" onclick="switchView('editor', this)" style="display:none"><i class="fa-solid fa-folder-open" style="width:20px; color: var(--warning);"></i> Gestor de Archivos</div>
++          <div class="nav-item" id="nav-logs" onclick="switchView('logs', this)" style="display:none"><i class="fa-solid fa-terminal" style="width:20px; color: var(--info);"></i> Consola Live</div>
++          <div class="nav-item" id="nav-rcon" onclick="switchView('rcon', this)" style="display:none"><i class="fa-solid fa-gamepad" style="width:20px; color: #a855f7;"></i> RCON & Gestión</div>
++          <div class="nav-item" id="nav-subusers" onclick="switchView('subusers', this)" style="display:none"><i class="fa-solid fa-users" style="width:20px; color: var(--primary);"></i> Sub-usuarios</div>
++          <div class="nav-item" id="nav-schedules" onclick="switchView('schedules', this)" style="display:none"><i class="fa-solid fa-calendar-check" style="width:20px; color: var(--primary);"></i> Tareas</div>
++          <div class="nav-item" id="nav-database" onclick="switchView('database', this)" style="display:none"><i class="fa-solid fa-database" style="width:20px; color: var(--primary);"></i> Base de Datos</div>
++          <div class="nav-item" id="nav-mc-config" onclick="switchView('mc-config', this)" style="display:none"><i class="fa-solid fa-sliders" style="width:20px; color: #4ade80;"></i> Configuración</div>
++          <div class="nav-item" id="nav-mc-mods" onclick="switchView('mc-mods', this)" style="display:none"><i class="fa-solid fa-cubes" style="width:20px; color: #fbbf24;"></i> Mods</div>
++          <div class="nav-item" id="nav-backups" onclick="switchView('backups', this)" style="display:none"><i class="fa-solid fa-cloud-arrow-up" style="width:20px; color: var(--success);"></i> Backups</div>
++          <div class="nav-item" id="nav-txadmin" onclick="switchView('txadmin', this)" style="display:none"><i class="fa-solid fa-shield-halved" style="width:20px; color: var(--danger);"></i> txAdmin Web</div>
++          <div id="game-specific-sidebar"></div>
+       </div>
+ 
+-      <div class="menu-label" style="margin-top:20px;">Soporte</div>
+-      <a href="https://discord.gg/T7JKF38Vqp" target="_blank" class="nav-item" style="text-decoration: none; color: var(--muted);">
+-          <i class="fa-brands fa-discord" style="width:20px; color: #5865F2; font-size: 1.1rem;"></i> Discord Oficial
+-      </a>
++      <!-- SECCIÓN: MULTIMEDIA -->
++      <div class="menu-label" id="label-multimedia" onclick="toggleMenuSection(this)" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
++          <span>Multimedia</span>
++          <i class="fa-solid fa-chevron-down" style="font-size: 10px; transition: transform 0.3s;"></i>
++      </div>
++      <div class="menu-items-group" id="group-multimedia" style="display: block;">
++          <div class="nav-item" id="nav-blender" onclick="switchView('blender', this)" style="display:none"><i class="fa-brands fa-unity" style="width:20px; color: #ec4899;"></i> Blender Studio 3D <span class="live-badge-sidebar hidden" id="badge-blender-live" style="margin-left:6px;">LIVE</span></div>
++      </div>
++
++      <!-- SECCIÓN: SOPORTE -->
++      <div class="menu-label" onclick="toggleMenuSection(this)" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
++          <span>Soporte</span>
++          <i class="fa-solid fa-chevron-down" style="font-size: 10px; transition: transform 0.3s;"></i>
++      </div>
++      <div class="menu-items-group" style="display: block;">
++          <a href="https://discord.gg/T7JKF38Vqp" target="_blank" class="nav-item" style="text-decoration: none; color: var(--muted);">
++              <i class="fa-brands fa-discord" style="width:20px; color: #5865F2; font-size: 1.1rem;"></i> Discord Oficial
++          </a>
++      </div>
++      
++      <script>
++        function toggleMenuSection(el) {
++            const icon = el.querySelector('i');
++            const group = el.nextElementSibling;
++            if (group.style.display === 'none') {
++                group.style.display = 'block';
++                icon.style.transform = 'rotate(0deg)';
++            } else {
++                group.style.display = 'none';
++                icon.style.transform = 'rotate(-90deg)';
++            }
++        }
++      </script>
+ 
+       <div style="margin-top:auto">
+         <div id="nav-admin-marketplace" class="nav-item" onclick="openAdminUploadModal()" style="display:none; color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.1); background: rgba(251, 191, 36, 0.05);">
+@@ -517,6 +567,9 @@
+                 <i class="fa-solid fa-triangle-exclamation" style="margin-right:5px;"></i> NO VERIFICADO
+             </div>
+             
++            <button id="topbar-pool-count" style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8; font-size: 0.8rem; font-weight: 700; padding: 6px 12px; border-radius: 8px; margin-right: 10px; cursor: pointer; transition: 0.2s;" onclick="openPoolModal()" onmouseover="this.style.background='rgba(56, 189, 248, 0.2)'" onmouseout="this.style.background='rgba(56, 189, 248, 0.1)'">
++                Bolsa de Recursos (...)
++            </button>
+             <button class="btn" id="btn-deploy" onclick="openDeployModal()" style="display:none"><i class="fa-solid fa-plus"></i> Desplegar</button>
+ 
+             <!-- 👤 Perfil Dropdown -->
+@@ -1061,7 +1114,7 @@
+           </div>
+       </div>
+ 
+-      <div id="view-editor" class="hidden view-fullscreen">
++      <div id="view-editor" class="hidden view-fullscreen" style="height: calc(100vh - 140px); overflow: hidden;">
+         <div class="file-manager">
+             <div class="file-sidebar">
+                 <div class="fm-search-box">
+@@ -1102,65 +1155,133 @@
+         </div>
+       </div>
+ 
+-      <div id="view-logs" class="hidden view-fullscreen">
+-        <div class="terminal-wrapper">
++      <div id="view-logs" class="hidden view-fullscreen" style="height: calc(100vh - 140px); overflow: hidden;">
++        <div class="terminal-wrapper" style="border-radius: 10px 10px 0 0; display: flex; flex-direction: column; flex: 1; min-height: 0;">
+             <div class="terminal-header" style="flex-wrap:wrap; gap:10px;">
+                 <div style="display:flex; align-items:center;"><div style="display:flex;gap:6px;margin-right:15px;"><div class="terminal-dot" style="background:#ff5f56; width:12px; height:12px; border-radius:50%;"></div><div class="terminal-dot" style="background:#ffbd2e; width:12px; height:12px; border-radius:50%;"></div><div class="terminal-dot" style="background:#27c93f; width:12px; height:12px; border-radius:50%;"></div></div><span class="mono" style="color:#888;">bash - /opt/fivem/run.sh</span></div>
+                 <button class="btn-ghost" style="padding:6px 12px; font-size:0.80rem;" onclick="startLogStreaming()"><i class="fa-solid fa-rotate"></i> Reconectar</button>
+             </div>
+             <div class="terminal" id="terminal-out">Conectando al contenedor...</div>
+         </div>
++        <div class="terminal-input-wrapper" style="display: flex; background: rgba(0,0,0,0.6); padding: 15px; border-radius: 0 0 10px 10px; border-top: 1px solid rgba(255,255,255,0.05); align-items: center;">
++            <i class="fa-solid fa-chevron-right" style="color: var(--primary); margin-right: 15px;"></i>
++            <input type="text" id="mc-command-input" placeholder="Escribe un comando y presiona Enter..." style="flex: 1; background: transparent; border: none; color: #fff; font-family: monospace; font-size: 15px; outline: none; width: 100%;">
++        </div>
+       </div>
+ 
+-      <div id="view-txadmin" class="hidden view-fullscreen">
+-        <div style="flex-grow: 1; border-radius: 12px; overflow: hidden; background: #000; border: 1px solid var(--line); display:flex; flex-direction:column; min-height:0;">
+-            <div style="background: #1a1a1e; padding: 12px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); flex-wrap:wrap; gap:10px; z-index:20;">
+-                <div style="display:flex; align-items:center; gap:10px;">
+-                    <i class="fa-solid fa-shield-halved" style="color:var(--primary); font-size:1.2rem;"></i>
+-                    <span style="font-weight:600; color:white; font-size:1.05rem;">txAdmin Web</span>
+-                </div>
++      <div id="game-specific-views"></div>
+ 
+-                <div style="display: flex; gap: 15px; align-items: center; flex-wrap:wrap; margin-left:auto;">
+-                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">Host: <strong style="color:white">host.docker.internal</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar Host" onclick="Nexus.copyToClipboard('host.docker.internal'); showToast('Copiado','success');"></i></div>
+-                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">DB: <strong style="color:white" id="tx-top-db">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar DB" onclick="Nexus.copyToClipboard(document.getElementById('tx-top-db').innerText); showToast('Copiado','success');"></i></div>
+-                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">User: <strong style="color:white" id="tx-top-user">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar Usuario" onclick="Nexus.copyToClipboard(document.getElementById('tx-top-user').innerText); showToast('Copiado','success');"></i></div>
+-                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">Pass: <strong style="color:var(--warning)" id="tx-top-pass">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar Contraseña" onclick="Nexus.copyToClipboard(document.getElementById('tx-top-pass').innerText); showToast('Copiado','success');"></i></div>
++      <!-- 👥 VIEW: SUBUSUARIOS -->
++      <div id="view-subusers" class="hidden view-fullscreen" style="height: calc(100vh - 140px); overflow: hidden;">
++          <div style="width: 100%; max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 30px; padding-bottom: 50px; overflow-y: auto;">
++              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
++                  <div>
++                      <h2 style="font-size: 1.8rem; font-weight: 900; margin-bottom: 5px;">Equipo y Sub-usuarios</h2>
++                      <p class="muted">Da acceso a tu servidor a otros administradores.</p>
++                  </div>
++              </div>
+ 
+-                    <button class="btn-ghost" style="padding:6px 12px; margin-left:15px;" onclick="refreshTxAdmin()" title="Recargar Panel"><i class="fa-solid fa-rotate-right"></i></button>
+-                    <button class="btn-ghost" style="padding:6px 12px;" onclick="document.getElementById('txadmin-iframe').requestFullscreen()" title="Pantalla Completa"><i class="fa-solid fa-expand"></i></button>
+-                </div>
+-            </div>
++              <div class="glass-panel" style="padding: 25px;">
++                  <h3 style="font-size: 1.2rem; margin-bottom: 15px;">Añadir Miembro</h3>
++                  <div style="display: flex; gap: 15px; flex-wrap: wrap;">
++                      <input type="text" id="subuser-invite-input" class="input" placeholder="Correo electrónico del usuario" style="flex: 1; min-width: 200px;">
++                      <select id="subuser-perm-select" class="input" style="width: auto;">
++                          <option value="power,restart">Solo Encender/Reiniciar</option>
++                          <option value="power,restart,files">Archivos y Reinicios</option>
++                          <option value="power,restart,files,console">Acceso Total</option>
++                      </select>
++                      <button class="btn" onclick="inviteSubuser()" style="background: var(--primary); color: #fff;">
++                          <i class="fa-solid fa-user-plus"></i> Añadir
++                      </button>
++                  </div>
++              </div>
+ 
+-            <div id="txadmin-iframe-container" style="position: relative; width: 100%; height: 100%; flex-grow: 1;">
+-                <div id="txadmin-auth-overlay" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#121214; z-index:15; display:none;">
+-                    <i class="fa-solid fa-shield-halved" style="font-size: 3.5rem; color: var(--primary); margin-bottom: 20px; opacity: 0.8;"></i>
+-                    <h3 style="color: white; font-size: 1.4rem; margin-bottom: 10px;">Vinculación de txAdmin</h3>
+-                    <p class="muted" style="max-width: 450px; text-align: center; margin-bottom: 25px; line-height: 1.5;">Para gestionar tu servidor por primera vez, debes vincular tu cuenta de FiveM (Cfx.re) usando el PIN proporcionado en la consola de tu servidor.</p>
++              <div class="glass-panel">
++                  <div class="table-responsive">
++                      <table class="table" style="width: 100%; text-align: left; border-collapse: collapse;">
++                          <thead>
++                              <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
++                                  <th style="padding: 15px;">Usuario</th>
++                                  <th style="padding: 15px;">Permisos</th>
++                                  <th style="padding: 15px; text-align: right;">Acciones</th>
++                              </tr>
++                          </thead>
++                          <tbody id="subusers-table-body">
++                              <!-- JS -->
++                          </tbody>
++                      </table>
++                  </div>
++              </div>
++          </div>
++      </div>
+ 
+-                    <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); padding: 20px 25px; border-radius: 8px; margin-bottom: 25px; text-align: left; width: 100%; max-width: 420px;">
+-                        <div style="margin-bottom: 12px; font-size: 0.9rem; color: #e2e8f0;"><strong style="color:var(--info);">1.</strong> Abre la ventana flotante con el botón inferior.</div>
+-                        <div style="margin-bottom: 12px; font-size: 0.9rem; color: #e2e8f0;"><strong style="color:var(--info);">2.</strong> Introduce el PIN que aparece en Consola Live.</div>
+-                        <div style="font-size: 0.9rem; color: #e2e8f0;"><strong style="color:var(--info);">3.</strong> Inicia sesión en Cfx.re y haz clic en el botón gris de abajo para continuar.</div>
+-                    </div>
++      <!-- 🎮 VIEW: RCON & GESTIÓN -->
++      <div id="view-rcon" class="hidden view-fullscreen" style="height: calc(100vh - 140px); overflow: hidden;">
++          <div style="width: 100%; max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 30px; padding-bottom: 50px; overflow-y: auto;">
++              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
++                  <div>
++                      <h2 style="font-size: 1.8rem; font-weight: 900; margin-bottom: 5px;">Gestión y RCON</h2>
++                      <p class="muted">Herramientas avanzadas de administración en tiempo real.</p>
++                  </div>
++              </div>
+ 
+-                    <div style="display:flex; gap:15px;">
+-                        <button class="btn-success" style="padding: 12px 20px;" onclick="openTxAdminPopup()"><i class="fa-solid fa-key"></i> Vincular PIN (Popup)</button>
+-                        <button class="btn-ghost" style="padding: 12px 20px;" onclick="hideAuthOverlay()"><i class="fa-solid fa-check"></i> Ya lo he vinculado</button>
+-                    </div>
+-                </div>
++              <!-- El contenido del RCON se inyectará aquí desde los templates de los juegos -->
++              <div id="rcon-premium-content" style="display: flex; flex-direction: column; gap: 30px;">
++              </div>
++          </div>
++      </div>
+ 
+-                <div id="txadmin-offline-overlay" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#121214; z-index:10;">
+-                    <i class="fa-solid fa-power-off" style="font-size: 3rem; color: var(--danger); margin-bottom: 15px;"></i>
+-                    <h3 style="color: white; font-size: 1.2rem;">Servidor Apagado</h3>
+-                    <p class="muted">Inicia tu servidor para acceder a txAdmin.</p>
+-                </div>
+ 
+-                <iframe id="txadmin-iframe" src="" style="width: 100%; height: 100%; border: none; display: block;"></iframe>
+-            </div>
+-        </div>
++      <!-- ⛏️ VIEW: MINECRAFT CONFIGURATION -->
++      <div id="view-mc-config" class="hidden view-fullscreen" style="height: calc(100vh - 140px); overflow: hidden;">
++          <div style="width: 100%; max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 30px; padding-bottom: 50px; overflow-y: auto;">
++              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
++                  <div>
++                      <h2 id="config-view-title" style="font-size: 1.8rem; font-weight: 900; margin-bottom: 5px;">Configuración del Servidor</h2>
++                      <p id="config-view-desc" class="muted">Ajusta los parámetros de tu servidor de forma visual.</p>
++                  </div>
++                  <button class="btn" onclick="saveGameConfig()" id="btn-save-mc-config" style="background: #4ade80; color: #000;">
++                      <i class="fa-solid fa-floppy-disk"></i> Guardar Cambios
++                  </button>
++              </div>
++
++              <div id="mc-config-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px;">
++                  <!-- Se cargará vía JS -->
++                  <div style="grid-column: 1/-1; text-align: center; padding: 100px;">
++                      <i class="fa-solid fa-spinner fa-spin fa-3x" style="color: var(--primary);"></i>
++                      <p class="muted" style="margin-top: 20px;">Cargando propiedades...</p>
++                  </div>
++              </div>
++          </div>
++      </div>
++
++      <!-- 📦 VIEW: MINECRAFT MODS -->
++      <div id="view-mc-mods" class="hidden view-fullscreen" style="height: calc(100vh - 140px); overflow: hidden;">
++          <div style="width: 100%; max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 30px; padding-bottom: 50px; overflow-y: auto; height: 100%;">
++              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
++                  <div>
++                      <h2 style="font-size: 1.8rem; font-weight: 900; margin-bottom: 5px;">Instalador de Mods</h2>
++                      <p class="muted">Busca e instala mods directamente desde Modrinth.</p>
++                  </div>
++                  <div style="display: flex; gap: 10px;">
++                      <div class="fm-search-box" style="width: 300px; margin-bottom: 0;">
++                          <i class="fa-solid fa-magnifying-glass"></i>
++                          <input type="text" id="mc-mod-search-input" placeholder="Buscar mods (ej: Sodium, Lithium...)" onkeyup="if(event.key==='Enter') searchMcMods()">
++                      </div>
++                      <button class="btn" onclick="searchMcMods()"><i class="fa-solid fa-search"></i> Buscar</button>
++                  </div>
++              </div>
++
++              <div id="mc-mods-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px;">
++                  <div style="grid-column: 1/-1; text-align: center; padding: 100px;">
++                      <i class="fa-solid fa-cubes fa-3x" style="color: var(--primary); opacity: 0.3;"></i>
++                      <p class="muted" style="margin-top: 20px;">Busca un mod para empezar.</p>
++                  </div>
++              </div>
++          </div>
+       </div>
+ 
+-      <div id="view-database" class="hidden view-fullscreen">
++      <div id="view-database" class="hidden view-fullscreen" style="height: calc(100vh - 140px); overflow: hidden;">
+         <div style="flex-grow: 1; border-radius: 12px; overflow: hidden; background: #fff; border: 1px solid var(--line); display:flex; flex-direction:column; min-height:0;">
+             <div style="background: #1a1a1e; padding: 12px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); flex-wrap:wrap; gap:10px;">
+                 <div style="display:flex; align-items:center; gap:10px;">
+@@ -1178,29 +1299,109 @@
+         </div>
+       </div>
+ 
+-      <div id="view-blender" class="hidden view-fullscreen">
+-        <div style="flex: 1; border-radius: 12px; overflow: hidden; background: #000; border: 1px solid var(--line); display:flex; flex-direction:column; min-height:0;">
+-            <div style="background: #1a1a1e; padding: 12px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); flex-wrap:wrap; gap:10px; flex-shrink: 0;">
+-                <div style="display:flex; align-items:center; gap:10px;">
+-                    <i class="fa-solid fa-cube" style="color:var(--success); font-size:1.2rem;"></i>
+-                    <span style="font-weight:600; color:white; font-size:1.05rem;">Editor 3D</span>
++      <!-- TAREAS (Schedules) -->
++      <div id="view-schedules" class="hidden view-fullscreen" style="height: calc(100vh - 140px); overflow: hidden;">
++            <div class="card-header" style="flex-shrink:0;">
++                <div>
++                    <h2 style="font-size: 1.5rem; margin-bottom: 2px;">Programador de Tareas</h2>
++                    <p class="muted">Configura reinicios automáticos, comandos y backups programados.</p>
+                 </div>
+-                <div style="display: flex; gap: 15px; align-items: center; flex-wrap:wrap;">
+-                    <div class="mono" style="color:var(--muted)">User: <strong style="color:white" id="blender-tab-user">admin</strong></div>
+-                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">Pass: <strong style="color:var(--warning)" id="blender-tab-pass">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:white;" onclick="Nexus.copyToClipboard(document.getElementById('blender-tab-pass').innerText); showToast('Copiado','success');"></i></div>
+-                    <div style="display:flex; gap:8px; margin-left:auto;">
+-                        <button class="btn-ghost" style="padding:6px 12px;" onclick="document.getElementById('blender-iframe').requestFullscreen()"><i class="fa-solid fa-expand"></i> Pantalla Completa</button>
+-                        <button class="btn-danger" style="padding:6px 12px; background: rgba(239, 68, 68, 0.15);" onclick="toggleBlender(event, currentServerId, 'stop')"><i class="fa-solid fa-power-off"></i> Cerrar Entorno</button>
++                <div style="display:flex; gap:10px;">
++                    <button class="btn" onclick="openScheduleModal()"><i class="fa-solid fa-plus"></i> Nueva Tarea</button>
++                </div>
++            </div>
++            
++            <div class="glass-panel" style="margin: 10px 0 20px 0; padding: 20px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: space-between; border-left: 4px solid var(--primary);">
++                <div>
++                    <h3 style="font-size: 1.1rem; margin-bottom: 5px;"><i class="fa-solid fa-rotate"></i> Auto-Reinicio Diario</h3>
++                    <p class="muted" style="font-size: 0.85rem; max-width: 400px;">Mantén tu servidor fresco y optimizado reiniciándolo todos los días a una hora específica.</p>
++                </div>
++                <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
++                    <div style="display: flex; flex-direction: column; gap: 5px;">
++                        <label style="font-size: 0.8rem; color: var(--muted);">Hora (UTC)</label>
++                        <input type="time" id="auto-restart-time" class="input" style="padding: 6px 10px;">
+                     </div>
++                    <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; cursor: pointer;">
++                        <input type="checkbox" id="backup-before-restart" style="accent-color: var(--primary); width: 16px; height: 16px;">
++                        Crear Backup antes de reiniciar
++                    </label>
++                    <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; cursor: pointer; color: var(--success);">
++                        <input type="checkbox" id="auto-restart-enabled" style="accent-color: var(--success); width: 16px; height: 16px;">
++                        <strong>Habilitado</strong>
++                    </label>
++                    <button class="btn" onclick="saveAutoRestartConfig()" style="background: var(--primary); color: #fff;"><i class="fa-solid fa-floppy-disk"></i> Guardar</button>
+                 </div>
+             </div>
+-            <div id="blender-iframe-container">
+-                <iframe id="blender-iframe" src="" style="display: none;"></iframe>
++
++            <div style="flex-grow: 1; border-radius: 12px; overflow: hidden; background: #000; border: 1px solid var(--line); display:flex; flex-direction:column; min-height:0;">
++                <div class="table-responsive" style="flex-grow: 1; overflow-y:auto;">
++                    <table class="data-table">
++                        <thead>
++                            <tr>
++                                <th style="padding-left:20px;">Nombre de la Tarea</th>
++                                <th>Cron (Horario)</th>
++                                <th>Estado</th>
++                                <th>Próxima Ejecución</th>
++                                <th style="text-align:right; padding-right:20px;">Acciones</th>
++                            </tr>
++                        </thead>
++                        <tbody id="schedules-table-body">
++                            <!-- JS fills this -->
++                        </tbody>
++                    </table>
++                </div>
+             </div>
+-        </div>
+       </div>
+ 
+-      <div id="view-backups" class="hidden view-fullscreen" style="gap: 12px; height: 100%; overflow: hidden;">
++      <!-- MODAL: BOLSA DE RECURSOS (POOL) -->
++      <div id="pool-modal" class="modal-overlay hidden">
++          <div class="modal-content" style="max-width: 600px; background: linear-gradient(145deg, #1a1a1e 0%, #111112 100%); border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 40px 100px rgba(0,0,0,0.8); position: relative;">
++              <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 15px;">
++                  <h3 style="font-size: 1.5rem; letter-spacing: -0.5px; display: flex; align-items: center; gap: 12px; margin: 0;">
++                      <i class="fa-solid fa-layer-group" style="color: #38bdf8;"></i> Mi Bolsa de Recursos
++                  </h3>
++                  <button class="close-btn" onclick="closePoolModal()" style="font-size: 1.1rem; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border-radius: 50%; border: 1px solid rgba(255,255,255,0.05); color: var(--muted); cursor: pointer;">&times;</button>
++              </div>
++              
++              <div id="modal-pool-kpis" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;"></div>
++              
++              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
++                  <h4 style="font-size: 1rem; margin: 0;">Servidores Instalados</h4>
++              </div>
++              
++              <div id="modal-pool-server-list" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 25px; max-height: 200px; overflow-y: auto; padding-right: 5px;"></div>
++              
++              <button class="btn" onclick="closePoolModal(); openDeployModal()" style="width: 100%; padding: 16px; font-weight: 700; border-radius: 12px; font-size: 1.1rem; background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%); color: white; border: none; box-shadow: 0 10px 20px rgba(56, 189, 248, 0.2);">
++                  <i class="fa-solid fa-plus" style="margin-right: 8px;"></i> Desplegar Nueva Instancia
++              </button>
++          </div>
++      </div>
++
++      <!-- SCHEDULE MODAL -->
++      <div id="schedule-modal" class="modal-overlay hidden" style="z-index: 9999;">
++          <div class="modal-content" style="max-width: 500px;">
++              <div class="modal-header">
++                  <h3>Crear Nueva Tarea</h3>
++                  <button class="btn-ghost" onclick="closeScheduleModal()"><i class="fa-solid fa-xmark"></i></button>
++              </div>
++              <div class="modal-body" style="padding-bottom: 20px;">
++                  <div class="form-group">
++                      <label>Nombre descriptivo</label>
++                      <input type="text" id="schedule-name" class="input" placeholder="Ej: Reinicio Diario">
++                  </div>
++                  <div class="form-group">
++                      <label>Expresión Cron</label>
++                      <input type="text" id="schedule-cron" class="input" placeholder="0 4 * * *">
++                      <small class="muted">Minuto Hora Día Mes DíaSemana. Por defecto 0 4 * * * (4 AM todos los días).</small>
++                  </div>
++              </div>
++              <button class="btn" style="width: 100%; background: #a78bfa; color:#000; font-weight:bold;" onclick="saveSchedule()">Guardar Tarea</button>
++          </div>
++      </div>
++
++
++
++      <div id="view-backups" class="hidden view-fullscreen" style="gap: 12px; height: calc(100vh - 140px); overflow: hidden;">
+           <div style="flex-shrink: 0;">
+               <h2 style="font-size: 1.5rem; margin-bottom: 2px;">Centro de Respaldo</h2>
+               <p class="muted">Gestión de puntos de restauración y archivos.</p>
+@@ -1277,6 +1478,8 @@
+ 
+           <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 15px; margin-bottom: 25px;">
+               <span style="display:block; color:var(--muted); font-size:0.7rem; text-transform:uppercase; margin-bottom:5px;">Contraseña de Sesión</span>
++              <div style="display:none;" id="blender-tab-user"></div>
++              <div style="display:none;" id="blender-tab-pass"></div>
+               <div style="display:flex; align-items:center; justify-content:center; gap: 15px;">
+                   <strong style="font-family:var(--font-mono); font-size:1.4rem; color:var(--warning);" id="modal-blender-pass">...</strong>
+                   <button class="btn-ghost" style="padding:6px 12px;" onclick="Nexus.copyToClipboard(document.getElementById('modal-blender-pass').innerText); showToast('Copiado','success');"><i class="fa-regular fa-copy"></i></button>
+@@ -1314,2543 +1517,6 @@
+ 
+   <script src="js/common.js"></script>
+   <script src="https://www.paypal.com/sdk/js?client-id=AQJzUHNewulBQbNhhcQTTW1jgT33eQAPPZyy520oVuIK0KoWGOK3ADa4b7ju47OMPiWzK69cBGPs1CZY&vault=true&intent=subscription"></script>
+-  <script>
+-      function toggleSidebar() {
+-          document.getElementById('sidebar').classList.toggle('open');
+-          document.getElementById('sidebar-overlay').classList.toggle('active');
+-      }
+-
+-      function toggleProfileDropdown(e) {
+-          if(e) e.stopPropagation();
+-          document.getElementById('profile-dropdown').classList.toggle('active');
+-      }
+-
+-      window.addEventListener('click', () => {
+-          document.getElementById('profile-dropdown')?.classList.remove('active');
+-      });
+-
+-      function showToast(message, type = 'success') {
+-          const container = document.getElementById('toast-container');
+-          const toast = document.createElement('div');
+-          toast.className = `toast ${type}`;
+-          const icon = type === 'success' ? 'fa-check-circle' : (type === 'danger' ? 'fa-triangle-exclamation' : 'fa-info-circle');
+-          toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${message}</span>`;
+-          container.appendChild(toast);
+-          setTimeout(() => { toast.remove(); }, 3400);
+-      }
+-
+-      function openActionModal(htmlContent) {
+-          document.getElementById('modal-content-area').innerHTML = htmlContent;
+-          document.getElementById('action-modal').classList.remove('hidden');
+-      }
+-
+-      function closeActionModal() {
+-          document.getElementById('action-modal').classList.add('hidden');
+-      }
+-
+-      function closeModal(id) {
+-          const el = document.getElementById(id);
+-          if (el) el.classList.add('hidden');
+-      }
+-
+-      // 🚀 LÓGICA DEL MENÚ CONTEXTUAL FLOTANTE
+-      function closeFmMenu() {
+-          const existing = document.getElementById('fm-dynamic-menu');
+-          if (existing) existing.remove();
+-      }
+-
+-      document.addEventListener('click', closeFmMenu);
+-
+-      function openFmMenu(e, path, name, type) {
+-          e.stopPropagation();
+-          closeFmMenu();
+-
+-          const menu = document.createElement('div');
+-          menu.id = 'fm-dynamic-menu';
+-          menu.className = 'fm-context-menu';
+-
+-          let itemsHtml = '';
+-
+-          if (type === 'dir') {
+-              itemsHtml += `<div class="fm-context-menu-item" onclick="fmDownloadFolder('${path}', event); closeFmMenu();"><i class="fa-solid fa-download" style="color:var(--success)"></i> Descargar Carpeta</div>`;
+-              itemsHtml += `<div class="fm-context-menu-item" onclick="fmMove('${path}', '${name}', event); closeFmMenu();"><i class="fa-solid fa-scissors" style="color:var(--warning)"></i> Mover Carpeta</div>`;
+-              itemsHtml += `<div class="fm-context-menu-item" onclick="fmRename('${path}', '${name}', event); closeFmMenu();"><i class="fa-solid fa-pen-to-square" style="color:var(--info)"></i> Renombrar Carpeta</div>`;
+-              itemsHtml += `<div class="fm-context-menu-item danger" onclick="fmDelete('${path}', event); closeFmMenu();"><i class="fa-solid fa-trash" style="color:var(--danger)"></i> Eliminar Carpeta</div>`;
+-          } else if (type === 'zip') {
+-              itemsHtml += `<div class="fm-context-menu-item" onclick="fmUnzip('${path}', event); closeFmMenu();"><i class="fa-solid fa-file-zipper" style="color:var(--success)"></i> Extraer ZIP</div>`;
+-              itemsHtml += `<div class="fm-context-menu-item" onclick="fmDownloadFileMenu('${path}', event); closeFmMenu();"><i class="fa-solid fa-download" style="color:var(--info)"></i> Descargar</div>`;
+-              itemsHtml += `<div class="fm-context-menu-item" onclick="fmMove('${path}', '${name}', event); closeFmMenu();"><i class="fa-solid fa-scissors" style="color:var(--warning)"></i> Mover Archivo</div>`;
+-              itemsHtml += `<div class="fm-context-menu-item" onclick="fmRename('${path}', '${name}', event); closeFmMenu();"><i class="fa-solid fa-pen-to-square" style="color:var(--info)"></i> Renombrar Archivo</div>`;
+-              itemsHtml += `<div class="fm-context-menu-item danger" onclick="fmDelete('${path}', event); closeFmMenu();"><i class="fa-solid fa-trash" style="color:var(--danger)"></i> Eliminar Archivo</div>`;
+-          } else {
+-              itemsHtml += `<div class="fm-context-menu-item" onclick="fmDownloadFileMenu('${path}', event); closeFmMenu();"><i class="fa-solid fa-download" style="color:var(--success)"></i> Descargar</div>`;
+-              itemsHtml += `<div class="fm-context-menu-item" onclick="fmMove('${path}', '${name}', event); closeFmMenu();"><i class="fa-solid fa-scissors" style="color:var(--warning)"></i> Mover Archivo</div>`;
+-              itemsHtml += `<div class="fm-context-menu-item" onclick="fmRename('${path}', '${name}', event); closeFmMenu();"><i class="fa-solid fa-pen-to-square" style="color:var(--info)"></i> Renombrar Archivo</div>`;
+-              itemsHtml += `<div class="fm-context-menu-item danger" onclick="fmDelete('${path}', event); closeFmMenu();"><i class="fa-solid fa-trash" style="color:var(--danger)"></i> Eliminar Archivo</div>`;
+-          }
+-
+-          menu.innerHTML = itemsHtml;
+-          document.body.appendChild(menu);
+-
+-          const rect = menu.getBoundingClientRect();
+-          let top = e.clientY;
+-          let left = e.clientX - rect.width;
+-
+-          if (top + rect.height > window.innerHeight) {
+-              top -= rect.height;
+-          }
+-
+-          menu.style.top = `${top}px`;
+-          menu.style.left = `${left}px`;
+-      }
+-
+-      function fmDownloadFileMenu(path, e) {
+-          if(e) e.stopPropagation();
+-          window.open(`/api/files/download?serverId=${currentServerId}&path=${encodeURIComponent(path)}&token=${localStorage.getItem('nexus_token')}`, '_blank');
+-      }
+-
+-      function openCreateModal(type) {
+-          const typeName = type === 'dir' ? 'Carpeta' : 'Archivo';
+-          const icon = type === 'dir' ? 'fa-folder-plus' : 'fa-file-circle-plus';
+-
+-          const html = `
+-              <h3 style="margin-bottom: 20px; font-size: 1.2rem;"><i class="fa-solid ${icon}" style="color:var(--primary); margin-right:8px;"></i> Crear ${typeName}</h3>
+-              <div style="margin-bottom: 20px;">
+-                  <label class="form-label">Nombre del nuevo ${typeName.toLowerCase()}</label>
+-                  <input type="text" class="input" id="modal-input-name" placeholder="ejemplo${type === 'file' ? '.lua' : ''}" onkeydown="if(event.key === 'Enter') executeCreate('${type}')">
+-              </div>
+-              <div style="display:flex; gap:12px;">
+-                  <button class="btn-ghost" style="flex:1;" onclick="closeActionModal()">Cancelar</button>
+-                  <button class="btn" style="flex:1;" onclick="executeCreate('${type}')">Crear</button>
+-              </div>
+-          `;
+-          openActionModal(html);
+-          setTimeout(() => document.getElementById('modal-input-name').focus(), 100);
+-      }
+-
+-      async function executeCreate(type) {
+-          const n = document.getElementById('modal-input-name').value.trim();
+-          if(!n) return showToast('El nombre no puede estar vacío', 'warning');
+-
+-          try {
+-              const action = type === 'dir' ? 'mkdir' : 'createFile';
+-              await Nexus.api('/api/files/action', { method: 'POST', body: JSON.stringify({ serverId: currentServerId, path: currentFolderPath==='/'?`/${n}`:`${currentFolderPath}/${n}`, action: action })});
+-              showToast(`${type === 'dir' ? 'Carpeta' : 'Archivo'} creado`, 'success');
+-              loadFolder(currentFolderPath);
+-          } catch(e){
+-              showToast('Error al crear. ' + (e.message || ''), 'danger');
+-          }
+-          closeActionModal();
+-      }
+-
+-      function openUrlDownloadModal() {
+-          const html = `
+-              <h3 style="margin-bottom: 20px; font-size: 1.2rem;"><i class="fa-solid fa-cloud-arrow-down" style="color:var(--info); margin-right:8px;"></i> Importar desde URL</h3>
+-              <div style="margin-bottom: 15px;">
+-                  <label class="form-label">URL Directa (ej. .zip, .sql)</label>
+-                  <input type="url" class="input" id="modal-dl-url" placeholder="https://ejemplo.com/archivo.zip">
+-              </div>
+-              <div style="margin-bottom: 20px;">
+-                  <label class="form-label">Guardar como (Nombre del archivo)</label>
+-                  <input type="text" class="input" id="modal-dl-name" placeholder="archivo.zip">
+-              </div>
+-              <div style="display:flex; gap:12px;">
+-                  <button class="btn-ghost" style="flex:1;" onclick="closeActionModal()">Cancelar</button>
+-                  <button class="btn" style="flex:1; background:var(--info);" onclick="executeUrlDownload()"><i class="fa-solid fa-download"></i> Importar</button>
+-              </div>
+-          `;
+-          openActionModal(html);
+-      }
+-
+-      async function executeUrlDownload() {
+-          const u = document.getElementById('modal-dl-url').value.trim();
+-          const n = document.getElementById('modal-dl-name').value.trim();
+-
+-          if(!u || !n) return showToast('Rellena todos los campos', 'warning');
+-          closeActionModal();
+-
+-          try {
+-              const res = await fetch('/api/files/download-remote', {
+-                  method: 'POST',
+-                  headers: {
+-                      'Authorization': `Bearer ${localStorage.getItem('nexus_token')}`,
+-                      'Content-Type': 'application/json'
+-                  },
+-                  body: JSON.stringify({ serverId: currentServerId, path: currentFolderPath, url: u, fileName: n })
+-              });
+-              const data = await res.json();
+-
+-              if(data.success) {
+-                  showToast(data.message || 'Descarga iniciada en segundo plano', 'info');
+-              } else {
+-                  throw new Error(data.error);
+-              }
+-          } catch(e){
+-              showToast('Error al iniciar descarga', 'danger');
+-          }
+-      }
+-
+-      function openDeployModal() {
+-          const html = `
+-              <h3 style="margin-bottom: 20px; font-size: 1.2rem;"><i class="fa-solid fa-server" style="color:var(--primary); margin-right:8px;"></i> Nuevo Servidor</h3>
+-              <div style="margin-bottom: 20px;">
+-                  <label class="form-label">Asigna un nombre a tu servidor</label>
+-                  <input type="text" class="input" id="modal-deploy-name" placeholder="Mi Servidor Roleplay">
+-              </div>
+-              <div style="display:flex; gap:12px;">
+-                  <button class="btn-ghost" style="flex:1;" onclick="closeActionModal()">Cancelar</button>
+-                  <button class="btn" style="flex:1; background:var(--success);" onclick="executeDeploy()"><i class="fa-solid fa-rocket"></i> Desplegar</button>
+-              </div>
+-          `;
+-          openActionModal(html);
+-      }
+-
+-      async function executeDeploy() {
+-          const name = document.getElementById('modal-deploy-name').value.trim();
+-          if(!name) return showToast('El nombre es obligatorio', 'warning');
+-          closeActionModal();
+-
+-          const btn = document.getElementById('btn-deploy');
+-          btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creando...';
+-          btn.disabled = true;
+-
+-          try {
+-              await Nexus.api('/api/servers', {
+-                  method: 'POST',
+-                  body: JSON.stringify({
+-                      serverName: name,
+-                      licenseKey: 'changeme',
+-                      template: 'vanilla'
+-                  })
+-              });
+-              showToast('¡Servidor creado con éxito!', 'success');
+-              lastDataHash = "";
+-              loadServers();
+-          } catch (e) {
+-              showToast("Error al desplegar: " + (e.message || "Contacta a soporte."), 'danger');
+-              btn.innerHTML = '<i class="fa-solid fa-plus"></i> Desplegar';
+-              btn.disabled = false;
+-          }
+-      }
+-
+-      let user = JSON.parse(localStorage.getItem('nexus_user') || '{}');
+-      const displayName = user.username || 'Usuario';
+-      document.getElementById('username-display').innerText = displayName;
+-      
+-      // Actualizar iniciales del avatar
+-      const initials = displayName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+-      const avatarEl = document.getElementById('user-avatar-initials');
+-      if(avatarEl) avatarEl.innerText = initials || 'U';
+-
+-      let blenderActionPending = false;
+-
+-      function updateEmailUI() {
+-          const userNow = JSON.parse(localStorage.getItem('nexus_user') || '{}');
+-          const emailEl = document.getElementById('set-email');
+-          const badge = document.getElementById('email-status-badge');
+-          const lockMsg = document.getElementById('email-lock-msg');
+-          const profileStatus = document.getElementById('profile-display-status');
+-
+-          emailEl.value = userNow.email || '';
+-          if(!userNow.email) {
+-              emailEl.placeholder = "No hay correo registrado";
+-          }
+-
+-          // 🤖 Cargar Discord ID si existe
+-          if(userNow.discord_id) {
+-              document.getElementById('discord-id-input').value = userNow.discord_id;
+-              document.getElementById('discord-status-msg').innerHTML = `<i class="fa-solid fa-circle-check" style="color:var(--success)"></i> Tu cuenta de Discord está vinculada.`;
+-          } else {
+-              document.getElementById('discord-status-msg').innerHTML = "";
+-          }
+-
+-          if (userNow.is_verified) {
+-              emailEl.disabled = true;
+-              if(emailEl.parentElement) {
+-                  emailEl.parentElement.style.opacity = '0.6';
+-                  emailEl.parentElement.style.cursor = 'not-allowed';
+-              }
+-              if(badge) {
+-                  badge.innerHTML = 'VERIFICADO';
+-                  badge.style.color = 'var(--success)';
+-              }
+-              if(lockMsg) lockMsg.classList.remove('hidden');
+-              if(profileStatus) {
+-                  profileStatus.innerText = 'Cuenta Verificada';
+-                  profileStatus.style.color = 'var(--success)';
+-              }
+-
+-              const settingsBanner = document.getElementById('settings-unverified-banner');
+-              if(settingsBanner) settingsBanner.classList.add('hidden');
+-          } else {
+-              emailEl.disabled = false;
+-              if(emailEl.parentElement) {
+-                  emailEl.parentElement.style.opacity = '1';
+-                  emailEl.parentElement.style.cursor = 'text';
+-              }
+-              if(badge) {
+-                  badge.innerHTML = 'SIN VERIFICAR';
+-                  badge.style.color = 'var(--warning)';
+-              }
+-              if(lockMsg) lockMsg.classList.add('hidden');
+-              if(profileStatus) {
+-                  profileStatus.innerText = 'Pendiente de Verificación';
+-                  profileStatus.style.color = 'var(--warning)';
+-              }
+-
+-              const settingsBanner = document.getElementById('settings-unverified-banner');
+-              if(settingsBanner) settingsBanner.classList.remove('hidden');
+-          }
+-
+-          // Badge global de verificación
+-          const unverifiedBadge = document.getElementById('unverified-badge');
+-          if(unverifiedBadge) {
+-              if(userNow.is_verified) unverifiedBadge.classList.add('hidden');
+-              else unverifiedBadge.classList.remove('hidden');
+-          }
+-      }
+-
+-      async function syncClientData() {
+-          try {
+-              const res = await Nexus.api('/api/auth/me');
+-              if (res && res.username) {
+-                  localStorage.setItem('nexus_user', JSON.stringify(res));
+-                  user = res;
+-                  document.getElementById('username-display').innerText = res.username;
+-                  updateEmailUI();
+-                  
+-                  // 🔥 VERIFICAR SUSPENSIÓN
+-                  if (res.expires_at) {
+-                      const expDate = new Date(res.expires_at);
+-                      if (expDate < new Date()) {
+-                          document.getElementById('suspension-overlay').classList.remove('hidden');
+-                          return; // Detenemos la carga del resto del panel
+-                      }
+-                  }
+-                  
+-                  // 🔥 CONTROL DE ACCESO AL PORTAL DEL VENDEDOR Y ADMIN
+-                  // 🔥 CONTROL DE ACCESO AL PORTAL DEL VENDEDOR Y ADMIN
+-                  const vendorNav = document.getElementById('nav-vendor-portal');
+-                  const adminNavMarket = document.getElementById('nav-admin-marketplace');
+-                  const adminMarketBtn = document.getElementById('btn-admin-upload-trigger');
+-
+-                  // Portal del Vendedor (Para Vendors y Admins)
+-                  if (vendorNav) {
+-                      if (res.role === 'vendor' || res.role === 'admin') {
+-                          vendorNav.style.display = 'flex';
+-                          // Ocultar card de postulación si ya es vendedor
+-                          const vendorCard = document.getElementById('card-vendor-apply');
+-                          if(vendorCard) vendorCard.style.display = 'none';
+-                      } else {
+-                          vendorNav.style.display = 'none';
+-                      }
+-                  }
+-
+-                  // Herramientas Fast Upload (Solo para Admins)
+-                  const adminNavVendors = document.getElementById('nav-admin-vendors');
+-                  if (res.role === 'admin') {
+-                      if (adminNavMarket) adminNavMarket.style.display = 'flex';
+-                      if (adminMarketBtn) adminMarketBtn.style.display = 'flex';
+-                      if (adminNavVendors) adminNavVendors.style.display = 'flex';
+-                  } else {
+-                      if (adminNavMarket) adminNavMarket.style.display = 'none';
+-                      if (adminMarketBtn) adminMarketBtn.style.display = 'none';
+-                      if (adminNavVendors) adminNavVendors.style.display = 'none';
+-                  }
+-              }
+-          } catch (e) {
+-              if(e.status === 401) Nexus.logout();
+-          }
+-      }
+-
+-      updateEmailUI();
+-      syncClientData();
+-
+-      // 🤖 FUNCIÓN: VINCULAR DISCORD
+-      async function linkDiscordAccount() {
+-          const discordId = document.getElementById('discord-id-input').value.trim();
+-          if(!discordId) return showToast("Introduce un ID de Discord", 'warning');
+-
+-          const btn = document.getElementById('btn-link-discord');
+-          const original = btn.innerText;
+-          btn.innerText = "Vinculando...";
+-          btn.disabled = true;
+-
+-          try {
+-              // 🔥 PARCHE APLICADO: Ruta corregida a /api/auth/link-discord
+-              const res = await Nexus.api('/api/auth/link-discord', {
+-                  method: 'POST',
+-                  body: JSON.stringify({ discordId })
+-              });
+-              showToast(res.message, 'success');
+-
+-              const userNow = JSON.parse(localStorage.getItem('nexus_user') || '{}');
+-              userNow.discord_id = discordId;
+-              localStorage.setItem('nexus_user', JSON.stringify(userNow));
+-              updateEmailUI();
+-
+-          } catch(e) {
+-              showToast(e.message || "Error al vincular Discord", 'danger');
+-          } finally {
+-              btn.innerText = original;
+-              btn.disabled = false;
+-          }
+-      }
+-
+-      const urlParams = new URLSearchParams(window.location.search);
+-      if (urlParams.get('verified') === 'true') {
+-          showToast("¡Cuenta verificada exitosamente!", 'success');
+-          user.is_verified = true;
+-          localStorage.setItem('nexus_user', JSON.stringify(user));
+-          updateEmailUI();
+-          window.history.replaceState({}, document.title, "/panel");
+-      }
+-
+-      // 🚀 Deep Linking para vistas específicas (ej: Marketplace)
+-      const targetView = urlParams.get('view');
+-      if (targetView && ['marketplace', 'billing', 'settings'].includes(targetView)) {
+-          setTimeout(() => {
+-              switchView(targetView);
+-              if (urlParams.get('adminUpload') === 'true') {
+-                  setTimeout(openAdminUploadModal, 300);
+-              }
+-          }, 100);
+-          window.history.replaceState({}, document.title, "/panel");
+-      }
+-
+-      let currentServerId = null;
+-      let currentFilePath = "server.cfg";
+-      let currentFolderPath = "/";
+-      let editorInstance = null;
+-      let globalServersList = [];
+-      let globalSafeHost = "";
+-      let lastDataHash = "";
+-      let isBlenderIframeLoaded = false;
+-      let txTargetUrl = "";
+-      let globalBackupLimit = 1;
+-
+-      require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.36.1/min/vs' } });
+-      require(['vs/editor/editor.main'], function () {
+-        editorInstance = monaco.editor.create(document.getElementById('monaco-container'), {
+-          value: '', language: 'ini', theme: 'vs-dark', automaticLayout: true, minimap: { enabled: false }
+-        });
+-      });
+-
+-      let lastNotifHash = "";
+-      async function loadNotifications() {
+-          try {
+-              const data = await Nexus.api('/api/notifications');
+-              const container = document.getElementById('notifications-container');
+-              if (!data.items || data.items.length === 0) { 
+-                  container.classList.add('hidden');
+-                  container.innerHTML = '';
+-                  lastNotifHash = "";
+-                  return; 
+-              }
+-              const currentHash = btoa(unescape(encodeURIComponent(JSON.stringify(data.items))));
+-              if (lastNotifHash === currentHash) return;
+-              lastNotifHash = currentHash;
+-              container.classList.remove('hidden');
+-
+-              container.innerHTML = data.items.map(n => {
+-                  let bg = n.type === 'danger' ? 'rgba(239, 68, 68, 0.15)' : n.type === 'warning' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(56, 189, 248, 0.15)';
+-                  let border = n.type === 'danger' ? 'rgba(239, 68, 68, 0.4)' : n.type === 'warning' ? 'rgba(245, 158, 11, 0.4)' : 'rgba(56, 189, 248, 0.4)';
+-                  let color = n.type === 'danger' ? '#fca5a5' : n.type === 'warning' ? '#fcd34d' : '#7dd3fc';
+-                  let icon = n.type === 'danger' ? 'fa-triangle-exclamation' : n.type === 'warning' ? 'fa-bolt' : 'fa-circle-info';
+-                  return `<div class="notif-banner" style="background: ${bg}; border: 1px solid ${border};">
+-                      <i class="fa-solid ${icon}" style="color: ${color}; font-size: 1.2rem;"></i>
+-                      <div style="display:flex; align-items:center; gap: 10px;">
+-                          <strong style="color: ${color}; font-size: 0.95rem;">${n.title}:</strong>
+-                          <span style="font-size: 0.85rem; color: #e4e4e7;">${n.content}</span>
+-                      </div>
+-                  </div>`;
+-              }).join('');
+-          } catch (e) {}
+-      }
+-
+-      let activeView = 'servers';
+-      function switchView(viewId, element) {
+-        if (activeView === viewId && viewId !== 'servers') return; // Evitar recargas innecesarias (excepto en dashboard que puede requerir refresco)
+-
+-        if (window.innerWidth <= 1024) {
+-            document.getElementById('sidebar').classList.remove('open');
+-            document.getElementById('sidebar-overlay').classList.remove('active');
+-        }
+-
+-        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+-        if(element) element.classList.add('active'); else if(document.getElementById('nav-' + viewId)) document.getElementById('nav-' + viewId).classList.add('active');
+-
+-        const views = ['servers', 'editor', 'logs', 'txadmin', 'database', 'blender', 'settings', 'backups', 'billing', 'marketplace', 'vendor-portal', 'my-licenses'];
+-        views.forEach(v => {
+-            const el = document.getElementById('view-'+v);
+-            if (el) {
+-                if (v === viewId) el.classList.remove('hidden');
+-                else el.classList.add('hidden');
+-            }
+-        });
+-
+-        activeView = viewId;
+-        if (viewId !== 'servers') {
+-            document.getElementById('btn-deploy').style.display = 'none';
+-        }
+-
+-        if(viewId === 'servers') {
+-          document.getElementById('page-sub').innerText = "Gestiona tu instancia y recursos";
+-          document.getElementById('view-servers').classList.remove('hidden'); lastDataHash = ""; loadServers();
+-        } else if(viewId === 'marketplace') {
+-          document.getElementById('page-sub').innerText = "Adquiere scripts exclusivos protegidos por Vault™";
+-          document.getElementById('view-marketplace').classList.remove('hidden');
+-          loadMarketplace();
+-        } else if(viewId === 'vendor-portal') {
+-          document.getElementById('page-sub').innerText = "Panel de control para desarrolladores de scripts";
+-          document.getElementById('view-vendor-portal').classList.remove('hidden');
+-          loadVendorScripts();
+-        } else if(viewId === 'my-licenses') {
+-          document.getElementById('page-sub').innerText = "Tus compras y descargas";
+-          document.getElementById('view-my-licenses').classList.remove('hidden');
+-          loadMyLicenses();
+-        } else if(viewId === 'editor') {
+-          document.getElementById('page-sub').innerText = "Navega, sube y edita la configuración";
+-          document.getElementById('view-editor').classList.remove('hidden'); loadFolder('/');
+-          setTimeout(() => { if(editorInstance) editorInstance.layout(); }, 150);
+-        } else if(viewId === 'logs') {
+-          document.getElementById('page-sub').innerText = "Visualiza el arranque y errores";
+-          document.getElementById('view-logs').classList.remove('hidden'); startLogStreaming();
+-        } else if(viewId === 'txadmin') {
+-          document.getElementById('page-sub').innerText = "Administración de FiveM";
+-          document.getElementById('view-txadmin').classList.remove('hidden');
+-        } else if(viewId === 'database') {
+-          document.getElementById('page-sub').innerText = "Gestión de tablas MySQL";
+-          document.getElementById('view-database').classList.remove('hidden');
+-        } else if(viewId === 'backups') {
+-          document.getElementById('page-sub').innerText = "Puntos de restauración de tu servidor";
+-          document.getElementById('view-backups').classList.remove('hidden');
+-          if(currentServerId) loadClientBackups();
+-        } else if(viewId === 'blender') {
+-          document.getElementById('page-sub').innerText = "Entorno gráfico para MLOs y Peds";
+-          const savedBlenderUrl = sessionStorage.getItem('blenderUrl_' + currentServerId);
+-          if(currentServerId && !isBlenderIframeLoaded && !savedBlenderUrl) {
+-              openBlender(currentServerId);
+-          } else if (savedBlenderUrl) {
+-              const iframe = document.getElementById('blender-iframe');
+-              iframe.style.display = 'block';
+-              if (iframe.src !== savedBlenderUrl) iframe.src = savedBlenderUrl;
+-              isBlenderIframeLoaded = true;
+-          }
+-        } else if(viewId === 'settings') {
+-          document.getElementById('page-sub').innerText = "Seguridad y Ajustes de Cuenta";
+-          document.getElementById('view-settings').classList.remove('hidden');
+-
+-          const userNow = JSON.parse(localStorage.getItem('nexus_user') || '{}');
+-          document.getElementById('set-username').value = userNow.username || 'Desconocido';
+-          
+-          // 🚀 Actualizar Profile Header
+-          document.getElementById('profile-display-name').innerText = userNow.username || 'Desconocido';
+-          document.getElementById('profile-display-plan').innerText = 'Plan ' + (userNow.plan || 'Hobby').charAt(0).toUpperCase() + (userNow.plan || 'Hobby').slice(1);
+-          
+-          if (userNow.created_at) {
+-              const date = new Date(userNow.created_at);
+-              document.getElementById('profile-display-date').innerText = date.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+-          } else {
+-              document.getElementById('profile-display-date').innerText = 'Reciente';
+-          }
+-
+-          updateEmailUI();
+-        } else if(viewId === 'billing') {
+-          document.getElementById('page-sub').innerText = "Expansiones y Planes";
+-          document.getElementById('view-billing').classList.remove('hidden');
+-          loadBillingInfo();
+-        }
+-      }
+-
+-      async function loadClientBackups() {
+-          if (!currentServerId) return;
+-          const tbody = document.getElementById('client-backups-table-body');
+-          tbody.innerHTML = '<tr><td colspan="3" style="padding: 20px;"><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text" style="width: 80%;"></div></td></tr>';
+-
+-          try {
+-              const res = await Nexus.api(`/api/servers/${currentServerId}/backups`);
+-              const items = res.items || [];
+-
+-              // 🚀 NUEVO: Filtramos para contar SOLO los manuales reales
+-              const manualItems = items.filter(b => !b.isAuto && !b.filename.includes('_auto_'));
+-              const manualCount = manualItems.length;
+-
+-              const badge = document.getElementById('backup-limit-badge');
+-              if(badge) badge.innerText = `Límite: ${manualCount} / ${globalBackupLimit} Manuales`;
+-
+-              const btn = document.getElementById('btn-trigger-backup');
+-              if(btn) {
+-                  if(manualCount >= globalBackupLimit) {
+-                      btn.disabled = true;
+-                      btn.innerHTML = '<i class="fa-solid fa-lock"></i> Límite Alcanzado';
+-                      btn.className = 'btn-ghost';
+-                      btn.style.opacity = '0.5';
+-                      btn.style.cursor = 'not-allowed';
+-                  } else {
+-                      btn.disabled = false;
+-                      btn.innerHTML = '<i class="fa-solid fa-play"></i> Iniciar';
+-                      btn.className = 'btn-success';
+-                      btn.style.opacity = '1';
+-                      btn.style.cursor = 'pointer';
+-                  }
+-              }
+-
+-              if(items.length === 0) {
+-                  tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding: 30px;" class="muted">No hay copias de seguridad generadas.</td></tr>';
+-                  return;
+-              }
+-
+-              // 🚀 NUEVO: Mejoramos la tabla para que muestre una etiqueta visual "Auto" o "Manual"
+-              tbody.innerHTML = items.map(b => {
+-                  const isAuto = b.isAuto || b.filename.includes('_auto_');
+-                  const badgeType = isAuto ? 'badge outline' : 'badge';
+-                  const badgeColor = isAuto ? 'style="border-color: var(--info); color: var(--info); transform: scale(0.8);"' : 'style="background: rgba(16, 185, 129, 0.1); color: var(--success); transform: scale(0.8);"';
+-                  const typeLabel = isAuto ? '<i class="fa-solid fa-robot"></i> Auto' : '<i class="fa-solid fa-user"></i> Manual';
+-
+-                  return `
+-                  <tr>
+-                      <td class="mono" style="padding-left: 20px; font-size:0.75rem; color:var(--info); word-break: break-all; display: flex; align-items: center; gap: 8px;">
+-                          <span ${badgeColor} class="${badgeType}">${typeLabel}</span>
+-                          ${b.filename}
+-                      </td>
+-                      <td><span class="muted"><i class="fa-regular fa-clock" style="margin-right:5px;"></i>${b.date}</span></td>
+-                      <td style="text-align: right; padding-right: 20px;">
+-                          <div style="display:flex; gap:6px; justify-content:flex-end;">
+-                              <button class="btn-tbl green" title="Restaurar Copia" onclick="restoreClientBackup('${b.filename}')">
+-                                  <i class="fa-solid fa-clock-rotate-left"></i>
+-                              </button>
+-                              <button class="btn-tbl red" title="Eliminar Copia" onclick="deleteClientBackup('${b.filename}')">
+-                                  <i class="fa-solid fa-trash"></i>
+-                              </button>
+-                          </div>
+-                      </td>
+-                  </tr>
+-              `}).join('');
+-          } catch(e) {
+-              tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--danger); padding: 30px;">Error cargando copias de seguridad.</td></tr>';
+-          }
+-      }
+-
+-      async function triggerBackup(event) {
+-          if (!currentServerId) return;
+-          const customName = document.getElementById('manual-backup-name').value.trim();
+-          if(!confirm('¿Generar copia de seguridad manual?')) return;
+-
+-          const btn = event.currentTarget;
+-          const originalHTML = btn.innerHTML;
+-          btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procesando...';
+-          btn.disabled = true;
+-          btn.style.pointerEvents = 'none';
+-
+-          try {
+-              const response = await Nexus.api(`/api/servers/${currentServerId}/backup`, {
+-                  method: 'POST',
+-                  body: JSON.stringify({ customName })
+-              });
+-              showToast(`✅ Backup generado exitosamente.`, 'success');
+-              document.getElementById('manual-backup-name').value = '';
+-          } catch(e) {
+-              console.error(e);
+-              showToast("❌ Error generando el backup: " + (e.message || ''), 'danger');
+-          } finally {
+-              await loadClientBackups();
+-          }
+-      }
+-
+-      async function restoreClientBackup(filename) {
+-          if(!confirm(`⚠️ PELIGRO DE PÉRDIDA DE DATOS:\n¿Estás seguro de querer restaurar la copia [${filename}]?\n\nEsto apagará el servidor, borrará TODOS tus archivos actuales y sobreescribirá tu Base de Datos. Esta acción es irreversible.`)) return;
+-
+-          try {
+-              showToast('Restaurando sistema. Por favor espera...', 'info');
+-              await Nexus.api(`/api/servers/${currentServerId}/backups/restore`, {
+-                  method: 'POST',
+-                  body: JSON.stringify({ filename })
+-              });
+-              showToast('✅ Restauración completada. Servidor reiniciando.', 'success');
+-              lastDataHash = "";
+-              loadServers();
+-          } catch(e) {
+-              showToast('❌ Error al restaurar la copia.', 'danger');
+-          }
+-      }
+-
+-      async function deleteClientBackup(filename) {
+-          if(!confirm(`¿Borrar permanentemente la copia de seguridad ${filename}?`)) return;
+-
+-          try {
+-              await Nexus.api(`/api/servers/${currentServerId}/backups/${filename}`, { method: 'DELETE' });
+-              showToast('✅ Copia de seguridad eliminada.', 'success');
+-              loadClientBackups();
+-          } catch(e) {
+-              showToast('❌ Error al eliminar la copia.', 'danger');
+-          }
+-      }
+-
+-      function openTxAdminPopup() {
+-          if (!txTargetUrl) return showToast("El servidor no está iniciado", "warning");
+-
+-          const w = 600; const h = 750;
+-          const left = (screen.width/2)-(w/2);
+-          const top = (screen.height/2)-(h/2);
+-
+-          const popup = window.open(txTargetUrl, 'txAdminAuth', `width=${w},height=${h},top=${top},left=${left},toolbar=no,menubar=no,scrollbars=yes`);
+-
+-          if(!popup) return showToast('El navegador bloqueó la ventana emergente. Por favor, permítela.', 'danger');
+-
+-          const timer = setInterval(() => {
+-              if(popup.closed) {
+-                  clearInterval(timer);
+-                  hideAuthOverlay();
+-              }
+-          }, 1000);
+-      }
+-
+-      function hideAuthOverlay() {
+-          document.getElementById('txadmin-auth-overlay').style.display = 'none';
+-          if (currentServerId) {
+-              sessionStorage.setItem('txLinked_' + currentServerId, 'true');
+-          }
+-          refreshTxAdmin();
+-      }
+-
+-      function refreshTxAdmin() {
+-          const iframe = document.getElementById('txadmin-iframe');
+-          if (iframe && txTargetUrl) {
+-              showToast('Recargando txAdmin...', 'info');
+-              iframe.src = iframe.src;
+-          } else {
+-              showToast('El servidor debe estar encendido para recargar.', 'warning');
+-          }
+-      }
+-
+-      let historyChartInstance = null;
+-      let lastHistoryLoad = 0;
+-      let currentStatsView = 'live'; // 'live' o 'history'
+-
+-      async function loadStatsHistory(serverId) {
+-          if (currentStatsView !== 'history') return; 
+-
+-          const now = Date.now();
+-          if (now - lastHistoryLoad < 30000 && historyChartInstance) return; 
+-          lastHistoryLoad = now;
+-
+-          try {
+-              const data = await Nexus.api(`/api/servers/${serverId}/stats-history`);
+-              const stats = data.items || [];
+-              
+-              const labels = stats.map(s => {
+-                  const date = new Date(s.created_at);
+-                  return date.getHours() + ":" + String(date.getMinutes()).padStart(2, '0');
+-              });
+-              const cpuData = stats.map(s => s.cpu);
+-              const ramData = stats.map(s => s.ram);
+-
+-              const canvas = document.getElementById('mainHistoryChart');
+-              if (!canvas) return;
+-              const ctx = canvas.getContext('2d');
+-              
+-              if (historyChartInstance) {
+-                  historyChartInstance.data.labels = labels;
+-                  historyChartInstance.data.datasets[0].data = cpuData;
+-                  historyChartInstance.data.datasets[1].data = ramData;
+-                  historyChartInstance.update('none');
+-              } else {
+-                  historyChartInstance = new Chart(ctx, {
+-                      type: 'line',
+-                      data: {
+-                          labels: labels,
+-                          datasets: [
+-                              {
+-                                  label: 'CPU (%)',
+-                                  data: cpuData,
+-                                  borderColor: '#38bdf8',
+-                                  backgroundColor: 'rgba(56, 189, 248, 0.1)',
+-                                  fill: true,
+-                                  tension: 0.4,
+-                                  borderWidth: 2,
+-                                  pointRadius: 0
+-                              },
+-                              {
+-                                  label: 'RAM (%)',
+-                                  data: ramData,
+-                                  borderColor: '#8b5cf6',
+-                                  backgroundColor: 'rgba(139, 92, 246, 0.1)',
+-                                  fill: true,
+-                                  tension: 0.4,
+-                                  borderWidth: 2,
+-                                  pointRadius: 0
+-                              }
+-                          ]
+-                      },
+-                      options: {
+-                          responsive: true,
+-                          maintainAspectRatio: false,
+-                          scales: {
+-                              y: { beginAtZero: true, max: 100, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#666', font: { size: 10 } } },
+-                              x: { grid: { display: false }, ticks: { color: '#666', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } }
+-                          },
+-                          plugins: {
+-                              legend: { display: false },
+-                              tooltip: {
+-                                  backgroundColor: 'rgba(18, 18, 20, 0.9)',
+-                                  titleColor: '#fff',
+-                                  bodyColor: '#ccc',
+-                                  borderColor: 'rgba(255,255,255,0.1)',
+-                                  borderWidth: 1,
+-                                  displayColors: true,
+-                                  padding: 10
+-                              }
+-                          },
+-                          interaction: { intersect: false, mode: 'index' }
+-                      }
+-                  });
+-              }
+-          } catch (e) {
+-              console.error("Error al cargar historial:", e);
+-          }
+-      }
+-
+-      function switchStatsView(mode) {
+-          currentStatsView = mode;
+-          const liveView = document.getElementById('stats-live-view');
+-          const historyView = document.getElementById('stats-history-view');
+-          const btn = document.getElementById('btn-toggle-stats');
+-
+-          if (mode === 'history') {
+-              if(liveView) liveView.style.display = 'none';
+-              if(historyView) historyView.style.display = 'block';
+-              if(btn) btn.innerHTML = '<i class="fa-solid fa-tower-broadcast"></i> Ver en Vivo';
+-              if (currentServerId) {
+-                  lastHistoryLoad = 0;
+-                  setTimeout(() => loadStatsHistory(currentServerId), 50); // Pequeño delay para dimensiones
+-              }
+-          } else {
+-              if(liveView) liveView.style.display = 'block';
+-              if(historyView) historyView.style.display = 'none';
+-              if(btn) btn.innerHTML = '<i class="fa-solid fa-chart-line"></i> Ver Historial';
+-          }
+-      }
+-
+-      async function loadServers() {
+-        if(blenderActionPending) return;
+-
+-        try {
+-          const data = await Nexus.api('/api/servers');
+-          globalServersList = data.items || [];
+-          globalSafeHost = (data.publicHost && data.publicHost.includes('.')) ? data.publicHost : location.hostname;
+-
+-          if(globalServersList.length === 0) {
+-            if (!document.getElementById('view-servers').classList.contains('hidden')) {
+-                document.getElementById('btn-deploy').style.display = 'inline-flex';
+-                document.getElementById('client-servers').innerHTML = `<div class="card muted" style="text-align:center; padding:50px; max-width:600px; margin: 50px auto;"><i class="fa-solid fa-server" style="font-size:3.5rem; margin-bottom:20px; color:var(--line)"></i><br><h3 style="color:white; font-size:1.4rem; margin-bottom:10px;">Sin Servidores</h3>Aún no tienes una instancia asignada. Haz clic en "Desplegar" para comenzar.</div>`;
+-            }
+-            return;
+-          }
+-
+-          const s = globalServersList[0];
+-          currentServerId = s.id;
+-
+-          // 🧠 Lógica quirúrgica para el Sidebar de Blender (Evita parpadeos)
+-          const navBlender = document.getElementById('nav-blender');
+-          if (navBlender) {
+-              const planName = (s.runtime_plan || '').toLowerCase();
+-              if (planName !== 'hobby') {
+-                  if (navBlender.style.display !== 'flex') navBlender.style.display = 'flex';
+-                  const liveBadge = document.getElementById('badge-blender-live');
+-                   const icon = navBlender.querySelector("i");
+-
+-                   if (s.blender_status === "running") {
+-                       if (icon.style.color !== "var(--success)") icon.style.color = "var(--success)";
+-                       if (liveBadge && liveBadge.classList.contains("hidden")) liveBadge.classList.remove("hidden");
+-                       
+-                       if (navBlender.dataset.status !== "running") {
+-                           navBlender.onclick = function() { switchView("blender", navBlender); };
+-                           navBlender.dataset.status = "running";
+-                       }
+-                   } else {
+-                       if (icon.style.color !== "") icon.style.color = "";
+-                       if (liveBadge && !liveBadge.classList.contains("hidden")) liveBadge.classList.add("hidden");
+-                       
+-                       if (navBlender.dataset.status !== "stopped") {
+-                           navBlender.onclick = function() { showToast("El entorno está apagado, inícialo desde el botón en la tarjeta técnica", "warning"); };
+-                           navBlender.dataset.status = "stopped";
+-                       }
+-                   }
+-              } else {
+-                  if (navBlender.style.display !== 'none') navBlender.style.display = 'none';
+-              }
+-          }
+-
+-          const isRunning = s.status === 'running';
+-
+-          // 🧠 Lógica para txAdmin (Estable aunque no estemos en la vista)
+-          const txIframe = document.getElementById('txadmin-iframe');
+-          const txOffline = document.getElementById('txadmin-offline-overlay');
+-          const txAuthOverlay = document.getElementById('txadmin-auth-overlay');
+-
+-          if (isRunning) {
+-              if (txOffline) txOffline.style.display = 'none';
+-              if (!sessionStorage.getItem('txLinked_' + s.id)) {
+-                  if (txAuthOverlay) txAuthOverlay.style.display = 'flex';
+-              } else {
+-                  if (txAuthOverlay) txAuthOverlay.style.display = 'none';
+-              }
+-
+-              txTargetUrl = `https://s${s.id.slice(0,8)}.ragenodes.com/`;
+-              const currentIframeSrc = txIframe ? txIframe.src.replace(/\/$/, '') : "";
+-              const newTargetUrl = txTargetUrl.replace(/\/$/, '');
+-
+-              if (txIframe && currentIframeSrc !== newTargetUrl) {
+-                  txIframe.src = txTargetUrl;
+-              }
+-          } else {
+-              if (txOffline) txOffline.style.display = 'flex';
+-              if (txAuthOverlay) txAuthOverlay.style.display = 'none';
+-              txTargetUrl = "";
+-              if(txIframe && txIframe.src !== 'about:blank' && txIframe.src !== window.location.href) {
+-                  txIframe.src = 'about:blank';
+-              }
+-          }
+-
+-          // ⚡ OPTIMIZACIÓN CRÍTICA: No actualizar el DOM pesado del dashboard si no estamos en él
+-          if (document.getElementById('view-servers').classList.contains('hidden')) {
+-              return;
+-          }
+-
+-          const container = document.getElementById('client-servers');
+-          const isSameServer = container.dataset.renderedId === s.id;
+-
+-          if (isRunning) loadStatsHistory(s.id);
+-
+-          const safeId = (id, val) => { const el = document.getElementById(id); if(el) el.innerText = val; };
+-
+-          safeId('db-tab-user', s.db_user); safeId('db-tab-pass', s.db_pass);
+-          safeId('tx-top-db', s.db_name); safeId('tx-top-user', s.db_user); safeId('tx-top-pass', s.db_pass);
+-
+-          // (Lógica movida arriba para persistencia entre vistas)
+-
+-          const safeDisplay = (id, val) => { const el = document.getElementById(id); if(el && el.style.display !== val) el.style.display = val; };
+-          safeDisplay('nav-editor', 'flex');
+-          safeDisplay('nav-logs', 'flex');
+-          safeDisplay('nav-txadmin', 'flex');
+-          safeDisplay('nav-database', 'flex');
+-          safeDisplay('nav-backups', 'flex');
+-
+-          const expDate = new Date(s.expires_at || Date.now());
+-          const isExpired = expDate < new Date();
+-
+-          const planName = (s.runtime_plan || '').toLowerCase();
+-          let maxRam = 4; let maxDisk = 20; let maxCores = 2;
+-          let backupMax = 1; let backupFreq = 'Ninguna'; let backupRet = '0 días'; let autoEnabled = false;
+-
+-          if (planName === 'standard') {
+-              maxRam = 8; maxDisk = 40; maxCores = 4;
+-              backupMax = 3; backupFreq = 'Cada 24 Horas'; backupRet = '3 copias'; autoEnabled = true;
+-          } else if (planName === 'elite' || planName === 'premium') {
+-              maxRam = 16; maxDisk = 80; maxCores = 6;
+-              backupMax = 5; backupFreq = 'Cada 12 Horas'; backupRet = '7 días'; autoEnabled = true;
+-          }
+-
+-
+-
+-          globalBackupLimit = backupMax;
+-
+-          const timeInput = document.getElementById('backup-time-pref');
+-          const timeBtn = document.getElementById('backup-time-btn');
+-          if(timeInput && timeBtn) {
+-              timeInput.disabled = !autoEnabled;
+-              timeBtn.disabled = !autoEnabled;
+-              timeInput.value = s.backup_time || '04:00';
+-              timeBtn.onclick = () => saveBackupTime(s.id, timeInput.value);
+-          }
+-
+-          safeId('backup-auto-freq', backupFreq);
+-          safeId('backup-auto-ret', backupRet);
+-
+-          const autoStatus = document.getElementById('backup-auto-status');
+-          const upMsg = document.getElementById('backup-upgrade-msg');
+-          if(autoEnabled) {
+-              autoStatus.className = 'badge running'; autoStatus.innerText = 'ACTIVADO';
+-              upMsg.classList.add('hidden');
+-          } else {
+-              autoStatus.className = 'badge stopped'; autoStatus.innerText = 'INACTIVO';
+-              upMsg.classList.remove('hidden');
+-          }
+-
+-          let rawCpu = parseFloat(s.stats?.cpu || 0);
+-          let calcCpuPct = rawCpu / maxCores;
+-          const cpuPct = calcCpuPct > 100 ? 100 : calcCpuPct.toFixed(1);
+-
+-          const ramUsedVal = parseFloat(s.stats?.ramGb || 0);
+-          const diskUsedVal = parseFloat(s.stats?.diskGb || 0);
+-
+-          let calcRamPct = (ramUsedVal / maxRam) * 100;
+-          let calcDiskPct = (diskUsedVal / maxDisk) * 100;
+-
+-          const ramPct = calcRamPct > 100 ? 100 : calcRamPct.toFixed(1);
+-          const diskPct = calcDiskPct > 100 ? 100 : calcDiskPct.toFixed(1);
+-
+-          const ramText = `${maxRam} GB`;
+-          const diskText = `${maxDisk} GB`;
+-          const cpuText = `${maxCores} vCPU`;
+-
+-          const iconUrl = `/data/${s.id}/txData/${s.db_name}.base/icon.png`;
+-          const fallbackIcon = `<div style="position:absolute; top:0; left:0; width: 64px; height: 64px; border-radius: 12px; background: #1a1a1e; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: var(--primary); z-index:1;"><i class="fa-solid fa-server"></i></div>`;
+-
+-          let controlButtons = isRunning
+-            ? `<button class="btn-control restart" title="Reiniciar Servidor" onclick="srvAction('${s.id}','restart', this)"><i class="fa-solid fa-rotate"></i> Reiniciar</button>
+-               <button class="btn-control stop" title="Forzar Apagado" onclick="srvAction('${s.id}','stop', this)"><i class="fa-solid fa-power-off"></i> Apagar</button>`
+-            : `<button class="btn-control start" title="Iniciar Servidor" onclick="srvAction('${s.id}','start', this)"><i class="fa-solid fa-play"></i> Iniciar Servidor</button>`;
+-
+-
+-          if (isSameServer) {
+-              // ACTUALIZACIÓN QUIRÚRGICA: Solo valores
+-              const header = container.querySelector('.server-header');
+-              if (header) {
+-                  header.className = `server-header ${isRunning ? 'running' : 'stopped'}`;
+-                  const badge = header.querySelector('.badge');
+-                  if (badge) {
+-                      badge.className = `badge ${s.status}`;
+-                      badge.innerText = isRunning ? 'EN LÍNEA' : (s.status === 'stopped' ? 'APAGADO' : s.status.toUpperCase());
+-                  }
+-                  const controls = header.querySelector('div[style*="z-index: 1"]:last-child');
+-                  if (controls) controls.innerHTML = controlButtons;
+-              }
+-
+-              // Actualizar Anillos
+-              const updateRing = (type, pct, abs) => {
+-                  const box = container.querySelector(`.chart-${type}`).parentElement;
+-                  const circle = box.querySelector('.circle');
+-                  const glow = box.querySelector('.circle-glow');
+-                  const text = box.querySelector('.percentage');
+-                  const sub = box.querySelector('.chart-abs');
+-                  if(circle) circle.setAttribute('stroke-dasharray', `${pct}, 100`);
+-                  if(glow) glow.setAttribute('stroke-dasharray', `${pct}, 100`);
+-                  if(text) text.textContent = `${pct}%`;
+-                  if(sub) sub.textContent = abs;
+-              };
+-
+-              updateRing('cpu', cpuPct, `${cpuPct}% de ${maxCores} vCPUs`);
+-              updateRing('ram', ramPct, `${ramUsedVal.toFixed(2)} GB / ${maxRam} GB`);
+-              updateRing('disk', diskPct, `${diskUsedVal.toFixed(2)} GB / ${maxDisk} GB`);
+-
+-              // Actualizar Info Técnica
+-              const infoList = container.querySelector('.info-list');
+-              if (infoList) {
+-                  const items = infoList.querySelectorAll('li .mono, li span:last-child');
+-                  if (items[1]) items[1].innerText = s.container_name;
+-                  if (items[2]) items[2].innerText = s.db_name;
+-                  
+-                  // 🚀 Actualizar Estado de Blender quirúrgicamente
+-                  const blenderStatus = container.querySelector('#blender-status-text');
+-                  if (blenderStatus) {
+-                      blenderStatus.style.color = s.blender_status === 'running' ? 'var(--success)' : 'var(--muted)';
+-                      blenderStatus.innerHTML = s.blender_status === 'running' 
+-                          ? '<i class="fa-solid fa-circle-check"></i> En Línea' 
+-                          : `<button class="btn-success" style="padding:2px 8px; font-size:0.65rem;" onclick="toggleBlender(event, '${s.id}', 'start')"><i class="fa-solid fa-power-off"></i> Iniciar</button>`;
+-                  }
+-
+-                  // 🚀 Actualizar Pago y Caducidad quirúrgicamente
+-                  const paymentStatus = container.querySelector('.payment-status-text');
+-                  const expiryDate = container.querySelector('.expiry-date-text');
+-                  const isExpiredSurgical = new Date(s.expires_at) < new Date();
+-                  
+-                  if (paymentStatus) {
+-                      paymentStatus.style.color = isExpiredSurgical ? 'var(--danger)' : 'var(--success)';
+-                      paymentStatus.innerText = isExpiredSurgical ? 'Vencido' : 'Al Día';
+-                  }
+-                  if (expiryDate) {
+-                      expiryDate.style.color = isExpiredSurgical ? 'var(--danger)' : 'white';
+-                      expiryDate.innerText = new Date(s.expires_at).toLocaleDateString();
+-                  }
+-              }
+-              return; // Fin de actualización quirúrgica
+-          }
+-
+-          const newHtml = `
+-            <div style="display: flex; flex-direction: column; height: 100%;">
+-                <div class="server-header ${isRunning ? 'running' : 'stopped'}">
+-                    <div style="display: flex; align-items: center; z-index: 1;">
+-                        <div class="server-icon">
+-                            <img src="${iconUrl}" class="static-bg" onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='none'; this.parentElement.querySelector('.fallback-icon').style.display='flex';">
+-                            <img src="${iconUrl}" class="rotating-core">
+-                            <div class="fallback-icon" style="display:none; width:100%; height:100%; align-items:center; justify-content:center;">${fallbackIcon}</div>
+-                            <div class="lightning-container">
+-                                <svg class="bolt-svg b-1" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+-                                <svg class="bolt-svg b-2" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+-                                <svg class="bolt-svg b-3" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+-                                <svg class="bolt-svg b-4" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+-                                <svg class="bolt-svg b-5" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+-                                <svg class="bolt-svg b-6" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+-                            </div>
+-                        </div>
+-                        <div>
+-                            <h1 style="font-size: 1.6rem; margin-bottom: 6px;">${s.name}</h1>
+-                            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+-                                <span class="badge ${s.status}">${s.status === 'running' ? 'EN LÍNEA' : (s.status === 'stopped' ? 'APAGADO' : s.status.toUpperCase())}</span>
+-                                <span class="muted" style="font-size:0.8rem;"><i class="fa-solid fa-microchip" style="margin-right:5px; color:#555;"></i>Nodo Host (Local)</span>
+-                            </div>
+-                        </div>
+-                    </div>
+-                    <div style="display: flex; gap: 10px; z-index: 1;">${controlButtons}</div>
+-                </div>
+-
+-                <div class="dashboard-grid">
+-                    <div class="col-left">
+-                        <div class="card" style="flex-shrink: 0; padding: 20px 25px;">
+-                            <div class="card-header" style="margin-bottom:15px; padding-bottom:15px;">
+-                                <h3 style="font-size: 1rem;"><i class="fa-solid fa-plug" style="color:var(--success);"></i> Conexión In-Game</h3>
+-                            </div>
+-                            <div class="copy-box">
+-                                <span>${globalSafeHost}:${s.fivem_port}</span>
+-                                <button class="copy-btn" title="Copiar al portapapeles" onclick="Nexus.copyToClipboard('${globalSafeHost}:${s.fivem_port}'); showToast('IP copiada','success')"><i class="fa-regular fa-copy"></i></button>
+-                            </div>
+-                        </div>
+-
+-                        <div class="card" style="flex-grow: 1; padding: 20px 25px; display:flex; flex-direction:column;">
+-                            <div class="card-header" style="margin-bottom:10px; padding-bottom:15px; flex-wrap:wrap; gap:10px;">
+-                                <h3 style="font-size: 1rem;"><i class="fa-solid fa-chart-pie" style="color:var(--info);"></i> Monitorización de Recursos</h3>
+-                                <div style="display:flex; align-items:center; gap:8px; margin-left:auto;">
+-                                    <button id="btn-toggle-stats" class="btn-ghost" style="padding: 4px 12px; font-size: 0.7rem; border-radius: 30px; border-color: rgba(99,102,241,0.2); background: rgba(99,102,241,0.05);" onclick="switchStatsView(currentStatsView === 'live' ? 'history' : 'live')">
+-                                        ${currentStatsView === 'live' ? '<i class="fa-solid fa-chart-line"></i> Ver Historial' : '<i class="fa-solid fa-tower-broadcast"></i> Ver en Vivo'}
+-                                    </button>
+-                                    ${isRunning ? `<div style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); padding: 4px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);"><span class="live-dot"></span><span style="font-size:0.65rem; font-weight:700; color:white; letter-spacing:0.5px;">EN VIVO</span></div>` : ''}
+-                                </div>
+-                            </div>
+-
+-                            <div id="stats-live-view" style="display: ${currentStatsView === 'history' ? 'none' : 'block'}">
+-                                <div class="charts-wrapper">
+-                                <div class="chart-box">
+-                                    <svg viewBox="0 0 36 36" class="circular-chart chart-cpu">
+-                                        <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+-                                        <path class="circle-glow" stroke-dasharray="${cpuPct}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+-                                        <path class="circle" stroke-dasharray="${cpuPct}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+-                                        <text x="18" y="20.35" class="percentage">${cpuPct}%</text>
+-                                    </svg>
+-                                    <div class="chart-label">CPU</div>
+-                                    <div class="chart-sub">
+-                                        <span class="chart-abs">${cpuPct}% de ${maxCores} vCPUs</span>
+-                                    </div>
+-                                </div>
+-                                <div class="chart-box">
+-                                    <svg viewBox="0 0 36 36" class="circular-chart chart-ram">
+-                                        <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+-                                        <path class="circle-glow" stroke-dasharray="${ramPct}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+-                                        <path class="circle" stroke-dasharray="${ramPct}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+-                                        <text x="18" y="20.35" class="percentage">${ramPct}%</text>
+-                                    </svg>
+-                                    <div class="chart-label">RAM</div>
+-                                    <div class="chart-sub">
+-                                        <span class="chart-abs">${ramUsedVal.toFixed(2)} GB / ${maxRam} GB</span>
+-                                    </div>
+-                                </div>
+-                                <div class="chart-box">
+-                                    <svg viewBox="0 0 36 36" class="circular-chart chart-disk">
+-                                        <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+-                                        <path class="circle-glow" stroke-dasharray="${diskPct}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+-                                        <path class="circle" stroke-dasharray="${diskPct}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+-                                        <text x="18" y="20.35" class="percentage">${diskPct}%</text>
+-                                    </svg>
+-                                    <div class="chart-label">DISCO</div>
+-                                    <div class="chart-sub">
+-                                        <span class="chart-abs">${diskUsedVal.toFixed(2)} GB / ${maxDisk} GB</span>
+-                                    </div>
+-                                </div>
+-                            </div>
+-                        </div>
+-
+-                        <div id="stats-history-view" style="display: ${currentStatsView === 'live' ? 'none' : 'block'}; margin-top: 10px; flex-grow: 1; position: relative; min-height: 250px;">
+-                                <canvas id="mainHistoryChart"></canvas>
+-                            </div>
+-                        </div>
+-                    </div>
+-
+-                    <div class="col-right">
+-                        <div class="card" style="flex-grow: 1; padding: 20px 25px;">
+-                            <div class="card-header" style="margin-bottom:15px; padding-bottom:15px;">
+-                                <h3 style="font-size: 1rem;"><i class="fa-solid fa-circle-info" style="color:var(--muted);"></i> Información Técnica</h3>
+-                            </div>
+-                            <ul class="info-list">
+-                                <li><span>Plan Contratado</span><span class="badge outline" style="color:white; border-color:var(--primary); text-transform:uppercase;">${s.runtime_plan}</span></li>
+-                                <li><span>Docker ID</span><span class="mono">${s.container_name}</span></li>
+-                                <li><span>Base de Datos</span><span class="mono">${s.db_name}</span></li>
+-                                <li><span>Puerto FX</span><span class="mono">${s.fivem_port}</span></li>
+-                                <li><span>Puerto TX</span><span class="mono">${s.txadmin_port}</span></li>
+-                                ${planName !== 'hobby' ? `<li><span>Editor 3D</span><span id="blender-status-text" style="color:${s.blender_status === 'running' ? 'var(--success)' : 'var(--muted)'}; font-weight:700;">${s.blender_status === 'running' ? '<i class="fa-solid fa-circle-check"></i> En Línea' : `<button class="btn-success" style="padding:2px 8px; font-size:0.65rem;" onclick="toggleBlender(event, '${s.id}', 'start')"><i class="fa-solid fa-power-off"></i> Iniciar</button>`}</span></li>` : ''}
+-                                <li><span>Estado Pago</span><span class="payment-status-text" style="color:${isExpired?'var(--danger)':'var(--success)'}; font-weight:700;">${isExpired?'Vencido':'Al Día'}</span></li>
+-                                <li><span>Caducidad</span><span class="expiry-date-text" style="color:${isExpired?'var(--danger)':'white'}; font-weight:600;">${expDate.toLocaleDateString()}</span></li>
+-                            </ul>
+-                        </div>
+-
+-                        <div class="danger-zone">
+-                            <div>
+-                                <h4 style="color:var(--danger); font-size:0.95rem; margin-bottom:4px;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i> Zona Crítica</h4>
+-                                <p class="muted" style="font-size:0.75rem; margin:0;">Eliminar servidor irreversiblemente.</p>
+-                            </div>
+-                            <button class="btn-danger" style="padding: 10px 16px; font-size:0.80rem;" onclick="srvDelete('${s.id}')"><i class="fa-solid fa-trash" style="margin-right:6px;"></i> Destruir</button>
+-                        </div>
+-                    </div>
+-                </div>
+-            </div>`;
+-
+-          const currentDataHash = btoa(unescape(encodeURIComponent(newHtml)));
+-          if (lastDataHash !== currentDataHash) {
+-              const scrollPos = container.scrollTop;
+-              container.innerHTML = newHtml;
+-              container.scrollTop = scrollPos;
+-              lastDataHash = currentDataHash;
+-          }
+-        } catch (e) {
+-          if(e.status === 401) Nexus.logout();
+-        }
+-      }
+-
+-      async function toggleBlender(event, id, action) {
+-          if(event) event.stopPropagation();
+-          const btn = event ? event.currentTarget : null;
+-          const originalHtml = btn ? btn.innerHTML : '';
+-
+-          blenderActionPending = true;
+-
+-          if (btn) {
+-              btn.style.pointerEvents = 'none';
+-              if(action === 'start') {
+-                  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right:5px;"></i>Iniciando...';
+-              } else {
+-                  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+-              }
+-          }
+-
+-          try {
+-              await Nexus.api(`/api/servers/${id}/blender/${action}`, { method: 'POST' });
+-
+-              if (action === 'stop') {
+-                  isBlenderIframeLoaded = false;
+-                  const iframe = document.getElementById('blender-iframe');
+-                  if(iframe) {
+-                      iframe.src = '';
+-                      iframe.style.display = 'none';
+-                  }
+-                  showToast('Entorno 3D apagado', 'info');
+-                  switchView('servers', document.querySelector('.nav-item')); 
+-              } else {
+-                  showToast('Entorno 3D iniciado', 'success');
+-              }
+-
+-              lastDataHash = "";
+-          } catch(e) {
+-              showToast("Error en Blender: " + (e.message || "No se pudo cambiar el estado"), 'danger');
+-              if (btn) {
+-                  btn.innerHTML = originalHtml;
+-                  btn.style.pointerEvents = 'auto';
+-              }
+-          } finally {
+-              blenderActionPending = false;
+-              if (action === 'stop' && id) {
+-                  sessionStorage.removeItem('blenderUrl_' + id);
+-              }
+-              await loadServers();
+-          }
+-      }
+-
+-      let blenderPendingUrl = "";
+-
+-      async function openBlender(id) {
+-          try {
+-              const data = await Nexus.api(`/api/servers/${id}/blender-access`);
+-              blenderPendingUrl = `/blender/${data.shortId}/`;
+-
+-              document.getElementById('blender-tab-user').innerText = data.user;
+-              document.getElementById('blender-tab-pass').innerText = data.password;
+-
+-              document.getElementById('modal-blender-pass').innerText = data.password;
+-              document.getElementById('blender-auth-modal').classList.remove('hidden');
+-          } catch(e) {
+-              console.warn("Esperando entorno 3D...");
+-          }
+-      }
+-
+-      function confirmBlenderAuth() {
+-          document.getElementById('blender-auth-modal').classList.add('hidden');
+-          const iframe = document.getElementById('blender-iframe');
+-          iframe.style.display = 'block';
+-          if (iframe.src !== blenderPendingUrl) {
+-              iframe.src = blenderPendingUrl;
+-          }
+-          isBlenderIframeLoaded = true;
+-          if (currentServerId) {
+-              sessionStorage.setItem('blenderUrl_' + currentServerId, blenderPendingUrl);
+-          }
+-      }
+-
+-      async function srvAction(id, action, btn) {
+-        let originalHtml = "";
+-        if(btn) {
+-            originalHtml = btn.innerHTML;
+-            btn.classList.add('btn-loading');
+-            btn.disabled = true;
+-        }
+-        try {
+-            await Nexus.api(`/api/servers/${id}/${action}`, { method: 'POST' });
+-            showToast(`Servidor ${action === 'start' ? 'Iniciado' : (action === 'stop' ? 'Apagado' : 'Reiniciado')}`, 'success');
+-            lastDataHash = "";
+-            await loadServers();
+-        } catch (e) {
+-            showToast("Error al procesar acción", 'danger');
+-        } finally {
+-            if(btn) {
+-                btn.classList.remove('btn-loading');
+-                btn.innerHTML = originalHtml;
+-                btn.disabled = false;
+-            }
+-        }
+-      }
+-
+-      function srvDelete(id) {
+-          const html = `
+-              <h3 style="margin-bottom: 10px; color: var(--danger); font-size: 1.2rem;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:8px;"></i> Zona de Peligro</h3>
+-              <p class="muted" style="margin-bottom: 25px;">¿Estás seguro de destruir el servidor? <strong>Esta acción es irreversible</strong> y se perderán todos los datos (Archivos y Base de Datos).</p>
+-              <div style="display:flex; gap:12px;">
+-                  <button class="btn-ghost" style="flex:1;" onclick="closeActionModal()">Cancelar</button>
+-                  <button class="btn-danger" style="flex:1;" onclick="executeSrvDelete('${id}')"><i class="fa-solid fa-trash"></i> Destruir</button>
+-              </div>
+-          `;
+-          openActionModal(html);
+-      }
+-
+-      async function executeSrvDelete(id) {
+-          closeActionModal();
+-          try {
+-              await Nexus.api(`/api/servers/${id}`, { method: 'DELETE' });
+-              showToast('Servidor destruido correctamente', 'success');
+-              lastDataHash = "";
+-              loadServers();
+-          } catch(e){
+-              showToast('Error al destruir servidor', 'danger');
+-          }
+-      }
+-
+-      async function saveBackupTime(serverId, time) {
+-          if (!time) return;
+-          try {
+-              const res = await Nexus.api(`/api/servers/${serverId}/backup-time`, { method: 'POST', body: { time } });
+-              if (res.error) throw new Error(res.error);
+-              showToast('Hora de backup guardada', 'success');
+-              loadServers();
+-          } catch(e) {
+-              showToast('Error al guardar la hora: ' + e.message, 'danger');
+-          }
+-      }
+-
+-      function isValidEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
+-
+-      async function saveSettings() {
+-          const userNow = JSON.parse(localStorage.getItem('nexus_user') || '{}');
+-          const emailInput = document.getElementById('set-email');
+-          const email = emailInput.value.trim();
+-          const pass1 = document.getElementById('set-new-pass').value;
+-          const pass2 = document.getElementById('set-new-pass2').value;
+-          const currentPass = document.getElementById('set-current-pass').value;
+-
+-          if (email && !isValidEmail(email)) { showToast("Introduce un correo válido", 'warning'); emailInput.focus(); return; }
+-          if (!currentPass) { showToast("Contraseña actual requerida", 'warning'); return; }
+-          if (pass1 && pass1 !== pass2) { showToast("Las contraseñas nuevas no coinciden", 'danger'); return; }
+-          if (email && email !== userNow.email && userNow.is_verified) { showToast("El correo verificado no se puede cambiar", 'danger'); return; }
+-
+-          const btn = document.getElementById('btn-save-settings');
+-          const originalText = btn.innerHTML;
+-          btn.classList.add('btn-loading'); btn.disabled = true;
+-
+-          try {
+-              const payload = { currentPassword: currentPass };
+-              if (pass1) payload.newPassword = pass1;
+-              if (email && !userNow.is_verified) payload.newEmail = email;
+-
+-              const res = await Nexus.api('/api/auth/change-settings', { method: 'POST', body: JSON.stringify(payload) });
+-
+-              // 🚀 SI CAMBIÓ LA PASS, EL MIDDLEWARE NOS CERRARÁ LA SESIÓN EN LA PRÓXIMA PETICIÓN.
+-              // Para ser limpios, avisamos al usuario:
+-              if(pass1) {
+-                  showToast("Contraseña actualizada. Cerrando sesiones...", 'info');
+-                  setTimeout(() => Nexus.logout(), 2000);
+-                  return;
+-              }
+-
+-              showToast("Ajustes guardados correctamente", 'success');
+-
+-              if (payload.newEmail && payload.newEmail !== userNow.email) {
+-                  userNow.email = payload.newEmail;
+-                  userNow.is_verified = false;
+-                  localStorage.setItem('nexus_user', JSON.stringify(userNow));
+-                  alert("Has cambiado de correo. Te hemos enviado un nuevo enlace de verificación a " + payload.newEmail);
+-                  window.location.reload();
+-              }
+-
+-              document.getElementById('set-current-pass').value = '';
+-              document.getElementById('set-new-pass').value = '';
+-              document.getElementById('set-new-pass2').value = '';
+-
+-          } catch (e) {
+-              showToast(e.message || "Error al guardar. Comprueba tu contraseña", 'danger');
+-          } finally {
+-              btn.classList.remove('btn-loading'); btn.innerHTML = originalText; btn.disabled = false;
+-          }
+-      }
+-
+-      let canResend = true;
+-      async function resendVerification() {
+-          const userNow = JSON.parse(localStorage.getItem('nexus_user') || '{}');
+-          if (userNow.is_verified) { showToast("Tu correo ya está verificado", 'info'); return; }
+-          if (!canResend) return;
+-
+-          const btn = document.querySelector('#settings-unverified-banner button');
+-          const originalHtml = btn.innerHTML;
+-
+-          try {
+-              await Nexus.api('/api/auth/resend-verification', { method: 'POST' });
+-              canResend = false; btn.disabled = true; let timeLeft = 60;
+-
+-              const timer = setInterval(() => {
+-                  btn.innerHTML = `<i class="fa-solid fa-clock"></i> Espera ${timeLeft}s`;
+-                  timeLeft--;
+-                  if (timeLeft < 0) {
+-                      clearInterval(timer); canResend = true; btn.disabled = false; btn.innerHTML = originalHtml;
+-                  }
+-              }, 1000);
+-
+-              showToast("Enlace reenviado. Revisa tu bandeja.", 'success');
+-          } catch (e) {
+-              if (e.message.toLowerCase().includes('verificad') || e.message.toLowerCase().includes('verified') || e.message.toLowerCase().includes('ya está')) {
+-                  const u = JSON.parse(localStorage.getItem('nexus_user') || '{}');
+-                  u.is_verified = true;
+-                  localStorage.setItem('nexus_user', JSON.stringify(u));
+-                  updateEmailUI();
+-                  showToast("Cuenta ya verificada. Panel actualizado.", 'info');
+-              } else {
+-                  showToast("Error al reenviar enlace", 'danger');
+-              }
+-          }
+-      }
+-
+-      function openTicketModal() {
+-          document.getElementById('ticket-subject').value = '';
+-          document.getElementById('ticket-message').value = '';
+-          document.getElementById('ticket-modal').classList.remove('hidden');
+-      }
+-
+-      function closeTicketModal() { document.getElementById('ticket-modal').classList.add('hidden'); }
+-
+-      async function sendTicket() {
+-          const subject = document.getElementById('ticket-subject').value.trim();
+-          const message = document.getElementById('ticket-message').value.trim();
+-
+-          if (!subject || !message) return showToast("Rellena todos los campos", 'warning');
+-
+-          const btn = document.getElementById('btn-send-ticket');
+-          btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Enviando...'; btn.disabled = true;
+-
+-          try {
+-              await Nexus.api('/api/tickets/create', { method: 'POST', body: JSON.stringify({ subject, message }) });
+-              showToast("Ticket enviado correctamente", 'success');
+-              closeTicketModal();
+-          } catch (e) {
+-              showToast("La función requiere backend", 'info');
+-          } finally {
+-              btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar a Soporte'; btn.disabled = false;
+-          }
+-      }
+-
+-      function filterFiles() {
+-          const q = document.getElementById('fm-search').value.toLowerCase();
+-          document.querySelectorAll('#fm-sidebar-list .file-item').forEach(el => {
+-              el.style.display = el.innerText.toLowerCase().includes(q) ? 'flex' : 'none';
+-          });
+-      }
+-
+-      async function loadFolder(targetPath) {
+-          if(!currentServerId) return; currentFolderPath = targetPath;
+-          document.getElementById('fm-search').value = '';
+-          const sidebarList = document.getElementById('fm-sidebar-list');
+-          sidebarList.innerHTML = '<div style="padding: 10px; display: flex; flex-direction: column; gap: 10px;"><div class="skeleton skeleton-text" style="width: 80%;"></div><div class="skeleton skeleton-text" style="width: 100%;"></div><div class="skeleton skeleton-text" style="width: 60%;"></div></div>';
+-
+-          try {
+-              const data = await Nexus.api(`/api/files/list?serverId=${currentServerId}&path=${encodeURIComponent(targetPath)}`);
+-              let html = targetPath !== '/' ? `<div class="file-item dir" onclick="loadFolder('${targetPath.split('/').slice(0, -1).join('/') || '/'}')"><i class="fa-solid fa-level-up-alt"></i> .. (Atrás)</div>` : '';
+-
+-              if(data.items.length === 0) {
+-                   html += `<div class="muted" style="padding:20px; text-align:center; font-size:0.8rem;"><i class="fa-solid fa-folder-open" style="font-size:1.5rem; margin-bottom:10px; opacity:0.5;"></i><br>Carpeta vacía</div>`;
+-              } else {
+-                  data.items.forEach(item => {
+-                      if (item.isDirectory) {
+-                          html += `<div class="file-item dir" style="justify-content: space-between;">
+-                                      <div style="flex-grow:1" onclick="loadFolder('${item.path}')"><i class="fa-solid fa-folder"></i> ${item.name}</div>
+-                                      <div style="display:flex; align-items:center;">
+-                                          <i class="fa-solid fa-gear action-gear" onclick="openFmMenu(event, '${item.path}', '${item.name}', 'dir')" title="Opciones"></i>
+-                                      </div>
+-                                   </div>`;
+-                      } else {
+-                          let type = item.name.toLowerCase().endsWith('.zip') ? 'zip' : 'file';
+-                          html += `<div class="file-item file" style="justify-content: space-between;">
+-                                      <div style="flex-grow:1" onclick="loadFile('${item.path}', '${item.name}')"><i class="fa-solid fa-file"></i> ${item.name}</div>
+-                                      <div style="display:flex; align-items:center;">
+-                                          <i class="fa-solid fa-gear action-gear" onclick="openFmMenu(event, '${item.path}', '${item.name}', '${type}')" title="Opciones"></i>
+-                                      </div>
+-                                   </div>`;
+-                      }
+-                  });
+-              }
+-              sidebarList.innerHTML = html;
+-          } catch (e) { sidebarList.innerHTML = `<div class="muted" style="color:var(--danger); padding:10px; text-align:center;">Error cargando archivos.</div>`; }
+-      }
+-
+-      async function loadFile(filePath, fileName) {
+-          if(!currentServerId || !editorInstance) return;
+-          currentFilePath = filePath;
+-          document.getElementById('fm-current-file').innerText = currentFilePath;
+-          editorInstance.setValue('Cargando contenido...');
+-
+-          const ext = fileName.split('.').pop().toLowerCase();
+-          const langMap = {
+-              'lua': 'lua', 'js': 'javascript', 'json': 'json', 'sql': 'sql',
+-              'html': 'html', 'css': 'css', 'xml': 'xml', 'yaml': 'yaml', 'yml': 'yaml',
+-              'cfg': 'ini', 'ini': 'ini', 'txt': 'plaintext'
+-          };
+-          let lang = langMap[ext] || 'plaintext';
+-          monaco.editor.setModelLanguage(editorInstance.getModel(), lang);
+-
+-          try {
+-              const data = await Nexus.api(`/api/files/read?serverId=${currentServerId}&path=${encodeURIComponent(filePath)}`);
+-              editorInstance.setValue(typeof data.content === 'string' ? data.content : '');
+-              document.getElementById('btn-dl-file').style.display = 'inline-flex';
+-              setTimeout(() => editorInstance.layout(), 50);
+-          } catch (e) {
+-              editorInstance.setValue('');
+-              document.getElementById('btn-dl-file').style.display = 'none';
+-              showToast(e.message || 'No se pudo leer el archivo', 'danger');
+-          }
+-      }
+-
+-      async function saveConfig() {
+-          try {
+-              await Nexus.api('/api/files/write', { method: 'PUT', body: JSON.stringify({ serverId: currentServerId, path: currentFilePath, content: editorInstance.getValue() }) });
+-              showToast("Archivo guardado con éxito", 'success');
+-          } catch(e) {
+-              showToast("Error al guardar archivo", 'danger');
+-          }
+-      }
+-
+-      function fmDelete(t, e) {
+-          if(e) e.stopPropagation();
+-          const html = `
+-              <h3 style="margin-bottom: 10px; color: var(--danger); font-size: 1.2rem;"><i class="fa-solid fa-trash" style="margin-right:8px;"></i> Eliminar</h3>
+-              <p class="muted" style="margin-bottom: 20px; word-break: break-all;">¿Borrar permanentemente <strong>${t}</strong>?</p>
+-              <div style="display:flex; gap:12px;">
+-                  <button class="btn-ghost" style="flex:1;" onclick="closeActionModal()">Cancelar</button>
+-                  <button class="btn-danger" style="flex:1;" onclick="executeFmDelete('${t}')">Eliminar</button>
+-              </div>
+-          `;
+-          openActionModal(html);
+-      }
+-
+-      async function executeFmDelete(t) {
+-          closeActionModal();
+-          try {
+-              await Nexus.api('/api/files/action', { method: 'POST', body: JSON.stringify({ serverId: currentServerId, path: t, action: 'delete' })});
+-              showToast('Eliminado correctamente', 'success');
+-              loadFolder(currentFolderPath.startsWith(t) ? '/' : currentFolderPath);
+-          } catch(e) {
+-              showToast('Error al eliminar', 'danger');
+-          }
+-      }
+-
+-      function fmRename(path, oldName, e) {
+-          if(e) e.stopPropagation();
+-          const html = `
+-              <h3 style="margin-bottom: 10px; color: var(--info); font-size: 1.2rem;"><i class="fa-solid fa-pen-to-square" style="margin-right:8px;"></i> Renombrar</h3>
+-              <div style="margin-bottom: 20px;">
+-                  <label class="form-label" style="text-transform:none;">Nuevo nombre para <strong style="color:white;">${oldName}</strong></label>
+-                  <input type="text" class="input" id="modal-input-rename" value="${oldName}" onkeydown="if(event.key === 'Enter') executeFmRename('${path}')">
+-              </div>
+-              <div style="display:flex; gap:12px;">
+-                  <button class="btn-ghost" style="flex:1;" onclick="closeActionModal()">Cancelar</button>
+-                  <button class="btn" style="flex:1; background:var(--info);" onclick="executeFmRename('${path}')">Guardar</button>
+-              </div>
+-          `;
+-          openActionModal(html);
+-
+-          setTimeout(() => {
+-              const inp = document.getElementById('modal-input-rename');
+-              inp.focus();
+-              const dotIdx = oldName.lastIndexOf('.');
+-              if(dotIdx > 0) inp.setSelectionRange(0, dotIdx);
+-              else inp.select();
+-          }, 100);
+-      }
+-
+-      async function executeFmRename(oldPath) {
+-          const newName = document.getElementById('modal-input-rename').value.trim();
+-          if(!newName) return showToast('El nombre no puede estar vacío', 'warning');
+-          closeActionModal();
+-
+-          try {
+-              await Nexus.api('/api/files/action', {
+-                  method: 'POST',
+-                  body: JSON.stringify({
+-                      serverId: currentServerId,
+-                      path: oldPath,
+-                      newName: newName,
+-                      action: 'rename'
+-                  })
+-              });
+-              showToast('Renombrado correctamente', 'success');
+-              loadFolder(currentFolderPath);
+-          } catch(e) {
+-              showToast('Error al renombrar', 'danger');
+-          }
+-      }
+-
+-      function fmMove(path, name, e) {
+-          if(e) e.stopPropagation();
+-          const html = `
+-              <h3 style="margin-bottom: 10px; color: var(--warning); font-size: 1.2rem;"><i class="fa-solid fa-scissors" style="margin-right:8px;"></i> Mover Elemento</h3>
+-              <div style="margin-bottom: 20px;">
+-                  <label class="form-label" style="text-transform:none;">Ruta de destino para <strong style="color:white;">${name}</strong></label>
+-                  <input type="text" class="input" id="modal-input-move" value="${currentFolderPath === '/' ? '/' : currentFolderPath + '/'}" onkeydown="if(event.key === 'Enter') executeFmMove('${path}', '${name}')">
+-                  <p class="muted" style="font-size: 0.75rem; margin-top: 5px;">Escribe la carpeta de destino. Ej: <span class="mono">/resources/[local]/</span></p>
+-              </div>
+-              <div style="display:flex; gap:12px;">
+-                  <button class="btn-ghost" style="flex:1;" onclick="closeActionModal()">Cancelar</button>
+-                  <button class="btn" style="flex:1; background:var(--warning);" onclick="executeFmMove('${path}', '${name}')">Mover</button>
+-              </div>
+-          `;
+-          openActionModal(html);
+-
+-          setTimeout(() => {
+-              const inp = document.getElementById('modal-input-move');
+-              inp.focus();
+-              inp.selectionStart = inp.selectionEnd = inp.value.length;
+-          }, 100);
+-      }
+-
+-      async function executeFmMove(oldPath, name) {
+-          let destFolder = document.getElementById('modal-input-move').value.trim();
+-          if(!destFolder) return showToast('La ruta de destino no puede estar vacía', 'warning');
+-
+-          if (!destFolder.startsWith('/')) destFolder = '/' + destFolder;
+-          if (!destFolder.endsWith('/')) destFolder += '/';
+-          const newPath = destFolder + name;
+-
+-          closeActionModal();
+-
+-          try {
+-              await Nexus.api('/api/files/action', {
+-                  method: 'POST',
+-                  body: JSON.stringify({
+-                      serverId: currentServerId,
+-                      path: oldPath,
+-                      newPath: newPath,
+-                      action: 'move'
+-                  })
+-              });
+-              showToast('Elemento movido con éxito', 'success');
+-              loadFolder(currentFolderPath);
+-          } catch(e) {
+-              showToast('Error al mover el archivo', 'danger');
+-          }
+-      }
+-
+-      function fmUnzip(t, e) {
+-          if(e) e.stopPropagation();
+-          const html = `
+-              <h3 style="margin-bottom: 10px; color: var(--success); font-size: 1.2rem;"><i class="fa-solid fa-file-archive" style="margin-right:8px;"></i> Extraer ZIP</h3>
+-              <p class="muted" style="margin-bottom: 20px; word-break: break-all;">¿Descomprimir el archivo <strong>${t}</strong> en la carpeta actual?</p>
+-              <div style="display:flex; gap:12px;">
+-                  <button class="btn-ghost" style="flex:1;" onclick="closeActionModal()">Cancelar</button>
+-                  <button class="btn-success" style="flex:1;" onclick="executeFmUnzip('${t}')">Extraer</button>
+-              </div>
+-          `;
+-          openActionModal(html);
+-      }
+-
+-      async function executeFmUnzip(t) {
+-          closeActionModal();
+-          document.getElementById('fm-sidebar-list').innerHTML = `<div class="muted" style="padding:15px; text-align:center;"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><br><br>Extrayendo...</div>`;
+-          try {
+-              await Nexus.api('/api/files/action', { method: 'POST', body: JSON.stringify({ serverId: currentServerId, path: t, action: 'unzip' })});
+-              showToast('Archivo extraído', 'success');
+-          } catch(e){
+-              showToast('Error al extraer', 'danger');
+-          }
+-          loadFolder(currentFolderPath);
+-      }
+-
+-      async function fmDownloadFileFromEditor() { window.open(`/api/files/download?serverId=${currentServerId}&path=${encodeURIComponent(currentFilePath)}&token=${localStorage.getItem('nexus_token')}`, '_blank'); }
+-
+-      function fmDownloadFolder(targetPath, event) {
+-          if(event) event.stopPropagation();
+-          if(!confirm(`¿Comprimir y descargar esta carpeta completa?\n(Nota: Si la carpeta es muy pesada, como 'txData', podría tardar unos segundos en iniciar la descarga)`)) return;
+-
+-          const token = localStorage.getItem('nexus_token');
+-          const url = `/api/files/download-folder?serverId=${currentServerId}&path=${encodeURIComponent(targetPath)}&token=${token}`;
+-          window.open(url, '_blank');
+-      }
+-
+-      async function processUpload(files) {
+-          const token = localStorage.getItem('nexus_token'); let sCount = 0; let fCount = 0;
+-          document.getElementById('fm-sidebar-list').innerHTML = `<div class="muted" style="padding:15px; text-align:center;"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><br><br>Subiendo ${files.length} archivo(s)...</div>`;
+-          for (let i = 0; i < files.length; i++) {
+-              const formData = new FormData(); formData.append('file', files[i]); formData.append('serverId', currentServerId);
+-              formData.append('path', currentFolderPath === '/' ? `/${files[i].webkitRelativePath || files[i].name}` : `${currentFolderPath}/${files[i].webkitRelativePath || files[i].name}`);
+-              try { const res = await fetch('/api/files/upload', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData }); if(!res.ok) throw new Error(); sCount++; } catch(err) { fCount++; }
+-          }
+-          showToast(`Subida completada: Éxitos ${sCount} | Fallos ${fCount}`, fCount === 0 ? 'success' : 'warning');
+-          loadFolder(currentFolderPath);
+-      }
+-      function fmUploadFile() { const i = document.createElement('input'); i.type = 'file'; i.multiple = true; i.onchange = e => { if (e.target.files.length > 0) processUpload(e.target.files); }; i.click(); }
+-      function fmUploadFolder() { const i = document.createElement('input'); i.type = 'file'; i.setAttribute('webkitdirectory', ''); i.setAttribute('directory', ''); i.onchange = e => { if (e.target.files.length > 0) processUpload(e.target.files); }; i.click(); }
+-
+-      let logEventSource = null;
+-
+-      function startLogStreaming() {
+-        if(!currentServerId) return;
+-        const term = document.getElementById('terminal-out');
+-        
+-        // Cerrar stream previo si existe
+-        if (logEventSource) logEventSource.close();
+-
+-        term.innerHTML = '<div class="muted"><i class="fa-solid fa-sync fa-spin"></i> Conectando con el motor de logs nativo...</div>';
+-        
+-        const token = localStorage.getItem('nexus_token');
+-        const streamUrl = `${window.location.origin}/api/servers/${currentServerId}/logs/stream?token=${token}`;
+-        logEventSource = new EventSource(streamUrl);
+-
+-        logEventSource.addEventListener('open', (e) => {
+-            console.log("SSE Stream Abierto");
+-        });
+-
+-        logEventSource.onmessage = (event) => {
+-            try {
+-                const data = JSON.parse(event.data);
+-                // Limpieza agresiva de códigos ANSI y basura binaria
+-                const cleanLogs = (data.msg || '')
+-                    .replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
+-                    .replace(/\^[0-9]/g, '')
+-                    .replace(/[\x00-\x09\x0B-\x0C\x0E-\x1F\x7F-\x9F]/g, '')
+-                    .replace(/\[\s*c-scripting-core\s*\]/g, '[CORE]')
+-                    .trim();
+-
+-                term.innerText = cleanLogs || 'Consola vacía. Iniciando...';
+-                term.scrollTop = term.scrollHeight;
+-            } catch(e) {
+-                console.error("Error en log stream:", e);
+-            }
+-        };
+-
+-        logEventSource.onerror = (e) => {
+-            console.error("SSE Error:", e);
+-            term.innerHTML = '<div class="text-danger"><i class="fa-solid fa-triangle-exclamation"></i> Conexión perdida. Reintentando...</div>';
+-            logEventSource.close();
+-            setTimeout(startLogStreaming, 3000);
+-        };
+-      }
+-
+-      let isDownloadPollingActive = false;
+-      let wasDownloading = false;
+-
+-      function startDownloadPolling() {
+-          if (isDownloadPollingActive) return;
+-          isDownloadPollingActive = true;
+-
+-          setInterval(async () => {
+-              if (!currentServerId) return;
+-              try {
+-                  const token = localStorage.getItem('nexus_token');
+-                  const res = await fetch(`/api/files/download-status?serverId=${currentServerId}`, {
+-                      headers: { 'Authorization': `Bearer ${token}` }
+-                  });
+-                  if(res.status === 401) Nexus.logout();
+-                  const data = await res.json();
+-                  renderDownloads(data.tasks || []);
+-              } catch(e) {}
+-          }, 1500);
+-      }
+-
+-      function renderDownloads(tasks) {
+-          const container = document.getElementById('active-downloads-container');
+-
+-          if(tasks.length === 0) {
+-              if(wasDownloading) {
+-                  container.innerHTML = '';
+-                  if(!document.getElementById('view-editor').classList.contains('hidden')) {
+-                      loadFolder(currentFolderPath);
+-                  }
+-                  wasDownloading = false;
+-              }
+-              return;
+-          }
+-
+-          wasDownloading = true;
+-          let html = '';
+-
+-          tasks.forEach(t => {
+-              let color = 'var(--primary)';
+-              let icon = '<i class="fa-solid fa-cloud-arrow-down fa-bounce" style="color:var(--primary)"></i>';
+-
+-              if (t.isError) {
+-                  color = 'var(--danger)';
+-                  icon = '<i class="fa-solid fa-circle-xmark" style="color:var(--danger)"></i>';
+-              } else if (t.isFinished) {
+-                  color = 'var(--success)';
+-                  icon = '<i class="fa-solid fa-circle-check" style="color:var(--success)"></i>';
+-              } else if (t.status.includes('Extrayendo') || t.status.includes('Descomprimiendo')) {
+-                  color = 'var(--success)';
+-                  icon = '<i class="fa-solid fa-box-open fa-bounce" style="color:var(--success)"></i>';
+-              }
+-
+-              html += `
+-              <div class="dl-card" style="border-color: ${color}60;">
+-                  <div class="dl-title" title="${t.fileName}">${icon} ${t.fileName}</div>
+-                  <div class="dl-progress-bg">
+-                      <div class="dl-progress-fill" style="width: ${t.progress}%; background: ${color}; box-shadow: 0 0 10px ${color}80;"></div>
+-                  </div>
+-                  <div class="dl-status" style="color: ${t.isError ? 'var(--danger)' : (t.isFinished ? 'var(--success)' : 'var(--muted)')}">
+-                      <span>${t.status}</span>
+-                  </div>
+-              </div>`;
+-          });
+-          container.innerHTML = html;
+-      }
+-
+-      // ==========================================
+-      // FACTURACIÓN Y PLANES
+-      // ==========================================
+-      let currentSelectedDiskPack = null;
+-      let currentDiskGb = null;
+-
+-      async function loadBillingInfo() {
+-          let userNow = JSON.parse(localStorage.getItem('nexus_user') || '{}');
+-
+-          try {
+-              const userRes = await fetch('/api/auth/me', {
+-                  headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_token')}` }
+-              });
+-              if(userRes.status === 401) Nexus.logout();
+-              if(userRes.ok) {
+-                  const userData = await userRes.json();
+-                  userNow.plan = userData.plan || 'hobby';
+-                  localStorage.setItem('nexus_user', JSON.stringify(userNow));
+-              }
+-          } catch(e) {}
+-
+-          const planName = userNow.plan || 'hobby';
+-          const summaryPlanEl = document.getElementById('summary-plan-name');
+-          if(summaryPlanEl) summaryPlanEl.innerText = planName.charAt(0).toUpperCase() + planName.slice(1);
+-
+-                    const specs = {
+-              "hobby": { ram: "4 GB", cpu: "2 vCores", disk: "20 GB" },
+-              "standard": { ram: "8 GB", cpu: "4 vCores", disk: "40 GB" },
+-              "elite": { ram: "16 GB", cpu: "6 vCores", disk: "80 GB" }
+-          };
+-          const currentSpecs = specs[planName.toLowerCase()] || specs["hobby"];
+-          
+-          const featRam = document.getElementById("feat-ram");
+-          const featCpu = document.getElementById("feat-cpu");
+-          const featDisk = document.getElementById("feat-disk");
+-          
+-          if(featRam) featRam.innerText = currentSpecs.ram;
+-          if(featCpu) featCpu.innerText = currentSpecs.cpu;
+-          if(featDisk) featDisk.innerText = currentSpecs.disk;
+-
+-          loadDiskPlans();
+-
+-          try {
+-              const data = await Nexus.api("/api/servers");
+-              if(data.items && data.items.length > 0) {
+-                  const extraDisk = data.items[0].extra_disk_gb || 0;
+-                  const summaryDiskEl = document.getElementById("summary-extra-disk");
+-                  if(summaryDiskEl) summaryDiskEl.innerText = extraDisk;
+-              }
+-          } catch(e) {}
+-      }
+-
+-      async function loadDiskPlans() {
+-          const grid = document.getElementById('disk-packs-grid');
+-          if (!grid) return;
+-          try {
+-              const plans = await Nexus.api('/api/payments/disk-plans');
+-              if(plans.length === 0) {
+-                  grid.innerHTML = '<p class="muted">No hay expansiones disponibles.</p>';
+-                  return;
+-              }
+-
+-              const colors = ['var(--muted)', 'var(--info)', 'var(--success)', 'var(--warning)', 'var(--danger)', 'var(--primary)'];
+-              
+-              grid.innerHTML = plans.map((p, i) => `
+-                  <div class="disk-pack" onclick="selectDiskPack('${p.paypal_plan_id}', ${p.gb_amount})">
+-                      <i class="fa-solid fa-sd-card" style="font-size: 1.8rem; color: ${colors[i % colors.length]}; margin-bottom: 12px; display:block;"></i>
+-                      <strong style="font-size: 1.3rem; color: white; display:block;">${p.gb_amount} GB</strong>
+-                      <span style="font-size: 0.85rem; color: var(--primary); font-weight: 700; margin-top: 8px; display:block;">€${parseFloat(p.price).toFixed(2)}<small>/mes</small></span>
+-                  </div>
+-              `).join('');
+-          } catch(e) {
+-              grid.innerHTML = '<p class="muted" style="color:var(--danger)">Error al cargar packs.</p>';
+-          }
+-      }
+-
+-      function selectDiskPack(planId, gb) {
+-          document.querySelectorAll('.disk-pack').forEach(el => el.classList.remove('selected'));
+-          event.currentTarget.classList.add('selected');
+-
+-          currentSelectedDiskPack = planId;
+-          currentDiskGb = gb;
+-
+-          document.getElementById('selected-disk-label').innerText = `${gb} GB Extras`;
+-          document.getElementById('disk-checkout-container').classList.remove('hidden');
+-          renderDiskPaypalButton(planId, gb);
+-      }
+-
+-      function renderDiskPaypalButton(planId, gb) {
+-          const container = document.getElementById('paypal-disk-button-container');
+-          container.innerHTML = ''; // Clear previous button
+-
+-          paypal.Buttons({
+-              style: { layout: 'vertical', color: 'blue', shape: 'rect', label: 'subscribe' },
+-              createSubscription: function(data, actions) {
+-                  return actions.subscription.create({
+-                      'plan_id': planId
+-                  });
+-              },
+-              onApprove: async function(data, actions) {
+-                  showToast('Procesando pago de disco, por favor espera...', 'info');
+-                  try {
+-                      const res = await fetch('/api/payments/register-disk-subscription', {
+-                          method: 'POST',
+-                          headers: {
+-                              'Content-Type': 'application/json',
+-                              'Authorization': `Bearer ${localStorage.getItem('nexus_token')}`
+-                          },
+-                          body: JSON.stringify({ subscriptionID: data.subscriptionID, diskGb: gb })
+-                      });
+-                      const responseData = await res.json();
+-                      if (responseData.success) {
+-                          showToast(responseData.message, 'success');
+-                          setTimeout(() => window.location.reload(), 2000);
+-                      } else {
+-                          showToast(responseData.error || 'Error procesando la expansión de disco', 'danger');
+-                      }
+-                  } catch(err) {
+-                      showToast('Error de conexión al procesar el disco.', 'danger');
+-                  }
+-              },
+-              onError: function (err) {
+-                  showToast('Se canceló o falló el pago de PayPal.', 'warning');
+-              }
+-          }).render('#paypal-disk-button-container');
+-      }
+-
+-      function openPlanChangeModal() {
+-          const userNow = JSON.parse(localStorage.getItem('nexus_user') || '{}');
+-          const currentPlan = (userNow.plan || 'hobby').toLowerCase();
+-
+-          let buttonsHtml = '';
+-          
+-          if (currentPlan !== 'hobby') {
+-              buttonsHtml += `<button class="btn-ghost" onclick="doRevisePlan('hobby')">Hobby</button>`;
+-          } else {
+-              buttonsHtml += `<button class="btn-ghost" disabled style="opacity: 0.5; cursor: not-allowed;">Hobby (Actual)</button>`;
+-          }
+-
+-          if (currentPlan !== 'standard') {
+-              buttonsHtml += `<button class="btn-ghost" onclick="doRevisePlan('standard')">Standard</button>`;
+-          } else {
+-              buttonsHtml += `<button class="btn-ghost" disabled style="opacity: 0.5; cursor: not-allowed;">Standard (Actual)</button>`;
+-          }
+-
+-          if (currentPlan !== 'elite') {
+-              buttonsHtml += `<button class="btn-ghost" onclick="doRevisePlan('elite')">Élite</button>`;
+-          } else {
+-              buttonsHtml += `<button class="btn-ghost" disabled style="opacity: 0.5; cursor: not-allowed;">Élite (Actual)</button>`;
+-          }
+-
+-          const html = `
+-              <h3 style="margin-bottom: 20px; font-size: 1.2rem;"><i class="fa-solid fa-arrow-up-right-dots" style="color:var(--primary); margin-right:8px;"></i> Mejorar Plan</h3>
+-              <p class="muted" style="margin-bottom: 20px; font-size: 0.9rem;">Si actualizas tu plan, PayPal calculará la diferencia y te cobrará lo correspondiente prorrateado. Selecciona tu nuevo plan:</p>
+-              <div style="display:flex; flex-direction:column; gap:10px; margin-bottom: 20px;">
+-                  ${buttonsHtml}
+-              </div>
+-              <button class="btn-danger" style="width:100%;" onclick="closeActionModal()">Cancelar</button>
+-          `;
+-          openActionModal(html);
+-      }
+-
+-      async function doRevisePlan(newPlanName) {
+-          closeActionModal();
+-          showToast('Generando enlace seguro con PayPal...', 'info');
+-
+-          try {
+-              const res = await fetch('/api/payments/revise-plan', {
+-                  method: 'POST',
+-                  headers: {
+-                      'Content-Type': 'application/json',
+-                      'Authorization': `Bearer ${localStorage.getItem('nexus_token')}`
+-                  },
+-                  body: JSON.stringify({ newPlanId: newPlanName })
+-              });
+-              const data = await res.json();
+-              if (data.success && data.approveUrl) {
+-                  const win = window.open(data.approveUrl, 'PayPal', 'width=500,height=600');
+-
+-                  const confirmHtml = `
+-                      <h3 style="margin-bottom: 20px; font-size: 1.2rem;"><i class="fa-solid fa-clock" style="color:var(--warning); margin-right:8px;"></i> Esperando Confirmación</h3>
+-                      <p class="muted" style="margin-bottom: 20px; font-size: 0.9rem;">Por favor, completa el proceso en la ventana emergente de PayPal. Cuando termines, pulsa el botón de abajo para verificar el cambio.</p>
+-                      <button class="btn-success" style="width:100%;" onclick="confirmRevisePlan('${newPlanName}')">Ya he aprobado en PayPal</button>
+-                  `;
+-                  openActionModal(confirmHtml);
+-              } else {
+-                  showToast(data.error || 'Error al iniciar cambio de plan.', 'danger');
+-              }
+-          } catch(err) {
+-              showToast('Error de conexión', 'danger');
+-          }
+-      }
+-
+-      async function confirmRevisePlan(newPlanName) {
+-          closeActionModal();
+-          showToast('Verificando cambio de plan...', 'info');
+-          try {
+-              const res = await fetch('/api/payments/confirm-revise', {
+-                  method: 'POST',
+-                  headers: {
+-                      'Content-Type': 'application/json',
+-                      'Authorization': `Bearer ${localStorage.getItem('nexus_token')}`
+-                  },
+-                  body: JSON.stringify({ planName: newPlanName })
+-              });
+-              const data = await res.json();
+-              if (data.success) {
+-                  showToast(data.message, 'success');
+-                  const userNow = JSON.parse(localStorage.getItem('nexus_user') || '{}');
+-                  userNow.plan = newPlanName;
+-                  localStorage.setItem('nexus_user', JSON.stringify(userNow));
+-                  setTimeout(() => window.location.reload(), 2000);
+-              } else {
+-                  showToast(data.error || 'No se detectó el cambio. Inténtalo de nuevo más tarde.', 'danger');
+-              }
+-          } catch(err) {
+-              showToast('Error de conexión al verificar.', 'danger');
+-          }
+-      }
+-
+-      loadNotifications();
+-      loadServers();
+-      startDownloadPolling();
+-      // 🚀 TURBO MODE: Actualizaciones rápidas (1.5s) aprovechando el motor Rust
+-      let serverPollInterval = setInterval(loadServers, 1500);
+-      setInterval(loadNotifications, 15000);
+-
+-      // Ahorro inteligente de recursos
+-      document.addEventListener('visibilitychange', () => {
+-          clearInterval(serverPollInterval);
+-          if (document.hidden) {
+-              serverPollInterval = setInterval(loadServers, 12000); // Modo reposo
+-          } else {
+-              loadServers(); // Carga inmediata al volver
+-              serverPollInterval = setInterval(loadServers, 1500); // Modo turbo
+-          }
+-      });
+-
+-       // 💓 HEARTBEAT PARA EL EDITOR 3D (Previene el auto-apagado por inactividad)
+-       setInterval(async () => {
+-           if (activeView === "blender" && currentServerId) {
+-               try { await Nexus.api(`/api/servers/${currentServerId}/blender/heartbeat`, "POST"); } catch(e) {}
+-           }
+-       }, 60000);
+-
+-      // 🛒 MARKETPLACE LOGIC
+-      async function loadMarketplace() {
+-          const grid = document.getElementById('marketplace-scripts-grid');
+-          if (!grid) return;
+-          grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 50px;"><i class="fa-solid fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary);"></i><p class="muted" style="margin-top:10px;">Cargando scripts exclusivos...</p></div>';
+-
+-          try {
+-              const scripts = await Nexus.api('/api/marketplace/scripts');
+-              if (!scripts || scripts.length === 0) {
+-                  grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 50px;"><p class="muted">No hay scripts disponibles en este momento.</p></div>';
+-                  return;
+-              }
+-
+-              grid.innerHTML = scripts.map(s => `
+-                  <div class="card" style="padding: 0; overflow: hidden; border-color: ${s.icon_color}33;">
+-                      <div style="height: 140px; background: ${s.image_url ? `url('${s.image_url}') center/cover no-repeat` : `linear-gradient(135deg, ${s.icon_color}22 0%, transparent 100%)`}; display: flex; align-items: center; justify-content: center; position: relative;">
+-                          ${s.image_url ? '' : `<i class="fa-solid fa-${s.icon_type || 'cube'}" style="font-size: 4rem; color: ${s.icon_color}; filter: drop-shadow(0 0 15px ${s.icon_color}66);"></i>`}
+-                          <div style="position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 6px; font-size: 0.65rem; color: white; border: 1px solid rgba(255,255,255,0.1);"><i class="fa-solid fa-tag"></i> ${s.version}</div>
+-                      </div>
+-                      <div style="padding: 25px; display: flex; flex-direction: column; gap: 15px;">
+-                          <div style="display: flex; justify-content: space-between; align-items: center;">
+-                              <h3 style="margin:0; font-size: 1.2rem;">${s.name}</h3>
+-                              <span style="font-size: 1.2rem; font-weight: 900; color: ${s.price > 0 ? 'white' : 'var(--success)'};">${s.price > 0 ? '€' + s.price : 'Gratis'}</span>
+-                          </div>
+-                          <p class="muted" style="font-size: 0.85rem; line-height: 1.5; height: 65px;">${s.description}</p>
+-                          <div style="display: flex; gap: 10px; margin-top: 5px;">
+-                              <button class="btn" style="flex: 1;" onclick="buyScript(${s.id}, '${s.name}', ${s.price})"><i class="fa-solid ${s.price > 0 ? 'fa-cart-shopping' : 'fa-download'}"></i> ${s.price > 0 ? 'Comprar' : 'Obtener'}</button>
+-                              <button class="btn-ghost" style="padding: 10px;" onclick="showToast('Detalles del script próximamente...', 'info')"><i class="fa-solid fa-info-circle"></i></button>
+-                          </div>
+-                      </div>
+-                  </div>
+-              `).join('');
+-          } catch (e) {
+-              grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 50px;"><p class="muted">Error al cargar el Marketplace.</p></div>';
+-          }
+-      }
+-
+-      async function loadMyLicenses() {
+-          const tbody = document.getElementById('my-licenses-tbody');
+-          if (!tbody) return;
+-          tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 30px;" class="muted"><i class="fa-solid fa-spinner fa-spin"></i> Cargando tus licencias...</td></tr>';
+-
+-          try {
+-              const licenses = await Nexus.api('/api/marketplace/my-licenses');
+-              if (!licenses || licenses.length === 0) {
+-                  tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 30px;" class="muted">Aún no tienes licencias. ¡Visita el Market para adquirir scripts exclusivos!</td></tr>';
+-                  return;
+-              }
+-
+-              tbody.innerHTML = licenses.map(l => `
+-                  <tr>
+-                      <td style="font-weight: 700; color: white;">${l.script_name}</td>
+-                      <td><span style="background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem;">v${l.version}</span></td>
+-                      <td>
+-                          <div style="display: flex; align-items: center; gap: 10px;">
+-                              <code style="background: rgba(0,0,0,0.3); padding: 6px 12px; border-radius: 6px; font-family: var(--font-mono); font-size: 0.9rem; color: var(--primary); border: 1px solid rgba(99,102,241,0.2);">${l.license_key}</code>
+-                              <button class="btn-ghost" style="padding: 6px 10px;" onclick="Nexus.copyToClipboard('${l.license_key}'); showToast('Licencia copiada al portapapeles', 'success');"><i class="fa-regular fa-copy"></i></button>
+-                          </div>
+-                      </td>
+-                      <td>
+-                          <button class="btn" style="padding: 8px 16px; font-size: 0.8rem;" onclick="openInstallModal('${l.license_key}')"><i class="fa-solid fa-cloud-arrow-down"></i> Instalar en Servidor</button>
+-                      </td>
+-                  </tr>
+-              `).join('');
+-          } catch (e) {
+-              tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 30px; color: var(--danger);">Error al cargar las licencias.</td></tr>';
+-          }
+-      }
+-
+-      async function openInstallModal(licenseKey) {
+-          try {
+-              const servers = await Nexus.api('/api/servers');
+-              const select = document.getElementById('modal-install-server-id');
+-              select.innerHTML = '';
+-              
+-              if (!servers.items || servers.items.length === 0) {
+-                  select.innerHTML = '<option disabled selected>No tienes servidores activos</option>';
+-              } else {
+-                  servers.items.forEach(s => {
+-                      const opt = document.createElement('option');
+-                      opt.value = s.id;
+-                      opt.innerText = `${s.name} (${s.id.slice(0,8)})`;
+-                      select.appendChild(opt);
+-                  });
+-              }
+-
+-              document.getElementById('modal-install-license').value = licenseKey;
+-              document.getElementById('modal-install-script').classList.remove('hidden');
+-          } catch (e) {
+-              showToast('Error al cargar servidores.', 'danger');
+-          }
+-      }
+-
+-      async function confirmInstallScript() {
+-          const licenseKey = document.getElementById('modal-install-license').value;
+-          const serverId = document.getElementById('modal-install-server-id').value;
+-          
+-          if (!serverId) {
+-              showToast('Debes seleccionar un servidor válido.', 'warning');
+-              return;
+-          }
+-
+-          try {
+-              closeModal('modal-install-script');
+-              showToast('Instalando script en tu servidor...', 'info');
+-              
+-              const res = await Nexus.api(`/api/marketplace/purchase/install/${licenseKey}`, { 
+-                  method: 'POST', 
+-                  body: JSON.stringify({ serverId }) 
+-              });
+-              
+-              showToast(res.message || 'Instalado con éxito', 'success');
+-              
+-              // Opcional: Notificar al usuario para reiniciar su server
+-              setTimeout(() => {
+-                  showToast('Es posible que necesites reiniciar tu servidor para aplicar los cambios.', 'info');
+-              }, 2000);
+-          } catch (e) {
+-              showToast(e.message || 'Error al instalar el script', 'danger');
+-          }
+-      }
+-
+-      async function buyScript(id, name, price) {
+-          if (price <= 0) {
+-              const html = `
+-                  <h3 style="margin-bottom: 20px; font-size: 1.2rem;"><i class="fa-solid fa-gift" style="color:var(--success); margin-right:8px;"></i> Obtener Gratis: ${name}</h3>
+-                  <p class="muted" style="margin-bottom: 25px; font-size: 0.9rem;">Este script es gratuito. Haz clic abajo para añadirlo a tu bóveda de licencias.</p>
+-                  <div style="background: rgba(99,102,241,0.05); border: 1px dashed var(--primary); padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 0.8rem; color: var(--muted); text-align: left;">
+-                      <i class="fa-solid fa-circle-info" style="color: var(--primary);"></i> <strong>Instrucciones de uso:</strong> Una vez obtenido, recibirás una licencia Vault™. Deberás insertarla en el archivo de configuración del script (o en tu <code>server.cfg</code> como <code>setr vault_license "TU_LICENCIA"</code>) para activarlo.
+-                  </div>
+-                  <button class="btn" style="width: 100%; padding: 15px; font-size: 1.1rem; background: var(--success);" onclick="claimFreeScript(${id}, '${name}')">
+-                      <i class="fa-solid fa-download"></i> Reclamar Ahora
+-                  </button>
+-                  <button class="btn-ghost" style="width: 100%; margin-top: 15px;" onclick="closeActionModal()">Cancelar</button>
+-              `;
+-              openActionModal(html);
+-              return;
+-          }
+-
+-          const html = `
+-              <h3 style="margin-bottom: 20px; font-size: 1.2rem;"><i class="fa-solid fa-cart-shopping" style="color:var(--primary); margin-right:8px;"></i> Checkout: ${name}</h3>
+-              <p class="muted" style="margin-bottom: 25px; font-size: 0.9rem;">Estás a un paso de adquirir este recurso premium para tu servidor. El pago es procesado de forma segura por PayPal.</p>
+-              
+-              <div id="paypal-marketplace-button-container" style="min-height: 150px;"></div>
+-              
+-              <button class="btn-ghost" style="width: 100%; margin-top: 15px;" onclick="closeActionModal()">Cancelar</button>
+-          `;
+-          openActionModal(html);
+-
+-          setTimeout(() => {
+-              paypal.Buttons({
+-                  style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'pay' },
+-                  createOrder: async function() {
+-                      try {
+-                          const res = await fetch(`/api/marketplace/purchase/create-order/${id}`, {
+-                              method: 'POST',
+-                              headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_token')}` }
+-                          });
+-                          const data = await res.json();
+-                          if (data.id) return data.id;
+-                          throw new Error(data.error || 'Error al crear orden');
+-                      } catch(e) {
+-                          showToast(e.message, 'danger');
+-                      }
+-                  },
+-                  onApprove: async function(data) {
+-                      document.getElementById('paypal-marketplace-button-container').innerHTML = '<div style="text-align:center; padding:20px;"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><br><p class="muted">Capturando pago y generando licencia...</p></div>';
+-                      try {
+-                          const res = await fetch(`/api/marketplace/purchase/capture/${data.orderID}`, {
+-                              method: 'POST',
+-                              headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_token')}` }
+-                          });
+-                          const result = await res.json();
+-                          if (result.success) {
+-                              openActionModal(`
+-                                  <div style="text-align: center; padding: 20px;">
+-                                      <i class="fa-solid fa-circle-check" style="font-size: 4rem; color: var(--success); margin-bottom: 20px;"></i>
+-                                      <h2 style="margin-bottom: 10px;">¡Adquisición Exitosa!</h2>
+-                                      <p class="muted">Has adquirido <strong>${name}</strong>.</p>
+-                                      <div style="margin-top: 30px; background: rgba(0,0,0,0.3); padding: 20px; border-radius: 12px; border: 1px solid var(--primary);">
+-                                          <div style="font-size: 0.7rem; color: var(--muted); text-transform: uppercase; margin-bottom: 5px;">Tu Licencia de Bóveda (Vault™)</div>
+-                                          <div style="font-family: monospace; font-size: 1.1rem; color: white; letter-spacing: 1px;">${result.licenseKey}</div>
+-                                      </div>
+-                                      <p style="margin-top: 20px; font-size: 0.8rem; color: var(--muted);">Para usar el script, añade <code>setr vault_license "${result.licenseKey}"</code> en tu <code>server.cfg</code> o en la configuración del script.</p>
+-                                      <button class="btn" style="width: 100%; margin-top: 25px;" onclick="closeActionModal(); switchView('my-licenses', document.getElementById('nav-my-licenses'));"><i class="fa-solid fa-key"></i> Ir a Mis Licencias para Descargar</button>
+-                                  </div>
+-                              `);
+-                          } else {
+-                              throw new Error(result.error || 'Error capturando el pago');
+-                          }
+-                      } catch(e) {
+-                          showToast(e.message, 'danger');
+-                          closeActionModal();
+-                      }
+-                  }
+-              }).render('#paypal-marketplace-button-container');
+-          }, 100);
+-      }
+-
+-      async function claimFreeScript(id, name) {
+-          try {
+-              document.querySelector('#action-modal .btn').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Reclamando...';
+-              document.querySelector('#action-modal .btn').disabled = true;
+-              
+-              const res = await fetch(`/api/marketplace/purchase/claim-free/${id}`, {
+-                  method: 'POST',
+-                  headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_token')}` }
+-              });
+-              const result = await res.json();
+-              if (result.success) {
+-                  openActionModal(`
+-                      <div style="text-align: center; padding: 20px;">
+-                          <i class="fa-solid fa-circle-check" style="font-size: 4rem; color: var(--success); margin-bottom: 20px;"></i>
+-                          <h2 style="margin-bottom: 10px;">¡Adquisición Exitosa!</h2>
+-                          <p class="muted">Has adquirido <strong>${name}</strong>.</p>
+-                          <div style="margin-top: 30px; background: rgba(0,0,0,0.3); padding: 20px; border-radius: 12px; border: 1px solid var(--success);">
+-                              <div style="font-size: 0.7rem; color: var(--muted); text-transform: uppercase; margin-bottom: 5px;">Tu Licencia de Bóveda (Vault™)</div>
+-                              <div style="font-family: monospace; font-size: 1.1rem; color: white; letter-spacing: 1px;">${result.licenseKey}</div>
+-                          </div>
+-                          <p style="margin-top: 20px; font-size: 0.8rem; color: var(--muted);">Para usar el script, añade <code>setr vault_license "${result.licenseKey}"</code> en tu <code>server.cfg</code> o en la configuración del script.</p>
+-                          <button class="btn" style="width: 100%; margin-top: 25px;" onclick="closeActionModal(); switchView('my-licenses', document.getElementById('nav-my-licenses'));"><i class="fa-solid fa-key"></i> Ir a Mis Licencias para Descargar</button>
+-                      </div>
+-                  `);
+-              } else {
+-                  throw new Error(result.error || 'Error al reclamar el script');
+-              }
+-          } catch(e) {
+-              showToast(e.message, 'danger');
+-              closeActionModal();
+-          }
+-      }
+-
+-      function openVendorModal() {
+-          document.getElementById('modal-vendor').classList.remove('hidden');
+-      }
+-
+-      async function submitVendorApplication() {
+-          const discord = document.getElementById('vendor-discord').value.trim();
+-          const portfolio = document.getElementById('vendor-portfolio').value.trim();
+-          const experience = document.getElementById('vendor-experience').value.trim();
+-
+-          if (!discord) return showToast('El usuario de Discord es obligatorio', 'warning');
+-
+-          const btn = document.getElementById('btn-submit-vendor');
+-          btn.disabled = true;
+-          btn.innerText = 'Enviando...';
+-
+-          try {
+-              const res = await Nexus.api('/api/marketplace/apply', {
+-                  method: 'POST',
+-                  body: JSON.stringify({ discordUsername: discord, portfolioUrl: portfolio, experience })
+-              });
+-              showToast(res.message, 'success');
+-              closeModal('modal-vendor');
+-          } catch (e) {
+-              showToast(e.message || 'Error al enviar postulación', 'danger');
+-          } finally {
+-              btn.disabled = false;
+-              btn.innerText = 'Enviar Postulación';
+-          }
+-      }
+-
+-      // 🏪 VENDOR PORTAL LOGIC
+-      function openUploadScriptModal() {
+-          document.getElementById('modal-upload-script').classList.remove('hidden');
+-      }
+-
+-      async function submitScriptUpload() {
+-          const btn = document.getElementById('btn-do-upload');
+-          const fileInput = document.getElementById('up-script-file');
+-          
+-          if (!fileInput.files[0]) return showToast('Por favor, selecciona un archivo', 'warning');
+-
+-          const formData = new FormData();
+-          formData.append('name', document.getElementById('up-script-name').value);
+-          formData.append('price', document.getElementById('up-script-price').value);
+-          formData.append('version', document.getElementById('up-script-version').value);
+-          formData.append('category', document.getElementById('up-script-category').value);
+-          formData.append('description', document.getElementById('up-script-desc').value);
+-          formData.append('iconType', document.getElementById('up-script-icon').value);
+-          formData.append('iconColor', document.getElementById('up-script-color').value);
+-          
+-          const imgUrl = document.getElementById('up-script-image-url')?.value;
+-          if (imgUrl) formData.append('imageUrl', imgUrl);
+-          
+-          formData.append('scriptFile', fileInput.files[0]);
+-
+-          btn.disabled = true;
+-          btn.innerText = 'Subiendo script...';
+-
+-          try {
+-              const response = await fetch('/api/marketplace/upload', {
+-                  method: 'POST',
+-                  headers: {
+-                      'Authorization': `Bearer ${localStorage.getItem('nexus_token')}`
+-                  },
+-                  body: formData
+-              });
+-              const res = await response.json();
+-              if (res.success) {
+-                  showToast(res.message, 'success');
+-                  closeModal('modal-upload-script');
+-                  loadVendorScripts();
+-                  // Reset form
+-                  document.getElementById('form-upload-script').reset();
+-              } else {
+-                  showToast(res.error || 'Error al subir script', 'danger');
+-              }
+-          } catch (e) {
+-              showToast('Error de conexión al subir script', 'danger');
+-          } finally {
+-              btn.disabled = false;
+-              btn.innerText = 'Subir y Publicar';
+-          }
+-      }
+-
+-      async function loadVendorScripts() {
+-          const list = document.getElementById('vendor-scripts-list');
+-          if (!list) return;
+-
+-          try {
+-              const scripts = await Nexus.api('/api/marketplace/my-scripts');
+-              if (!scripts || scripts.length === 0) {
+-                  list.innerHTML = '<p class="muted" style="text-align: center; padding: 20px;">Aún no has publicado ningún script.</p>';
+-                  return;
+-              }
+-
+-              list.innerHTML = scripts.map(s => `
+-                  <div class="card" style="flex-direction: row; align-items: center; justify-content: space-between; padding: 15px 25px;">
+-                      <div style="display: flex; align-items: center; gap: 20px;">
+-                          <div style="width: 50px; height: 50px; border-radius: 10px; background: ${s.icon_color}22; display: flex; align-items: center; justify-content: center;">
+-                              <i class="fa-solid fa-${s.icon_type || 'cube'}" style="color: ${s.icon_color}; font-size: 1.2rem;"></i>
+-                          </div>
+-                          <div>
+-                              <div style="font-weight: 700; color: white;">${s.name}</div>
+-                              <div class="muted" style="font-size: 0.75rem;">Version ${s.version} • ${s.category}</div>
+-                          </div>
+-                      </div>
+-                      <div style="text-align: right;">
+-                          <div style="font-weight: 900; color: white; font-size: 1.1rem;">€${s.price}</div>
+-                          <div class="badge" style="background: rgba(16, 185, 129, 0.1); color: #34d399; font-size: 0.6rem; padding: 2px 6px;">ACTIVO</div>
+-                      </div>
+-                  </div>
+-              `).join('');
+-          } catch (e) {
+-              list.innerHTML = '<p class="muted">Error al cargar tus scripts.</p>';
+-          }
+-      }
+-
+-       // 🏪 MARKETPLACE ADMIN LOGIC
+-       function openAdminUploadModal() {
+-           document.getElementById('modal-admin-upload').classList.remove('hidden');
+-           initAdminDropZone();
+-       }
+-
+-       function initAdminDropZone() {
+-           const zone = document.getElementById('admin-drop-zone');
+-           if (!zone) return;
+-
+-           ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+-               zone.addEventListener(evt, e => { e.preventDefault(); e.stopPropagation(); });
+-           });
+-
+-           zone.addEventListener('dragover', () => zone.classList.add('dragover'));
+-           zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+-           zone.addEventListener('drop', e => {
+-               zone.classList.remove('dragover');
+-               processAdminUpload(e.dataTransfer.files);
+-           });
+-       }
+-
+-       async function processAdminUpload(files) {
+-           if (!files || files.length === 0) return;
+-           
+-           const progress = document.getElementById('admin-upload-progress');
+-           const status = document.getElementById('admin-up-status');
+-           const bar = document.getElementById('admin-up-bar');
+-           const pct = document.getElementById('admin-up-pct');
+-
+-           progress.classList.remove('hidden');
+-           
+-           for (let i = 0; i < files.length; i++) {
+-               const file = files[i];
+-               status.innerText = `Subiendo: ${file.name} (${i+1}/${files.length})`;
+-               
+-               const formData = new FormData();
+-               formData.append('scriptFile', file);
+-
+-               try {
+-                   const response = await fetch('/api/marketplace/upload', {
+-                       method: 'POST',
+-                       headers: {
+-                           'Authorization': `Bearer ${localStorage.getItem('nexus_token')}`
+-                       },
+-                       body: formData
+-                   });
+-                   const res = await response.json();
+-                   
+-                   const progressVal = Math.round(((i + 1) / files.length) * 100);
+-                   bar.style.width = progressVal + '%';
+-                   pct.innerText = progressVal + '%';
+-
+-                   if (res.success) {
+-                       showToast(`Subido con éxito: ${file.name}`, 'success');
+-                   } else {
+-                       showToast(`Error en ${file.name}: ${res.error}`, 'danger');
+-                   }
+-               } catch (e) {
+-                   showToast(`Error de conexión en ${file.name}`, 'danger');
+-               }
+-           }
+-
+-           setTimeout(() => {
+-               progress.classList.add('hidden');
+-               bar.style.width = '0%';
+-               pct.innerText = '0%';
+-               if (typeof loadMarketplaceScripts === 'function') loadMarketplaceScripts();
+-               if (typeof loadVendorScripts === 'function') loadVendorScripts();
+-           }, 2000);
+-       }
+-
+-       // 🏪 VENDORS ADMIN MANAGEMENT
+-       function openAdminVendorsModal() {
+-           document.getElementById('modal-admin-vendors').classList.remove('hidden');
+-           loadAdminVendors();
+-       }
+-
+-       async function loadAdminVendors() {
+-           const list = document.getElementById('admin-vendors-list');
+-           list.innerHTML = '<div style="text-align:center; padding:20px; color:var(--muted);"><i class="fa-solid fa-spinner fa-spin"></i> Cargando solicitudes...</div>';
+-           
+-           try {
+-               const res = await Nexus.api('/api/admin/vendors');
+-               if (!res || res.length === 0) {
+-                   list.innerHTML = '<div style="text-align:center; padding:20px; color:var(--muted);"><i class="fa-solid fa-check-circle" style="color:var(--success);"></i> No hay solicitudes pendientes.</div>';
+-                   return;
+-               }
+-
+-               list.innerHTML = res.map(v => {
+-                   let badge = `<span style="padding:4px 8px; border-radius:4px; font-size:0.75rem; font-weight:700; background:rgba(255,255,255,0.1);">${v.status.toUpperCase()}</span>`;
+-                   if(v.status === 'pending') badge = `<span style="padding:4px 8px; border-radius:4px; font-size:0.75rem; font-weight:700; background:rgba(245, 158, 11, 0.2); color:#f59e0b;">PENDIENTE</span>`;
+-                   if(v.status === 'accepted') badge = `<span style="padding:4px 8px; border-radius:4px; font-size:0.75rem; font-weight:700; background:rgba(16, 185, 129, 0.2); color:#10b981;">ACEPTADO</span>`;
+-                   if(v.status === 'rejected') badge = `<span style="padding:4px 8px; border-radius:4px; font-size:0.75rem; font-weight:700; background:rgba(239, 68, 68, 0.2); color:#ef4444;">RECHAZADO</span>`;
+-
+-                   return `
+-                       <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.05); padding:15px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+-                           <div>
+-                               <div style="font-weight:700; font-size:1.05rem;">${v.discord_username || v.web_username}</div>
+-                               <div style="font-size:0.85rem; color:var(--muted); margin-top:4px;">Discord ID/Web: ${v.web_username}</div>
+-                               <div style="font-size:0.85rem; color:var(--muted);">Portfolio: <a href="${v.portfolio_url}" target="_blank" style="color:#3b82f6;">${v.portfolio_url || 'N/A'}</a></div>
+-                               <div style="margin-top:8px;">${badge} <span style="font-size:0.75rem; color:var(--muted); margin-left:8px;">${new Date(v.created_at).toLocaleString()}</span></div>
+-                           </div>
+-                           <div style="display:flex; gap:8px;">
+-                               ${v.status === 'pending' ? `
+-                                   <button class="btn btn-success" style="padding:8px 12px; font-size:0.85rem;" onclick="adminVendorAction(${v.id}, 'accepted')"><i class="fa-solid fa-check"></i></button>
+-                                   <button class="btn btn-danger" style="padding:8px 12px; font-size:0.85rem;" onclick="adminVendorAction(${v.id}, 'rejected')"><i class="fa-solid fa-xmark"></i></button>
+-                               ` : ''}
+-                           </div>
+-                       </div>
+-                   `;
+-               }).join('');
+-           } catch(e) {
+-               list.innerHTML = '<div style="color:var(--danger); padding:20px;">Error cargando solicitudes</div>';
+-           }
+-       }
+-
+-       async function adminVendorAction(id, action) {
+-           if (!confirm(`¿Estás seguro de que deseas ${action === 'accepted' ? 'ACEPTAR' : 'RECHAZAR'} a este vendedor?`)) return;
+-           try {
+-               const res = await Nexus.api(`/api/admin/vendor/${id}/action`, {
+-                   method: 'POST',
+-                   body: JSON.stringify({ action })
+-               });
+-               if (res.success) {
+-                   showToast(res.message, 'success');
+-                   loadAdminVendors();
+-               } else {
+-                   showToast(res.error || 'Error procesando solicitud', 'error');
+-               }
+-           } catch(e) {
+-               showToast('Error de conexión', 'error');
+-           }
+-       }
+-
+-  </script>
++  <script src="js/panel.js?v=14"></script>
+ </body>
+ </html>

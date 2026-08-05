@@ -1,0 +1,35 @@
+{
+  "name": "ragenodes-backend",
+  "version": "55.9.0-ultimate",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "start:api": "node src/server.js",
+    "worker:backups": "RAGENODES_ROLE=worker-backups node src/worker.js",
+    "worker:docker-events": "RAGENODES_ROLE=worker-docker-events node src/worker.js",
+    "worker:stats": "RAGENODES_ROLE=worker-stats node src/worker.js"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.10",
+    "axios": "^1.16.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dockerode": "^4.0.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.1.5",
+    "http-proxy-middleware": "^3.0.5",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.9.7",
+    "node-cron": "^4.2.1",
+    "pg": "^8.12.0",
+    "redis": "^5.12.1",
+    "resend": "^6.4.2",
+    "systeminformation": "^5.21.22",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3.7.2"
+  }
+}

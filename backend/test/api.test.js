@@ -1,0 +1,17 @@
+import assert from 'assert';
+import { rustUtil } from '../src/utils/rustUtil.js';
+
+describe('🦀 RustBridge IPC Tests', () => {
+    it('debería calcular estadísticas de Docker correctamente vía IPC demonio', async () => {
+        const mockStats = {
+            cpu_stats: { cpu_usage: { total_usage: 100000 }, system_cpu_usage: 500000, online_cpus: 4 },
+            precpu_stats: { cpu_usage: { total_usage: 80000 }, system_cpu_usage: 400000, online_cpus: 4 },
+            memory_stats: { usage: 2048000, limit: 4096000, stats: { inactive_file: 0 } }
+        };
+
+        const result = await rustUtil.calculateStats(mockStats);
+        assert.ok(result, 'El resultado no debería ser nulo');
+        assert.equal(typeof result.cpu, 'string');
+        assert.equal(typeof result.ram, 'string');
+    });
+});

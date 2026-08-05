@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'oxide_proxy_staging'
+    static_configs:
+      - targets: ['10.5.0.5:8443']

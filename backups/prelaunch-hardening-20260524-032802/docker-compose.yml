@@ -1,0 +1,255 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: [ .env ]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ragenodes_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    cpu_shares: 1024
+    blkio_config:
+      weight: 800
+
+  mariadb:
+    image: mariadb:10.11
+    restart: unless-stopped
+    env_file: [ .env ]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${CENTRAL_DB_PASS}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    ports:
+      - "${ADMIN_BIND_IP:-127.0.0.1}:3306:3306"
+    networks:
+      - ragenodes_net
+    cpu_shares: 1024
+    blkio_config:
+      weight: 800
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mariadb
+      PMA_ARBITRARY: 1
+      UPLOAD_LIMIT: 1000M
+      PMA_ABSOLUTE_URI: ${PUBLIC_BASE_URL}/pma/
+    volumes:
+      - ./phpmyadmin-config/config.user.inc.php:/etc/phpmyadmin/config.user.inc.php:ro
+    networks:
+      - ragenodes_net
+    depends_on:
+      - mariadb
+
+  fivem-base:
+    build:
+      context: ./fivem-base
+    image: ${FIVEM_BASE_IMAGE}
+    profiles: ["build-only"]
+    command: ["true"]
+
+  blender-web:
+    build:
+      context: ./blender-web
+    image: ${BLENDER_BASE_IMAGE}
+    profiles: ["build-only"]
+    command: ["true"]
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    init: true
+    env_file: [ .env ]
+    networks:
+      - ragenodes_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mariadb:
+        condition: service_started
+    volumes:
+      - ${DOCKER_SOCKET}:${DOCKER_SOCKET}
+      - ${INSTANCE_DATA_ROOT}:${INSTANCE_DATA_ROOT}
+      - ${INSTANCE_DATA_ROOT}/templates:${INSTANCE_DATA_ROOT}/templates:ro
+      - ${BACKUP_ROOT}:${BACKUP_ROOT}
+      - ./backend/src:/app/src
+      - ./fivem-base:/app/fivem-base
+      - ./certs:/opt/ragenodes-ultimate/certs:ro
+    ports:
+      - "${ADMIN_BIND_IP:-127.0.0.1}:${HOST_BIND_BACKEND_PORT:-3010}:3006"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3006/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    cap_add:
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    cpu_shares: 2048
+    blkio_config:
+      weight: 1000
+  worker-backups:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    init: true
+    env_file: [ .env ]
+    environment:
+      - RAGENODES_ROLE=worker-backups
+    command: ["npm", "run", "worker:backups"]
+    networks:
+      - ragenodes_net
+    depends_on:
+      backend:
+        condition: service_healthy
+      mariadb:
+        condition: service_started
+    volumes:
+      - ${DOCKER_SOCKET}:${DOCKER_SOCKET}
+      - ${INSTANCE_DATA_ROOT}:${INSTANCE_DATA_ROOT}
+      - ${INSTANCE_DATA_ROOT}/templates:${INSTANCE_DATA_ROOT}/templates:ro
+      - ${BACKUP_ROOT}:${BACKUP_ROOT}
+      - ./backend/src:/app/src
+      - ./fivem-base:/app/fivem-base
+      - ./certs:/opt/ragenodes-ultimate/certs:ro
+    security_opt:
+      - no-new-privileges:true
+    cpu_shares: 1024
+    blkio_config:
+      weight: 900
+
+  worker-docker-events:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    init: true
+    env_file: [ .env ]
+    environment:
+      - RAGENODES_ROLE=worker-docker-events
+    command: ["npm", "run", "worker:docker-events"]
+    networks:
+      - ragenodes_net
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ${DOCKER_SOCKET}:${DOCKER_SOCKET}
+      - ${INSTANCE_DATA_ROOT}:${INSTANCE_DATA_ROOT}
+      - ${INSTANCE_DATA_ROOT}/templates:${INSTANCE_DATA_ROOT}/templates:ro
+      - ${BACKUP_ROOT}:${BACKUP_ROOT}
+      - ./backend/src:/app/src
+      - ./fivem-base:/app/fivem-base
+      - ./certs:/opt/ragenodes-ultimate/certs:ro
+    cap_add:
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    cpu_shares: 1024
+    blkio_config:
+      weight: 900
+
+  worker-stats:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    init: true
+    env_file: [ .env ]
+    environment:
+      - RAGENODES_ROLE=worker-stats
+    command: ["npm", "run", "worker:stats"]
+    networks:
+      - ragenodes_net
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ${DOCKER_SOCKET}:${DOCKER_SOCKET}
+      - ${INSTANCE_DATA_ROOT}:${INSTANCE_DATA_ROOT}
+      - ${INSTANCE_DATA_ROOT}/templates:${INSTANCE_DATA_ROOT}/templates:ro
+      - ${BACKUP_ROOT}:${BACKUP_ROOT}
+      - ./backend/src:/app/src
+      - ./certs:/opt/ragenodes-ultimate/certs:ro
+    security_opt:
+      - no-new-privileges:true
+    cpu_shares: 768
+    blkio_config:
+      weight: 700
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    init: true
+    networks:
+      - ragenodes_net
+    depends_on:
+      - backend
+      - phpmyadmin
+    volumes:
+      - ./frontend/public:/usr/share/nginx/html
+      - ${INSTANCE_DATA_ROOT}:/usr/share/nginx/html/data:ro
+      - ${INSTANCE_DATA_ROOT}/templates:/usr/share/nginx/html/data/templates:ro
+    ports:
+      - "${ADMIN_BIND_IP:-127.0.0.1}:${HOST_BIND_FRONTEND_PORT:-8088}:80"
+    cpu_shares: 2048
+    blkio_config:
+      weight: 1000
+
+#  query-cache:
+#    build:
+#      context: ./ragenodes-query-gateway
+#    restart: unless-stopped
+#    network_mode: host
+#    volumes:
+#      - ./gateway-config:/app/config
+#    logging:
+#      driver: "json-file"
+#      options:
+#        max-size: "10m"
+#        max-file: "3"
+
+  # Nginx Gateway eliminado: Rust maneja todo ahora
+
+  bot:
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: [ .env ]
+    environment:
+      - API_URL_BASE=http://backend:3006/api/discord
+    depends_on:
+      - backend
+    networks:
+      - ragenodes_net
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --protocol http2 --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - ragenodes_net
+
+networks:
+  ragenodes_net:
+    name: ragenodes_net
+
+volumes:
+  postgres_data:
+  mariadb_data:

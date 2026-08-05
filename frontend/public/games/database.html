@@ -1,0 +1,81 @@
+<template class="game-module-rcon">
+<!-- Panel Database -->
+<div class="game-panel-header" style="background: linear-gradient(135deg, rgba(242, 145, 17, 0.1), rgba(18, 18, 20, 1)); border: 1px solid rgba(242, 145, 17, 0.2); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+    <div style="display: flex; align-items: center; gap: 15px;">
+        <div style="width: 50px; height: 50px; border-radius: 12px; background: rgba(242, 145, 17, 0.1); border: 1px solid rgba(242, 145, 17, 0.3); display: flex; align-items: center; justify-content: center;">
+            <i class="fa-solid fa-database" style="color: #f29111; font-size: 1.8rem;"></i>
+        </div>
+        <div>
+            <h2 style="margin: 0; font-size: 1.4rem; color: white;">Base de Datos MySQL</h2>
+            <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: var(--muted);">Credenciales y conexión a tu servidor MariaDB dedicado.</p>
+        </div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+
+    <div class="config-card">
+        <div class="config-card-header" style="background: rgba(56, 189, 248, 0.05);">
+            <i class="fa-solid fa-link" style="color: #38bdf8;"></i> Datos de Conexión
+        </div>
+        <div class="config-card-body">
+            <p style="font-size: 0.85rem; color: var(--muted); margin-top:0;">Usa estos datos para conectarte desde Navicat, DBeaver o tu propia aplicación externa.</p>
+            
+            <label class="form-label">Host / IP</label>
+            <input type="text" class="form-input" id="db-host" readonly style="margin-bottom: 10px;">
+            
+            <label class="form-label">Puerto</label>
+            <input type="text" class="form-input" id="db-port" readonly style="margin-bottom: 10px;">
+        </div>
+    </div>
+
+    <div class="config-card">
+        <div class="config-card-header" style="background: rgba(239, 68, 68, 0.05);">
+            <i class="fa-solid fa-key" style="color: #ef4444;"></i> Credenciales Privadas
+        </div>
+        <div class="config-card-body">
+            <label class="form-label">Base de Datos</label>
+            <input type="text" class="form-input" id="db-name" readonly style="margin-bottom: 10px;">
+            
+            <label class="form-label">Usuario</label>
+            <input type="text" class="form-input" id="db-user" readonly style="margin-bottom: 10px;">
+
+            <label class="form-label">Contraseña</label>
+            <div style="display: flex; gap:10px;">
+                <input type="password" class="form-input" id="db-pass" readonly>
+                <button class="btn" style="background: var(--surface-light); color: white; min-width:40px; padding:0" onclick="togglePasswordVisibility('db-pass', this)"><i class="fa-solid fa-eye"></i></button>
+            </div>
+            <p style="font-size: 0.75rem; color: var(--muted); margin-top:10px;"><i class="fa-solid fa-triangle-exclamation" style="color: #ef4444;"></i> Otorga estos datos únicamente a personas de confianza.</p>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    setTimeout(() => {
+        if(currentServer) {
+            const shortId = currentServer.id.slice(0,8);
+            const containerName = `ragenodes-${shortId}`;
+            
+            document.getElementById('db-host').value = globalVpsIp;
+            document.getElementById('db-port').value = currentServer.fivem_port;
+            
+            document.getElementById('db-name').value = `db_${containerName}`;
+            document.getElementById('db-user').value = `user_${containerName}`;
+            document.getElementById('db-pass').value = `pass_${containerName}_!2026`;
+        }
+    }, 500);
+
+    function togglePasswordVisibility(inputId, btnElem) {
+        const input = document.getElementById(inputId);
+        if(input.type === 'password') {
+            input.type = 'text';
+            btnElem.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
+        } else {
+            input.type = 'password';
+            btnElem.innerHTML = '<i class="fa-solid fa-eye"></i>';
+        }
+    }
+</script>
+
+</template>

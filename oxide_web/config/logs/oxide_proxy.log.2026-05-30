@@ -1,0 +1,12 @@
+2026-05-30T19:19:28.289627Z  INFO oxide_proxy: === Arrancando OxideProxy (Motor L4/L7 Asíncrono Ultra-Optimizado) ===
+2026-05-30T19:19:28.290509Z  INFO oxide_proxy::ebpf_xdp: [eBPF/XDP] Inicializando motor de mitigación DDoS y Firewall en memoria para interfaz: eth0
+2026-05-30T19:19:28.290645Z  INFO oxide_proxy::ebpf_xdp: [eBPF/XDP] Programa XDP cargado exitosamente en eth0. Filtrado de paquetes activo a nivel NIC/Memoria.
+2026-05-30T19:19:28.290653Z  INFO oxide_proxy: Filtro eBPF/XDP activo en eth0.
+2026-05-30T19:19:28.290656Z  INFO oxide_proxy: Inicializando runtime de Tokio con 2 hilos de trabajo (Core Pinning: false)...
+2026-05-30T19:19:28.290934Z  INFO oxide_proxy::ebpf_xdp: [eBPF/XDP] Inicializando motor de mitigación DDoS y Firewall en memoria para interfaz: eth0
+2026-05-30T19:19:28.291070Z  INFO oxide_proxy::ebpf_xdp: [eBPF/XDP] Programa XDP cargado exitosamente en eth0. Filtrado de paquetes activo a nivel NIC/Memoria.
+2026-05-30T19:19:28.291203Z  INFO oxide_proxy::ingress: Iniciando 2 bucles Ingress UDP Principal independientes con SO_REUSEPORT en 127.0.0.1:8080
+2026-05-30T19:19:28.291233Z  INFO oxide_proxy::ingress: [Fail2Ban] Consumidor MPSC asíncrono iniciado para baneos L7->L4.
+2026-05-30T19:19:28.291237Z  INFO oxide_proxy::ingress: Ingress TCP Principal escuchando en 0.0.0.0:80 con SO_REUSEPORT
+2026-05-30T19:19:28.291297Z  INFO oxide_proxy::ingress: Ingress TCP HTTP Principal escuchando en 0.0.0.0:8088 con SO_REUSEPORT
+2026-05-30T19:19:28.291360Z  INFO oxide_proxy::ingress: Ingress TCP HTTP Principal escuchando en 0.0.0.0:80 con SO_REUSEPORT

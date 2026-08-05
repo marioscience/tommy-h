@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Blender
+Exec=blender
+X-GNOME-Autostart-enabled=true

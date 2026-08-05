@@ -1,0 +1,62 @@
+<template class="game-module-rcon">
+<!-- Panel WordPress -->
+<div class="game-panel-header" style="background: linear-gradient(135deg, rgba(33, 117, 155, 0.1), rgba(18, 18, 20, 1)); border: 1px solid rgba(33, 117, 155, 0.2); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+    <div style="display: flex; align-items: center; gap: 15px;">
+        <div style="width: 50px; height: 50px; border-radius: 12px; background: rgba(33, 117, 155, 0.1); border: 1px solid rgba(33, 117, 155, 0.3); display: flex; align-items: center; justify-content: center;">
+            <i class="fa-brands fa-wordpress" style="color: #21759b; font-size: 1.8rem;"></i>
+        </div>
+        <div>
+            <h2 style="margin: 0; font-size: 1.4rem; color: white;">Panel WordPress</h2>
+            <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: var(--muted);">Gestiona tu CMS y accede a tu panel de administración.</p>
+        </div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+
+    <div class="config-card">
+        <div class="config-card-header" style="background: rgba(16, 185, 129, 0.05);">
+            <i class="fa-solid fa-globe" style="color: #10b981;"></i> Acceso a la Web
+        </div>
+        <div class="config-card-body">
+            <p style="font-size: 0.85rem; color: var(--muted); margin-top:0;">
+                Tu sitio de WordPress está corriendo en el puerto HTTP dinámico de Docker. 
+            </p>
+            <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; font-family: monospace; color: #10b981; margin-bottom: 15px;" id="wp-url-display">
+                Cargando IP...
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-primary" onclick="window.open(document.getElementById('wp-url-display').innerText.replace('http://', 'http://'), '_blank')" style="flex: 1;"><i class="fa-solid fa-external-link-alt"></i> Visitar Sitio</button>
+                <button class="btn" onclick="window.open(document.getElementById('wp-url-display').innerText + '/wp-admin', '_blank')" style="background: rgba(33, 117, 155, 0.2); color: #21759b; flex: 1;"><i class="fa-brands fa-wordpress"></i> Panel wp-admin</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="config-card">
+        <div class="config-card-header" style="background: rgba(242, 145, 17, 0.05);">
+            <i class="fa-solid fa-database" style="color: #f29111;"></i> Base de Datos (MySQL)
+        </div>
+        <div class="config-card-body">
+            <p style="font-size: 0.85rem; color: var(--muted); margin-top:0;">Tu WordPress cuenta con una base de datos MySQL enlazada localmente.</p>
+            
+            <label class="form-label">Base de Datos WP</label>
+            <input type="text" class="form-input" id="wp-db-name" readonly style="margin-bottom: 10px;">
+            
+            <label class="form-label">Usuario WP</label>
+            <input type="text" class="form-input" id="wp-db-user" readonly style="margin-bottom: 10px;">
+        </div>
+    </div>
+
+</div>
+
+<script>
+    setTimeout(() => {
+        if(currentServer) {
+            document.getElementById('wp-url-display').innerText = `http://w${currentServer.id.slice(0,8)}.ragenodes.com`;
+            document.getElementById('wp-db-name').value = `wp_ragenodes_${currentServer.id.slice(0,8)}`;
+            document.getElementById('wp-db-user').value = `root (Contraseña por defecto: ragenodes_db)`;
+        }
+    }, 500);
+</script>
+
+</template>
