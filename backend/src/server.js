@@ -81,9 +81,8 @@ app.use('/api', (req, res, next) => {
     }
     next();
 });
-
-// 🩺 Endpoint de salud para Docker
 app.get('/healthz', (req, res) => res.status(200).send('OK'));
+
 // 🔒 Limitador de tasa para rutas de autenticación
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos

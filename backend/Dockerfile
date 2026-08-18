@@ -3,7 +3,7 @@ FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a55
 WORKDIR /app
 
 # Herramientas necesarias para el sistema
-RUN apk add --no-cache mariadb-client tar gzip zstd
+RUN apk add --no-cache mariadb-client tar gzip zstd rclone
 
 # Instalación de dependencias de Node
 COPY package*.json ./
