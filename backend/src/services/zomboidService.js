@@ -10,8 +10,6 @@ const DEFAULT_CONFIG = {
     GlobalChat: 'true',
     Open: 'true',
     ServerWelcomeMessage: 'Bienvenido a RageNodes Zomboid Server',
-    Mods: '',
-    WorkshopItems: '',
     Map: 'Muldraugh, KY',
     AutoSave: '0',
     SaveWorldEveryMinutes: '15',

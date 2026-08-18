@@ -10,7 +10,7 @@
                     <h4 style="margin: 0; color: white; font-weight: 800; font-size: 1.2rem;">Multiplicadores & Config</h4>
                     <span style="color: #94a3b8; font-size: 0.9rem;">Configura las reglas del mundo de Palworld</span>
                 </div>
-                <button class="btn btn-primary" onclick="savePalworldSettings()"><i class="fa-solid fa-save"></i> Guardar</button>
+                <button class="btn btn-primary" data-rn-onclick="priv_0197"><i class="fa-solid fa-save"></i> Guardar</button>
             </div>
 
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 25px; margin-bottom: 30px;">
@@ -20,7 +20,7 @@
                         <span><i class="fa-solid fa-arrow-up-right-dots" style="color:#38bdf8; margin-right:5px;"></i> Exp Rate</span>
                         <span id="pal-val-exp" style="color:#38bdf8; font-weight:bold;">x1.0</span>
                     </label>
-                    <input type="range" id="pal-exp" min="0.1" max="20" step="0.1" value="1.0" style="width:100%; accent-color:#38bdf8;" oninput="document.getElementById('pal-val-exp').innerText = 'x' + this.value">
+                    <input type="range" id="pal-exp" min="0.1" max="20" step="0.1" value="1.0" style="width:100%; accent-color:#38bdf8;" data-rn-oninput="priv_0198">
                 </div>
 
                 <!-- Capture Rate -->
@@ -29,7 +29,7 @@
                         <span><i class="fa-solid fa-bullseye" style="color:#22c55e; margin-right:5px;"></i> Catch Rate</span>
                         <span id="pal-val-catch" style="color:#22c55e; font-weight:bold;">x1.0</span>
                     </label>
-                    <input type="range" id="pal-catch" min="0.1" max="10" step="0.1" value="1.0" style="width:100%; accent-color:#22c55e;" oninput="document.getElementById('pal-val-catch').innerText = 'x' + this.value">
+                    <input type="range" id="pal-catch" min="0.1" max="10" step="0.1" value="1.0" style="width:100%; accent-color:#22c55e;" data-rn-oninput="priv_0199">
                 </div>
 
                 <!-- Death Penalty -->
@@ -54,7 +54,7 @@
                 <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                     <input type="text" id="palworld-broadcast-msg" class="input" style="background: rgba(0,0,0,0.4); flex-grow: 1; min-width: 200px;" placeholder="Ej. El servidor se reiniciará en 5 minutos.">
                     
-                    <button class="btn btn-warning" onclick="executePalworldBroadcast()" style="padding: 10px 20px; color: black;">
+                    <button class="btn btn-warning" data-rn-onclick="priv_0200" style="padding: 10px 20px; color: black;">
                         <i class="fa-solid fa-paper-plane"></i> Enviar Mensaje
                     </button>
                 </div>

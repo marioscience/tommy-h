@@ -69,7 +69,9 @@ pub async fn process_tcp_stream(
     is_http_ingress: bool,
     ban_tx: tokio::sync::mpsc::Sender<std::net::IpAddr>,
 ) {
-    let peer_addr = stream.peer_addr().unwrap_or_else(|_| "0.0.0.0:0".parse().unwrap());
+    let peer_addr = stream
+        .peer_addr()
+        .unwrap_or_else(|_| "0.0.0.0:0".parse().unwrap());
 
     if let Ok((_remaining, packet)) = parse_game_packet(&buffer) {
         tracing::info!(
@@ -79,7 +81,10 @@ pub async fn process_tcp_stream(
         );
 
         if let Some(backend_addr) = config.routing.game_servers_map.get(&packet.game_id) {
-            tracing::debug!("Enrutando flujo de juego TCP directamente a backend: {}", backend_addr);
+            tracing::debug!(
+                "Enrutando flujo de juego TCP directamente a backend: {}",
+                backend_addr
+            );
             forward_tcp(stream, buffer, backend_addr).await;
             return;
         }
@@ -97,9 +102,15 @@ pub async fn process_tcp_stream(
     if !is_http_ingress {
         tracing::debug!("Flujo TCP sin cabecera Oxide. Evaluando enrutamiento de juegos en crudo (FiveM/Comercial)...");
         for route in &config.routing.game_servers {
-            if route.game_id == 30120 || route.description.to_lowercase().contains("fivem") || route.game_id == 25565 {
+            if route.game_id == 30120
+                || route.description.to_lowercase().contains("fivem")
+                || route.game_id == 25565
+            {
                 if let Some(addr) = config.routing.game_servers_map.get(&route.game_id) {
-                    tracing::debug!("Enrutando flujo TCP en crudo (Transparent Proxy) hacia backend: {}", addr);
+                    tracing::debug!(
+                        "Enrutando flujo TCP en crudo (Transparent Proxy) hacia backend: {}",
+                        addr
+                    );
                     forward_tcp(stream, buffer, addr).await;
                     return;
                 }
@@ -108,7 +119,9 @@ pub async fn process_tcp_stream(
     }
 
     if !buffer.is_empty() && buffer[0] == 0x16 {
-        tracing::debug!("Flujo TCP identificado como TLS ClientHello. Evaluando terminacion TLS...");
+        tracing::debug!(
+            "Flujo TCP identificado como TLS ClientHello. Evaluando terminacion TLS..."
+        );
         match TlsTerminator::new(&config.tls.cert_path, &config.tls.key_path) {
             Ok(terminator) => {
                 let rewind_stream = RewindStream {
@@ -117,7 +130,9 @@ pub async fn process_tcp_stream(
                 };
                 match terminator.accept(rewind_stream).await {
                     Ok(tls_stream) => {
-                        tracing::debug!("Handshake TLS exitoso. Sirviendo conexion web L7 segura...");
+                        tracing::debug!(
+                            "Handshake TLS exitoso. Sirviendo conexion web L7 segura..."
+                        );
                         let tls_rewind = RewindStream {
                             stream: tls_stream,
                             buffer: None,
@@ -162,7 +177,10 @@ pub async fn process_udp_packet_inline(
         );
 
         if let Some(backend_addr) = config.routing.game_servers_map.get(&packet.game_id) {
-            tracing::debug!("Enrutando datagrama UDP directamente a backend: {}", backend_addr);
+            tracing::debug!(
+                "Enrutando datagrama UDP directamente a backend: {}",
+                backend_addr
+            );
             forward_udp(socket, payload, peer_addr, backend_addr).await;
             return;
         }
@@ -186,7 +204,10 @@ pub async fn process_udp_packet_inline(
             || route.game_id == 19132
         {
             if let Some(addr) = config.routing.game_servers_map.get(&route.game_id) {
-                tracing::debug!("Enrutando datagrama UDP en crudo (Transparent Proxy) hacia backend: {}", addr);
+                tracing::debug!(
+                    "Enrutando datagrama UDP en crudo (Transparent Proxy) hacia backend: {}",
+                    addr
+                );
                 forward_udp(socket, payload, peer_addr, addr).await;
                 return;
             }
@@ -199,7 +220,13 @@ pub async fn process_udp_packet_inline(
             version,
             dcid_len
         );
-        forward_udp(socket, payload, peer_addr, &config.routing.default_web_backend).await;
+        forward_udp(
+            socket,
+            payload,
+            peer_addr,
+            &config.routing.default_web_backend,
+        )
+        .await;
         return;
     }
 

@@ -10,7 +10,7 @@ function sendRconPacket(socket, id, type, body) {
     const bodyBuffer = Buffer.from(body, 'utf8');
     const packetLength = 8 + bodyBuffer.length + 2; // ID (4) + Type (4) + Body + Null + Null
     const buffer = Buffer.alloc(4 + packetLength);
-    
+
     buffer.writeInt32LE(packetLength, 0);
     buffer.writeInt32LE(id, 4);
     buffer.writeInt32LE(type, 8);
@@ -21,10 +21,12 @@ function sendRconPacket(socket, id, type, body) {
     socket.write(buffer);
 }
 
-export async function executeRconCommand(host, port, password, command, containerName = null) {
-    if (port === 0) {
-        if (command === 'GetChat' || command === 'ListPlayers') {
-            throw new Error('RCON no disponible para este servidor.');
+export async function executeRconCommand(host, port, password, command, containerName = null, template = null) {
+    const SOURCE_RCON_GAMES = ['cs2', 'palworld', 'ark'];
+
+    if (port === 0 || (template && !SOURCE_RCON_GAMES.includes(template))) {
+        if (command === 'GetChat' || command === 'ListPlayers' || command === 'ShowPlayers' || command === 'status') {
+            throw new Error('RCON de lectura no disponible por red directa para este servidor.');
         }
         if (containerName) {
             await sendCommandToContainer(containerName, command);
@@ -126,22 +128,38 @@ export async function executeRconCommand(host, port, password, command, containe
 /**
  * Obtiene la lista de jugadores conectados. Intenta RCON y hace fallback a parseo de logs de Docker.
  */
-export async function getLivePlayers(host, port, password, containerName) {
+export async function getLivePlayers(host, port, password, containerName, template = 'ark') {
     try {
-        const output = await executeRconCommand(host, port, password, 'ListPlayers', containerName);
+        let cmd = 'ListPlayers';
+        if (template === 'palworld') cmd = 'ShowPlayers';
+        if (template === 'cs2' || template === 'rust') cmd = 'status';
+
+        const output = await executeRconCommand(host, port, password, cmd, containerName, template);
         const lines = output.split('\n');
         const players = [];
 
-        lines.forEach(line => {
-            // Formato típico ARK: "0. Niko, 76561198000000000"
-            const match = line.match(/^\d+\.\s+([^,]+),\s+(\d+)/);
-            if (match) {
-                players.push({ name: match[1].trim(), steamId: match[2].trim() });
+        if (template === 'palworld') {
+            lines.forEach(line => {
+                const parts = line.split(',');
+                if (parts.length >= 3 && parts[0].trim() !== 'name' && parts[0].trim() !== '') {
+                    players.push({ name: parts[0].trim(), steamId: parts[2].trim() });
+                }
+            });
+            if (players.length > 0 || output.includes('name,playeruid,steamid')) {
+                return players;
             }
-        });
+        } else {
+            lines.forEach(line => {
+                // Formato típico ARK: "0. Niko, 76561198000000000"
+                const match = line.match(/^\d+\.\s+([^,]+),\s+(\d+)/);
+                if (match) {
+                    players.push({ name: match[1].trim(), steamId: match[2].trim() });
+                }
+            });
 
-        if (players.length > 0 || output.includes('No Players Connected') || output.includes('0.')) {
-            return players;
+            if (players.length > 0 || output.includes('No Players Connected') || output.includes('0.')) {
+                return players;
+            }
         }
     } catch (e) {
         console.warn('[RCON] Fallo al listar jugadores por RCON, intentando parseo de logs...');
@@ -156,7 +174,8 @@ export async function getLivePlayers(host, port, password, containerName) {
 
             lines.forEach(line => {
                 // Buscamos líneas de join/leave de ARK/Rust/FiveM/Palworld/CS2/Valheim/Zomboid y Minecraft
-                const joinMatch = line.match(/([a-zA-Z0-9_]+)\s+joined\s+.*\b(\d{17})\b/i) || 
+                const joinMatch = line.match(/([a-zA-Z0-9_]+)\s+with\s+steamid\s+(\d{17})\s+joined\s+from\s+ip/i) ||
+                                  line.match(/([a-zA-Z0-9_]+)\s+joined\s+.*\b(\d{17})\b/i) ||
                                   line.match(/Player\s+([a-zA-Z0-9_]+)\s+connected\s+\(SteamID:\s*(\d{17})\)/i) ||
                                   line.match(/([a-zA-Z0-9_]+)\[\d+\] logged in with steamid (\d{17})/i) ||
                                   line.match(/Got connection SteamID (\d{17}) from ([a-zA-Z0-9_]+)/i) ||
@@ -166,9 +185,9 @@ export async function getLivePlayers(host, port, password, containerName) {
                     const name = joinMatch[1] || joinMatch[2] || 'Jugador';
                     playersMap.set(name, { name, steamId, online: true });
                 }
-                const leaveMatch = line.match(/([a-zA-Z0-9_]+)\s+left\s+the\s+game/i) || 
+                const leaveMatch = line.match(/([a-zA-Z0-9_]+)\s+left\s+the\s+game/i) ||
                                    line.match(/Player\s+([a-zA-Z0-9_]+)\s+disconnected/i) ||
-                                   line.match(/([a-zA-Z0-9_]+) disconnecting: disconnect/i) ||
+                                   line.match(/([a-zA-Z0-9_]+) disconnecting:/i) ||
                                    line.match(/:\s*([a-zA-Z0-9_]{3,16})\s+lost\s+connection/i);
                 if (leaveMatch) {
                     playersMap.delete(leaveMatch[1]);
@@ -187,20 +206,22 @@ export async function getLivePlayers(host, port, password, containerName) {
 /**
  * Obtiene el chat reciente del servidor. Intenta RCON y hace fallback a parseo de logs.
  */
-export async function getLiveChat(host, port, password, containerName) {
+export async function getLiveChat(host, port, password, containerName, template = null) {
     try {
-        const output = await executeRconCommand(host, port, password, 'GetChat', containerName);
-        const lines = output.split('\n');
-        const messages = [];
+        if (template !== 'palworld') {
+            const output = await executeRconCommand(host, port, password, 'GetChat', containerName, template);
+            const lines = output.split('\n');
+            const messages = [];
 
-        lines.forEach(line => {
-            if (line.trim() && !line.includes('Server received')) {
-                messages.push({ text: line.trim(), time: new Date().toISOString() });
+            lines.forEach(line => {
+                if (line.trim() && !line.includes('Server received')) {
+                    messages.push({ text: line.trim(), time: new Date().toISOString() });
+                }
+            });
+
+            if (messages.length > 0 || output.includes('SERVER:')) {
+                return messages;
             }
-        });
-
-        if (messages.length > 0 || output.includes('SERVER:')) {
-            return messages;
         }
     } catch (e) {
         console.warn('[RCON] Fallo al obtener chat por RCON, intentando parseo de logs...');

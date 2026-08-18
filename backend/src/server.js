@@ -3,7 +3,8 @@ import express from 'express';
 import http from 'http';
 import cors from 'cors';
 import { rateLimit } from 'express-rate-limit';
-import { config } from './config.js';
+import { config, assertSecureConfig } from './config.js';
+import { hasSessionCookie } from './middleware/auth.js';
 import { initDb, waitForDb, query } from './db.js';
 
 // Importación de rutas
@@ -43,10 +44,46 @@ process.on('unhandledRejection', (reason, promise) => {
     console.error('💥 PROMESA RECHAZADA (Unhandled Rejection):', reason);
 });
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+assertSecureConfig();
 
+const app = express();
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+const allowedOrigins = new Set(
+    String(config.corsOrigin || '').split(',').map(origin => origin.trim()).filter(Boolean)
+);
+app.use(cors({
+    origin(origin, callback) {
+        if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+        return callback(new Error('Origen CORS no permitido.'));
+    },
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-API-Key', 'X-Auth-Mode'],
+    credentials: true
+}));
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    if (process.env.NODE_ENV === 'production') {
+        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+});
+app.use(express.json({ limit: '256kb', strict: true }));
+app.use('/api', (req, res, next) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || !hasSessionCookie(req)) return next();
+    const origin = req.get('origin');
+    const requestOrigin = `${req.protocol}://${req.get('host')}`;
+    if (!origin || (origin !== requestOrigin && !allowedOrigins.has(origin))) {
+        return res.status(403).json({ error: 'Origen de la petición no permitido.' });
+    }
+    next();
+});
+
+// 🩺 Endpoint de salud para Docker
+app.get('/healthz', (req, res) => res.status(200).send('OK'));
 // 🔒 Limitador de tasa para rutas de autenticación
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
@@ -61,12 +98,36 @@ const adminLimiter = rateLimit({
     message: { error: 'Demasiadas solicitudes a la API de admin, intenta de nuevo en 15 minutos.' }
 });
 
+const nodeInstallerLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Demasiadas solicitudes al instalador de nodos.' }
+});
+
+const serviceApiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Límite temporal de la API de servicio alcanzado.' }
+});
+
+const ticketLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Has enviado demasiados tickets. Inténtalo más tarde.' }
+});
+
 
 // Aplicamos el limitador estricto SOLAMENTE a las rutas de autenticación
 app.use('/api/auth', authLimiter, authRoutes);
 
 // 🤖 AÑADIDO: Rutas de la API de Discord
-app.use('/api/discord', discordRoutes);
+app.use('/api/discord', serviceApiLimiter, discordRoutes);
 
 // Resto de rutas de la API
 app.use('/api/admin', adminLimiter, adminRoutes);
@@ -75,14 +136,14 @@ app.use('/api/admin', adminLimiter, adminRoutes);
 app.use('/api/admin/diagnostics', adminLimiter, adminDiagnosticsRoutes);
 
 // 🚀 AUTO-LINK NODES (Sin Auth, Protegido por API_KEY)
-app.use('/api/nodes', installerRoutes);
+app.use('/api/nodes', nodeInstallerLimiter, installerRoutes);
 
 app.use('/api/servers', serverRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/marketplace', marketplaceRoutes);
-app.use('/api/tickets', ticketRoutes);
+app.use('/api/tickets', ticketLimiter, ticketRoutes);
 app.use('/api/minecraft', minecraftRoutes); 
 app.use('/api/palworld', palworldRoutes); 
 app.use('/api/rust', rustRoutes); 
@@ -98,6 +159,20 @@ app.use('/api/cron', cronRoutes); // 🕒 AÑADIDO: Rutas de Cron Jobs
 
 import pluginsRoutes from './routes/plugins.js'; // 🔌 AÑADIDO: Rutas de Plugins
 app.use('/api/plugins', pluginsRoutes); // 🔌 AÑADIDO: Rutas de Plugins
+
+app.use((error, req, res, _next) => {
+    if (error?.type === 'entity.too.large') {
+        return res.status(413).json({ error: 'La solicitud supera el tamaño permitido.' });
+    }
+    if (error instanceof SyntaxError && error.status === 400) {
+        return res.status(400).json({ error: 'JSON inválido.' });
+    }
+    if (error?.message === 'Origen CORS no permitido.') {
+        return res.status(403).json({ error: 'Origen no permitido.' });
+    }
+    console.error('[HTTP] Error no controlado:', error);
+    return res.status(500).json({ error: 'Error interno del servidor.' });
+});
 
 import { startCronManager } from './services/cronManager.js';
 

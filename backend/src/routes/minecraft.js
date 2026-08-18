@@ -36,7 +36,7 @@ function stringifyProperties(props) {
 router.get('/:serverId/properties', requireAuth, async (req, res) => {
     try {
         const { serverId } = req.params;
-        const server = await getServerByIdForUser(serverId, req.user.sub, req.user.role === 'admin');
+        const server = await getServerByIdForUser(serverId, req.user.sub, req.user.role === 'admin', 'files');
         
         if (!server || server.template !== 'minecraft') {
             return res.status(403).json({ error: 'Servidor no válido o sin acceso' });
@@ -63,7 +63,7 @@ router.post('/:serverId/properties', requireAuth, async (req, res) => {
     try {
         const { serverId } = req.params;
         const newProps = req.body;
-        const server = await getServerByIdForUser(serverId, req.user.sub, req.user.role === 'admin');
+        const server = await getServerByIdForUser(serverId, req.user.sub, req.user.role === 'admin', 'files');
 
         if (!server || server.template !== 'minecraft') {
             return res.status(403).json({ error: 'Servidor no válido o sin acceso' });

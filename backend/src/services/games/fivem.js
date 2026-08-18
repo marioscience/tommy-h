@@ -6,7 +6,7 @@ export async function createFivemContainer(opts) {
     await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath} && chown -R 1000:1000 ${opts.dataPath}`);
     await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p "${opts.dataPath}/txData"`);
     try {
-        await runRemoteCommand(opts.nodeId || 0, sh`chown -R 1000:1000 ${opts.dataPath} && chmod -R 777 ${opts.dataPath}`);
+        await runRemoteCommand(opts.nodeId || 0, sh`chown -R 1000:1000 ${opts.dataPath} && chmod -R u=rwX,g=rX,o= ${opts.dataPath}`);
     } catch (e) {}
 
     const container = await docker.createContainer({
@@ -53,7 +53,7 @@ export async function createFivemContainer(opts) {
             RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: opts.plan.memoryBytes,
             NanoCpus: opts.plan.nanoCpus, CpuShares: Math.round((opts.plan.nanoCpus / 10**9) * 1024),
-            BlkioWeight: 100,
+            BlkioWeight: config.dockerBlkioWeight,
             ExtraHosts: ["host.docker.internal:host-gateway"],
             ...GAME_SECURITY_CONFIG
         }

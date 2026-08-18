@@ -15,13 +15,51 @@ export function signToken(user) {
   );
 }
 
-export async function requireAuth(req, res, next) {
-  let token = (req.headers.authorization || '').replace('Bearer ', '');
-  if (!token && req.query.token) token = req.query.token;
+const SESSION_MAX_AGE_SECONDS = 24 * 60 * 60;
 
-  if (!token) return res.status(401).json({ error: 'No autenticado' });
+function getCookie(req, name) {
+  for (const cookie of String(req.headers.cookie || '').split(';')) {
+    const separator = cookie.indexOf('=');
+    if (separator < 0 || cookie.slice(0, separator).trim() !== name) continue;
+    try { return decodeURIComponent(cookie.slice(separator + 1).trim()); } catch { return ''; }
+  }
+  return '';
+}
+
+function buildSessionCookie(value, maxAge) {
+  const sameSite = ['Strict', 'Lax', 'None'].includes(config.cookieSameSite) ? config.cookieSameSite : 'Strict';
+  const parts = [
+    `${config.sessionCookieName}=${encodeURIComponent(value)}`,
+    'HttpOnly',
+    'Path=/',
+    `SameSite=${sameSite}`,
+    `Max-Age=${maxAge}`
+  ];
+  if (config.cookieSecure) parts.push('Secure');
+  return parts.join('; ');
+}
+
+export function setSessionCookie(res, token) {
+  res.append('Set-Cookie', buildSessionCookie(token, SESSION_MAX_AGE_SECONDS));
+}
+
+export function clearSessionCookie(res) {
+  res.append('Set-Cookie', buildSessionCookie('', 0));
+}
+
+export function hasSessionCookie(req) {
+  return Boolean(getCookie(req, config.sessionCookieName));
+}
+
+export async function requireAuth(req, res, next) {
+  const authorization = req.headers.authorization || '';
+  const cookieToken = getCookie(req, config.sessionCookieName);
+  const bearerToken = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+  const token = cookieToken || bearerToken;
+
+  if (!token || typeof token !== 'string' || token.length > 4096) return res.status(401).json({ error: 'No autenticado' });
   try {
-    const payload = jwt.verify(token, config.jwtSecret);
+    const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
     
     // 🔥 MEJORA DE SEGURIDAD Y RENDIMIENTO: Caché de 10s en Redis para validación JWT
     const result = await queryCached('SELECT id, token_version FROM users WHERE id = $1', [payload.sub], 10);
@@ -38,8 +76,10 @@ export async function requireAuth(req, res, next) {
     }
 
     req.user = payload;
+    req.authSource = cookieToken ? 'cookie' : 'bearer';
     next();
   } catch (e) { 
+    if (cookieToken) clearSessionCookie(res);
     res.status(401).json({ error: 'Token inválido o expirado.' }); 
   }
 }

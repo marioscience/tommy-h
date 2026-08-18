@@ -5,7 +5,7 @@
     <title>RageNodes | Master Control V55.9</title>
     <link rel="icon" type="image/png" href="/assets/favicon.png">
     <link rel="stylesheet" href="css/styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/vendor/css/all.min.css">
     <style>
         /* --- CSS BASE Y COLORES PREMIUM --- */
         :root {
@@ -452,7 +452,7 @@
         <div id="modal-node" class="modal-content hidden">
             <div style="display:flex; justify-content:space-between; margin-bottom:25px;">
                 <h2 id="modal-node-title">Gestionar Nodo</h2>
-                <button class="btn-ghost" style="padding: 6px 12px;" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+                <button class="btn-ghost" style="padding: 6px 12px;" data-rn-onclick="priv_0001"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <input type="hidden" id="edit-node-id">
             <div class="modal-row">
@@ -483,15 +483,15 @@
                 <p style="font-size: 0.7rem; color: var(--muted); margin-top: 10px; margin-bottom: 0;">Ejecuta este comando en tu VPS para instalar Docker, certs mTLS y autovincularlo. Si lo haces, no necesitas rellenar los datos de arriba.</p>
             </div>
             <div style="display:flex; gap:12px; margin-top:20px;">
-                <button class="btn-ghost" style="flex:1" onclick="closeModal()">Cancelar</button>
-                <button class="btn" style="flex:1; background:var(--primary);" onclick="saveNode()">Guardar Nodo</button>
+                <button class="btn-ghost" style="flex:1" data-rn-onclick="priv_0001">Cancelar</button>
+                <button class="btn" style="flex:1; background:var(--primary);" data-rn-onclick="priv_0002">Guardar Nodo</button>
             </div>
         </div>
 
         <div id="modal-proxy" class="modal-content hidden">
             <div style="display:flex; justify-content:space-between; margin-bottom:25px;">
                 <h2 id="modal-proxy-title">Gestionar Edge Proxy</h2>
-                <button class="btn-ghost" style="padding: 6px 12px;" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+                <button class="btn-ghost" style="padding: 6px 12px;" data-rn-onclick="priv_0001"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <input type="hidden" id="edit-proxy-id">
             <div class="modal-row">
@@ -500,7 +500,7 @@
             </div>
             <div class="modal-row">
                 <label class="muted" style="display:block; margin-bottom:5px; font-size:0.75rem;">Dirección IP</label>
-                <input type="text" id="proxy-ip" class="input" placeholder="192.168.1.154">
+                <input type="text" id="proxy-ip" class="input" placeholder="203.0.113.10">
             </div>
             <div class="modal-row">
                 <label class="muted" style="display:block; margin-bottom:5px; font-size:0.75rem;">Puerto API (proxy-agent)</label>
@@ -511,23 +511,23 @@
                 <input type="password" id="proxy-key" class="input" placeholder="RageNodes_Edge_Proxy_Secret_2026">
             </div>
             <div style="display:flex; gap:12px; margin-top:20px;">
-                <button class="btn-ghost" style="flex:1" onclick="closeModal()">Cancelar</button>
-                <button class="btn" style="flex:1; background:var(--primary);" onclick="saveProxy()">Guardar Proxy</button>
+                <button class="btn-ghost" style="flex:1" data-rn-onclick="priv_0001">Cancelar</button>
+                <button class="btn" style="flex:1; background:var(--primary);" data-rn-onclick="priv_0003">Guardar Proxy</button>
             </div>
         </div>
         <!-- MODAL: ADMIN FAST UPLOAD (MARKETPLACE) -->
         <div id="modal-admin-upload" class="modal-content hidden" style="max-width: 600px;">
             <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
                 <h2><i class="fa-solid fa-bolt-lightning" style="color:#f59e0b; margin-right:10px;"></i> Subida Rápida de Scripts</h2>
-                <button class="btn-ghost" style="padding: 6px 12px;" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+                <button class="btn-ghost" style="padding: 6px 12px;" data-rn-onclick="priv_0001"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <p class="muted" style="margin-bottom:25px;">Arrastra tus archivos .zip aquí. El sistema los publicará automáticamente con configuración por defecto (Gratis, Categoría: Utilidad).</p>
 
-            <div class="admin-upload-zone" id="admin-drop-zone" onclick="document.getElementById('admin-file-input-modal').click()" style="padding: 40px; border: 2px dashed rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.05); border-radius: 15px; text-align: center; cursor: pointer; transition: 0.3s;">
+            <div class="admin-upload-zone" id="admin-drop-zone" data-rn-onclick="priv_0004" style="padding: 40px; border: 2px dashed rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.05); border-radius: 15px; text-align: center; cursor: pointer; transition: 0.3s;">
                 <i class="fa-solid fa-cloud-arrow-up" style="font-size: 3rem; color: #f59e0b; margin-bottom: 15px;"></i>
                 <h3 style="margin: 0;">Soltar archivos aquí</h3>
                 <p class="muted" style="margin-top: 10px;">o haz clic para explorar</p>
-                <input type="file" id="admin-file-input-modal" multiple accept=".zip" style="display:none" onchange="processAdminUploadNative(this.files)">
+                <input type="file" id="admin-file-input-modal" multiple accept=".zip" style="display:none" data-rn-onchange="priv_0005">
             </div>
 
             <div id="admin-upload-progress-modal" class="hidden" style="margin-top: 25px; padding-top: 20px; border-top: 1px solid var(--line);">
@@ -541,12 +541,12 @@
             </div>
 
             <div style="margin-top: 30px; display: flex; justify-content: flex-end;">
-                <button class="btn-ghost" onclick="closeModal()">Cerrar</button>
+                <button class="btn-ghost" data-rn-onclick="priv_0001">Cerrar</button>
             </div>
         </div>
 
         <div id="modal-server" class="modal-content hidden">
-            <div style="display:flex; justify-content:space-between; margin-bottom:25px;"><h2>Editar Instancia</h2><button class="btn-ghost" style="padding: 6px 12px;" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:25px;"><h2>Editar Instancia</h2><button class="btn-ghost" style="padding: 6px 12px;" data-rn-onclick="priv_0001"><i class="fa-solid fa-xmark"></i></button></div>
             <div class="modal-row"><label class="muted" style="display:block; margin-bottom:5px; font-size:0.75rem;">Nombre del Servidor</label><input type="text" id="edit-srv-name" class="input"></div>
             <div class="modal-row">
                 <label class="muted" style="display:block; margin-bottom:5px; font-size:0.75rem;">Plan de Recursos</label>
@@ -566,11 +566,11 @@
                     <option value="game_sdtd">7 Days to Die Dedicated</option>
                 </select>
             </div>
-            <div style="display:flex; gap:12px; margin-top:20px;"><button class="btn-ghost" style="flex:1" onclick="closeModal()">Cancelar</button><button class="btn" style="flex:1" onclick="saveServer()">Guardar Cambios</button></div>
+            <div style="display:flex; gap:12px; margin-top:20px;"><button class="btn-ghost" style="flex:1" data-rn-onclick="priv_0001">Cancelar</button><button class="btn" style="flex:1" data-rn-onclick="priv_0006">Guardar Cambios</button></div>
         </div>
 
         <div id="modal-user" class="modal-content hidden">
-            <div style="display:flex; justify-content:space-between; margin-bottom:25px;"><h2>Editar Perfil Usuario</h2><button class="btn-ghost" style="padding: 6px 12px;" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:25px;"><h2>Editar Perfil Usuario</h2><button class="btn-ghost" style="padding: 6px 12px;" data-rn-onclick="priv_0001"><i class="fa-solid fa-xmark"></i></button></div>
             <div class="modal-row">
                 <label class="muted" style="display:block; margin-bottom:5px; font-size:0.75rem;">Username</label>
                 <input type="text" id="edit-user-name" class="input">
@@ -618,13 +618,13 @@
                 <input type="password" id="edit-user-pass" class="input">
             </div>
             <div style="display:flex; gap:12px; margin-top:20px;">
-                <button class="btn-ghost" style="flex:1" onclick="closeModal()">Cancelar</button>
-                <button class="btn" style="flex:1; background:var(--success);" onclick="saveUser()">Actualizar</button>
+                <button class="btn-ghost" style="flex:1" data-rn-onclick="priv_0001">Cancelar</button>
+                <button class="btn" style="flex:1; background:var(--success);" data-rn-onclick="priv_0007">Actualizar</button>
             </div>
         </div>
 
         <div id="modal-create-user" class="modal-content hidden">
-            <div style="display:flex; justify-content:space-between; margin-bottom:25px;"><h2>Nuevo Usuario</h2><button class="btn-ghost" style="padding: 6px 12px;" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:25px;"><h2>Nuevo Usuario</h2><button class="btn-ghost" style="padding: 6px 12px;" data-rn-onclick="priv_0001"><i class="fa-solid fa-xmark"></i></button></div>
             <div class="modal-row">
                 <label class="muted" style="display:block; margin-bottom:5px; font-size:0.75rem;">Username</label>
                 <input type="text" id="new-user-name" class="input" placeholder="Nombre de usuario">
@@ -634,34 +634,34 @@
                 <input type="password" id="new-user-pass" class="input" placeholder="Contraseña segura">
             </div>
             <div style="display:flex; gap:12px; margin-top:20px;">
-                <button class="btn-ghost" style="flex:1" onclick="closeModal()">Cancelar</button>
-                <button class="btn" style="flex:1; background:var(--success);" onclick="saveNewUser()">Crear Cuenta</button>
+                <button class="btn-ghost" style="flex:1" data-rn-onclick="priv_0001">Cancelar</button>
+                <button class="btn" style="flex:1; background:var(--success);" data-rn-onclick="priv_0008">Crear Cuenta</button>
             </div>
         </div>
 
         <div id="modal-create-key" class="modal-content hidden">
-            <div style="display:flex; justify-content:space-between; margin-bottom:25px;"><h2>Generar Beta Key</h2><button class="btn-ghost" style="padding: 6px 12px;" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:25px;"><h2>Generar Beta Key</h2><button class="btn-ghost" style="padding: 6px 12px;" data-rn-onclick="priv_0001"><i class="fa-solid fa-xmark"></i></button></div>
             <div class="modal-row">
                 <label class="muted" style="display:block; margin-bottom:5px; font-size:0.75rem;">Usos Permitidos</label>
                 <input type="number" id="new-key-uses" class="input" value="1" min="1">
             </div>
             <div style="display:flex; gap:12px; margin-top:20px;">
-                <button class="btn-ghost" style="flex:1" onclick="closeModal()">Cancelar</button>
-                <button class="btn" style="flex:1; background:var(--primary);" onclick="saveNewKey()">Generar Key</button>
+                <button class="btn-ghost" style="flex:1" data-rn-onclick="priv_0001">Cancelar</button>
+                <button class="btn" style="flex:1; background:var(--primary);" data-rn-onclick="priv_0009">Generar Key</button>
             </div>
         </div>
 
         <div id="modal-backups" class="modal-content hidden" style="max-width: 700px;">
             <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
                 <h2><i class="fa-solid fa-box-archive" style="color:var(--success); margin-right:10px;"></i> Gestión de Backups</h2>
-                <button class="btn-ghost" style="padding: 6px 12px;" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+                <button class="btn-ghost" style="padding: 6px 12px;" data-rn-onclick="priv_0001"><i class="fa-solid fa-xmark"></i></button>
             </div>
 
             <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--line); border-radius: 8px; padding: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 15px;">
                 <p class="muted" style="margin: 0;">Control sobre las copias de seguridad de esta instancia.</p>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end;">
-                    <button class="btn-success" id="btn-force-bkp" onclick="triggerAdminBackup(currentId, this)"><i class="fa-solid fa-play"></i> Forzar Backup Ahora</button>
-                    <button class="btn-info" onclick="openMigrateModal()"><i class="fa-solid fa-truck-fast"></i> Migrar Recursos</button>
+                    <button class="btn-success" id="btn-force-bkp" data-rn-onclick="priv_0010"><i class="fa-solid fa-play"></i> Forzar Backup Ahora</button>
+                    <button class="btn-info" data-rn-onclick="priv_0011"><i class="fa-solid fa-truck-fast"></i> Migrar Recursos</button>
                 </div>
             </div>
 
@@ -678,7 +678,7 @@
         </div>
 
         <div id="modal-migrate" class="modal-content hidden">
-            <div style="display:flex; justify-content:space-between; margin-bottom:25px;"><h2><i class="fa-solid fa-truck-fast" style="color:var(--info); margin-right:10px;"></i> Migración Directa</h2><button class="btn-ghost" style="padding: 6px 12px;" onclick="openServerBackups(currentId)"><i class="fa-solid fa-arrow-left"></i></button></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:25px;"><h2><i class="fa-solid fa-truck-fast" style="color:var(--info); margin-right:10px;"></i> Migración Directa</h2><button class="btn-ghost" style="padding: 6px 12px;" data-rn-onclick="priv_0012"><i class="fa-solid fa-arrow-left"></i></button></div>
             <p class="muted" style="margin-bottom: 20px; font-size: 0.85rem;">Mueve los archivos y la BD hacia otra instancia. Ambos se apagarán.</p>
             <div class="modal-row">
                 <label class="muted" style="display:block; margin-bottom:5px; font-size:0.75rem;">Servidor DESTINO (Debe estar vacío)</label>
@@ -687,8 +687,8 @@
                 </select>
             </div>
             <div style="display:flex; gap:12px; margin-top:20px;">
-                <button class="btn-ghost" style="flex:1" onclick="openServerBackups(currentId)">Cancelar</button>
-                <button class="btn-info" style="flex:1;" id="btn-run-migrate" onclick="executeMigration()"><i class="fa-solid fa-clone"></i> Iniciar Migración</button>
+                <button class="btn-ghost" style="flex:1" data-rn-onclick="priv_0012">Cancelar</button>
+                <button class="btn-info" style="flex:1;" id="btn-run-migrate" data-rn-onclick="priv_0013"><i class="fa-solid fa-clone"></i> Iniciar Migración</button>
             </div>
         </div>
 
@@ -703,24 +703,24 @@
                         <div style="width:10px; height:10px; border-radius:50%; background:#ffbd2e; opacity: 0.5;"></div>
                         <div style="width:10px; height:10px; border-radius:50%; background:#27c93f; opacity: 0.5;"></div>
                     </div>
-                    <button class="btn-ghost" style="padding: 2px 8px; color: #ff5f56; font-size: 1.2rem; line-height: 1;" onclick="closeModal()" title="Cerrar Terminal">
+                    <button class="btn-ghost" style="padding: 2px 8px; color: #ff5f56; font-size: 1.2rem; line-height: 1;" data-rn-onclick="priv_0001" title="Cerrar Terminal">
                         <i class="fa-solid fa-circle-xmark"></i>
                     </button>
                 </div>
             </div>
-            <div class="term-body" id="term-body" onclick="document.getElementById('term-input').focus()">
+            <div class="term-body" id="term-body" data-rn-onclick="priv_0014">
                 <div class="term-scanlines"></div>
                 <div id="term-output"></div>
                 <div class="term-input-row">
                     <span class="term-prompt">root@container:~#</span>
-                    <input type="text" id="term-input" class="term-input" onkeydown="handleTermKey(event)" autocomplete="off" spellcheck="false" autofocus>
+                    <input type="text" id="term-input" class="term-input" data-rn-onkeydown="priv_0015" autocomplete="off" spellcheck="false" autofocus>
                 </div>
             </div>
         </div>
 
         <!-- MODAL: EDITAR/CREAR PLAN -->
         <div id="modal-plan" class="modal-content hidden">
-            <div style="display:flex; justify-content:space-between; margin-bottom:25px;"><h2 id="modal-plan-title">Plan de Hosting</h2><button class="btn-ghost" style="padding: 6px 12px;" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:25px;"><h2 id="modal-plan-title">Plan de Hosting</h2><button class="btn-ghost" style="padding: 6px 12px;" data-rn-onclick="priv_0001"><i class="fa-solid fa-xmark"></i></button></div>
             <input type="hidden" id="edit-plan-mode" value="edit">
             <div class="modal-row">
                 <label class="muted" style="display:block; margin-bottom:5px; font-size:0.75rem;">ID del Plan (ej: basic_plan)</label>
@@ -744,14 +744,14 @@
                 <input type="text" id="edit-plan-image" class="input" placeholder="https://ejemplo.com/img.png">
             </div>
             <div style="display:flex; gap:12px; margin-top:20px;">
-                <button class="btn-ghost" style="flex:1" onclick="closeModal()">Cancelar</button>
-                <button class="btn" style="flex:1; background:var(--success);" id="btn-save-plan" onclick="savePlan()">Guardar Plan</button>
+                <button class="btn-ghost" style="flex:1" data-rn-onclick="priv_0001">Cancelar</button>
+                <button class="btn" style="flex:1; background:var(--success);" id="btn-save-plan" data-rn-onclick="priv_0016">Guardar Plan</button>
             </div>
         </div>
 
         <!-- MODAL: EDITAR/CREAR PLAN DISCO -->
         <div id="modal-disk-plan" class="modal-content hidden">
-            <div style="display:flex; justify-content:space-between; margin-bottom:25px;"><h2 id="modal-disk-title">Expansión de Disco</h2><button class="btn-ghost" style="padding: 6px 12px;" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:25px;"><h2 id="modal-disk-title">Expansión de Disco</h2><button class="btn-ghost" style="padding: 6px 12px;" data-rn-onclick="priv_0001"><i class="fa-solid fa-xmark"></i></button></div>
             <input type="hidden" id="edit-disk-mode" value="edit">
             <div class="modal-row">
                 <label class="muted" style="display:block; margin-bottom:5px; font-size:0.75rem;">ID del Pack (ej: disk_10)</label>
@@ -785,14 +785,14 @@
                 </select>
             </div>
             <div style="display:flex; gap:12px; margin-top:20px;">
-                <button class="btn-ghost" style="flex:1" onclick="closeModal()">Cancelar</button>
-                <button class="btn" style="flex:1; background:var(--success);" id="btn-save-disk" onclick="saveDiskPlan()">Guardar Pack</button>
+                <button class="btn-ghost" style="flex:1" data-rn-onclick="priv_0001">Cancelar</button>
+                <button class="btn" style="flex:1; background:var(--success);" id="btn-save-disk" data-rn-onclick="priv_0017">Guardar Pack</button>
             </div>
         </div>
 
         <!-- MODAL: EDITAR SCRIPT MARKETPLACE -->
         <div id="modal-edit-script" class="modal-content hidden">
-            <div style="display:flex; justify-content:space-between; margin-bottom:25px;"><h2>Editar Producto (Marketplace)</h2><button class="btn-ghost" style="padding: 6px 12px;" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:25px;"><h2>Editar Producto (Marketplace)</h2><button class="btn-ghost" style="padding: 6px 12px;" data-rn-onclick="priv_0001"><i class="fa-solid fa-xmark"></i></button></div>
             <input type="hidden" id="edit-script-id">
             <div class="modal-row">
                 <label class="muted" style="display:block; margin-bottom:5px; font-size:0.75rem;">Nombre del Producto</label>
@@ -818,8 +818,8 @@
                 </select>
             </div>
             <div style="display:flex; gap:12px; margin-top:20px;">
-                <button class="btn-ghost" style="flex:1" onclick="closeModal()">Cancelar</button>
-                <button class="btn" style="flex:1; background:var(--primary);" onclick="saveScriptEdits()">Guardar Cambios</button>
+                <button class="btn-ghost" style="flex:1" data-rn-onclick="priv_0001">Cancelar</button>
+                <button class="btn" style="flex:1; background:var(--primary);" data-rn-onclick="priv_0018">Guardar Cambios</button>
             </div>
         </div>
 
@@ -833,27 +833,27 @@
                     <span style="font-size: 1.25rem; letter-spacing: -0.5px; font-weight: 900; color: white;">AGENODES</span>
                 </span>
             </div>
-            <div class="nav-item active" onclick="switchTab('tab-dashboard', this)"><i class="fa-solid fa-chart-line"></i> Dashboard</div>
-            <div class="nav-item" onclick="switchTab('tab-nodes', this)"><i class="fa-solid fa-server"></i> Nodos</div>
-            <div class="nav-item" onclick="switchTab('tab-proxies', this)"><i class="fa-solid fa-network-wired"></i> Proxys</div>
-            <div class="nav-item" onclick="switchTab('tab-users', this)"><i class="fa-solid fa-users"></i> Usuarios</div>
-            <div class="nav-item" onclick="switchTab('tab-keys', this)"><i class="fa-solid fa-ticket"></i> Invite Keys</div>
-            <div class="nav-item" onclick="switchTab('tab-notifs', this)"><i class="fa-solid fa-bullhorn"></i> Anuncios</div>
-            <div class="nav-item" onclick="switchTab('tab-audits', this)"><i class="fa-solid fa-list-check"></i> Auditoría</div>
-            <div class="nav-item" onclick="switchTab('tab-evidence', this)"><i class="fa-solid fa-file-shield" style="color:var(--info)"></i> Evidencias</div>
-            <div class="nav-item" onclick="switchTab('tab-financials', this)"><i class="fa-solid fa-sack-dollar" style="color:var(--success)"></i> Finanzas</div>
-            <div class="nav-item" onclick="switchTab('tab-marketplace', this)"><i class="fa-solid fa-shop" style="color:var(--primary)"></i> Marketplace</div>
-            <div class="nav-item" onclick="switchTab('tab-vendors', this)"><i class="fa-solid fa-users-gear" style="color:#f59e0b"></i> Vendedores</div>
-            <div class="nav-item" onclick="switchTab('tab-diagnostics', this)"><i class="fa-solid fa-stethoscope"></i> Diagnóstico</div>
-            <div class="nav-item" onclick="switchTab('tab-oxide', this)"><i class="fa-solid fa-shield-halved" style="color:#10b981"></i> OxideProxy L7</div>
-            <div style="margin-top:auto"><button class="nav-item" style="width:100%; background:transparent; border:none; color:var(--danger);" onclick="Nexus.logout()"><i class="fa-solid fa-power-off"></i> Salir</button></div>
+            <div class="nav-item active" data-rn-onclick="priv_0019"><i class="fa-solid fa-chart-line"></i> Dashboard</div>
+            <div class="nav-item" data-rn-onclick="priv_0020"><i class="fa-solid fa-server"></i> Nodos</div>
+            <div class="nav-item" data-rn-onclick="priv_0021"><i class="fa-solid fa-network-wired"></i> Proxys</div>
+            <div class="nav-item" data-rn-onclick="priv_0022"><i class="fa-solid fa-users"></i> Usuarios</div>
+            <div class="nav-item" data-rn-onclick="priv_0023"><i class="fa-solid fa-ticket"></i> Invite Keys</div>
+            <div class="nav-item" data-rn-onclick="priv_0024"><i class="fa-solid fa-bullhorn"></i> Anuncios</div>
+            <div class="nav-item" data-rn-onclick="priv_0025"><i class="fa-solid fa-list-check"></i> Auditoría</div>
+            <div class="nav-item" data-rn-onclick="priv_0026"><i class="fa-solid fa-file-shield" style="color:var(--info)"></i> Evidencias</div>
+            <div class="nav-item" data-rn-onclick="priv_0027"><i class="fa-solid fa-sack-dollar" style="color:var(--success)"></i> Finanzas</div>
+            <div class="nav-item" data-rn-onclick="priv_0028"><i class="fa-solid fa-shop" style="color:var(--primary)"></i> Marketplace</div>
+            <div class="nav-item" data-rn-onclick="priv_0029"><i class="fa-solid fa-users-gear" style="color:#f59e0b"></i> Vendedores</div>
+            <div class="nav-item" data-rn-onclick="priv_0030"><i class="fa-solid fa-stethoscope"></i> Diagnóstico</div>
+            <div class="nav-item" data-rn-onclick="priv_0031"><i class="fa-solid fa-shield-halved" style="color:#10b981"></i> OxideProxy L7</div>
+            <div style="margin-top:auto"><button class="nav-item" style="width:100%; background:transparent; border:none; color:var(--danger);" data-rn-onclick="priv_0032"><i class="fa-solid fa-power-off"></i> Salir</button></div>
         </aside>
 
         <main class="main">
             <div class="topbar">
                 <div><h2 style="margin:0;">Gestión de Infraestructura</h2><span class="muted" id="topbar-sub">Nodo Maestro Conectado</span></div>
                 <div id="topbar-oxide-actions" style="display: none;">
-                    <button id="fullscreen-oxide-btn" class="btn btn-primary" style="background:#10b981; border-color:#10b981; display:flex; align-items:center; gap:8px;" onclick="toggleFullscreenOxide()">
+                    <button id="fullscreen-oxide-btn" class="btn btn-primary" style="background:#10b981; border-color:#10b981; display:flex; align-items:center; gap:8px;" data-rn-onclick="priv_0033">
                         <i class="fa-solid fa-expand"></i> Abrir en Pantalla Completa
                     </button>
                 </div>
@@ -869,7 +869,7 @@
                             <span id="sh-node-status" style="font-size:0.55rem; color:var(--success); font-weight:800; text-transform:uppercase;">Titan Live</span>
                         </div>
                     </div>
-                    <select id="node-health-select" class="input" style="width:220px; margin:0; background:#050505; font-size:0.75rem;" onchange="pollHost(true)">
+                    <select id="node-health-select" class="input" style="width:220px; margin:0; background:#050505; font-size:0.75rem;" data-rn-onchange="priv_0034">
                         <option value="0">Nodo Maestro</option>
                     </select>
                     <div class="host-bar-item"><span class="host-bar-label">CPU LOAD</span><div class="host-bar-bg"><div id="sh-cpu-bar" class="host-bar-fill" style="background:var(--success)"></div></div><span id="sh-cpu-txt" class="host-bar-val">0%</span></div>
@@ -879,7 +879,7 @@
                 <div class="table-card">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; gap: 15px;">
                         <h3 style="font-size:1.1rem; margin:0;"><i class="fa-solid fa-layer-group" style="color:var(--primary); margin-right:10px;"></i> Instancias FiveM Activas</h3>
-                        <input type="text" id="search-server" class="input" style="width:250px; margin:0; background:#050505;" placeholder="Buscar instancia o cliente..." onkeyup="filterServers()">
+                        <input type="text" id="search-server" class="input" style="width:250px; margin:0; background:#050505;" placeholder="Buscar instancia o cliente..." data-rn-onkeyup="priv_0035">
                     </div>
                     <table class="table" id="servers-table"><tbody><tr><td style="padding: 20px;"><div class="skeleton skeleton-block" style="height:40px;"></div><div class="skeleton skeleton-block" style="height:40px;"></div></td></tr></tbody></table>
                 </div>
@@ -891,7 +891,7 @@
                         <h2 style="margin:0;">Nodos de Cómputo</h2>
                         <p class="muted">Gestión de servidores remotos para la infraestructura distribuida.</p>
                     </div>
-                    <button class="btn-success" onclick="openAddNodeModal()"><i class="fa-solid fa-plus"></i> Añadir Nodo Remoto</button>
+                    <button class="btn-success" data-rn-onclick="priv_0036"><i class="fa-solid fa-plus"></i> Añadir Nodo Remoto</button>
                 </div>
                 <div class="table-card">
                     <table class="table" id="nodes-table">
@@ -918,7 +918,7 @@
                         <h2 style="margin:0;">Edge Proxies L7</h2>
                         <p class="muted">Gestión del proxy de red y enrutamiento (OxideProxy).</p>
                     </div>
-                    <button class="btn-success" onclick="openProxyModal()"><i class="fa-solid fa-plus"></i> Añadir Proxy</button>
+                    <button class="btn-success" data-rn-onclick="priv_0037"><i class="fa-solid fa-plus"></i> Añadir Proxy</button>
                 </div>
                 <div class="table-card">
                     <table class="table">
@@ -933,29 +933,29 @@
             </div>
 
             <div id="tab-users" class="hidden view-fullscreen">
-                <div style="display:flex; justify-content:space-between; margin-bottom:15px;"><input type="text" id="search-input" class="input" style="width:300px; margin:0;" placeholder="Buscar usuario..." onkeyup="filterUsers()"><button class="btn-success" onclick="createUser()">Nuevo Usuario</button></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:15px;"><input type="text" id="search-input" class="input" style="width:300px; margin:0;" placeholder="Buscar usuario..." data-rn-onkeyup="priv_0038"><button class="btn-success" data-rn-onclick="priv_0039">Nuevo Usuario</button></div>
                 <div class="table-card"><table class="table" id="users-table"><tbody><tr><td style="padding: 20px;"><div class="skeleton skeleton-block" style="height:40px;"></div><div class="skeleton skeleton-block" style="height:40px;"></div></td></tr></tbody></table></div>
             </div>
 
             <div id="tab-keys" class="hidden view-fullscreen">
-                <div style="display:flex; justify-content:flex-end; margin-bottom:15px;"><button class="btn" onclick="createKey()">Generar Key</button></div>
+                <div style="display:flex; justify-content:flex-end; margin-bottom:15px;"><button class="btn" data-rn-onclick="priv_0040">Generar Key</button></div>
                 <div class="table-card"><table class="table" id="keys-table"><tbody><tr><td style="padding: 20px;"><div class="skeleton skeleton-block" style="height:40px;"></div><div class="skeleton skeleton-block" style="height:40px;"></div></td></tr></tbody></table></div>
             </div>
 
             <div id="tab-notifs" class="hidden view-fullscreen" style="display:grid; grid-template-columns: 350px 1fr; gap:20px; height:100%;">
-                <div class="table-card" style="height:fit-content;"><h4 style="margin-bottom:15px;">Publicar Anuncio</h4><input type="text" id="notif-title" class="input" placeholder="Título"><textarea id="notif-content" class="textarea" placeholder="Contenido..."></textarea><select id="notif-type" class="select"><option value="info">Info</option><option value="warning">Aviso</option><option value="danger">Crítico</option></select><button class="btn" style="width:100%;" onclick="createNotification(this)">Publicar Ahora</button></div>
+                <div class="table-card" style="height:fit-content;"><h4 style="margin-bottom:15px;">Publicar Anuncio</h4><input type="text" id="notif-title" class="input" placeholder="Título"><textarea id="notif-content" class="textarea" placeholder="Contenido..."></textarea><select id="notif-type" class="select"><option value="info">Info</option><option value="warning">Aviso</option><option value="danger">Crítico</option></select><button class="btn" style="width:100%;" data-rn-onclick="priv_0041">Publicar Ahora</button></div>
                 <div class="table-card"><table class="table" id="notifs-table"><tbody><tr><td style="padding: 20px;"><div class="skeleton skeleton-block" style="height:40px;"></div><div class="skeleton skeleton-block" style="height:40px;"></div></td></tr></tbody></table></div>
             </div>
 
             <div id="tab-audits" class="hidden view-fullscreen">
                 <div style="display:flex; flex-wrap: wrap; gap:15px; margin-bottom:15px; background: var(--bg-card); padding: 15px; border-radius: 16px; border: 1px solid var(--line); align-items: center;">
                     <h3 style="font-size: 1rem; color: var(--muted); margin-right: 10px;"><i class="fa-solid fa-filter"></i> Filtros:</h3>
-                    <input type="date" id="filter-audit-date" class="input" style="margin:0; width: auto; background: #050505;" onchange="renderAudits()">
-                    <input type="time" id="filter-audit-time" class="input" style="margin:0; width: auto; background: #050505;" onchange="renderAudits()">
-                    <input type="text" id="filter-audit-user" class="input" style="margin:0; flex:1; min-width: 200px; background: #050505;" placeholder="Filtrar por usuario o acción..." onkeyup="renderAudits()">
-                    <button class="btn-ghost" onclick="clearAuditFilters()"><i class="fa-solid fa-eraser"></i> Limpiar</button>
-                    <button class="btn-ghost" style="color:var(--info); border-color:rgba(56, 189, 248, 0.2);" onclick="downloadAudits()"><i class="fa-solid fa-download"></i> Descargar</button>
-                    <button class="btn-ghost" style="color:var(--danger); border-color:rgba(239, 68, 68, 0.2);" onclick="clearAllAudits()"><i class="fa-solid fa-trash-can"></i> Vaciar Todo</button>
+                    <input type="date" id="filter-audit-date" class="input" style="margin:0; width: auto; background: #050505;" data-rn-onchange="priv_0042">
+                    <input type="time" id="filter-audit-time" class="input" style="margin:0; width: auto; background: #050505;" data-rn-onchange="priv_0042">
+                    <input type="text" id="filter-audit-user" class="input" style="margin:0; flex:1; min-width: 200px; background: #050505;" placeholder="Filtrar por usuario o acción..." data-rn-onkeyup="priv_0043">
+                    <button class="btn-ghost" data-rn-onclick="priv_0044"><i class="fa-solid fa-eraser"></i> Limpiar</button>
+                    <button class="btn-ghost" style="color:var(--info); border-color:rgba(56, 189, 248, 0.2);" data-rn-onclick="priv_0045"><i class="fa-solid fa-download"></i> Descargar</button>
+                    <button class="btn-ghost" style="color:var(--danger); border-color:rgba(239, 68, 68, 0.2);" data-rn-onclick="priv_0046"><i class="fa-solid fa-trash-can"></i> Vaciar Todo</button>
                 </div>
                 <div class="table-card" style="flex-grow: 1; overflow-y: auto;">
                     <table class="table" id="audits-table"><tbody><tr><td style="padding: 20px;"><div class="skeleton skeleton-block" style="height:40px;"></div><div class="skeleton skeleton-block" style="height:40px;"></div></td></tr></tbody></table>
@@ -966,15 +966,15 @@
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px; flex-shrink: 0;">
                     <div><h2 style="margin:0; font-size: 2rem; background: linear-gradient(90deg, #f59e0b, #fbbf24); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Control Financiero</h2><p class="muted">Gestión de precios de hosting y suscripciones de PayPal.</p></div>
                     <div style="display:flex; gap:10px;">
-                        <button class="btn-ghost" onclick="loadPlans(); loadDiskPlans();"><i class="fa-solid fa-sync"></i> Refrescar</button>
-                        <button class="btn" style="background:var(--success); border-color:var(--success); box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);" onclick="syncPayPalPlans()"><i class="fa-solid fa-cloud-arrow-up"></i> Autocompletar con API</button>
+                        <button class="btn-ghost" data-rn-onclick="priv_0047"><i class="fa-solid fa-sync"></i> Refrescar</button>
+                        <button class="btn" style="background:var(--success); border-color:var(--success); box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);" data-rn-onclick="priv_0048"><i class="fa-solid fa-cloud-arrow-up"></i> Autocompletar con API</button>
                     </div>
                 </div>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(600px, 1fr)); gap: 30px; align-items: start; flex-grow: 1;">
                     <div class="card" style="background: rgba(20,20,25,0.7); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 10px 40px rgba(0,0,0,0.5); margin: 0; display: flex; flex-direction: column;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding: 10px 0;">
                             <h3 style="font-size:1.2rem; margin:0;"><i class="fa-solid fa-server" style="color:var(--primary); margin-right:10px;"></i> Planes de Hosting Activos</h3>
-                            <button class="btn btn-primary" onclick="openCreatePlanModal()"><i class="fa-solid fa-plus"></i> Crear Plan</button>
+                            <button class="btn btn-primary" data-rn-onclick="priv_0049"><i class="fa-solid fa-plus"></i> Crear Plan</button>
                         </div>
                         <div style="flex-grow: 1; overflow-x: auto;">
                             <table class="table" style="background: transparent; min-width: 500px;">
@@ -991,7 +991,7 @@
                     <div class="card" style="background: rgba(20,20,25,0.7); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 10px 40px rgba(0,0,0,0.5); margin: 0; display: flex; flex-direction: column;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding: 10px 0;">
                             <h3 style="font-size:1.2rem; margin:0;"><i class="fa-solid fa-hard-drive" style="color:var(--success); margin-right:10px;"></i> Expansiones de Almacenamiento</h3>
-                            <button class="btn btn-primary" style="background:#10b981; border-color:#10b981;" onclick="openCreateDiskPlanModal()"><i class="fa-solid fa-plus"></i> Crear Expansión</button>
+                            <button class="btn btn-primary" style="background:#10b981; border-color:#10b981;" data-rn-onclick="priv_0050"><i class="fa-solid fa-plus"></i> Crear Expansión</button>
                         </div>
                         <div style="flex-grow: 1; overflow-x: auto;">
                             <table class="table" style="background: transparent; min-width: 500px;">
@@ -1011,15 +1011,15 @@
             <div id="tab-marketplace" class="hidden view-fullscreen">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px; padding: 0 10px;">
                     <div><h2 style="margin:0;">Gestión de Marketplace</h2><p class="muted">Control de scripts y subida rápida para administradores.</p></div>
-                    <button class="btn btn-gold" onclick="openModal('modal-admin-upload')"><i class="fa-solid fa-bolt-lightning"></i> Subida Rápida</button>
+                    <button class="btn btn-gold" data-rn-onclick="priv_0051"><i class="fa-solid fa-bolt-lightning"></i> Subida Rápida</button>
                 </div>
 
                 <div class="card" style="margin-bottom:30px; border: 1px dashed #f59e0b; background: rgba(245, 158, 11, 0.02);">
-                    <div class="admin-upload-zone" id="admin-drop-zone-native" onclick="document.getElementById('admin-file-input-native').click()" style="padding: 30px; border: none; background: transparent;">
+                    <div class="admin-upload-zone" id="admin-drop-zone-native" data-rn-onclick="priv_0052" style="padding: 30px; border: none; background: transparent;">
                         <i class="fa-solid fa-cloud-arrow-up" style="font-size: 2rem; color: #f59e0b;"></i>
                         <h4 style="margin: 10px 0;">Arrastra scripts (.zip) para publicación instantánea</h4>
                         <p class="muted" style="font-size: 0.8rem;">Los scripts se publicarán con valores por defecto (Precio: $0.00)</p>
-                        <input type="file" id="admin-file-input-native" multiple accept=".zip" style="display:none" onchange="processAdminUploadNative(this.files)">
+                        <input type="file" id="admin-file-input-native" multiple accept=".zip" style="display:none" data-rn-onchange="priv_0005">
                     </div>
                     <div id="admin-upload-progress-native" class="hidden" style="padding: 20px; border-top: 1px solid var(--line);">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
@@ -1047,7 +1047,7 @@
             <div id="tab-vendors" class="hidden view-fullscreen">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 25px;">
                     <div><h2 style="margin:0;">Postulaciones de Vendedores</h2><p class="muted">Revisa y aprueba solicitudes para vender en el marketplace.</p></div>
-                    <button class="btn-ghost" onclick="loadAdminVendors()"><i class="fa-solid fa-sync"></i> Refrescar</button>
+                    <button class="btn-ghost" data-rn-onclick="priv_0053"><i class="fa-solid fa-sync"></i> Refrescar</button>
                 </div>
                 <div class="card glass-panel" style="padding: 0; overflow: hidden;">
                     <div id="admin-vendors-list" style="display:flex; flex-direction:column; padding:15px; gap:10px; max-height:70vh; overflow-y:auto;">
@@ -1064,7 +1064,7 @@
                         <h2 style="margin:0;">Evidencias y Disputas</h2>
                         <p class="muted">Paquete legal para PayPal: aceptacion, IP, User-Agent, pago, factura, auditoria y provision del servicio.</p>
                     </div>
-                    <button class="btn-ghost" onclick="clearEvidenceSearch()"><i class="fa-solid fa-rotate-left"></i> Limpiar</button>
+                    <button class="btn-ghost" data-rn-onclick="priv_0054"><i class="fa-solid fa-rotate-left"></i> Limpiar</button>
                 </div>
 
                 <div style="display:grid; grid-template-columns: 360px 1fr; gap:18px; min-height:0;">
@@ -1084,8 +1084,8 @@
                         <input id="evidence-filter-value" class="input" placeholder="cliente@email.com">
 
                         <div style="display:flex; gap:10px; margin-top:18px; flex-wrap:wrap;">
-                            <button class="btn-info" onclick="loadEvidenceSummary(this)"><i class="fa-solid fa-eye"></i> Vista previa</button>
-                            <button class="btn-ghost" onclick="downloadEvidenceZip()"><i class="fa-solid fa-file-zipper"></i> Descargar ZIP</button>
+                            <button class="btn-info" data-rn-onclick="priv_0055"><i class="fa-solid fa-eye"></i> Vista previa</button>
+                            <button class="btn-ghost" data-rn-onclick="priv_0056"><i class="fa-solid fa-file-zipper"></i> Descargar ZIP</button>
                         </div>
 
                         <div class="diag-section-title" style="margin-top:22px;">Estado</div>
@@ -1135,19 +1135,19 @@
                         </select>
 
                         <div class="diag-actions">
-                            <button class="btn-ghost" onclick="loadDiagnosticDefaults(this, true)">
+                            <button class="btn-ghost" data-rn-onclick="priv_0057">
                                 <i class="fa-solid fa-rotate"></i> Cargar activos
                             </button>
-                            <button class="btn-info" id="btn-run-diagnostics" onclick="runDiagnostics(this)">
+                            <button class="btn-info" id="btn-run-diagnostics" data-rn-onclick="priv_0058">
                                 <i class="fa-solid fa-play"></i> Ejecutar Diagnóstico
                             </button>
-                            <button class="btn-ghost" onclick="runQuickDiagnostics(this)">
+                            <button class="btn-ghost" data-rn-onclick="priv_0059">
                                 <i class="fa-solid fa-bolt"></i> Rápido
                             </button>
-                            <button class="btn-ghost" onclick="copyDiagnosticsJson()">
+                            <button class="btn-ghost" data-rn-onclick="priv_0060">
                                 <i class="fa-solid fa-copy"></i> Copiar JSON
                             </button>
-                            <button class="btn-ghost" onclick="downloadDiagnosticsJson()">
+                            <button class="btn-ghost" data-rn-onclick="priv_0061">
                                 <i class="fa-solid fa-file-arrow-down"></i> Exportar
                             </button>
                         </div>
@@ -1193,7 +1193,8 @@
         </main>
     </div>
 
-    <script src="js/common.js"></script>
+    <script src="js/csp-bindings.js?v=2026081701"></script>
+    <script src="js/common.js?v=2026081705"></script>
     <script>
         function toggleFullscreenOxide() {
             const elem = document.getElementById('tab-oxide');
@@ -1407,17 +1408,17 @@
                                 </div></td>
                                 <td><span class="badge ${escapeHtml(s.status)}">${escapeHtml(s.status)}</span></td>
                                 <td><div style="display:flex; gap:6px; flex-wrap: wrap;">
-                                    <button class="btn-tbl purple" onclick="openEditServer('${s.id}')" title="Editar"><i class="fa-solid fa-pen"></i></button>
+                                    <button class="btn-tbl purple" ${rnBind("click", (event, element) => { openEditServer((s.id)) })} title="Editar"><i class="fa-solid fa-pen"></i></button>
                                      ${serverActionsPending.has(s.id)
                                         ? `<button class="btn-tbl" disabled style="opacity:0.6; cursor:wait; background:rgba(255,255,255,0.1);"><i class="fa-solid fa-spinner fa-spin"></i></button>`
-                                        : (isR?`<button class="btn-tbl yellow" onclick="srvAction('${s.id}','stop', this)" title="Apagar"><i class="fa-solid fa-stop"></i></button>`:`<button class="btn-tbl green" onclick="srvAction('${s.id}','start', this)" title="Encender"><i class="fa-solid fa-play"></i></button>`)
+                                        : (isR?`<button class="btn-tbl yellow" ${rnBind("click", (event, element) => { srvAction((s.id),'stop', element) })} title="Apagar"><i class="fa-solid fa-stop"></i></button>`:`<button class="btn-tbl green" ${rnBind("click", (event, element) => { srvAction((s.id),'start', element) })} title="Encender"><i class="fa-solid fa-play"></i></button>`)
                                      }
-                                    <button class="btn-tbl cyan" onclick="openServerBackups('${s.id}')" title="Gestor de Backups"><i class="fa-solid fa-box-archive"></i></button>
-                                    <button class="btn-tbl blue" onclick="diagnoseSingleServer('${s.fivem_port}')" title="Diagnóstico Individual"><i class="fa-solid fa-stethoscope"></i></button>
-                                    <button class="btn-tbl warning" onclick="openTerminal('${s.id}')" title="Abrir Terminal" style="background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.3);"><i class="fa-solid fa-terminal"></i></button>
+                                    <button class="btn-tbl cyan" ${rnBind("click", (event, element) => { openServerBackups((s.id)) })} title="Gestor de Backups"><i class="fa-solid fa-box-archive"></i></button>
+                                    <button class="btn-tbl blue" ${rnBind("click", (event, element) => { diagnoseSingleServer((s.fivem_port)) })} title="Diagnóstico Individual"><i class="fa-solid fa-stethoscope"></i></button>
+                                    <button class="btn-tbl warning" ${rnBind("click", (event, element) => { openTerminal((s.id)) })} title="Abrir Terminal" style="background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.3);"><i class="fa-solid fa-terminal"></i></button>
                                      ${serverActionsPending.get(s.id)?.action === 'delete'
                                         ? `<button class="btn-tbl" disabled style="opacity:0.5; background:var(--danger)15;"><i class="fa-solid fa-spinner fa-spin"></i></button>`
-                                        : `<button class="btn-tbl red" onclick="srvDelete('${s.id}', this)" title="Eliminar"><i class="fa-solid fa-trash"></i></button>`
+                                        : `<button class="btn-tbl red" ${rnBind("click", (event, element) => { srvDelete((s.id), element) })} title="Eliminar"><i class="fa-solid fa-trash"></i></button>`
                                      }
                                 </div></td>
                             </tr>`;
@@ -1501,9 +1502,9 @@
                             <td><span class="badge ${u.role==='admin'?'admin':'running'}">${escapeHtml(u.role)}</span></td>
                             <td>
                                 <div style="display:flex; gap:5px;">
-                                    <button class="btn-tbl purple" onclick="openEditUser('${u.id}')" title="Editar Usuario"><i class="fa-solid fa-pen"></i></button>
-                                    <button class="btn-tbl blue" onclick="impersonate('${u.id}')" title="Iniciar como este usuario"><i class="fa-solid fa-user-secret"></i></button>
-                                    <button class="btn-tbl red" onclick="deleteUser('${u.id}', this)" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                                    <button class="btn-tbl purple" ${rnBind("click", (event, element) => { openEditUser((u.id)) })} title="Editar Usuario"><i class="fa-solid fa-pen"></i></button>
+                                    <button class="btn-tbl blue" ${rnBind("click", (event, element) => { impersonate((u.id)) })} title="Iniciar como este usuario"><i class="fa-solid fa-user-secret"></i></button>
+                                    <button class="btn-tbl red" ${rnBind("click", (event, element) => { deleteUser((u.id), element) })} title="Eliminar"><i class="fa-solid fa-trash"></i></button>
                                 </div>
                             </td>
                         </tr>`}).join('') + `</tbody>`;
@@ -1517,7 +1518,7 @@
                     const items = keys.items || [];
                     const hKeys = JSON.stringify(items);
                     if(lastH.keys !== hKeys) {
-                        document.getElementById('keys-table').innerHTML = `<thead><tr><th>Código</th><th>Usos</th><th>Acción</th></tr></thead><tbody>` + items.map(k => `<tr><td class="mono">${escapeHtml(k.code)}</td><td>${escapeHtml(k.uses)}/${escapeHtml(k.max_uses)}</td><td><button class="btn-tbl red" onclick="deleteKey('${escapeHtml(k.code)}', this)"><i class="fa-solid fa-trash"></i></button></td></tr>`).join('') + `</tbody>`;
+                        document.getElementById('keys-table').innerHTML = `<thead><tr><th>Código</th><th>Usos</th><th>Acción</th></tr></thead><tbody>` + items.map(k => `<tr><td class="mono">${escapeHtml(k.code)}</td><td>${escapeHtml(k.uses)}/${escapeHtml(k.max_uses)}</td><td><button class="btn-tbl red" ${rnBind("click", (event, element) => { deleteKey((escapeHtml(k.code)), element) })}><i class="fa-solid fa-trash"></i></button></td></tr>`).join('') + `</tbody>`;
                         lastH.keys = hKeys;
                     }
                 }
@@ -1550,7 +1551,7 @@
                                     <td><span class="muted" style="font-size: 0.8rem;"><i class="fa-regular fa-clock" style="margin-right: 5px;"></i>${escapeHtml(dateStr)}</span></td>
                                     <td><span class="badge" style="background: ${typeBg}; color: ${typeColor}; border: 1px solid ${typeColor}40;">${escapeHtml(String(n.type || 'info').toUpperCase())}</span></td>
                                     <td>
-                                        <button class="btn-tbl red" onclick="deleteNotification('${n.id}', this)" title="Eliminar Anuncio"><i class="fa-solid fa-trash"></i></button>
+                                        <button class="btn-tbl red" ${rnBind("click", (event, element) => { deleteNotification((n.id), element) })} title="Eliminar Anuncio"><i class="fa-solid fa-trash"></i></button>
                                     </td>
                                 </tr>`;
                             }).join('') + `</tbody>`;
@@ -1596,8 +1597,8 @@
                                     <td><span style="font-weight:900; color:white;">$${s.price}</span></td>
                                     <td><small class="muted">${new Date(s.created_at).toLocaleDateString()}</small></td>
                                     <td>
-                                        <button class="btn-tbl purple" onclick="editMarketplaceScript('${s.id}')" title="Editar Producto"><i class="fa-solid fa-pen-to-square"></i></button>
-                                        <button class="btn-tbl red" onclick="deleteScriptAdmin('${s.id}')" title="Eliminar Script"><i class="fa-solid fa-trash"></i></button>
+                                        <button class="btn-tbl purple" ${rnBind("click", (event, element) => { editMarketplaceScript((s.id)) })} title="Editar Producto"><i class="fa-solid fa-pen-to-square"></i></button>
+                                        <button class="btn-tbl red" ${rnBind("click", (event, element) => { deleteScriptAdmin((s.id)) })} title="Eliminar Script"><i class="fa-solid fa-trash"></i></button>
                                     </td>
                                 </tr>
                             `).join('');
@@ -1765,10 +1766,10 @@
                             </div>
                             <div style="display:flex; gap:10px;">
                                 ${isPending ? `
-                                    <button class="btn-tbl" style="background:var(--success); color:white;" onclick="adminVendorAction('${app.id}', 'accepted')" title="Aprobar Vendedor"><i class="fa-solid fa-check"></i></button>
-                                    <button class="btn-tbl" style="background:var(--danger); color:white;" onclick="adminVendorAction('${app.id}', 'rejected')" title="Rechazar Vendedor"><i class="fa-solid fa-xmark"></i></button>
+                                    <button class="btn-tbl" style="background:var(--success); color:white;" ${rnBind("click", (event, element) => { adminVendorAction((app.id), 'accepted') })} title="Aprobar Vendedor"><i class="fa-solid fa-check"></i></button>
+                                    <button class="btn-tbl" style="background:var(--danger); color:white;" ${rnBind("click", (event, element) => { adminVendorAction((app.id), 'rejected') })} title="Rechazar Vendedor"><i class="fa-solid fa-xmark"></i></button>
                                 ` : app.status === 'accepted' ? `
-                                    <button class="btn-tbl" style="background:var(--danger); color:white;" onclick="adminVendorAction('${app.id}', 'revoke')" title="Revocar Vendedor"><i class="fa-solid fa-user-slash"></i></button>
+                                    <button class="btn-tbl" style="background:var(--danger); color:white;" ${rnBind("click", (event, element) => { adminVendorAction((app.id), 'revoke') })} title="Revocar Vendedor"><i class="fa-solid fa-user-slash"></i></button>
                                 ` : `
                                     <button class="btn-tbl" disabled style="opacity:0.5;"><i class="fa-solid ${statusIcon}"></i></button>
                                 `}
@@ -1789,7 +1790,7 @@
             try {
                 const res = await fetch(`/api/admin/vendor/${appId}/action`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('nexus_token') },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action })
                 });
                 const data = await res.json();
@@ -1845,7 +1846,6 @@
                 try {
                     const response = await fetch('/api/marketplace/upload', {
                         method: 'POST',
-                        headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_token')}` },
                         body: formData
                     });
                     const res = await response.json();
@@ -1910,9 +1910,9 @@
                             </td>
                             <td>
                                 <div style="display:flex; gap:8px;">
-                                    <button class="btn-tbl green" onclick="testNodeConnection(${n.id})" title="Testear Conexión a Docker"><i class="fa-solid fa-wifi"></i></button>
-                                    <button class="btn-tbl blue" onclick="openEditNode(${n.id})" title="Editar Nodo"><i class="fa-solid fa-pen-to-square"></i></button>
-                                    ${n.id !== 0 ? `<button class="btn-tbl red" onclick="deleteNode(${n.id})" title="Eliminar Nodo"><i class="fa-solid fa-trash"></i></button>` : ''}
+                                    <button class="btn-tbl green" ${rnBind("click", (event, element) => { testNodeConnection((n.id)) })} title="Testear Conexión a Docker"><i class="fa-solid fa-wifi"></i></button>
+                                    <button class="btn-tbl blue" ${rnBind("click", (event, element) => { openEditNode((n.id)) })} title="Editar Nodo"><i class="fa-solid fa-pen-to-square"></i></button>
+                                    ${n.id !== 0 ? `<button class="btn-tbl red" ${rnBind("click", (event, element) => { deleteNode((n.id)) })} title="Eliminar Nodo"><i class="fa-solid fa-trash"></i></button>` : ''}
                                 </div>
                             </td>
                         </tr>
@@ -2024,9 +2024,9 @@
                             <td class="mono" style="font-size:0.8rem;">${p.api_port}</td>
                             <td>${statusBadge}</td>
                             <td>
-                                <button class="btn-tbl yellow" onclick="editProxy(${p.id})" title="Editar Proxy"><i class="fa-solid fa-pen"></i></button>
-                                <button class="btn-tbl green" onclick="activateProxy(${p.id})" title="Marcar como Activo" ${p.is_active ? 'disabled' : ''}><i class="fa-solid fa-check"></i></button>
-                                <button class="btn-tbl red" onclick="deleteProxy(${p.id})" title="Eliminar Proxy"><i class="fa-solid fa-trash"></i></button>
+                                <button class="btn-tbl yellow" ${rnBind("click", (event, element) => { editProxy((p.id)) })} title="Editar Proxy"><i class="fa-solid fa-pen"></i></button>
+                                <button class="btn-tbl green" ${rnBind("click", (event, element) => { activateProxy((p.id)) })} title="Marcar como Activo" ${p.is_active ? 'disabled' : ''}><i class="fa-solid fa-check"></i></button>
+                                <button class="btn-tbl red" ${rnBind("click", (event, element) => { deleteProxy((p.id)) })} title="Eliminar Proxy"><i class="fa-solid fa-trash"></i></button>
                             </td>
                         </tr>
                     `;
@@ -2185,7 +2185,6 @@
         async function impersonate(id) {
             if(confirm('¿Impersonar usuario?')) {
                 const r = await Nexus.api(`/api/admin/users/${id}/impersonate`, {method:'POST'});
-                localStorage.setItem('nexus_token', r.token);
                 localStorage.setItem('nexus_user', JSON.stringify(r.user));
                 location.href = '/panel';
             }
@@ -2361,7 +2360,7 @@
                         <td class="mono" style="font-size:0.75rem; color:var(--info)">${escapeHtml(b.filename)}</td>
                         <td><span class="muted"><i class="fa-regular fa-clock" style="margin-right:5px;"></i>${escapeHtml(b.date)}</span></td>
                         <td>
-                            <button class="btn-tbl red" title="Restaurar Copia" onclick="restoreAdminBackup('${id}', '${escapeHtml(b.filename)}', this)">
+                            <button class="btn-tbl red" title="Restaurar Copia" ${rnBind("click", (event, element) => { restoreAdminBackup((id), (escapeHtml(b.filename)), element) })}>
                                 <i class="fa-solid fa-clock-rotate-left"></i>
                             </button>
                         </td>
@@ -2757,8 +2756,7 @@
         }
 
         function downloadAudits() {
-            const token = localStorage.getItem('nexus_token');
-            window.open(`/api/admin/audit-logs/export?token=${token}`, '_blank');
+            window.open('/api/admin/audit-logs/export', '_blank');
         }
 
         // =====================================
@@ -2836,7 +2834,7 @@
                                 <div class="diag-title">${escapeHtml(user.username || 'Cliente sin usuario vinculado')}</div>
                                 <div class="diag-sub">${escapeHtml(user.email || 'Sin email')} ?? Plan ${escapeHtml(user.plan || '-')} ?? User ID ${escapeHtml(user.id || '-')}</div>
                             </div>
-                            <button class="btn-info" onclick="downloadEvidenceZip()"><i class="fa-solid fa-file-zipper"></i> Descargar evidencia</button>
+                            <button class="btn-info" ${rnBind("click", (event, element) => { downloadEvidenceZip() })}><i class="fa-solid fa-file-zipper"></i> Descargar evidencia</button>
                         </div>
                     </div>
                     <div class="diag-section-title">Facturas vinculadas</div>
@@ -2860,8 +2858,7 @@
         function downloadEvidenceZip() {
             const qs = lastEvidenceQuery || getEvidenceQuery();
             if (!qs) return showToast('Primero indica un criterio de busqueda', 'warning');
-            const token = localStorage.getItem('nexus_token') || '';
-            window.open('/api/admin/disputes/evidence.zip?' + qs + '&token=' + encodeURIComponent(token), '_blank');
+            window.open('/api/admin/disputes/evidence.zip?' + qs, '_blank');
         }
 
         let lastDiagResult = null;
@@ -3085,7 +3082,7 @@
                                 <td><span style="color:var(--success); font-weight:bold;">$${parseFloat(p.price).toFixed(2)}</span></td>
                                 <td class="mono" style="font-size:0.75rem;">${escapeHtml(p.paypal_plan_id || 'SIN VINCULAR')}</td>
                                 <td>
-                                    <button class="btn-tbl purple" onclick="editPlan('${p.id}')"><i class="fa-solid fa-pen-to-square"></i></button>
+                                    <button class="btn-tbl purple" ${rnBind("click", (event, element) => { editPlan((p.id)) })}><i class="fa-solid fa-pen-to-square"></i></button>
                                 </td>
                             </tr>
                         `;
@@ -3188,7 +3185,7 @@
                         <td class="mono" style="font-size:0.75rem;">${escapeHtml(p.paypal_plan_id || 'SIN VINCULAR')}</td>
                         <td>${p.is_active ? '<span class="badge running">Activo</span>' : '<span class="badge stopped">Inactivo</span>'}</td>
                         <td>
-                            <button class="btn-tbl purple" onclick="editDiskPlan('${p.id}')"><i class="fa-solid fa-pen-to-square"></i></button>
+                            <button class="btn-tbl purple" ${rnBind("click", (event, element) => { editDiskPlan((p.id)) })}><i class="fa-solid fa-pen-to-square"></i></button>
                         </td>
                     </tr>
                 `).join('');
@@ -3303,5 +3300,6 @@
             initSecurity();
         };
     </script>
+    <script src="js/privileged-actions.generated.js?v=2026081701"></script>
 </body>
 </html>

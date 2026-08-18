@@ -4,14 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OxideProxy • L7 Control Plane v2.0</title>
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="vendor/css/all.min.css">
+    <script src="vendor/js/chart.umd.min.js"></script>
     <!-- Custom Styles -->
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -150,18 +144,18 @@
             <!-- ================= PESTAÑA 2: FIREWALL & eBPF ================= -->
             <div class="tab-pane" id="tab-firewall">
                 <!-- Fila 3.5: Gestión de Firewall y Listas Negras en Tiempo Real -->
-                <section class="firewall-section" style="width: 100%;">
-                    <div class="glass-card firewall-container" style="padding-bottom: 1.5rem;">
+                <section class="firewall-section full-width">
+                    <div class="glass-card firewall-container firewall-card">
                         <div class="card-header">
                             <div class="header-title">
-                                <i class="fa-solid fa-shield-halved" style="color: var(--danger-glow);"></i>
+                                <i class="fa-solid fa-shield-halved icon-danger"></i>
                                 <h2>Gestión de Firewall & Listas Negras en Tiempo Real (eBPF/XDP)</h2>
                             </div>
                             <button id="btn-save-firewall" class="btn btn-primary glow-btn small-btn">
                                 <i class="fa-solid fa-shield-virus"></i> Aplicar Reglas al Motor
                             </button>
                         </div>
-                        <div class="firewall-grid" style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 1.5rem; padding: 1.5rem;">
+                        <div class="firewall-grid">
                             <!-- Columna Izquierda: Ajustes de Mitigación -->
                             <div class="tuning-box">
                                 <h3><i class="fa-solid fa-sliders"></i> Ajustes de Mitigación DDoS</h3>
@@ -184,23 +178,23 @@
                             </div>
 
                             <!-- Columna Derecha: Lista Negra Dinámica -->
-                            <div class="tuning-box" style="gap: 1rem;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.75rem;">
+                            <div class="tuning-box blacklist-box">
+                                <div class="blacklist-header">
                                     <h3><i class="fa-solid fa-user-shield"></i> Lista Negra de Direcciones IP (Blacklist)</h3>
                                     <span class="badge badge-glow" id="fw-blacklist-count">0 IPs Bloqueadas</span>
                                 </div>
-                                <div style="display: flex; gap: 0.75rem;">
+                                <div class="blacklist-input-row">
                                     <input type="text" id="fw-new-ip" class="glass-input" placeholder="Añadir IP maliciosa (Ej. 192.168.1.50)">
-                                    <button id="btn-add-blacklist" class="btn btn-secondary glass-btn" style="white-space: nowrap;">
+                                    <button id="btn-add-blacklist" class="btn btn-secondary glass-btn no-wrap">
                                         <i class="fa-solid fa-plus"></i> Añadir IP
                                     </button>
                                 </div>
-                                <div class="table-container" style="padding: 0; max-height: 200px; overflow-y: auto; border: 1px solid var(--glass-border); border-radius: 0.5rem;">
-                                    <table class="glass-table" style="margin: 0;">
+                                <div class="table-container blacklist-table-container">
+                                    <table class="glass-table compact-table">
                                         <thead>
                                             <tr>
                                                 <th>Dirección IP</th>
-                                                <th style="width: 100px; text-align: center;">Acción</th>
+                                                <th class="action-column">Acción</th>
                                             </tr>
                                         </thead>
                                         <tbody id="fw-blacklist-tbody">
@@ -293,7 +287,7 @@
             <!-- ================= PESTAÑA 3: RUTEO & INGRESS ================= -->
             <div class="tab-pane" id="tab-config">
                 <!-- Fila 4: Gestión de Configuración Global y Ruteo de Juegos -->
-                <section class="config-section" style="width: 100%;">
+                <section class="config-section full-width">
                     <div class="config-grid">
                         <!-- Columna Izquierda: Configuración Global Ingress -->
                         <div class="glass-card config-card">
@@ -367,8 +361,8 @@
             <!-- ================= PESTAÑA 4: CONSOLA EN VIVO ================= -->
             <div class="tab-pane" id="tab-console">
                 <!-- Fila 5: Consola de Trazas en Vivo (Live Terminal & Log Filtering) -->
-                <section class="live-console-section" style="width: 100%; margin: 0;">
-                    <div class="glass-card console-card" style="height: calc(100vh - 180px);">
+                <section class="live-console-section full-width no-margin">
+                    <div class="glass-card console-card console-card-viewport">
                         <div class="card-header console-header">
                             <div class="header-title">
                                 <i class="fa-solid fa-terminal console-icon"></i>
@@ -390,7 +384,7 @@
                                 </button>
                             </div>
                         </div>
-                        <div class="console-body" id="log-console-body" style="flex: 1; height: auto;">
+                        <div class="console-body console-body-flex" id="log-console-body">
                             <!-- Líneas de log inyectadas dinámicamente -->
                         </div>
                     </div>
@@ -410,12 +404,12 @@
                 <div class="presets-container">
                     <label class="presets-label"><i class="fa-solid fa-wand-magic-sparkles"></i> Presets Rápidos de 1-Clic:</label>
                     <div class="presets-grid">
-                        <button type="button" class="btn preset-btn" onclick="applyPreset('fivem')"><i class="fa-solid fa-car"></i> FiveM</button>
-                        <button type="button" class="btn preset-btn" onclick="applyPreset('mc_java')"><i class="fa-solid fa-cube"></i> MC Java</button>
-                        <button type="button" class="btn preset-btn" onclick="applyPreset('mc_bedrock')"><i class="fa-solid fa-cubes"></i> MC Bedrock</button>
-                        <button type="button" class="btn preset-btn" onclick="applyPreset('cs2')"><i class="fa-solid fa-gun"></i> CS2</button>
-                        <button type="button" class="btn preset-btn" onclick="applyPreset('ark')"><i class="fa-solid fa-dragon"></i> ARK</button>
-                        <button type="button" class="btn preset-btn" onclick="applyPreset('valheim')"><i class="fa-solid fa-shield-halved"></i> Valheim</button>
+                        <button type="button" class="btn preset-btn" data-preset="fivem"><i class="fa-solid fa-car"></i> FiveM</button>
+                        <button type="button" class="btn preset-btn" data-preset="mc_java"><i class="fa-solid fa-cube"></i> MC Java</button>
+                        <button type="button" class="btn preset-btn" data-preset="mc_bedrock"><i class="fa-solid fa-cubes"></i> MC Bedrock</button>
+                        <button type="button" class="btn preset-btn" data-preset="cs2"><i class="fa-solid fa-gun"></i> CS2</button>
+                        <button type="button" class="btn preset-btn" data-preset="ark"><i class="fa-solid fa-dragon"></i> ARK</button>
+                        <button type="button" class="btn preset-btn" data-preset="valheim"><i class="fa-solid fa-shield-halved"></i> Valheim</button>
                     </div>
                 </div>
 
@@ -457,7 +451,7 @@
                             <label class="switch-label"><i class="fa-solid fa-heart-pulse"></i> Activar Health Check Automático</label>
                             <label class="switch"><input type="checkbox" id="modal-hc-enabled" checked><span class="slider round"></span></label>
                         </div>
-                        <div class="form-group-row" style="margin-top: 0.75rem;">
+                        <div class="form-group-row form-row-spaced">
                             <div class="form-group">
                                 <label for="modal-hc-interval">Intervalo (s)</label>
                                 <input type="number" id="modal-hc-interval" class="glass-input" value="10">

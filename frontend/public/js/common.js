@@ -1,26 +1,101 @@
+localStorage.removeItem('nexus_token');
+
+let paypalSdkPromise = null;
+const pageScriptNonce = document.currentScript?.nonce || '';
+
+window.loadPayPalSdk = async function loadPayPalSdk() {
+  if (window.paypal) return window.paypal;
+  if (paypalSdkPromise) return paypalSdkPromise;
+
+  paypalSdkPromise = (async () => {
+    const response = await fetch('/api/payments/client-config', {
+      credentials: 'same-origin',
+      cache: 'no-store'
+    });
+    if (!response.ok) throw new Error('No se pudo consultar la configuracion de pagos.');
+    const paymentConfig = await response.json();
+    if (!paymentConfig.enabled || !paymentConfig.clientId) {
+      throw new Error('PayPal no esta habilitado en este entorno.');
+    }
+
+    const params = new URLSearchParams({
+      'client-id': paymentConfig.clientId,
+      vault: 'true',
+      intent: 'subscription'
+    });
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = `https://www.paypal.com/sdk/js?${params.toString()}`;
+      script.async = true;
+      if (pageScriptNonce) {
+        script.nonce = pageScriptNonce;
+        // PayPal propaga este valor a los scripts y estilos que genera dentro
+        // de sus componentes de pago.
+        script.dataset.cspNonce = pageScriptNonce;
+      }
+      script.referrerPolicy = 'strict-origin-when-cross-origin';
+      script.dataset.ragenodesPaymentSdk = 'paypal';
+      script.onload = resolve;
+      script.onerror = () => reject(new Error('No se pudo cargar la pasarela de PayPal.'));
+      document.head.appendChild(script);
+    });
+    if (!window.paypal) throw new Error('El SDK de PayPal no se inicializo correctamente.');
+    return window.paypal;
+  })().catch((error) => {
+    paypalSdkPromise = null;
+    throw error;
+  });
+
+  return paypalSdkPromise;
+};
+
 window.Nexus = {
   api: async (path, opts = {}) => {
-    const token = localStorage.getItem('nexus_token');
-    const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
-    if (token) headers.Authorization = `Bearer ${token}`;
-    const res = await fetch(path, { ...opts, headers });
-    const data = await res.json().catch(()=>({}));
-    if(!res.ok) {
-      alert(data.error || 'Error en la petición');
-      if(res.status === 401) Nexus.logout();
-      throw new Error(data.error);
+    const headers = { ...(opts.headers || {}) };
+    const hasBody = opts.body !== undefined && opts.body !== null;
+    if (hasBody && !(opts.body instanceof FormData) && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+    delete headers.Authorization;
+    const res = await fetch(path, { ...opts, headers, credentials: 'same-origin' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401 && path !== '/api/auth/logout') {
+        localStorage.removeItem('nexus_user');
+        location.href = '/';
+      } else {
+        alert(data.error || 'Error en la petición');
+      }
+      throw new Error(data.error || `HTTP ${res.status}`);
     }
     return data;
   },
-  
-  // 🔥 AQUÍ ESTÁ EL CAMBIO: location.href apunta a '/'
-  logout: () => { 
-      localStorage.clear(); 
-      location.href = '/'; 
+
+  session: async () => {
+    try {
+      const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
+      if (!res.ok) return null;
+      const user = await res.json();
+      localStorage.setItem('nexus_user', JSON.stringify(user));
+      return user;
+    } catch {
+      localStorage.removeItem('nexus_user');
+      return null;
+    }
   },
-  
-  copyToClipboard: (text) => { 
-      navigator.clipboard.writeText(text); 
-      alert('¡Copiado al portapapeles!'); 
+
+  logout: async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+    } finally {
+      localStorage.removeItem('nexus_token');
+      localStorage.removeItem('nexus_user');
+      location.href = '/';
+    }
+  },
+
+  copyToClipboard: (text) => {
+    navigator.clipboard.writeText(text);
+    alert('¡Copiado al portapapeles!');
   }
 };
