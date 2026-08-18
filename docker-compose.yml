@@ -21,6 +21,7 @@ services:
 
   mariadb:
     image: mariadb@sha256:de61fed4a40d3842f3ee09944ba52792156cfd9adf489b2cc670fc6ded28df8d
+    command: ["--log-bin", "--expire-logs-days=7"]
     restart: unless-stopped
     env_file: [ .env ]
     environment:
@@ -80,6 +81,7 @@ services:
       - ${INSTANCE_DATA_ROOT}:${INSTANCE_DATA_ROOT}
       - ${BACKUP_ROOT}:${BACKUP_ROOT}
       - ./backend/src:/app/src
+      - ./rclone.conf:/root/.config/rclone/rclone.conf:ro
       - ./fivem-base:/app/fivem-base
       - ./certs:/opt/ragenodes-ultimate/certs:ro
       - query_cache_data:/app/config-gateway/static
@@ -119,6 +121,7 @@ services:
       - ${INSTANCE_DATA_ROOT}/templates:${INSTANCE_DATA_ROOT}/templates:ro
       - ${BACKUP_ROOT}:${BACKUP_ROOT}
       - ./backend/src:/app/src
+      - ./rclone.conf:/root/.config/rclone/rclone.conf:ro
       - ./fivem-base:/app/fivem-base
       - ./certs:/opt/ragenodes-ultimate/certs:ro
     security_opt:
@@ -147,6 +150,7 @@ services:
       - ${INSTANCE_DATA_ROOT}/templates:${INSTANCE_DATA_ROOT}/templates:ro
       - ${BACKUP_ROOT}:${BACKUP_ROOT}
       - ./backend/src:/app/src
+      - ./rclone.conf:/root/.config/rclone/rclone.conf:ro
       - ./fivem-base:/app/fivem-base
       - ./certs:/opt/ragenodes-ultimate/certs:ro
     security_opt:
@@ -175,6 +179,7 @@ services:
       - ${INSTANCE_DATA_ROOT}/templates:${INSTANCE_DATA_ROOT}/templates:ro
       - ${BACKUP_ROOT}:${BACKUP_ROOT}
       - ./backend/src:/app/src
+      - ./rclone.conf:/root/.config/rclone/rclone.conf:ro
       - ./certs:/opt/ragenodes-ultimate/certs:ro
       - query_cache_data:/app/config-gateway/static
     security_opt:
@@ -241,8 +246,9 @@ services:
     build:
       context: ./bot
       dockerfile: Dockerfile
-    restart: unless-stopped
-    env_file: [ .env ]
+    depends_on:
+      backend:
+        condition: service_healthy
     environment:
       - API_URL_BASE=http://backend:3006/api/discord
     depends_on:

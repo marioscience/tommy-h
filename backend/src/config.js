@@ -215,6 +215,7 @@ export const PLAN_LIMITS = {
   },
   // 🤝 Plan Partner: El plan más alto para colaboradores y partners
   partner: {
+    maxSlots: 10,
     memoryBytes: 32 * 1024 * 1024 * 1024, // 32GB RAM
     nanoCpus: 8 * 10**9,                  // 8.0 Cores
     storageLimit: '250G',                 // 250GB NVMe
