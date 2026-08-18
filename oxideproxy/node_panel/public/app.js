@@ -43,6 +43,20 @@ let activeServerModalGameId = null;
 let consolePaused = false;
 let currentLogFilter = 'ALL';
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function parseActionIndex(element) {
+    const index = Number.parseInt(element?.dataset.index || '', 10);
+    return Number.isSafeInteger(index) && index >= 0 ? index : null;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     initCharts();
     fetchAdvancedMetrics();
@@ -79,6 +93,35 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event Listeners para Pestañas Cero Scroll
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
+
+    document.addEventListener('click', (event) => {
+        const presetButton = event.target.closest('[data-preset]');
+        if (presetButton) return applyPreset(presetButton.dataset.preset);
+
+        const chartButton = event.target.closest('[data-action="server-chart"]');
+        if (chartButton) {
+            const index = parseActionIndex(chartButton);
+            if (index !== null) return openServerChartModal(index);
+        }
+
+        const editButton = event.target.closest('[data-action="route-edit"]');
+        if (editButton) {
+            const index = parseActionIndex(editButton);
+            if (index !== null) return openRouteModal(index);
+        }
+
+        const deleteButton = event.target.closest('[data-action="route-delete"]');
+        if (deleteButton) {
+            const index = parseActionIndex(deleteButton);
+            if (index !== null) return deleteRoute(index);
+        }
+
+        const unblockButton = event.target.closest('[data-action="blacklist-remove"]');
+        if (unblockButton) {
+            const index = parseActionIndex(unblockButton);
+            if (index !== null) return removeIpFromBlacklist(index);
+        }
     });
 });
 
@@ -270,14 +313,14 @@ function renderRoutesTable() {
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td><span class="badge badge-glow">${route.game_id}</span></td>
-            <td><span class="badge-proto ${protoClass}">${route.protocol || 'UDP'}</span></td>
-            <td><code>${route.backend_addr}</code></td>
-            <td>${route.description}</td>
+            <td><span class="badge badge-glow">${escapeHtml(route.game_id)}</span></td>
+            <td><span class="badge-proto ${protoClass}">${escapeHtml(route.protocol || 'UDP')}</span></td>
+            <td><code>${escapeHtml(route.backend_addr)}</code></td>
+            <td>${escapeHtml(route.description)}</td>
             <td>
-                <button class="action-btn chart-btn" onclick="openServerChartModal(${index})" title="Ver Telemetría en Vivo"><i class="fa-solid fa-chart-line"></i></button>
-                <button class="action-btn edit" onclick="openRouteModal(${index})" title="Editar Configuración"><i class="fa-solid fa-pen-to-square"></i></button>
-                <button class="action-btn delete" onclick="deleteRoute(${index})" title="Eliminar Servidor"><i class="fa-solid fa-trash-can"></i></button>
+                <button class="action-btn chart-btn" data-action="server-chart" data-index="${index}" title="Ver Telemetría en Vivo"><i class="fa-solid fa-chart-line"></i></button>
+                <button class="action-btn edit" data-action="route-edit" data-index="${index}" title="Editar Configuración"><i class="fa-solid fa-pen-to-square"></i></button>
+                <button class="action-btn delete" data-action="route-delete" data-index="${index}" title="Eliminar Servidor"><i class="fa-solid fa-trash-can"></i></button>
             </td>
         `;
         tbody.appendChild(tr);
@@ -449,7 +492,7 @@ function showToast(message, type = 'success') {
     toast.className = `toast ${type}`;
 
     const icon = type === 'success' ? '<i class="fa-solid fa-circle-check"></i>' : '<i class="fa-solid fa-triangle-exclamation"></i>';
-    toast.innerHTML = `${icon} <span>${message}</span>`;
+    toast.innerHTML = `${icon} <span>${escapeHtml(message)}</span>`;
 
     container.appendChild(toast);
 
@@ -464,31 +507,32 @@ function showToast(message, type = 'success') {
 // ==========================================================================
 
 function openServerChartModal(index) {
+    if (!Number.isSafeInteger(index) || index < 0) return;
     const route = currentConfig.routing.game_servers[index];
     if (!route) return;
     activeServerModalGameId = route.game_id;
 
     const modal = document.getElementById('server-chart-modal');
     const modalBody = document.getElementById('server-chart-modal-body');
-    const chartId = `modal-chart-${route.game_id}`;
+    const chartId = `modal-chart-${index}`;
     const protoBadge = route.protocol === 'TCP' ? 'badge-tcp' : (route.protocol === 'DUAL' ? 'badge-dual' : 'badge-udp');
 
     modalBody.innerHTML = `
-        <div class="srv-header" style="margin-bottom: 1.25rem;">
+        <div class="srv-header server-header-spaced">
             <div class="srv-title-box">
-                <span class="srv-gameid">${route.game_id}</span>
+                <span class="srv-gameid">${escapeHtml(route.game_id)}</span>
                 <div>
-                    <div class="srv-name">${route.name || route.description || `Servidor ${route.game_id}`}</div>
-                    <div class="srv-addr"><code>${route.backend_addr}</code></div>
+                    <div class="srv-name">${escapeHtml(route.name || route.description || `Servidor ${route.game_id}`)}</div>
+                    <div class="srv-addr"><code>${escapeHtml(route.backend_addr)}</code></div>
                 </div>
             </div>
             <div class="srv-badges">
-                <span class="badge-proto ${protoBadge}">${route.protocol || 'UDP'}</span>
+                <span class="badge-proto ${protoBadge}">${escapeHtml(route.protocol || 'UDP')}</span>
                 <span class="live-badge"><i class="fa-solid fa-circle live-dot"></i> LIVE</span>
             </div>
         </div>
 
-        <div class="srv-stats-grid" style="margin-bottom: 1.5rem;">
+        <div class="srv-stats-grid server-stats-spaced">
             <div class="srv-stat-box">
                 <span class="srv-stat-label">CONEXIONES ACTIVAS</span>
                 <span class="srv-stat-val c-cyan" id="modal-stat-conns">0</span>
@@ -507,7 +551,7 @@ function openServerChartModal(index) {
             </div>
         </div>
 
-        <div class="srv-chart-container" style="height: 280px;">
+        <div class="srv-chart-container server-chart-sized">
             <canvas id="${chartId}"></canvas>
         </div>
     `;
@@ -553,13 +597,13 @@ async function fetchLiveLogs(force = false) {
         data.logs.forEach(log => {
             const line = document.createElement('div');
             line.className = 'log-line';
-            const lvlClass = log.level.toLowerCase();
+            const lvlClass = String(log.level || 'INFO').toLowerCase();
             const badgeClass = log.game_id === 'SYS' ? 'sys' : '';
             line.innerHTML = `
-                <span class="log-ts">[${log.timestamp.substring(11, 23)}]</span>
-                <span class="log-level ${lvlClass}">${log.level}</span>
-                <span class="log-badge ${badgeClass}">GameID: ${log.game_id}</span>
-                <span class="log-msg">${log.message}</span>
+                <span class="log-ts">[${escapeHtml(String(log.timestamp).substring(11, 23))}]</span>
+                <span class="log-level ${['debug', 'info', 'warn', 'error'].includes(lvlClass) ? lvlClass : 'info'}">${escapeHtml(log.level)}</span>
+                <span class="log-badge ${badgeClass}">GameID: ${escapeHtml(log.game_id)}</span>
+                <span class="log-msg">${escapeHtml(log.message)}</span>
             `;
             consoleBody.appendChild(line);
         });
@@ -629,16 +673,16 @@ function renderBlacklistTable() {
     document.getElementById('fw-blacklist-count').innerText = `${ips.length} IPs Bloqueadas`;
 
     if (ips.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="2" style="text-align: center; color: var(--text-muted);">No hay direcciones IP bloqueadas</td></tr>`;
+        tbody.innerHTML = '<tr><td colspan="2" class="empty-table-cell">No hay direcciones IP bloqueadas</td></tr>';
         return;
     }
 
     ips.forEach((ip, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td><code>${ip}</code></td>
-            <td style="text-align: center;">
-                <button class="action-btn delete" onclick="removeIpFromBlacklist(${index})" title="Desbloquear IP"><i class="fa-solid fa-trash-can"></i></button>
+            <td><code>${escapeHtml(ip)}</code></td>
+            <td class="action-cell">
+                <button class="action-btn delete" data-action="blacklist-remove" data-index="${index}" title="Desbloquear IP"><i class="fa-solid fa-trash-can"></i></button>
             </td>
         `;
         tbody.appendChild(tr);

@@ -36,12 +36,21 @@ where
         }
     };
 
-    tracing::debug!("Iniciando reenvio TCP hacia backend {} ({})", backend_addr, resolved_backend);
+    tracing::debug!(
+        "Iniciando reenvio TCP hacia backend {} ({})",
+        backend_addr,
+        resolved_backend
+    );
     match TcpStream::connect(resolved_backend).await {
         Ok(mut backend_stream) => {
             if !buffer.is_empty() {
-                tracing::debug!("Escribiendo {} bytes iniciales del buffer al backend TCP...", buffer.len());
-                if let Err(e) = tokio::io::AsyncWriteExt::write_all(&mut backend_stream, &buffer).await {
+                tracing::debug!(
+                    "Escribiendo {} bytes iniciales del buffer al backend TCP...",
+                    buffer.len()
+                );
+                if let Err(e) =
+                    tokio::io::AsyncWriteExt::write_all(&mut backend_stream, &buffer).await
+                {
                     tracing::error!(
                         "Error escribiendo buffer inicial al backend {} ({}): {}",
                         backend_addr,
@@ -55,7 +64,8 @@ where
                 Ok((from_client, from_backend)) => {
                     tracing::debug!(
                         "Sesion TCP finalizada. Bytes cliente->backend: {}, backend->cliente: {}",
-                        from_client, from_backend
+                        from_client,
+                        from_backend
                     );
                 }
                 Err(e) => tracing::error!(
@@ -111,12 +121,13 @@ pub async fn forward_udp(
 
     let ephemeral_sock = match ephemeral_sock {
         Some(sock) => sock,
-        None => match UdpSocket::bind("0.0.0.0:0").await {
-            Ok(sock) => {
-                let sock = Arc::new(sock);
-                let now = Instant::now();
+        None => {
+            match UdpSocket::bind("0.0.0.0:0").await {
+                Ok(sock) => {
+                    let sock = Arc::new(sock);
+                    let now = Instant::now();
 
-                let entry = sessions.entry(client_addr).or_insert_with(|| {
+                    let entry = sessions.entry(client_addr).or_insert_with(|| {
                     let ephemeral_clone = sock.clone();
                     let ingress_clone = ingress_socket.clone();
 
@@ -158,19 +169,34 @@ pub async fn forward_udp(
                     (sock, now)
                 });
 
-                let result_sock = entry.value().0.clone();
-                drop(entry);
-                result_sock
+                    let result_sock = entry.value().0.clone();
+                    drop(entry);
+                    result_sock
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Error vinculando socket UDP efimero para {}: {}",
+                        client_addr,
+                        e
+                    );
+                    return;
+                }
             }
-            Err(e) => {
-                tracing::error!("Error vinculando socket UDP efimero para {}: {}", client_addr, e);
-                return;
-            }
-        },
+        }
     };
 
     match ephemeral_sock.send_to(&payload, resolved_backend).await {
-        Ok(sent) => tracing::debug!("Enviados {} bytes UDP a {} ({})", sent, backend_addr, resolved_backend),
-        Err(e) => tracing::error!("Error reenviando UDP a {} ({}): {}", backend_addr, resolved_backend, e),
+        Ok(sent) => tracing::debug!(
+            "Enviados {} bytes UDP a {} ({})",
+            sent,
+            backend_addr,
+            resolved_backend
+        ),
+        Err(e) => tracing::error!(
+            "Error reenviando UDP a {} ({}): {}",
+            backend_addr,
+            resolved_backend,
+            e
+        ),
     }
 }

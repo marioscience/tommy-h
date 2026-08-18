@@ -10,26 +10,31 @@
     "worker:stats": "RAGENODES_ROLE=worker-stats node src/worker.js"
   },
   "dependencies": {
-    "adm-zip": "^0.5.10",
-    "axios": "^1.16.0",
+    "adm-zip": "^0.6.0",
+    "axios": "^1.19.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
-    "dockerode": "^4.0.2",
+    "dockerode": "^5.0.1",
     "dotenv": "^16.4.5",
-    "express": "^4.21.2",
+    "express": "^4.22.2",
     "express-rate-limit": "^7.1.5",
-    "http-proxy-middleware": "^3.0.5",
     "jsonwebtoken": "^9.0.2",
-    "multer": "^1.4.5-lts.1",
+    "multer": "^2.2.0",
     "mysql2": "^3.9.7",
     "node-cron": "^4.2.1",
     "pg": "^8.12.0",
     "redis": "^5.12.1",
-    "resend": "^6.4.2",
-    "systeminformation": "^5.21.22",
-    "uuid": "^11.1.0"
+    "resend": "^6.20.0",
+    "systeminformation": "^5.33.1",
+    "uuid": "^11.1.1"
   },
   "devDependencies": {
     "@napi-rs/cli": "^3.7.2"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "1.14.4",
+    "@protobufjs/utf8": "1.1.2",
+    "js-yaml": "4.3.1",
+    "protobufjs": "7.6.5"
   }
 }

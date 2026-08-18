@@ -26,7 +26,7 @@ export async function getCS2Config(instancePath) {
         return {
             "hostname": "RageNodes CS2 Server",
             "sv_password": "",
-            "rcon_password": "ragenodes_rcon",
+            "rcon_password": "",
             "mp_maxrounds": "24",
             "mp_roundtime": "1.92",
             "sv_cheats": "0",

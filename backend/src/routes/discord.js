@@ -3,6 +3,7 @@ import pg from 'pg';
 import Docker from 'dockerode';
 import { config } from '../config.js';
 import * as serverService from '../services/serverService.js';
+import crypto from 'crypto';
 
 const router = express.Router();
 const { Pool } = pg;
@@ -18,7 +19,9 @@ const motorServidores = new Docker({ socketPath: config.dockerSocket });
 // 🛡️ MIDDLEWARE DE SEGURIDAD ESTRICTA
 const verifyApiKey = (req, res, next) => {
     const apiKey = req.headers['x-api-key'];
-    if (apiKey !== config.apiKey) {
+    const received = crypto.createHash('sha256').update(String(apiKey || '')).digest();
+    const expected = crypto.createHash('sha256').update(String(config.apiKey || '')).digest();
+    if (!apiKey || !crypto.timingSafeEqual(received, expected)) {
         console.warn(`⚠️ Intento de acceso bloqueado a la API del bot desde IP: ${req.ip}`);
         return res.status(401).json({ error: 'Acceso denegado. API Key inválida.' });
     }

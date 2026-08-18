@@ -20,7 +20,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::env::var("RUST_LOG").unwrap_or_else(|_| "warn,oxide_proxy=info".into()),
         ))
         .with(tracing_subscriber::fmt::layer().with_writer(non_blocking_stdout))
-        .with(tracing_subscriber::fmt::layer().with_writer(non_blocking_file).with_ansi(false))
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(non_blocking_file)
+                .with_ansi(false),
+        )
         .init();
 
     tracing::info!("=== Arrancando OxideProxy (Motor L4/L7 Asíncrono Ultra-Optimizado) ===");
@@ -35,13 +39,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let worker_threads = config.runtime.worker_threads.unwrap_or_else(|| {
         let cores = num_cpus();
-        tracing::info!("Auto-detectados {} núcleos físicos para el pool de Tokio.", cores);
+        tracing::info!(
+            "Auto-detectados {} núcleos físicos para el pool de Tokio.",
+            cores
+        );
         cores
     });
 
     tracing::info!(
         "Inicializando runtime de Tokio con {} hilos de trabajo (Core Pinning: {})...",
-        worker_threads, config.runtime.enable_core_pinning
+        worker_threads,
+        config.runtime.enable_core_pinning
     );
 
     let enable_pinning = config.runtime.enable_core_pinning;
@@ -68,5 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn num_cpus() -> usize {
-    std::thread::available_parallelism().map(|p| p.get()).unwrap_or(4)
+    std::thread::available_parallelism()
+        .map(|p| p.get())
+        .unwrap_or(4)
 }

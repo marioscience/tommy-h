@@ -1,47 +1,65 @@
 use crate::config::ProxyConfig;
-use bytes::Bytes;
-
-use http::header::{ACCEPT_ENCODING, CACHE_CONTROL, CONTENT_ENCODING, CONTENT_TYPE, ETAG, HOST};
+use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine as _};
+use flate2::write::GzEncoder;
+use flate2::Compression;
+use http::header::{
+    HeaderName, HeaderValue, ACCEPT_ENCODING, CACHE_CONTROL, CONTENT_ENCODING, CONTENT_TYPE, ETAG,
+    HOST,
+};
 use http::{Request, Response, StatusCode};
 use hyper::{service::service_fn, Body};
 use percent_encoding::percent_decode_str;
 use std::convert::Infallible;
-use std::net::SocketAddr;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::net::{IpAddr, SocketAddr};
+use std::path::Path;
 use std::sync::Arc;
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
-use flate2::write::GzEncoder;
-use flate2::Compression;
+use tokio::io::{AsyncRead, AsyncWrite};
 
-fn host_without_port(host: &str) -> &str {
-    host.split(':').next().unwrap_or(host)
+#[derive(Clone)]
+struct StaticPageSecurity {
+    nonce: String,
+    allows_paypal: bool,
+    allows_internal_frames: bool,
+    cross_origin_isolated: bool,
 }
 
-fn is_local_admin_host(host: &str) -> bool {
-    let host = host_without_port(host).trim().to_ascii_lowercase();
-    host.is_empty()
-        || host == "localhost"
-        || host == "127.0.0.1"
-        || host == "::1"
-        || host.starts_with("192.168.")
-        || host.starts_with("10.")
-        || host.starts_with("172.16.")
-        || host.starts_with("172.17.")
-        || host.starts_with("172.18.")
-        || host.starts_with("172.19.")
-        || host.starts_with("172.20.")
-        || host.starts_with("172.21.")
-        || host.starts_with("172.22.")
-        || host.starts_with("172.23.")
-        || host.starts_with("172.24.")
-        || host.starts_with("172.25.")
-        || host.starts_with("172.26.")
-        || host.starts_with("172.27.")
-        || host.starts_with("172.28.")
-        || host.starts_with("172.29.")
-        || host.starts_with("172.30.")
-        || host.starts_with("172.31.")
+#[derive(Clone)]
+struct AllowSameOriginFraming;
+
+#[derive(Clone)]
+struct AllowPhpMyAdminFraming;
+
+fn static_page_security_profile(path: &Path, nonce: String) -> StaticPageSecurity {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let allows_paypal = matches!(
+        file_name.as_str(),
+        "index.html" | "hosting-fivem.html" | "creadores.html" | "panel.html"
+    );
+    let allows_internal_frames = matches!(
+        file_name.as_str(),
+        "panel.html" | "admin.html" | "fivem.html" | "fivem_v3.html"
+    );
+
+    StaticPageSecurity {
+        nonce,
+        allows_paypal,
+        allows_internal_frames,
+        // Las vistas que no integran pagos pueden activar COEP sin interferir
+        // con los iframes y popups necesarios para el checkout de PayPal.
+        cross_origin_isolated: !allows_paypal,
+    }
+}
+
+fn is_private_admin_peer(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ip) => ip.is_loopback() || ip.is_private(),
+        IpAddr::V6(ip) => ip.is_loopback() || ip.is_unique_local(),
+    }
 }
 
 fn normalize_uri_path(path: &str) -> String {
@@ -51,17 +69,19 @@ fn normalize_uri_path(path: &str) -> String {
         if iterations > 3 {
             break; // Prevención de DoS por bucle infinito
         }
-        let decoded = percent_decode_str(&current_path).decode_utf8_lossy().into_owned();
+        let decoded = percent_decode_str(&current_path)
+            .decode_utf8_lossy()
+            .into_owned();
         if decoded == current_path {
             break;
         }
         current_path = decoded;
         iterations += 1;
     }
-    
+
     // Eliminación de null bytes
     current_path = current_path.replace('\0', "");
-    
+
     // Normalización de rutas (resolver /../ y /./)
     let mut components = Vec::new();
     for comp in current_path.split('/') {
@@ -73,12 +93,12 @@ fn normalize_uri_path(path: &str) -> String {
             components.push(comp);
         }
     }
-    
+
     let mut normalized = format!("/{}", components.join("/"));
     if current_path.ends_with('/') && normalized != "/" {
         normalized.push('/');
     }
-    
+
     normalized
 }
 
@@ -88,24 +108,146 @@ fn is_admin_surface(path: &str) -> bool {
         || path == "/admin.html"
         || path.starts_with("/admin/")
         || path.starts_with("/api/admin")
-        || path.starts_with("/oxide") // 🛡️ AÑADIDO: Proteger Oxide Panel
+        || path.starts_with("/oxide")
+        || path.starts_with("/api/oxide")
+        || path == "/pma"
+        || path.starts_with("/pma/")
 }
 
 fn forbidden_admin_response() -> Response<Body> {
-    let mut res = Response::new(Body::from("403 Forbidden: admin panel is only available from the local network"));
+    let mut res = Response::new(Body::from(
+        "403 Forbidden: admin panel is only available from the local network",
+    ));
     *res.status_mut() = StatusCode::FORBIDDEN;
+    res.headers_mut().insert(
+        CONTENT_TYPE,
+        HeaderValue::from_static("text/plain; charset=utf-8"),
+    );
     res
 }
 
+fn not_found_response() -> Response<Body> {
+    let mut res = Response::new(Body::from("404 Not Found"));
+    *res.status_mut() = StatusCode::NOT_FOUND;
+    res.headers_mut().insert(
+        CONTENT_TYPE,
+        HeaderValue::from_static("text/plain; charset=utf-8"),
+    );
+    res
+}
 
-pub async fn serve_http_connection<S>(stream: S, config: Arc<ProxyConfig>, peer_addr: SocketAddr, ban_tx: tokio::sync::mpsc::Sender<std::net::IpAddr>)
-where
+fn is_disallowed_static_path(path: &str) -> bool {
+    path.split('/').filter(|part| !part.is_empty()).any(|part| {
+        let lower = part.to_ascii_lowercase();
+        (part.starts_with('.') && part != ".well-known")
+            || lower.ends_with(".bak")
+            || lower.ends_with(".old")
+            || lower.ends_with('~')
+            || lower.contains("_backup.")
+            || lower.contains(".backup.")
+    })
+}
+
+fn apply_browser_security_headers(response: &mut Response<Body>) {
+    let page_security = response.extensions().get::<StaticPageSecurity>().cloned();
+    let allow_same_origin_framing = response.extensions().get::<AllowSameOriginFraming>().is_some();
+    let allow_pma_framing = response.extensions().get::<AllowPhpMyAdminFraming>().is_some();
+    let headers = response.headers_mut();
+    headers.remove("server");
+    headers.remove("x-powered-by");
+    headers.remove("x-content-security-policy");
+    headers.remove("x-webkit-csp");
+    headers.insert(
+        HeaderName::from_static("x-content-type-options"),
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        HeaderName::from_static("x-frame-options"),
+        if allow_same_origin_framing || allow_pma_framing {
+            HeaderValue::from_static("SAMEORIGIN")
+        } else {
+            HeaderValue::from_static("DENY")
+        },
+    );
+    headers.insert(
+        HeaderName::from_static("referrer-policy"),
+        HeaderValue::from_static("no-referrer"),
+    );
+    // Los navegadores solo aceptan HSTS sobre HTTPS, por lo que esta cabecera
+    // es inocua en desarrollo HTTP y queda preparada para producción TLS.
+    headers.insert(
+        HeaderName::from_static("strict-transport-security"),
+        HeaderValue::from_static("max-age=31536000"),
+    );
+    headers.insert(
+        HeaderName::from_static("permissions-policy"),
+        HeaderValue::from_static(
+            "camera=(), microphone=(), geolocation=(), accelerometer=(), gyroscope=(), magnetometer=(), usb=(), serial=(), hid=(), browsing-topics=(), clipboard-write=(self), fullscreen=(self), payment=(self \"https://www.paypal.com\")",
+        ),
+    );
+    let coop = if page_security
+        .as_ref()
+        .is_some_and(|profile| !profile.allows_paypal)
+    {
+        HeaderValue::from_static("same-origin")
+    } else {
+        HeaderValue::from_static("same-origin-allow-popups")
+    };
+    headers.insert(HeaderName::from_static("cross-origin-opener-policy"), coop);
+    headers.insert(
+        HeaderName::from_static("cross-origin-resource-policy"),
+        HeaderValue::from_static("same-origin"),
+    );
+    if page_security
+        .as_ref()
+        .is_some_and(|profile| profile.cross_origin_isolated)
+    {
+        headers.insert(
+            HeaderName::from_static("cross-origin-embedder-policy"),
+            HeaderValue::from_static("credentialless"),
+        );
+    } else {
+        headers.remove("cross-origin-embedder-policy");
+    }
+    let csp = if let Some(profile) = page_security.as_ref() {
+        let third_party = match (profile.allows_paypal, profile.allows_internal_frames) {
+            (true, true) => "img-src 'self' data: blob: https://images.unsplash.com https://placehold.co https://ragenodes.com https://static.wikia.nocookie.net https://umod.org https://www.paypal.com https://www.paypalobjects.com; connect-src 'self' https://www.paypal.com https://www.paypalobjects.com; frame-src 'self' https://*.ragenodes.com https://www.paypal.com;",
+            (true, false) => "img-src 'self' data: blob: https://images.unsplash.com https://placehold.co https://ragenodes.com https://static.wikia.nocookie.net https://umod.org https://www.paypal.com https://www.paypalobjects.com; connect-src 'self' https://www.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com;",
+            (false, true) => "img-src 'self' data: blob: https://images.unsplash.com https://placehold.co https://ragenodes.com https://static.wikia.nocookie.net https://umod.org; connect-src 'self'; frame-src 'self' https://*.ragenodes.com;",
+            (false, false) => "img-src 'self' data: blob: https://images.unsplash.com https://placehold.co https://ragenodes.com https://static.wikia.nocookie.net https://umod.org; connect-src 'self'; frame-src 'none';",
+        };
+        format!(
+            "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'nonce-{}' 'strict-dynamic' 'self'; script-src-attr 'none'; style-src 'self'; style-src-elem 'self' 'nonce-{}'; style-src-attr 'unsafe-inline'; font-src 'self' data:; {} worker-src 'self' blob:; manifest-src 'self'",
+            profile.nonce, profile.nonce, third_party
+        )
+    } else if allow_same_origin_framing {
+        "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self'; style-src-attr 'none'; font-src 'self' data:; img-src 'self' data:; connect-src 'self'; frame-src 'none'; worker-src 'none'; manifest-src 'none'".to_string()
+    } else if allow_pma_framing {
+        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self'; worker-src 'self' blob:; manifest-src 'self'".to_string()
+    } else {
+        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' https://www.paypal.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https://www.paypal.com https://www.paypalobjects.com; connect-src 'self' https://www.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com; worker-src 'self' blob:; manifest-src 'self'".to_string()
+    };
+    if let Ok(value) = HeaderValue::from_str(&csp) {
+        headers.insert(HeaderName::from_static("content-security-policy"), value);
+    }
+}
+
+pub async fn serve_http_connection<S>(
+    stream: S,
+    config: Arc<ProxyConfig>,
+    peer_addr: SocketAddr,
+    ban_tx: tokio::sync::mpsc::Sender<std::net::IpAddr>,
+) where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     let service = service_fn(move |req| {
         let cfg = Arc::clone(&config);
         let tx = ban_tx.clone();
-        async move { handle_http_request(req, cfg, peer_addr, tx).await }
+        async move {
+            let mut response = handle_http_request(req, cfg, peer_addr, tx).await?;
+            apply_browser_security_headers(&mut response);
+            Ok::<_, Infallible>(response)
+        }
     });
 
     if let Err(err) = hyper::server::conn::Http::new()
@@ -128,36 +270,63 @@ async fn handle_http_request(
         .headers()
         .get(HOST)
         .and_then(|h| h.to_str().ok())
-        .unwrap_or("");
+        .unwrap_or("")
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    let host_without_port = host.split(':').next().unwrap_or("");
 
     let raw_uri_path = req.uri().path();
     let uri_path_string = normalize_uri_path(raw_uri_path);
     let uri_path = uri_path_string.as_str();
-    
-    tracing::debug!("Petición HTTP L7: Host: '{}', Path: '{}' (Raw: '{}')", host, uri_path, raw_uri_path);
 
-    if is_admin_surface(uri_path) && !is_local_admin_host(host) {
-        tracing::warn!("Bloqueado acceso público al panel admin: Host='{}', Path='{}'", host, uri_path);
-        if let Err(e) = ban_tx.send(peer_addr.ip()).await {
-            tracing::error!("Fallo al enviar IP al gestor XDP (Fail2Ban): {}", e);
-        } else {
-            tracing::warn!("Fail2Ban: Petición de baneo enviada al canal eBPF para la IP {}", peer_addr.ip());
-        }
+    tracing::debug!(
+        "Petición HTTP L7: Host: '{}', Path: '{}' (Raw: '{}')",
+        host,
+        uri_path,
+        raw_uri_path
+    );
+
+    let forwarded_request = req.headers().contains_key("cf-connecting-ip")
+        || req.headers().contains_key("x-forwarded-for")
+        || req.headers().contains_key("forwarded");
+    if is_admin_surface(uri_path) && (!is_private_admin_peer(peer_addr.ip()) || forwarded_request) {
+        tracing::warn!(
+            "Bloqueado acceso no local a superficie administrativa: Peer='{}', Host='{}', Path='{}'",
+            peer_addr.ip(), host, uri_path
+        );
         return Ok(forbidden_admin_response());
     }
 
+    if uri_path == "/pma/doc" || uri_path.starts_with("/pma/doc/") {
+        return Ok(not_found_response());
+    }
+
     // 1. Enrutamiento Virtual Host & SNI para Servidores de Juego (ej. tx40121.node1.ragenodes.com)
-    if host.contains(".node1.ragenodes.com") || host.starts_with("tx") || host.starts_with("blender") {
-        if let Some(port_str) = host.strip_prefix("tx").and_then(|s| s.split('.').next()) {
+    if host_without_port.ends_with(".node1.ragenodes.com") {
+        if let Some(port_str) = host_without_port
+            .strip_prefix("tx")
+            .and_then(|s| s.strip_suffix(".node1.ragenodes.com"))
+        {
             if let Ok(port) = port_str.parse::<u16>() {
-                tracing::debug!("Virtual Host coincide con FiveM txAdmin (puerto {}). Reenviando al backend...", port);
-                return reverse_proxy_request(req, format!("127.0.0.1:{}", port), None, peer_addr).await;
+                tracing::debug!(
+                    "Virtual Host coincide con FiveM txAdmin (puerto {}). Reenviando al backend...",
+                    port
+                );
+                return reverse_proxy_request(req, format!("127.0.0.1:{}", port), None, peer_addr)
+                    .await;
             }
         }
-        if let Some(port_str) = host.strip_prefix("blender").and_then(|s| s.split('.').next()) {
+        if let Some(port_str) = host_without_port
+            .strip_prefix("blender")
+            .and_then(|s| s.strip_suffix(".node1.ragenodes.com"))
+        {
             if let Ok(port) = port_str.parse::<u16>() {
-                tracing::debug!("Virtual Host coincide con Blender Web (puerto {}). Reenviando al backend...", port);
-                return reverse_proxy_request(req, format!("127.0.0.1:{}", port), None, peer_addr).await;
+                tracing::debug!(
+                    "Virtual Host coincide con Blender Web (puerto {}). Reenviando al backend...",
+                    port
+                );
+                return reverse_proxy_request(req, format!("127.0.0.1:{}", port), None, peer_addr)
+                    .await;
             }
         }
     }
@@ -165,63 +334,86 @@ async fn handle_http_request(
     // 1b. txAdmin por subdominio estable del servidor (ej. s3a5ee6de.ragenodes.com).
     // RageNodes guarda estos hosts por server_id corto; el puerto txAdmin de FiveM
     // se asigna como puerto de juego + 10000.
-    if host.starts_with('s') && host.ends_with(".ragenodes.com") {
-        if let Some(short_id) = host
+    if host_without_port.starts_with('s') && host_without_port.ends_with(".ragenodes.com") {
+        if let Some(short_id) = host_without_port
             .strip_prefix('s')
             .and_then(|s| s.split('.').next())
             .filter(|s| s.len() == 8 && s.chars().all(|c| c.is_ascii_hexdigit()))
         {
-            if let Some(route) = config
-                .routing
-                .game_servers
-                .iter()
-                .find(|route| route.backend_addr.contains(&format!("ragenodes-{}", short_id)))
-            {
+            if let Some(route) = config.routing.game_servers.iter().find(|route| {
+                route
+                    .backend_addr
+                    .contains(&format!("ragenodes-{}", short_id))
+            }) {
                 let txadmin_port = route.game_id.saturating_add(10000);
                 tracing::debug!(
                     "Virtual Host coincide con servidor {}. Reenviando txAdmin al puerto {}...",
                     short_id,
                     txadmin_port
                 );
-                return reverse_proxy_request(req, format!("127.0.0.1:{}", txadmin_port), None, peer_addr).await;
+                return reverse_proxy_request(
+                    req,
+                    format!("127.0.0.1:{}", txadmin_port),
+                    None,
+                    peer_addr,
+                )
+                .await;
             }
         }
     }
 
     // 1c. WordPress por subdominio estable (ej. w3a5ee6de.ragenodes.com)
-    if host.starts_with('w') && host.ends_with(".ragenodes.com") {
-        if let Some(short_id) = host
+    if host_without_port.starts_with('w') && host_without_port.ends_with(".ragenodes.com") {
+        if let Some(short_id) = host_without_port
             .strip_prefix('w')
             .and_then(|s| s.split('.').next())
             .filter(|s| s.len() == 8 && s.chars().all(|c| c.is_ascii_hexdigit()))
         {
-            if let Some(route) = config
-                .routing
-                .game_servers
-                .iter()
-                .find(|route| route.backend_addr.contains(&format!("ragenodes-{}", short_id)))
-            {
+            if let Some(route) = config.routing.game_servers.iter().find(|route| {
+                route
+                    .backend_addr
+                    .contains(&format!("ragenodes-{}", short_id))
+            }) {
                 let wp_port = route.game_id;
                 tracing::debug!(
                     "Virtual Host coincide con WordPress {}. Reenviando al puerto HTTP {}...",
                     short_id,
                     wp_port
                 );
-                return reverse_proxy_request(req, format!("127.0.0.1:{}", wp_port), None, peer_addr).await;
+                return reverse_proxy_request(
+                    req,
+                    format!("127.0.0.1:{}", wp_port),
+                    None,
+                    peer_addr,
+                )
+                .await;
             }
         }
     }
 
     // 2. Enrutamiento API de Oxide Control Panel (`/api/oxide/...`)
     if uri_path.starts_with("/api/oxide") {
-        tracing::debug!("Enrutando petición API Oxide L7 al contenedor oxide_control_panel:3000...");
-        return reverse_proxy_request(req, "oxide_control_panel:3000".to_string(), None, peer_addr).await;
+        tracing::debug!(
+            "Enrutando petición API Oxide L7 al contenedor oxide_control_panel:3000..."
+        );
+        return reverse_proxy_request(req, "oxide_control_panel:3000".to_string(), None, peer_addr)
+            .await;
     }
 
     // 2a. Enrutamiento Panel de Control Interno (OxideProxy Dashboard)
     if uri_path.starts_with("/oxide") {
-        tracing::debug!("Enrutando petición al Panel de Control Oxide (oxide_control_panel:3000)...");
-        return reverse_proxy_request(req, "oxide_control_panel:3000".to_string(), Some("/oxide"), peer_addr).await;
+        tracing::debug!(
+            "Enrutando petición al Panel de Control Oxide (oxide_control_panel:3000)..."
+        );
+        let mut response = reverse_proxy_request(
+            req,
+            "oxide_control_panel:3000".to_string(),
+            Some("/oxide"),
+            peer_addr,
+        )
+        .await?;
+        response.extensions_mut().insert(AllowSameOriginFraming);
+        return Ok(response);
     }
 
     // 2b. Enrutamiento dinámico para el Editor 3D Blender (`/blender/<short_id>/...`)
@@ -231,14 +423,20 @@ async fn handle_http_request(
             let short_id = parts[2];
             if short_id.len() == 8 && short_id.chars().all(|c| c.is_ascii_hexdigit()) {
                 let target_addr = format!("ragenodes-blender-{}:3000", short_id);
-                tracing::debug!("Enrutando petición Blender al contenedor {}...", target_addr);
+                tracing::debug!(
+                    "Enrutando petición Blender al contenedor {}...",
+                    target_addr
+                );
                 return reverse_proxy_request(req, target_addr, None, peer_addr).await;
             }
         }
     }
 
     // 2b. Enrutamiento API REST al backend Node.js (`/api/...` o `api.ragenodes.com`)
-    if uri_path.starts_with("/api") || host.starts_with("api.") {
+    if uri_path == "/healthz"
+        || uri_path.starts_with("/api")
+        || host_without_port.starts_with("api.")
+    {
         tracing::debug!("Enrutando petición API/Panel al backend Node.js (backend:3006)...");
         return reverse_proxy_request(req, "backend:3006".to_string(), None, peer_addr).await;
     }
@@ -246,13 +444,27 @@ async fn handle_http_request(
     // 2c. Enrutamiento phpMyAdmin (`/pma/...`)
     if uri_path.starts_with("/pma") {
         tracing::debug!("Enrutando petición phpMyAdmin al contenedor phpmyadmin:80...");
-        return reverse_proxy_request(req, "phpmyadmin:80".to_string(), Some("/pma"), peer_addr).await;
+        let mut response = reverse_proxy_request(
+            req,
+            "phpmyadmin:80".to_string(),
+            Some("/pma"),
+            peer_addr,
+        )
+        .await?;
+        response.extensions_mut().insert(AllowPhpMyAdminFraming);
+        return Ok(response);
     }
 
     // 2d. Enrutamiento Oxide Control Panel L7 (`/oxide/...`)
     if uri_path.starts_with("/oxide") {
         tracing::debug!("Enrutando petición Oxide L7 al contenedor oxide_control_panel:3000...");
-        return reverse_proxy_request(req, "oxide_control_panel:3000".to_string(), Some("/oxide"), peer_addr).await;
+        return reverse_proxy_request(
+            req,
+            "oxide_control_panel:3000".to_string(),
+            Some("/oxide"),
+            peer_addr,
+        )
+        .await;
     }
 
     // 3. Servidor de Archivos Estáticos Blindado (Frontend Web)
@@ -287,20 +499,26 @@ async fn reverse_proxy_request(
     };
 
     if let Some(prefix) = strip_prefix {
-        if let Ok(val) = prefix.parse() { req.headers_mut().insert("x-forwarded-prefix", val); }
-        if let Ok(val) = "http".parse() { req.headers_mut().insert("x-forwarded-proto", val); }
-    }
-    
-    let mut real_ip = peer_addr.ip().to_string();
-    if let Some(cf_ip) = req.headers().get("cf-connecting-ip") {
-        if let Ok(cf_ip_str) = cf_ip.to_str() { real_ip = cf_ip_str.to_string(); }
-    } else if let Some(xfwd) = req.headers().get("x-forwarded-for") {
-        if let Ok(xfwd_str) = xfwd.to_str() {
-            if let Some(first) = xfwd_str.split(',').next() { real_ip = first.trim().to_string(); }
+        if let Ok(val) = prefix.parse() {
+            req.headers_mut().insert("x-forwarded-prefix", val);
+        }
+        if let Ok(val) = "http".parse() {
+            req.headers_mut().insert("x-forwarded-proto", val);
         }
     }
-    
-    if let Ok(val) = real_ip.parse::<hyper::header::HeaderValue>() {
+
+    let mut real_ip = peer_addr.ip();
+    if is_private_admin_peer(peer_addr.ip()) {
+        if let Some(cf_ip) = req.headers().get("cf-connecting-ip") {
+            if let Ok(cf_ip_str) = cf_ip.to_str() {
+                if let Ok(parsed_ip) = cf_ip_str.trim().parse::<IpAddr>() {
+                    real_ip = parsed_ip;
+                }
+            }
+        }
+    }
+
+    if let Ok(val) = real_ip.to_string().parse::<hyper::header::HeaderValue>() {
         req.headers_mut().insert("x-forwarded-for", val.clone());
         req.headers_mut().insert("x-real-ip", val);
     }
@@ -326,12 +544,23 @@ async fn reverse_proxy_request(
                             tokio::spawn(async move {
                                 match tokio::try_join!(req_up, res_up) {
                                     Ok((mut client_conn, mut server_conn)) => {
-                                        if let Err(e) = tokio::io::copy_bidirectional(&mut client_conn, &mut server_conn).await {
-                                            tracing::debug!("WebSocket finalizado con error: {}", e);
+                                        if let Err(e) = tokio::io::copy_bidirectional(
+                                            &mut client_conn,
+                                            &mut server_conn,
+                                        )
+                                        .await
+                                        {
+                                            tracing::debug!(
+                                                "WebSocket finalizado con error: {}",
+                                                e
+                                            );
                                         }
                                     }
                                     Err(e) => {
-                                        tracing::error!("Fallo al actualizar conexiones WebSocket: {}", e);
+                                        tracing::error!(
+                                            "Fallo al actualizar conexiones WebSocket: {}",
+                                            e
+                                        );
                                     }
                                 }
                             });
@@ -341,15 +570,23 @@ async fn reverse_proxy_request(
                 }
                 Err(err) => {
                     tracing::error!("Error en Reverse Proxy hacia {}: {}", target_addr, err);
-                    let mut res = Response::new(Body::from(format!("502 Bad Gateway: {}", err)));
+                    let mut res = Response::new(Body::from("502 Bad Gateway"));
                     *res.status_mut() = StatusCode::BAD_GATEWAY;
+                    res.headers_mut().insert(
+                        CONTENT_TYPE,
+                        HeaderValue::from_static("text/plain; charset=utf-8"),
+                    );
                     Ok(res)
                 }
             }
         }
         Err(_) => {
-            let mut res = Response::new(Body::from("500 Internal Server Error: URI inválida"));
+            let mut res = Response::new(Body::from("500 Internal Server Error"));
             *res.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+            res.headers_mut().insert(
+                CONTENT_TYPE,
+                HeaderValue::from_static("text/plain; charset=utf-8"),
+            );
             Ok(res)
         }
     }
@@ -375,6 +612,10 @@ async fn serve_static_file(
         }
     };
 
+    if is_disallowed_static_path(&decoded_path) {
+        return Ok(not_found_response());
+    }
+
     let base_path = Path::new(root_dir);
     let mut full_path = base_path.to_path_buf();
     for component in Path::new(&decoded_path).components() {
@@ -393,7 +634,6 @@ async fn serve_static_file(
         full_path.clone(),
         full_path.with_extension("html"),
         full_path.join("index.html"),
-        base_path.join("index.html"),
     ];
 
     let mut resolved_path = None;
@@ -408,11 +648,7 @@ async fn serve_static_file(
 
     let canonical_full = match resolved_path {
         Some(p) => p,
-        None => {
-            let mut res = Response::new(Body::from("404 Not Found"));
-            *res.status_mut() = StatusCode::NOT_FOUND;
-            return Ok(res);
-        }
+        None => return Ok(not_found_response()),
     };
 
     let mime_type = match canonical_full.extension().and_then(|e| e.to_str()) {
@@ -420,6 +656,8 @@ async fn serve_static_file(
         Some("css") => "text/css; charset=utf-8",
         Some("js") => "application/javascript; charset=utf-8",
         Some("json") => "application/json; charset=utf-8",
+        Some("xml") => "application/xml; charset=utf-8",
+        Some("txt") => "text/plain; charset=utf-8",
         Some("png") => "image/png",
         Some("jpg") | Some("jpeg") => "image/jpeg",
         Some("webp") => "image/webp",
@@ -435,11 +673,17 @@ async fn serve_static_file(
     };
 
     if !canonical_full.starts_with(&canonical_base) {
-        tracing::warn!("¡Alerta de Seguridad! Intento de Path Traversal detectado hacia: {:?}", canonical_full);
+        tracing::warn!(
+            "¡Alerta de Seguridad! Intento de Path Traversal detectado hacia: {:?}",
+            canonical_full
+        );
         if let Err(e) = ban_tx.send(peer_addr.ip()).await {
             tracing::error!("Fallo al enviar IP al gestor XDP (Fail2Ban): {}", e);
         } else {
-            tracing::warn!("Fail2Ban: Petición de baneo enviada al canal eBPF para la IP {}", peer_addr.ip());
+            tracing::warn!(
+                "Fail2Ban: Petición de baneo enviada al canal eBPF para la IP {}",
+                peer_addr.ip()
+            );
         }
         let mut res = Response::new(Body::from("403 Forbidden: Path Traversal detectado"));
         *res.status_mut() = StatusCode::FORBIDDEN;
@@ -447,9 +691,7 @@ async fn serve_static_file(
     }
 
     if !canonical_full.is_file() {
-        let mut res = Response::new(Body::from("404 Not Found"));
-        *res.status_mut() = StatusCode::NOT_FOUND;
-        return Ok(res);
+        return Ok(not_found_response());
     }
 
     let meta = match tokio::fs::metadata(&canonical_full).await {
@@ -461,7 +703,12 @@ async fn serve_static_file(
         }
     };
 
-    let mtime = meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0);
+    let mtime = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
     let etag = format!("\"{:x}-{:x}\"", mtime, meta.len());
 
     let cache_control_value = if mime_type.starts_with("text/html") {
@@ -470,17 +717,20 @@ async fn serve_static_file(
         "public, max-age=31536000, immutable"
     };
 
-    if let Some(if_none) = req.headers().get(http::header::IF_NONE_MATCH) {
-        if if_none.to_str().unwrap_or("") == etag {
-            let mut res = Response::new(Body::empty());
-            *res.status_mut() = StatusCode::NOT_MODIFIED;
-            res.headers_mut().insert(ETAG, etag.parse().unwrap());
-            res.headers_mut().insert(CACHE_CONTROL, cache_control_value.parse().unwrap());
-            return Ok(res);
+    if !mime_type.starts_with("text/html") {
+        if let Some(if_none) = req.headers().get(http::header::IF_NONE_MATCH) {
+            if if_none.to_str().unwrap_or("") == etag {
+                let mut res = Response::new(Body::empty());
+                *res.status_mut() = StatusCode::NOT_MODIFIED;
+                res.headers_mut().insert(ETAG, etag.parse().unwrap());
+                res.headers_mut()
+                    .insert(CACHE_CONTROL, cache_control_value.parse().unwrap());
+                return Ok(res);
+            }
         }
     }
 
-    let content = match tokio::fs::read(&canonical_full).await {
+    let mut content = match tokio::fs::read(&canonical_full).await {
         Ok(c) => c,
         Err(_) => {
             let mut res = Response::new(Body::from("500 Internal Server Error"));
@@ -489,20 +739,64 @@ async fn serve_static_file(
         }
     };
 
+    let csp_nonce = if mime_type.starts_with("text/html") {
+        let mut random_bytes = [0u8; 18];
+        if getrandom::getrandom(&mut random_bytes).is_err() {
+            let mut res = Response::new(Body::from("500 Internal Server Error"));
+            *res.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+            res.headers_mut().insert(
+                CONTENT_TYPE,
+                HeaderValue::from_static("text/plain; charset=utf-8"),
+            );
+            return Ok(res);
+        }
+        let nonce = STANDARD_NO_PAD.encode(random_bytes);
+        let html = match String::from_utf8(content) {
+            Ok(html) => html,
+            Err(_) => return Ok(not_found_response()),
+        };
+        let nonce_attribute = format!(" nonce=\"{}\"", nonce);
+        content = html
+            .replace("<script", &format!("<script{}", nonce_attribute))
+            .replace("<style", &format!("<style{}", nonce_attribute))
+            .into_bytes();
+        Some(static_page_security_profile(&canonical_full, nonce))
+    } else {
+        None
+    };
+
     let mut res = Response::new(Body::empty());
     *res.status_mut() = StatusCode::OK;
-    res.headers_mut().insert(CONTENT_TYPE, mime_type.parse().unwrap());
+    res.headers_mut()
+        .insert(CONTENT_TYPE, mime_type.parse().unwrap());
     res.headers_mut().insert(ETAG, etag.parse().unwrap());
-    res.headers_mut().insert(CACHE_CONTROL, cache_control_value.parse().unwrap());
+    res.headers_mut()
+        .insert(CACHE_CONTROL, cache_control_value.parse().unwrap());
+    if let Some(nonce) = csp_nonce {
+        res.extensions_mut().insert(nonce);
+    }
 
     // COMPRESIÓN LOCAL PARA JS Y CSS
-    let accept_encoding = req.headers().get(ACCEPT_ENCODING).map(|v| v.to_str().unwrap_or("")).unwrap_or("");
-    if accept_encoding.contains("gzip") && (mime_type.starts_with("text/") || mime_type == "application/javascript" || mime_type == "application/json") {
+    let accept_encoding = req
+        .headers()
+        .get(ACCEPT_ENCODING)
+        .map(|v| v.to_str().unwrap_or(""))
+        .unwrap_or("");
+    if accept_encoding.contains("gzip")
+        && (mime_type.starts_with("text/")
+            || mime_type == "application/javascript"
+            || mime_type == "application/json")
+    {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        if let Ok(_) = encoder.write_all(&content).and_then(|_| encoder.finish()).map(|compressed| {
-            res.headers_mut().insert(CONTENT_ENCODING, "gzip".parse().unwrap());
-            *res.body_mut() = Body::from(compressed);
-        }) {
+        if let Ok(_) = encoder
+            .write_all(&content)
+            .and_then(|_| encoder.finish())
+            .map(|compressed| {
+                res.headers_mut()
+                    .insert(CONTENT_ENCODING, "gzip".parse().unwrap());
+                *res.body_mut() = Body::from(compressed);
+            })
+        {
             return Ok(res);
         }
     }

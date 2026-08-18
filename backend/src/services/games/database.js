@@ -1,4 +1,4 @@
-import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, sh } from '../dockerUtils.js';
+import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, deriveServicePassword, sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
 
 export async function createDatabaseContainer(opts) {
@@ -15,14 +15,17 @@ export async function createDatabaseContainer(opts) {
         });
     }
 
+    const credentialId = opts.serverId || opts.containerName;
+    const rootPassword = deriveServicePassword('database-root', credentialId);
+    const userPassword = deriveServicePassword('database-user', credentialId);
     const container = await docker.createContainer({
         Image: config.databaseBaseImage,
         name: opts.containerName,
         Env: [
-            `MYSQL_ROOT_PASSWORD=db_${opts.containerName}_root`,
+            `MYSQL_ROOT_PASSWORD=${rootPassword}`,
             `MYSQL_DATABASE=db_${opts.containerName}`,
             `MYSQL_USER=user_${opts.containerName}`,
-            `MYSQL_PASSWORD=pass_${opts.containerName}_!2026`
+            `MYSQL_PASSWORD=${userPassword}`
         ],
         ExposedPorts: { '3306/tcp': {} },
         Tty: true,
@@ -36,8 +39,9 @@ export async function createDatabaseContainer(opts) {
             RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: opts.plan.memoryBytes,
             NanoCpus: opts.plan.nanoCpus, CpuShares: Math.round((opts.plan.nanoCpus / 10**9) * 1024),
-            BlkioWeight: 100,
-            ...GAME_SECURITY_CONFIG
+            BlkioWeight: config.dockerBlkioWeight,
+            ...GAME_SECURITY_CONFIG,
+            CapAdd: ["CHOWN", "SETUID", "SETGID", "NET_BIND_SERVICE", "KILL", "DAC_OVERRIDE", "DAC_READ_SEARCH", "FOWNER", "FSETID"]
         }
     });
 

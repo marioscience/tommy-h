@@ -1,4 +1,4 @@
-﻿use rustc_hash::FxHashMap;
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::PathBuf;
@@ -93,7 +93,13 @@ fn detect_core_pinning() -> bool {
     // AutodetecciÃ³n: comprobar si es un entorno virtualizado
     if let Ok(vendor) = std::fs::read_to_string("/sys/class/dmi/id/sys_vendor") {
         let v = vendor.to_lowercase();
-        if v.contains("qemu") || v.contains("digitalocean") || v.contains("amazon") || v.contains("google") || v.contains("vmware") || v.contains("microsoft") {
+        if v.contains("qemu")
+            || v.contains("digitalocean")
+            || v.contains("amazon")
+            || v.contains("google")
+            || v.contains("vmware")
+            || v.contains("microsoft")
+        {
             tracing::debug!("AutodetecciÃ³n: Entorno virtualizado/VPS ({}) detectado. Desactivando Core Pinning por defecto para evitar contenciÃ³n de hilos.", vendor.trim());
             return false;
         }
@@ -130,7 +136,11 @@ impl Default for ProxyConfig {
         }
 
         let default_web_backend = "10.5.0.12:80".to_string();
-        let default_web_backend_addr = default_web_backend.to_socket_addrs().ok().and_then(|mut a| a.next()).unwrap_or_else(|| "10.5.0.12:80".parse().unwrap());
+        let default_web_backend_addr = default_web_backend
+            .to_socket_addrs()
+            .ok()
+            .and_then(|mut a| a.next())
+            .unwrap_or_else(|| "10.5.0.12:80".parse().unwrap());
 
         Self {
             ingress: IngressConfig {
@@ -187,17 +197,30 @@ impl ProxyConfig {
                     }
                     config.routing.game_servers_map = map;
 
-                    let default_web_addr = config.routing.default_web_backend.to_socket_addrs().ok().and_then(|mut a| a.next()).unwrap_or_else(|| "127.0.0.1:80".parse().unwrap());
+                    let default_web_addr = config
+                        .routing
+                        .default_web_backend
+                        .to_socket_addrs()
+                        .ok()
+                        .and_then(|mut a| a.next())
+                        .unwrap_or_else(|| "127.0.0.1:80".parse().unwrap());
                     config.routing.default_web_backend_addr = default_web_addr;
 
                     config.runtime.enable_core_pinning = detect_core_pinning();
 
-                    tracing::debug!("ConfiguraciÃ³n y tabla de ruteo O(1) cargadas exitosamente desde {}", path);
+                    tracing::debug!(
+                        "ConfiguraciÃ³n y tabla de ruteo O(1) cargadas exitosamente desde {}",
+                        path
+                    );
                     config
                 }
 
                 Err(e) => {
-                    tracing::error!("Error al parsear {}, usando configuraciÃ³n por defecto: {}", path, e);
+                    tracing::error!(
+                        "Error al parsear {}, usando configuraciÃ³n por defecto: {}",
+                        path,
+                        e
+                    );
                     Self::default()
                 }
             },
@@ -215,5 +238,3 @@ impl ProxyConfig {
         }
     }
 }
-
-

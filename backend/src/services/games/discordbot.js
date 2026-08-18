@@ -35,7 +35,7 @@ export async function createDiscordBotContainer(opts) {
             RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: opts.plan.memoryBytes,
             NanoCpus: opts.plan.nanoCpus, CpuShares: Math.round((opts.plan.nanoCpus / 10**9) * 1024),
-            BlkioWeight: 100,
+            BlkioWeight: config.dockerBlkioWeight,
             ...GAME_SECURITY_CONFIG
         }
     });

@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import si from 'systeminformation';
 import { config } from '../config.js';
 import { query, logAudit } from '../db.js';
-import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import { requireAuth, requireAdmin, signToken, setSessionCookie } from '../middleware/auth.js';
 import { controlServer, deleteServer } from '../services/serverService.js';
 import { getNodeConnection } from '../services/dockerService.js';
 import { buildEvidenceBundle, buildEvidenceZip } from '../services/billingEvidenceService.js';
@@ -470,10 +470,8 @@ router.post('/users/:id/impersonate', async (req, res) => {
 
   const user = result.rows[0];
 
-  import('../middleware/auth.js').then(({ signToken }) => {
-      const token = signToken(user);
-      res.json({ token, user });
-  }).catch(() => res.status(500).json({ error: "Error al generar token" }));
+  setSessionCookie(res, signToken(user));
+  res.json({ user });
 });
 
 router.post('/invite-keys', async (req, res) => {

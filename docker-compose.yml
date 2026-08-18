@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
     restart: unless-stopped
     env_file: [ .env ]
     environment:
@@ -18,11 +18,9 @@ services:
       retries: 5
       start_period: 10s
     cpu_shares: 1024
-    blkio_config:
-      weight: 800
 
   mariadb:
-    image: mariadb:10.11
+    image: mariadb@sha256:de61fed4a40d3842f3ee09944ba52792156cfd9adf489b2cc670fc6ded28df8d
     restart: unless-stopped
     env_file: [ .env ]
     environment:
@@ -30,15 +28,13 @@ services:
     volumes:
       - mariadb_data:/var/lib/mysql
     ports:
-      - "127.0.0.1:3306:3306"
+      - "127.0.0.1:3307:3306"
     networks:
       - ragenodes_net
     cpu_shares: 1024
-    blkio_config:
-      weight: 800
 
   phpmyadmin:
-    image: phpmyadmin:latest
+    image: phpmyadmin@sha256:6db6e0bc9959eb00395f5d927cc786cb63530a265663950ecb9faf5955419c37
     restart: unless-stopped
     environment:
       PMA_HOST: mariadb
@@ -80,7 +76,7 @@ services:
       mariadb:
         condition: service_started
     volumes:
-      - ${DOCKER_SOCKET}:${DOCKER_SOCKET}
+      - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
       - ${INSTANCE_DATA_ROOT}:${INSTANCE_DATA_ROOT}
       - ${BACKUP_ROOT}:${BACKUP_ROOT}
       - ./backend/src:/app/src
@@ -95,13 +91,12 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
-    cap_add:
-      - NET_ADMIN
     security_opt:
       - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
     cpu_shares: 2048
-    blkio_config:
-      weight: 1000
+
   worker-backups:
     build:
       context: ./backend
@@ -119,7 +114,7 @@ services:
       mariadb:
         condition: service_started
     volumes:
-      - ${DOCKER_SOCKET}:${DOCKER_SOCKET}
+      - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
       - ${INSTANCE_DATA_ROOT}:${INSTANCE_DATA_ROOT}
       - ${INSTANCE_DATA_ROOT}/templates:${INSTANCE_DATA_ROOT}/templates:ro
       - ${BACKUP_ROOT}:${BACKUP_ROOT}
@@ -128,9 +123,9 @@ services:
       - ./certs:/opt/ragenodes-ultimate/certs:ro
     security_opt:
       - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
     cpu_shares: 1024
-    blkio_config:
-      weight: 900
 
   worker-docker-events:
     build:
@@ -147,20 +142,18 @@ services:
       backend:
         condition: service_healthy
     volumes:
-      - ${DOCKER_SOCKET}:${DOCKER_SOCKET}
+      - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
       - ${INSTANCE_DATA_ROOT}:${INSTANCE_DATA_ROOT}
       - ${INSTANCE_DATA_ROOT}/templates:${INSTANCE_DATA_ROOT}/templates:ro
       - ${BACKUP_ROOT}:${BACKUP_ROOT}
       - ./backend/src:/app/src
       - ./fivem-base:/app/fivem-base
       - ./certs:/opt/ragenodes-ultimate/certs:ro
-    cap_add:
-      - NET_ADMIN
     security_opt:
       - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
     cpu_shares: 1024
-    blkio_config:
-      weight: 900
 
   worker-stats:
     build:
@@ -177,7 +170,7 @@ services:
       backend:
         condition: service_healthy
     volumes:
-      - ${DOCKER_SOCKET}:${DOCKER_SOCKET}
+      - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
       - ${INSTANCE_DATA_ROOT}:${INSTANCE_DATA_ROOT}
       - ${INSTANCE_DATA_ROOT}/templates:${INSTANCE_DATA_ROOT}/templates:ro
       - ${BACKUP_ROOT}:${BACKUP_ROOT}
@@ -186,42 +179,63 @@ services:
       - query_cache_data:/app/config-gateway/static
     security_opt:
       - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [DAC_OVERRIDE]
     cpu_shares: 768
-    blkio_config:
-      weight: 700
+
+  oxide_control_panel:
+    build:
+      context: ./oxideproxy/node_panel
+    image: ragenodes/oxide-control-panel:1.0.0-local
+    restart: unless-stopped
+    init: true
+    environment:
+      BACKEND_URL: http://backend:3006
+      CONFIG_PATH: /app/rust_config/oxide_proxy.yml
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+    networks:
+      - ragenodes_net
+    volumes:
+      - ./oxideproxy/config:/app/rust_config
+      - ./frontend/public/vendor:/app/public/vendor:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    read_only: true
+    tmpfs:
+      - /tmp
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cpu_shares: 256
 
   oxide_web:
-    image: ragenodes/oxideproxy:latest
+    build:
+      context: ./oxideproxy
+    image: ragenodes/oxideproxy:1.0.0-local
     restart: unless-stopped
     networks:
       - ragenodes_net
     ports:
-      - "80:80"
-      - "8088:8088"
+      - "${PROXY_BIND_IP:-127.0.0.1}:80:80"
+      - "${PROXY_BIND_IP:-127.0.0.1}:8088:8088"
     volumes:
       - ./oxideproxy/config:/app/config
       - ./frontend/public:/var/www/frontend:ro
       - ${INSTANCE_DATA_ROOT}:/var/www/frontend/data:ro
       - ${INSTANCE_DATA_ROOT}/templates:/var/www/frontend/data/templates:ro
       - query_cache_data:/var/www/query-cache:ro
+    depends_on:
+      oxide_control_panel:
+        condition: service_healthy
     cpu_shares: 2048
-    blkio_config:
-      weight: 1000
-
-#  query-cache:
-#    build:
-#      context: ./ragenodes-query-gateway
-#    restart: unless-stopped
-#    network_mode: host
-#    volumes:
-#      - ./gateway-config:/app/config
-#    logging:
-#      driver: "json-file"
-#      options:
-#        max-size: "10m"
-#        max-file: "3"
-
-  # Nginx Gateway eliminado: Rust maneja todo ahora
 
   bot:
     build:
@@ -237,7 +251,7 @@ services:
       - ragenodes_net
 
   tunnel:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared@sha256:0aa26e284f05e6c77ae375b8c9c11d9eb6a448fb7bcd8d40f31cb6176189eb38
     restart: unless-stopped
     command: tunnel --protocol http2 --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
     extra_hosts:
@@ -246,7 +260,7 @@ services:
       - ragenodes_net
 
   redis:
-    image: redis:7-alpine
+    image: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
     restart: unless-stopped
     networks:
       - ragenodes_net
@@ -258,8 +272,6 @@ services:
     volumes:
       - redis_data:/data
     cpu_shares: 512
-    blkio_config:
-      weight: 500
 
 networks:
   ragenodes_net:

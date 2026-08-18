@@ -1,6 +1,6 @@
 services:
   postgres-staging:
-    image: postgres:16-alpine
+    image: postgres@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
     restart: unless-stopped
     env_file: [ .env ]
     environment:
@@ -19,7 +19,7 @@ services:
       start_period: 10s
 
   mariadb-staging:
-    image: mariadb:10.11
+    image: mariadb@sha256:de61fed4a40d3842f3ee09944ba52792156cfd9adf489b2cc670fc6ded28df8d
     restart: unless-stopped
     env_file: [ .env ]
     environment:
@@ -54,7 +54,7 @@ services:
       mariadb-staging:
         condition: service_started
     volumes:
-      - ${DOCKER_SOCKET}:${DOCKER_SOCKET}
+      - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
       - /srv/ragenodes-staging-data:/srv/ragenodes-staging-data
       - ${BACKUP_ROOT}:${BACKUP_ROOT}
       - ./backend/src:/app/src
@@ -62,10 +62,10 @@ services:
       - ./certs:/opt/ragenodes-ultimate/certs:ro
     ports:
       - "127.0.0.1:3011:3006" # Puerto 3011 para el panel de Staging
-    cap_add:
-      - NET_ADMIN
     security_opt:
       - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
 
   worker-docker-events-staging:
     build:
@@ -90,21 +90,77 @@ services:
       backend-staging:
         condition: service_started
     volumes:
-      - ${DOCKER_SOCKET}:${DOCKER_SOCKET}
+      - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
       - /srv/ragenodes-staging-data:/srv/ragenodes-staging-data
       - /srv/ragenodes-staging-data/templates:/srv/ragenodes-staging-data/templates:ro
       - ${BACKUP_ROOT}:${BACKUP_ROOT}
       - ./backend/src:/app/src
-    cap_add:
-      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
 
   redis-staging:
-    image: redis:7-alpine
+    image: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
     restart: unless-stopped
     networks:
       - ragenodes_net_staging
     volumes:
       - redis_data_staging:/data
+
+  oxide_control_panel:
+    build:
+      context: ./oxideproxy/node_panel
+    image: ragenodes/oxide-control-panel:1.0.0-local
+    restart: unless-stopped
+    init: true
+    environment:
+      BACKEND_URL: http://backend-staging:3006
+      CONFIG_PATH: /app/rust_config/oxide_proxy.yml
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+    networks:
+      - ragenodes_net_staging
+    volumes:
+      - ./oxideproxy/config:/app/rust_config
+      - ./frontend/public/vendor:/app/public/vendor:ro
+    depends_on:
+      backend-staging:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    read_only: true
+    tmpfs:
+      - /tmp
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+
+  oxide_web_staging:
+    build:
+      context: ./oxideproxy
+    image: ragenodes/oxideproxy:1.0.0-local
+    restart: unless-stopped
+    networks:
+      - ragenodes_net_staging
+    ports:
+      - "127.0.0.1:8089:80"  # Puerto local para la interfaz web de staging
+    volumes:
+      - ./oxideproxy/config:/app/config
+      - ./frontend/public:/var/www/frontend:ro
+      - /srv/ragenodes-staging-data:/var/www/frontend/data:ro
+      - /srv/ragenodes-staging-data/templates:/var/www/frontend/data/templates:ro
+    environment:
+      - UPSTREAM_API=http://backend-staging:3006
+    depends_on:
+      backend-staging:
+        condition: service_started
+      oxide_control_panel:
+        condition: service_healthy
 
 networks:
   ragenodes_net_staging:

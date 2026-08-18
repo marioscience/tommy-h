@@ -548,3 +548,23 @@ input:checked + .slider:before { background-color: var(--text-dark); transform: 
 
 .action-btn.chart-btn { color: var(--cyan-glow); }
 .action-btn.chart-btn:hover { color: var(--emerald-glow); transform: scale(1.1); }
+/* CSP-safe layout utilities: presentation stays in stylesheets, never attributes. */
+.full-width { width: 100%; }
+.no-margin { margin: 0; }
+.no-wrap { white-space: nowrap; }
+.firewall-card { padding-bottom: 1.5rem; }
+.icon-danger { color: var(--danger-glow); }
+.firewall-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 1.5rem; padding: 1.5rem; }
+.blacklist-box { gap: 1rem; }
+.blacklist-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.75rem; }
+.blacklist-input-row { display: flex; gap: 0.75rem; }
+.blacklist-table-container { padding: 0; max-height: 200px; overflow-y: auto; border: 1px solid var(--glass-border); border-radius: 0.5rem; }
+.compact-table { margin: 0; }
+.action-column, .action-cell { width: 100px; text-align: center; }
+.empty-table-cell { text-align: center; color: var(--text-muted); }
+.console-card-viewport { height: calc(100vh - 180px); }
+.console-body-flex { flex: 1; height: auto; }
+.form-row-spaced { margin-top: 0.75rem; }
+.server-header-spaced { margin-bottom: 1.25rem; }
+.server-stats-spaced { margin-bottom: 1.5rem; }
+.server-chart-sized { height: 280px; }

@@ -2,7 +2,6 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
-const cors = require('cors');
 const axios = require('axios');
 const os = require('os');
 
@@ -10,16 +9,17 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const CONFIG_PATH = process.env.CONFIG_PATH || '/app/rust_config/oxide_proxy.yml';
 const PROMETHEUS_URL = process.env.PROMETHEUS_URL || 'http://oxide_prometheus:9090';
+const BACKEND_URL = (process.env.BACKEND_URL || 'http://backend:3006').replace(/\/$/, '');
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || '';
 
-// ==========================================================================
-// DESCUBRIMIENTO AUTOMÁTICO DE SERVIDORES DE JUEGO (DOCKER SOCKET)
-// ==========================================================================
-const dockerAxios = axios.create({ socketPath: '/var/run/docker.sock' });
-let discoveredBackends = [];
+// El panel se mantiene deliberadamente separado del daemon de contenedores.
+const discoveredBackends = [];
 
 async function syncDockerGameServers() {
+    // Conservado temporalmente solo como referencia de migración. Nunca se
+    // ejecuta ni dispone de un cliente para el daemon local.
+    return;
     try {
-        if (!fs.existsSync('/var/run/docker.sock')) return;
         const res = await dockerAxios.get('http://unix/containers/json');
         const containers = res.data || [];
         
@@ -33,8 +33,9 @@ async function syncDockerGameServers() {
         // Consultar la base de datos central de RageNodes Ultimate para obtener la lista oficial de servidores activos de clientes
         let validClientContainers = null;
         try {
-            const dbRes = await axios.get('http://ragenodes-ultimate-backend-1:3006/api/discord/servers', {
-                headers: { 'x-api-key': 'RageNodes_Secreta_123456_Bot' },
+            if (!process.env.RAGENODES_API_KEY) throw new Error('RAGENODES_API_KEY no configurada');
+            const dbRes = await axios.get(`${BACKEND_URL}/api/discord/servers`, {
+                headers: { 'x-api-key': process.env.RAGENODES_API_KEY },
                 timeout: 3000
             });
             if (dbRes.data && Array.isArray(dbRes.data.servers)) {
@@ -134,10 +135,6 @@ async function syncDockerGameServers() {
     }
 }
 
-// Ejecutar sincronización cada 8 segundos
-setInterval(syncDockerGameServers, 8000);
-setTimeout(syncDockerGameServers, 2000);
-
 // ==========================================================================
 // LECTOR DE LOGS REALES (PRODUCCIÓN)
 // ==========================================================================
@@ -202,14 +199,92 @@ function getLatestLogLines(maxLines = 300) {
     }
 }
 
-app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+    res.set({
+        'Cache-Control': 'no-store',
+        'Content-Security-Policy': "default-src 'self'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'; object-src 'none'; script-src 'self'; script-src-attr 'none'; style-src 'self'; style-src-attr 'none'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-src 'none'; manifest-src 'none'; media-src 'none'; worker-src 'none'",
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Resource-Policy': 'same-origin',
+        'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+        'Referrer-Policy': 'no-referrer',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'SAMEORIGIN'
+    });
+    next();
+});
+app.use(express.json({ limit: '256kb', strict: true, type: 'application/json' }));
 
 // Middleware para manejo de errores
 const asyncHandler = (fn) => (req, res, next) => {
     Promise.resolve(fn(req, res, next)).catch(next);
 };
+
+function requestOriginAllowed(req) {
+    const origin = req.get('origin');
+    if (!origin) return false;
+
+    try {
+        const parsedOrigin = new URL(origin);
+        const allowedOrigins = new Set();
+        if (PUBLIC_BASE_URL) allowedOrigins.add(new URL(PUBLIC_BASE_URL).origin);
+        const host = req.get('host');
+        if (host) {
+            allowedOrigins.add(`http://${host}`);
+            allowedOrigins.add(`https://${host}`);
+        }
+        return allowedOrigins.has(parsedOrigin.origin);
+    } catch {
+        return false;
+    }
+}
+
+const requireAdmin = asyncHandler(async (req, res, next) => {
+    const cookie = req.get('cookie');
+    if (!cookie) return res.status(401).json({ error: 'Autenticación requerida.' });
+
+    let authResponse;
+    try {
+        authResponse = await axios.get(`${BACKEND_URL}/api/auth/me`, {
+            headers: { cookie },
+            timeout: 3000,
+            validateStatus: () => true
+        });
+    } catch {
+        return res.status(503).json({ error: 'Servicio de autenticación no disponible.' });
+    }
+
+    if (authResponse.status === 401) return res.status(401).json({ error: 'Sesión no válida.' });
+    if (authResponse.status !== 200 || authResponse.data?.role !== 'admin') {
+        return res.status(403).json({ error: 'Acceso reservado a administradores.' });
+    }
+    req.admin = authResponse.data;
+    next();
+});
+
+function requireSameOriginMutation(req, res, next) {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+    if (req.get('sec-fetch-site') && !['same-origin', 'same-site'].includes(req.get('sec-fetch-site'))) {
+        return res.status(403).json({ error: 'Solicitud entre sitios rechazada.' });
+    }
+    if (!requestOriginAllowed(req)) {
+        return res.status(403).json({ error: 'Origen de solicitud no permitido.' });
+    }
+    next();
+}
+
+app.get('/healthz', (req, res) => res.json({ status: 'ok' }));
+app.use('/api/oxide', requireAdmin, requireSameOriginMutation);
+app.use(express.static(path.join(__dirname, 'public'), {
+    index: false,
+    extensions: ['html'],
+    dotfiles: 'deny',
+    fallthrough: true,
+    maxAge: 0
+}));
+app.get(['/', '/index.html'], requireAdmin, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Función auxiliar para migrar/enriquecer la configuración YAML al nuevo esquema v2.0
 function migrateConfigToV2(config) {
@@ -632,14 +707,20 @@ app.get('/api/oxide/logs', asyncHandler(async (req, res) => {
 }));
 
 // Fallback para SPA / Frontend
-app.get('*', (req, res) => {
+app.get('*', requireAdmin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Manejador de errores general
 app.use((err, req, res, next) => {
     console.error('[OxideControlPanel Error]', err);
-    res.status(500).json({ error: 'Error interno del servidor', details: err.message });
+    if (err?.type === 'entity.too.large') {
+        return res.status(413).json({ error: 'Solicitud demasiado grande.' });
+    }
+    if (err instanceof SyntaxError && Object.prototype.hasOwnProperty.call(err, 'body')) {
+        return res.status(400).json({ error: 'JSON no válido.' });
+    }
+    res.status(500).json({ error: 'Error interno del servidor.' });
 });
 
 app.listen(PORT, () => {

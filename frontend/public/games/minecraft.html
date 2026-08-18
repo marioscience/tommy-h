@@ -15,13 +15,13 @@
             
             <div style="display: flex; gap: 10px; margin-bottom: 30px;">
                 <input type="text" id="mc-player-name" class="input" placeholder="Nombre del jugador..." style="flex-grow: 1; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 10px; color: white;">
-                <button class="btn" onclick="sendMcCmd('whitelist add ' + document.getElementById('mc-player-name').value)" style="background: rgba(34,197,94,0.2); color: #86efac; border: 1px solid #22c55e; padding: 10px 20px;">
+                <button class="btn" data-rn-onclick="priv_0192" style="background: rgba(34,197,94,0.2); color: #86efac; border: 1px solid #22c55e; padding: 10px 20px;">
                     <i class="fa-solid fa-check"></i> Whitelist
                 </button>
-                <button class="btn" onclick="sendMcCmd('op ' + document.getElementById('mc-player-name').value)" style="background: rgba(249,115,22,0.2); color: #fdba74; border: 1px solid #f97316; padding: 10px 20px;">
+                <button class="btn" data-rn-onclick="priv_0193" style="background: rgba(249,115,22,0.2); color: #fdba74; border: 1px solid #f97316; padding: 10px 20px;">
                     <i class="fa-solid fa-crown"></i> Dar OP
                 </button>
-                <button class="btn" onclick="sendMcCmd('ban ' + document.getElementById('mc-player-name').value)" style="background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid #ef4444; padding: 10px 20px;">
+                <button class="btn" data-rn-onclick="priv_0194" style="background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid #ef4444; padding: 10px 20px;">
                     <i class="fa-solid fa-gavel"></i> Banear
                 </button>
             </div>
@@ -35,7 +35,7 @@
                     <h4 style="margin: 0; color: white; font-weight: 800; font-size: 1.2rem;">Server Properties</h4>
                     <span style="color: #94a3b8; font-size: 0.9rem;">Configuración visual del servidor</span>
                 </div>
-                <button class="btn btn-primary" onclick="saveMcProperties()"><i class="fa-solid fa-save"></i> Guardar</button>
+                <button class="btn btn-primary" data-rn-onclick="priv_0195"><i class="fa-solid fa-save"></i> Guardar</button>
             </div>
 
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
@@ -81,7 +81,7 @@
             
             <div style="display: flex; gap: 10px; margin-bottom: 20px;">
                 <input type="text" id="mc-plugin-search" class="input" placeholder="Ej: ClearLag, EssentialsX, Vault..." style="flex-grow: 1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1);">
-                <button class="btn btn-primary" onclick="searchMcPlugins()"><i class="fa-solid fa-search"></i> Buscar</button>
+                <button class="btn btn-primary" data-rn-onclick="priv_0196"><i class="fa-solid fa-search"></i> Buscar</button>
             </div>
             
             <div id="mc-plugins-results" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; max-height: 400px; overflow-y: auto;">
@@ -150,14 +150,14 @@
                     html += `
                         <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 15px; display: flex; flex-direction: column; gap: 10px;">
                             <div style="display: flex; gap: 10px; align-items: center;">
-                                <img src="${p.iconUrl}" onerror="this.src='https://static.wikia.nocookie.net/minecraft_gamepedia/images/4/44/Grass_Block_Revision_6.png'" style="width:40px; height:40px; border-radius:8px; object-fit:cover;">
+                                <img src="${p.iconUrl}" ${rnBind("error", (event, element) => { element.src='https://static.wikia.nocookie.net/minecraft_gamepedia/images/4/44/Grass_Block_Revision_6.png' })} style="width:40px; height:40px; border-radius:8px; object-fit:cover;">
                                 <div>
                                     <h5 style="margin:0; font-size:1rem; color:white;">${p.name}</h5>
                                     <span style="font-size:0.8rem; color:var(--muted);">${p.author} | <i class="fa-solid fa-download"></i> ${p.downloads}</span>
                                 </div>
                             </div>
                             <p style="font-size:0.85rem; color:#94a3b8; margin:0; flex-grow:1;">${p.description}</p>
-                            <button class="btn btn-primary" onclick="installPlugin('${p.id}', 'minecraft', this)" style="width:100%;"><i class="fa-solid fa-download"></i> Instalar (1-Clic)</button>
+                            <button class="btn btn-primary" ${rnBind("click", (event, element) => { installPlugin((p.id), 'minecraft', element) })} style="width:100%;"><i class="fa-solid fa-download"></i> Instalar (1-Clic)</button>
                         </div>
                     `;
                 });

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+@import url('/vendor/css/outfit.css');
 
 :root {
   --bg: #050505;
@@ -1067,4 +1067,3 @@ h3 { font-size: 1.15rem; }
     gap: 15px;
   }
 }
-
