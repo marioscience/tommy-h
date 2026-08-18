@@ -18,9 +18,17 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: oxide_proxy_engine
+    cap_drop:
+      - ALL
     cap_add:
       - NET_ADMIN
       - SYS_NICE
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    pids_limit: 256
     networks:
       oxide_staging_net:
         ipv4_address: 10.5.0.5
@@ -28,24 +36,24 @@ services:
         aliases:
           - frontend
     ports:
-      - "80:80/tcp"
-      - "443:8443/tcp"
-      - "8088:8088/tcp"
-      - "8080:8080/udp"
-      - "50129:30129/tcp"
-      - "50129:30129/udp"
-      - "57777:7777/tcp"
-      - "57777:7777/udp"
-      - "50120:30120/tcp"
-      - "50120:30120/udp"
-      - "50144:30144/tcp"
-      - "50144:30144/udp"
-      - "50139:30139/tcp"
-      - "50139:30139/udp"
-      - "50136:30136/tcp"
-      - "50136:30136/udp"
-      - "50127:30127/tcp"
-      - "50127:30127/udp"
+      - "${PROXY_BIND_IP:-127.0.0.1}:80:80/tcp"
+      - "${PROXY_BIND_IP:-127.0.0.1}:443:8443/tcp"
+      - "${PROXY_BIND_IP:-127.0.0.1}:8088:8088/tcp"
+      - "${PROXY_BIND_IP:-127.0.0.1}:8080:8080/udp"
+      - "${PROXY_BIND_IP:-127.0.0.1}:50129:30129/tcp"
+      - "${PROXY_BIND_IP:-127.0.0.1}:50129:30129/udp"
+      - "${PROXY_BIND_IP:-127.0.0.1}:57777:7777/tcp"
+      - "${PROXY_BIND_IP:-127.0.0.1}:57777:7777/udp"
+      - "${PROXY_BIND_IP:-127.0.0.1}:50120:30120/tcp"
+      - "${PROXY_BIND_IP:-127.0.0.1}:50120:30120/udp"
+      - "${PROXY_BIND_IP:-127.0.0.1}:50144:30144/tcp"
+      - "${PROXY_BIND_IP:-127.0.0.1}:50144:30144/udp"
+      - "${PROXY_BIND_IP:-127.0.0.1}:50139:30139/tcp"
+      - "${PROXY_BIND_IP:-127.0.0.1}:50139:30139/udp"
+      - "${PROXY_BIND_IP:-127.0.0.1}:50136:30136/tcp"
+      - "${PROXY_BIND_IP:-127.0.0.1}:50136:30136/udp"
+      - "${PROXY_BIND_IP:-127.0.0.1}:50127:30127/tcp"
+      - "${PROXY_BIND_IP:-127.0.0.1}:50127:30127/udp"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -55,7 +63,7 @@ services:
 
   mock_game_mmo:
     profiles: ["lab"]
-    image: python:3.10-alpine
+    image: python:3.10-alpine@sha256:2805fb61fe2acd99ac882b55447ab5abf712941fab413f720e4a783a3b374bfa
     container_name: oxide_mock_mmo
     networks:
       oxide_staging_net:
@@ -69,7 +77,7 @@ services:
 
   mock_game_fps:
     profiles: ["lab"]
-    image: python:3.10-alpine
+    image: python:3.10-alpine@sha256:2805fb61fe2acd99ac882b55447ab5abf712941fab413f720e4a783a3b374bfa
     container_name: oxide_mock_fps
     networks:
       oxide_staging_net:
@@ -83,7 +91,7 @@ services:
 
   mock_web_api:
     profiles: ["lab"]
-    image: nginxdemos/hello:plain-text
+    image: nginxdemos/hello:plain-text@sha256:751bf8933179b086091927eefd952f46b19ba37fa22d47e88da1c0c9921cbc8e
     container_name: oxide_mock_web
     networks:
       oxide_staging_net:
@@ -93,19 +101,36 @@ services:
     build:
       context: ./node_panel
       dockerfile: Dockerfile
-    image: ragenodes/oxide-control-panel:local
+    image: ragenodes/oxide-control-panel:1.0.0-local
     container_name: oxide_control_panel
+    init: true
     volumes:
       - oxide_config:/app/rust_config
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ../frontend/public/vendor:/app/public/vendor:ro
+    environment:
+      BACKEND_URL: http://backend:3006
+      CONFIG_PATH: /app/rust_config/oxide_proxy.yml
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?PUBLIC_BASE_URL must be set}
     networks:
       - oxide_staging_net
       - ragenodes_net
-    ports:
-      - "127.0.0.1:3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    read_only: true
+    tmpfs:
+      - /tmp
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus@sha256:508729e0e2d18e11fd742a5a5ca70e557b940a93948c3c95fd0123a6fd538b69
     container_name: oxide_prometheus
     volumes:
       - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml
@@ -113,10 +138,10 @@ services:
       - oxide_staging_net
 
   grafana:
-    image: grafana/grafana-enterprise:latest
+    image: grafana/grafana-enterprise@sha256:f85df358623d706d686b3b83dc5fc22d83c0228faf6e054a6d0356bd2d161f46
     container_name: oxide_grafana
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set}
     networks:
       - oxide_staging_net
     ports:

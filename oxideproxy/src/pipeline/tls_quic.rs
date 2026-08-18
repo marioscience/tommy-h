@@ -1,15 +1,13 @@
-use rustls::{Certificate, PrivateKey, ServerConfig};
+use rustc_hash::FxHashMap;
+use rustls::crypto::ring::sign::any_supported_type;
+use rustls::pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer};
 use rustls::server::{ClientHello, ResolvesServerCert};
-use rustls::sign::any_supported_type;
-use rustls_pemfile::{certs, pkcs8_private_keys};
-use std::fs::File;
-use std::io::BufReader;
+use rustls::ServerConfig;
 use std::path::Path;
 use std::sync::Arc;
-use tokio::net::TcpStream;
 use tokio_rustls::{server::TlsStream, TlsAcceptor};
-use rustc_hash::FxHashMap;
 
+#[derive(Debug)]
 pub struct DynamicCertResolver {
     default_cert: Arc<rustls::sign::CertifiedKey>,
     // Mapa futuro para almacenar certificados por SNI (ej. "cliente1.ragenodes.com" -> cert)
@@ -17,13 +15,16 @@ pub struct DynamicCertResolver {
 }
 
 impl ResolvesServerCert for DynamicCertResolver {
-    fn resolve(&self, client_hello: ClientHello) -> Option<Arc<rustls::sign::CertifiedKey>> {
+    fn resolve(&self, client_hello: ClientHello<'_>) -> Option<Arc<rustls::sign::CertifiedKey>> {
         if let Some(sni) = client_hello.server_name() {
             if let Some(cert) = self.sni_map.get(sni) {
                 tracing::debug!("Certificado SNI resuelto dinámicamente para: {}", sni);
                 return Some(Arc::clone(cert));
             }
-            tracing::debug!("SNI no encontrado en mapa ({}). Usando certificado por defecto.", sni);
+            tracing::debug!(
+                "SNI no encontrado en mapa ({}). Usando certificado por defecto.",
+                sni
+            );
         }
         Some(Arc::clone(&self.default_cert))
     }
@@ -34,23 +35,20 @@ pub struct TlsTerminator {
 }
 
 impl TlsTerminator {
-    pub fn new(cert_path: &Path, key_path: &Path) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        let cert_file = File::open(cert_path)?;
-        let mut cert_reader = BufReader::new(cert_file);
-        let cert_chain = certs(&mut cert_reader)?
-            .into_iter()
-            .map(Certificate)
-            .collect();
-
-        let key_file = File::open(key_path)?;
-        let mut key_reader = BufReader::new(key_file);
-        let mut keys = pkcs8_private_keys(&mut key_reader)?;
-        if keys.is_empty() {
-            return Err("No se encontró una llave privada PKCS8 válida".into());
+    pub fn new(
+        cert_path: &Path,
+        key_path: &Path,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        let cert_chain =
+            CertificateDer::pem_file_iter(cert_path)?.collect::<Result<Vec<_>, _>>()?;
+        if cert_chain.is_empty() {
+            return Err("No se encontró un certificado PEM válido".into());
         }
-        let key = PrivateKey(keys.remove(0));
 
-        let signing_key = any_supported_type(&key).map_err(|_| "Tipo de llave privada no soportada por rustls")?;
+        let key = PrivateKeyDer::from_pem_file(key_path)?;
+
+        let signing_key = any_supported_type(&key)
+            .map_err(|_| "Tipo de llave privada no soportada por rustls")?;
         let certified_key = rustls::sign::CertifiedKey::new(cert_chain, signing_key);
 
         let resolver = Arc::new(DynamicCertResolver {
@@ -59,10 +57,9 @@ impl TlsTerminator {
         });
 
         let mut config = ServerConfig::builder()
-            .with_safe_defaults()
             .with_no_client_auth()
             .with_cert_resolver(resolver);
-            
+
         config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
         Ok(Self {

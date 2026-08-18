@@ -17,10 +17,9 @@ path = "src/bin/cert_gen.rs"
 tokio = { version = "1.36", features = ["full"] }
 bytes = "1.5"
 nom = "7.1"
-rustls = "0.21"
-tokio-rustls = "0.24"
-rustls-pemfile = "1.0"
-rcgen = "0.11"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tokio-rustls = "0.26"
+rcgen = "0.14"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
@@ -36,6 +35,8 @@ flate2 = "1.0"
 percent-encoding = "2.3"
 httparse = "1.8"
 async-compression = { version = "0.4", features = ["tokio", "gzip", "brotli"] }
+base64 = "0.22"
+getrandom = "0.2"
 
 [profile.release]
 opt-level = 3

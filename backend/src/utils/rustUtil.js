@@ -60,7 +60,11 @@ export const rustUtil = {
     async calculateStats(rawStats) {
         try {
             if (!native) return null;
-            return native.calculateStats(JSON.stringify(rawStats));
+            // Docker representa el límite PID ilimitado como UINT64_MAX. Al pasar por
+            // Number de JavaScript se redondea por encima de u64 y rompe el parser Rust.
+            // Este bloque no se usa para los cálculos de CPU/RAM/red, así que se omite.
+            const { pids_stats: _unusedPidsStats, ...statsForRust } = rawStats || {};
+            return native.calculateStats(JSON.stringify(statsForRust));
         } catch (err) {
             console.error('❌ [RustUtil] Error en stats:', err.message);
             return null;

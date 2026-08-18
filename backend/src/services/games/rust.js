@@ -21,7 +21,7 @@ export async function createRustContainer(opts) {
         name: opts.containerName,
         Env: [
             `RUST_SERVER_NAME=${opts.serverName}`,
-            'RUST_SERVER_STARTUP_ARGUMENTS=-batchmode +server.port 28015 +server.queryport 28017 +server.headerimage "https://ragenodes.com/logo.png" +server.identity "ragenodes" +server.level "Procedural Map" +server.seed 12345 +server.worldsize 3000 +server.maxplayers 50 +server.hostname "RageNodes | Rust Survival"',
+            'RUST_SERVER_STARTUP_ARGUMENTS=-batchmode +server.port 28015 +server.queryport 28017 +server.identity "ragenodes"',
             'RUST_OXIDE=1', // Habilitar soporte para plugins por defecto
             'RUST_UPDATE_CHECKING=1',
             'RUST_UPDATE_BRANCH=public'
@@ -40,7 +40,7 @@ export async function createRustContainer(opts) {
             RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: opts.plan.memoryBytes,
             NanoCpus: opts.plan.nanoCpus, CpuShares: Math.round((opts.plan.nanoCpus / 10**9) * 1024),
-            BlkioWeight: 100,
+            BlkioWeight: config.dockerBlkioWeight,
             ...GAME_SECURITY_CONFIG
         }
     });

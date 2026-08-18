@@ -409,7 +409,7 @@ export async function toggleBlender(opts, action) {
                 Memory: 4 * 1024 * 1024 * 1024,
                 NanoCpus: 2 * 10 ** 9, CpuShares: 2048,
                 // CpuShares: 512,
-                BlkioWeight: 100,
+                BlkioWeight: config.dockerBlkioWeight,
                 ShmSize: 1024 * 1024 * 1024,
                 SecurityOpt: ["no-new-privileges:true"]
             }

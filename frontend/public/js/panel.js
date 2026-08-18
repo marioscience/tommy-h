@@ -57,21 +57,21 @@ function toggleSidebar() {
             let itemsHtml = '';
 
             if (type === 'dir') {
-                itemsHtml += `<div class="fm-context-menu-item" onclick="fmDownloadFolder('${path}', event); closeFmMenu();"><i class="fa-solid fa-download" style="color:var(--success)"></i> Descargar Carpeta</div>`;
-                itemsHtml += `<div class="fm-context-menu-item" onclick="fmMove('${path}', '${name}', event); closeFmMenu();"><i class="fa-solid fa-scissors" style="color:var(--warning)"></i> Mover Carpeta</div>`;
-                itemsHtml += `<div class="fm-context-menu-item" onclick="fmRename('${path}', '${name}', event); closeFmMenu();"><i class="fa-solid fa-pen-to-square" style="color:var(--info)"></i> Renombrar Carpeta</div>`;
-                itemsHtml += `<div class="fm-context-menu-item danger" onclick="fmDelete('${path}', event); closeFmMenu();"><i class="fa-solid fa-trash" style="color:var(--danger)"></i> Eliminar Carpeta</div>`;
+                itemsHtml += `<div class="fm-context-menu-item" ${rnBind("click", (event, element) => { fmDownloadFolder((path), event); closeFmMenu(); })}><i class="fa-solid fa-download" style="color:var(--success)"></i> Descargar Carpeta</div>`;
+                itemsHtml += `<div class="fm-context-menu-item" ${rnBind("click", (event, element) => { fmMove((path), (name), event); closeFmMenu(); })}><i class="fa-solid fa-scissors" style="color:var(--warning)"></i> Mover Carpeta</div>`;
+                itemsHtml += `<div class="fm-context-menu-item" ${rnBind("click", (event, element) => { fmRename((path), (name), event); closeFmMenu(); })}><i class="fa-solid fa-pen-to-square" style="color:var(--info)"></i> Renombrar Carpeta</div>`;
+                itemsHtml += `<div class="fm-context-menu-item danger" ${rnBind("click", (event, element) => { fmDelete((path), event); closeFmMenu(); })}><i class="fa-solid fa-trash" style="color:var(--danger)"></i> Eliminar Carpeta</div>`;
             } else if (type === 'zip') {
-                itemsHtml += `<div class="fm-context-menu-item" onclick="fmUnzip('${path}', event); closeFmMenu();"><i class="fa-solid fa-file-zipper" style="color:var(--success)"></i> Extraer ZIP</div>`;
-                itemsHtml += `<div class="fm-context-menu-item" onclick="fmDownloadFileMenu('${path}', event); closeFmMenu();"><i class="fa-solid fa-download" style="color:var(--info)"></i> Descargar</div>`;
-                itemsHtml += `<div class="fm-context-menu-item" onclick="fmMove('${path}', '${name}', event); closeFmMenu();"><i class="fa-solid fa-scissors" style="color:var(--warning)"></i> Mover Archivo</div>`;
-                itemsHtml += `<div class="fm-context-menu-item" onclick="fmRename('${path}', '${name}', event); closeFmMenu();"><i class="fa-solid fa-pen-to-square" style="color:var(--info)"></i> Renombrar Archivo</div>`;
-                itemsHtml += `<div class="fm-context-menu-item danger" onclick="fmDelete('${path}', event); closeFmMenu();"><i class="fa-solid fa-trash" style="color:var(--danger)"></i> Eliminar Archivo</div>`;
+                itemsHtml += `<div class="fm-context-menu-item" ${rnBind("click", (event, element) => { fmUnzip((path), event); closeFmMenu(); })}><i class="fa-solid fa-file-zipper" style="color:var(--success)"></i> Extraer ZIP</div>`;
+                itemsHtml += `<div class="fm-context-menu-item" ${rnBind("click", (event, element) => { fmDownloadFileMenu((path), event); closeFmMenu(); })}><i class="fa-solid fa-download" style="color:var(--info)"></i> Descargar</div>`;
+                itemsHtml += `<div class="fm-context-menu-item" ${rnBind("click", (event, element) => { fmMove((path), (name), event); closeFmMenu(); })}><i class="fa-solid fa-scissors" style="color:var(--warning)"></i> Mover Archivo</div>`;
+                itemsHtml += `<div class="fm-context-menu-item" ${rnBind("click", (event, element) => { fmRename((path), (name), event); closeFmMenu(); })}><i class="fa-solid fa-pen-to-square" style="color:var(--info)"></i> Renombrar Archivo</div>`;
+                itemsHtml += `<div class="fm-context-menu-item danger" ${rnBind("click", (event, element) => { fmDelete((path), event); closeFmMenu(); })}><i class="fa-solid fa-trash" style="color:var(--danger)"></i> Eliminar Archivo</div>`;
             } else {
-                itemsHtml += `<div class="fm-context-menu-item" onclick="fmDownloadFileMenu('${path}', event); closeFmMenu();"><i class="fa-solid fa-download" style="color:var(--success)"></i> Descargar</div>`;
-                itemsHtml += `<div class="fm-context-menu-item" onclick="fmMove('${path}', '${name}', event); closeFmMenu();"><i class="fa-solid fa-scissors" style="color:var(--warning)"></i> Mover Archivo</div>`;
-                itemsHtml += `<div class="fm-context-menu-item" onclick="fmRename('${path}', '${name}', event); closeFmMenu();"><i class="fa-solid fa-pen-to-square" style="color:var(--info)"></i> Renombrar Archivo</div>`;
-                itemsHtml += `<div class="fm-context-menu-item danger" onclick="fmDelete('${path}', event); closeFmMenu();"><i class="fa-solid fa-trash" style="color:var(--danger)"></i> Eliminar Archivo</div>`;
+                itemsHtml += `<div class="fm-context-menu-item" ${rnBind("click", (event, element) => { fmDownloadFileMenu((path), event); closeFmMenu(); })}><i class="fa-solid fa-download" style="color:var(--success)"></i> Descargar</div>`;
+                itemsHtml += `<div class="fm-context-menu-item" ${rnBind("click", (event, element) => { fmMove((path), (name), event); closeFmMenu(); })}><i class="fa-solid fa-scissors" style="color:var(--warning)"></i> Mover Archivo</div>`;
+                itemsHtml += `<div class="fm-context-menu-item" ${rnBind("click", (event, element) => { fmRename((path), (name), event); closeFmMenu(); })}><i class="fa-solid fa-pen-to-square" style="color:var(--info)"></i> Renombrar Archivo</div>`;
+                itemsHtml += `<div class="fm-context-menu-item danger" ${rnBind("click", (event, element) => { fmDelete((path), event); closeFmMenu(); })}><i class="fa-solid fa-trash" style="color:var(--danger)"></i> Eliminar Archivo</div>`;
             }
 
             menu.innerHTML = itemsHtml;
@@ -91,7 +91,7 @@ function toggleSidebar() {
 
         function fmDownloadFileMenu(path, e) {
             if (e) e.stopPropagation();
-            window.open(`/api/files/download?serverId=${currentServerId}&path=${encodeURIComponent(path)}&token=${localStorage.getItem('nexus_token')}`, '_blank');
+            window.open(`/api/files/download?serverId=${currentServerId}&path=${encodeURIComponent(path)}`, '_blank');
         }
 
         function openCreateModal(type) {
@@ -102,11 +102,11 @@ function toggleSidebar() {
               <h3 style="margin-bottom: 20px; font-size: 1.2rem;"><i class="fa-solid ${icon}" style="color:var(--primary); margin-right:8px;"></i> Crear ${typeName}</h3>
               <div style="margin-bottom: 20px;">
                   <label class="form-label">Nombre del nuevo ${typeName.toLowerCase()}</label>
-                  <input type="text" class="input" id="modal-input-name" placeholder="ejemplo${type === 'file' ? '.lua' : ''}" onkeydown="if(event.key === 'Enter') executeCreate('${type}')">
+                  <input type="text" class="input" id="modal-input-name" placeholder="ejemplo${type === 'file' ? '.lua' : ''}" ${rnBind("keydown", (event, element) => { if(event.key === 'Enter') executeCreate((type)) })}>
               </div>
               <div style="display:flex; gap:12px;">
-                  <button class="btn-ghost" style="flex:1;" onclick="closeActionModal()">Cancelar</button>
-                  <button class="btn" style="flex:1;" onclick="executeCreate('${type}')">Crear</button>
+                  <button class="btn-ghost" style="flex:1;" ${rnBind("click", (event, element) => { closeActionModal() })}>Cancelar</button>
+                  <button class="btn" style="flex:1;" ${rnBind("click", (event, element) => { executeCreate((type)) })}>Crear</button>
               </div>
           `;
             openActionModal(html);
@@ -140,8 +140,8 @@ function toggleSidebar() {
                   <input type="text" class="input" id="modal-dl-name" placeholder="archivo.zip">
               </div>
               <div style="display:flex; gap:12px;">
-                  <button class="btn-ghost" style="flex:1;" onclick="closeActionModal()">Cancelar</button>
-                  <button class="btn" style="flex:1; background:var(--info);" onclick="executeUrlDownload()"><i class="fa-solid fa-download"></i> Importar</button>
+                  <button class="btn-ghost" style="flex:1;" ${rnBind("click", (event, element) => { closeActionModal() })}>Cancelar</button>
+                  <button class="btn" style="flex:1; background:var(--info);" ${rnBind("click", (event, element) => { executeUrlDownload() })}><i class="fa-solid fa-download"></i> Importar</button>
               </div>
           `;
             openActionModal(html);
@@ -158,7 +158,6 @@ function toggleSidebar() {
                 const res = await fetch('/api/files/download-remote', {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('nexus_token')}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ serverId: currentServerId, path: currentFolderPath, url: u, fileName: n })
@@ -207,23 +206,23 @@ function toggleSidebar() {
                   { id: 'ark', name: 'ARK', desc: 'Unreal Engine 5', icon: 'fa-dragon', color: '#eab308', bg: '/assets/games/steam_2399830_header.webp' },
                   { id: 'sdtd', name: '7D2D', desc: 'Horde Survival', icon: 'fa-biohazard', color: '#ef4444', bg: '/assets/games/steam_251570_header.webp' },
                   { id: 'cs2', name: 'Counter-Strike 2', desc: 'eSports', icon: 'fa-crosshairs', color: '#facc15', bg: '/assets/games/steam_730_header.webp' },
-                  { id: 'bot', name: 'Discord Bot', desc: 'Node.js / Python', icon: 'fa-robot', color: '#5865F2', bg: '' },
-                  { id: 'web', name: 'Página Web', desc: 'WordPress / HTML', icon: 'fa-globe', color: '#10b981', bg: '' },
-                  { id: 'db', name: 'Base de Datos', desc: 'MySQL / MariaDB', icon: 'fa-database', color: '#f97316', bg: '' }
+                  { id: 'discordbot', name: 'Discord Bot', desc: 'Node.js / Python', icon: 'fa-robot', color: '#5865F2', bg: '' },
+                  { id: 'wordpress', name: 'Página Web', desc: 'WordPress / HTML', icon: 'fa-globe', color: '#10b981', bg: '' },
+                  { id: 'database', name: 'Base de Datos', desc: 'MySQL / MariaDB', icon: 'fa-database', color: '#f97316', bg: '' }
               ];
 
               const gamesHtml = gamesList.map(g => `
-                <div id="game-opt-${g.id}" onclick="selectGame('${g.id}')" style="
+                <div id="game-opt-${g.id}" ${rnBind("click", (event, element) => { selectGame((g.id)) })} style="
                   position: relative; overflow: hidden; padding: 20px 10px; text-align: center;
                   cursor: pointer; background: #0a0a0a; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
                 ">
                   <div class="game-bg-overlay" style="position: absolute; inset: 0; background: url('${g.bg}') center/cover no-repeat; opacity: 0.2; filter: saturate(0.5); transition: all 0.3s ease; pointer-events: none;"></div>
                   <div style="position: absolute; inset: 0; background: linear-gradient(to top, rgba(10,10,10,0.95) 0%, rgba(10,10,10,0.2) 100%); pointer-events: none;"></div>
-                  
+
                   <div class="game-icon-box" style="position: relative; z-index: 1; width: 44px; height: 44px; border-radius: 10px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;">
                       <i class="fa-solid ${g.icon}" style="font-size: 1.4rem; color: ${g.color}; text-shadow: 0 0 10px rgba(0,0,0,0.5);"></i>
                   </div>
-                  
+
                   <div style="position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;">
                       <div style="font-weight: 900; color: white; font-size: 0.95rem; text-shadow: 0 0 12px rgba(0,0,0,1);">${g.name}</div>
                       <div class="muted" style="font-size: 0.65rem; text-shadow: 0 0 10px rgba(0,0,0,1); font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">${g.desc}</div>
@@ -233,7 +232,7 @@ function toggleSidebar() {
 
             const html = `
               <div style="display: flex; gap: 30px; align-items: stretch; flex-wrap: wrap;">
-                  
+
                   <!-- Columna Izquierda: Selector de Juego -->
                   <div style="flex: 1.3; min-width: 300px;">
                       <h3 style="margin-bottom: 20px; font-size: 1.2rem; color: white; font-weight: 800;"><i class="fa-solid fa-server" style="color:var(--primary); margin-right:8px;"></i> Nuevo Servidor</h3>
@@ -264,7 +263,7 @@ function toggleSidebar() {
                           </div>
                           <input type="range" id="modal-deploy-ram" min="2" max="${remainingRam}" value="2" step="1" style="
                               width: 100%; accent-color: #38bdf8; cursor: pointer; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px;
-                          " oninput="document.getElementById('ram-slider-val').innerText = this.value + ' GB'">
+                          " ${rnBind("input", (event, element) => { document.getElementById('ram-slider-val').innerText = element.value + ' GB' })}>
                           <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.7rem; color: var(--muted);">
                               <span>Mín. 2 GB (Recomendado)</span>
                               <span>Máx. Disponible: ${remainingRam} GB</span>
@@ -300,8 +299,8 @@ function toggleSidebar() {
                       </div>
 
                       <div style="margin-top: auto; display:flex; gap:12px; padding-top: 20px;">
-                          <button class="btn-ghost" style="flex:1; padding: 16px; border-radius: 12px; font-weight: 700; font-size: 0.95rem;" onclick="closeActionModal()">Cancelar</button>
-                          <button class="btn-primary" style="flex:1; padding: 16px; border-radius: 12px; font-weight: 800; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 10px 25px rgba(56, 189, 248, 0.25);" onclick="executeDeploy()"><i class="fa-solid fa-rocket" style="margin-right:8px;"></i> Desplegar</button>
+                          <button class="btn-ghost" style="flex:1; padding: 16px; border-radius: 12px; font-weight: 700; font-size: 0.95rem;" ${rnBind("click", (event, element) => { closeActionModal() })}>Cancelar</button>
+                          <button class="btn-primary" style="flex:1; padding: 16px; border-radius: 12px; font-weight: 800; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 10px 25px rgba(56, 189, 248, 0.25);" ${rnBind("click", (event, element) => { executeDeploy() })}><i class="fa-solid fa-rocket" style="margin-right:8px;"></i> Desplegar</button>
                       </div>
                   </div>
               </div>
@@ -334,11 +333,11 @@ function toggleSidebar() {
                   <label class="form-label" style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 8px; display: block;"><i class="fa-solid fa-code-branch" style="margin-right: 6px;"></i> 1. Selecciona la Versión</label>
                   <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;" id="mc-version-grid">
                       ${versions.map(v => `
-                          <div onclick="selectMcVersion('${v}')" id="mc-v-${v.replace(/\./g, '-')}" style="
+                          <div ${rnBind("click", (event, element) => { selectMcVersion((v)) })} id="mc-v-${v.replace(/\./g, '-')}" style="
                               padding: 8px 5px; border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; text-align: center;
                               cursor: pointer; background: rgba(0,0,0,0.3); font-size: 0.8rem; font-weight: 700;
                               transition: all 0.2s ease; color: var(--muted);
-                          " onmouseover="if(window._mcSelectedVersion !== '${v}') this.style.borderColor='rgba(255,255,255,0.2)';" onmouseout="if(window._mcSelectedVersion !== '${v}') this.style.borderColor='rgba(255,255,255,0.05)';">${v}</div>
+                          " ${rnBind("mouseover", (event, element) => { if(window._mcSelectedVersion !== (v)) element.style.borderColor='rgba(255,255,255,0.2)'; })} ${rnBind("mouseout", (event, element) => { if(window._mcSelectedVersion !== (v)) element.style.borderColor='rgba(255,255,255,0.05)'; })}>${v}</div>
                       `).join('')}
                   </div>
               </div>
@@ -347,11 +346,11 @@ function toggleSidebar() {
                   <label class="form-label" style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 8px; display: block;"><i class="fa-solid fa-microchip" style="margin-right: 6px;"></i> 2. Tipo de Servidor</label>
                   <div style="display: grid; grid-template-columns: 1fr; gap: 8px;" id="mc-type-grid">
                       ${types.map(t => `
-                          <div onclick="selectMcType('${t.id}')" id="mc-t-${t.id}" style="
+                          <div ${rnBind("click", (event, element) => { selectMcType((t.id)) })} id="mc-t-${t.id}" style="
                               display: flex; align-items: center; gap: 12px; padding: 10px 14px;
                               border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; cursor: pointer;
                               background: rgba(0,0,0,0.2); transition: all 0.3s ease;
-                          " onmouseover="if(window._mcSelectedType !== '${t.id}') { this.style.borderColor='rgba(255,255,255,0.2)'; this.style.background='rgba(255,255,255,0.02)'; }" onmouseout="if(window._mcSelectedType !== '${t.id}') { this.style.borderColor='rgba(255,255,255,0.05)'; this.style.background='rgba(0,0,0,0.2)'; }">
+                          " ${rnBind("mouseover", (event, element) => { if(window._mcSelectedType !== (t.id)) { element.style.borderColor='rgba(255,255,255,0.2)'; element.style.background='rgba(255,255,255,0.02)'; } })} ${rnBind("mouseout", (event, element) => { if(window._mcSelectedType !== (t.id)) { element.style.borderColor='rgba(255,255,255,0.05)'; element.style.background='rgba(0,0,0,0.2)'; } })}>
                               <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;">
                                   <i class="fa-solid ${t.icon}" style="color: ${t.color}; font-size: 1rem; text-shadow: 0 0 10px ${t.color}40;"></i>
                               </div>
@@ -366,8 +365,8 @@ function toggleSidebar() {
               </div>
 
               <div style="display:flex; gap:10px; margin-top:5px;">
-                  <button class="btn-ghost" style="flex:1; padding: 12px; border-radius: 10px; font-weight: 700; font-size: 0.9rem;" onclick="openDeployModal('${savedName}', 'minecraft')"><i class="fa-solid fa-arrow-left" style="margin-right: 6px;"></i> Volver</button>
-                  <button class="btn" style="flex:1; background: #4ade80; color: #064e3b; padding: 12px; border-radius: 10px; font-weight: 800; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 6px 20px rgba(74, 222, 128, 0.3);" onclick="confirmMcConfig('${savedName}')">Confirmar <i class="fa-solid fa-check" style="margin-left: 6px;"></i></button>
+                  <button class="btn-ghost" style="flex:1; padding: 12px; border-radius: 10px; font-weight: 700; font-size: 0.9rem;" ${rnBind("click", (event, element) => { openDeployModal((savedName), 'minecraft') })}><i class="fa-solid fa-arrow-left" style="margin-right: 6px;"></i> Volver</button>
+                  <button class="btn" style="flex:1; background: #4ade80; color: #064e3b; padding: 12px; border-radius: 10px; font-weight: 800; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 6px 20px rgba(74, 222, 128, 0.3);" ${rnBind("click", (event, element) => { confirmMcConfig((savedName)) })}>Confirmar <i class="fa-solid fa-check" style="margin-left: 6px;"></i></button>
               </div>
           `;
 
@@ -400,42 +399,42 @@ function toggleSidebar() {
 
         function selectMcType(t) {
             window._mcSelectedType = t;
-            const colors = { 
-                PAPER: { hex: '#4ade80', rgb: '74, 222, 128' }, 
-                PURPUR: { hex: '#a855f7', rgb: '168, 85, 247' }, 
-                FABRIC: { hex: '#facc15', rgb: '250, 204, 21' }, 
-                FORGE: { hex: '#fb923c', rgb: '251, 146, 60' }, 
-                VANILLA: { hex: '#94a3b8', rgb: '148, 163, 184' } 
+            const colors = {
+                PAPER: { hex: '#4ade80', rgb: '74, 222, 128' },
+                PURPUR: { hex: '#a855f7', rgb: '168, 85, 247' },
+                FABRIC: { hex: '#facc15', rgb: '250, 204, 21' },
+                FORGE: { hex: '#fb923c', rgb: '251, 146, 60' },
+                VANILLA: { hex: '#94a3b8', rgb: '148, 163, 184' }
             };
-            
+
             document.querySelectorAll('#mc-type-grid > div').forEach(el => {
                 el.style.borderColor = 'rgba(255,255,255,0.05)';
                 el.style.background = 'rgba(0,0,0,0.2)';
                 el.style.boxShadow = 'none';
-                
+
                 const iconBox = el.querySelector('div > div');
                 if (iconBox) {
                     iconBox.style.background = 'rgba(255,255,255,0.03)';
                     iconBox.style.borderColor = 'rgba(255,255,255,0.05)';
                 }
-                
+
                 const check = el.querySelector('.check-icon');
                 if (check) check.style.opacity = '0';
             });
-            
+
             const active = document.getElementById('mc-t-' + t);
             if (active) {
                 const c = colors[t] || colors['PAPER'];
                 active.style.borderColor = c.hex;
                 active.style.background = `rgba(${c.rgb}, 0.05)`;
                 active.style.boxShadow = `0 0 20px rgba(${c.rgb}, 0.15)`;
-                
+
                 const iconBox = active.querySelector('div > div');
                 if (iconBox) {
                     iconBox.style.background = `rgba(${c.rgb}, 0.15)`;
                     iconBox.style.borderColor = c.hex;
                 }
-                
+
                 const check = active.querySelector('.check-icon');
                 if (check) check.style.opacity = '1';
             }
@@ -455,7 +454,8 @@ function toggleSidebar() {
                 elite: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd'],
                 platinum: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd'],
                 plan_platinum: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd'],
-                partner: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd']
+                partner: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd'],
+                ultimate: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd', 'wordpress', 'discordbot', 'database']
             };
 
             const isAllowed = (access[plan] || []).includes(game);
@@ -473,7 +473,7 @@ function toggleSidebar() {
             window._selectedGame = game;
 
             // Reset all
-            ['fivem', 'minecraft', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd'].forEach(g => {
+            ['fivem', 'minecraft', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd', 'wordpress', 'discordbot', 'database'].forEach(g => {
                 const el = document.getElementById('game-opt-' + g);
                 if (!el) return;
 
@@ -481,13 +481,13 @@ function toggleSidebar() {
                 el.style.border = '1px solid rgba(255,255,255,0.05)';
                 el.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
                 el.style.opacity = allowed ? '1' : '0.4';
-                
+
                 const bgOverlay = el.querySelector('.game-bg-overlay');
                 if (bgOverlay) {
                     bgOverlay.style.opacity = '0.2';
                     bgOverlay.style.filter = 'saturate(0.5)';
                 }
-                
+
                 const iconBox = el.querySelector('.game-icon-box');
                 if (iconBox) {
                     iconBox.style.background = 'rgba(255,255,255,0.05)';
@@ -511,13 +511,13 @@ function toggleSidebar() {
                 active.style.border = `1px solid ${colors[game]}`;
                 active.style.boxShadow = `0 0 20px ${colors[game]}33`;
                 active.style.opacity = '1';
-                
+
                 const bgOverlay = active.querySelector('.game-bg-overlay');
                 if (bgOverlay) {
                     bgOverlay.style.opacity = '0.7';
                     bgOverlay.style.filter = 'saturate(1.3)';
                 }
-                
+
                 const iconBox = active.querySelector('.game-icon-box');
                 if (iconBox) {
                     iconBox.style.background = `${colors[game]}40`; // 25% opacity
@@ -840,7 +840,7 @@ function toggleSidebar() {
         }
         let globalBackupLimit = 1;
 
-        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.36.1/min/vs' } });
+        require.config({ paths: { 'vs': '/vendor/monaco/vs' } });
         require(['vs/editor/editor.main'], function () {
             editorInstance = monaco.editor.create(document.getElementById('monaco-container'), {
                 value: '', language: 'ini', theme: 'vs-dark', automaticLayout: true, minimap: { enabled: false },
@@ -937,6 +937,9 @@ function toggleSidebar() {
             } else if (viewId === 'logs') {
                 document.getElementById('page-sub').innerText = "Visualiza el arranque y errores";
                 document.getElementById('view-logs').classList.remove('hidden'); startLogStreaming();
+            } else if (viewId === 'wpadmin') {
+                document.getElementById('page-sub').innerText = "Interfaz Web";
+                document.getElementById('view-wpadmin').classList.remove('hidden');
             } else if (viewId === 'txadmin') {
                 document.getElementById('page-sub').innerText = "Administración de FiveM";
                 document.getElementById('view-txadmin').classList.remove('hidden');
@@ -1057,10 +1060,10 @@ function toggleSidebar() {
                       <td><span class="muted"><i class="fa-regular fa-clock" style="margin-right:5px;"></i>${b.date}</span></td>
                       <td style="text-align: right; padding-right: 20px;">
                           <div style="display:flex; gap:6px; justify-content:flex-end;">
-                              <button class="btn-tbl green" title="Restaurar Copia" onclick="restoreClientBackup('${b.filename}')">
+                              <button class="btn-tbl green" title="Restaurar Copia" ${rnBind("click", (event, element) => { restoreClientBackup((b.filename)) })}>
                                   <i class="fa-solid fa-clock-rotate-left"></i>
                               </button>
-                              <button class="btn-tbl red" title="Eliminar Copia" onclick="deleteClientBackup('${b.filename}')">
+                              <button class="btn-tbl red" title="Eliminar Copia" ${rnBind("click", (event, element) => { deleteClientBackup((b.filename)) })}>
                                   <i class="fa-solid fa-trash"></i>
                               </button>
                           </div>
@@ -1227,7 +1230,7 @@ function toggleSidebar() {
                 for (let i = 0; i < stats.length; i++) {
                     const s = stats[i];
                     const date = new Date(s.created_at);
-                    
+
                     if (i > 0) {
                         const prevDate = new Date(stats[i-1].created_at);
                         const diffMinutes = (date - prevDate) / (1000 * 60);
@@ -1325,7 +1328,7 @@ function toggleSidebar() {
                 const activeIcon = document.getElementById('actualizar-icon');
                 if (activeIcon) activeIcon.classList.remove('fa-spin');
             }, 1000);
-            
+
             if (currentServerId) {
                 lastHistoryLoad = 0;
                 loadStatsHistory(currentServerId);
@@ -1394,6 +1397,8 @@ function toggleSidebar() {
                         document.getElementById('btn-deploy').style.display = 'inline-flex';
                         document.getElementById('client-servers').innerHTML = `<div class="card muted" style="text-align:center; padding:50px; max-width:600px; margin: 50px auto;"><i class="fa-solid fa-server" style="font-size:3.5rem; margin-bottom:20px; color:var(--line)"></i><br><h3 style="color:white; font-size:1.4rem; margin-bottom:10px;">Sin Servidores</h3>Aún no tienes una instancia asignada. Haz clic en "Desplegar" para comenzar.</div>`;
                     }
+                    currentServerId = null;
+                    if (window._downloadInterval) clearInterval(window._downloadInterval);
                     return;
                 }
 
@@ -1443,6 +1448,17 @@ function toggleSidebar() {
                 const isRunning = s.status === 'running';
 
                 // 🧠 Lógica para txAdmin (SOLO para FiveM)
+                const wpIframe = document.getElementById('wpadmin-iframe');
+                if (s.template === "wordpress") {
+                    if (isRunning) {
+                        const wpUrl = "https://wp" + s.fivem_port + ".ragenodes.com";
+                        if (wpIframe && !wpIframe.src.startsWith(wpUrl)) {
+                            wpIframe.src = wpUrl;
+                        }
+                    } else {
+                        if (wpIframe) wpIframe.src = 'about:blank';
+                    }
+                }
                 const txIframe = document.getElementById('txadmin-iframe');
                 const txOffline = document.getElementById('txadmin-offline-overlay');
                 const txAuthOverlay = document.getElementById('txadmin-auth-overlay');
@@ -1460,7 +1476,7 @@ function toggleSidebar() {
                                 const btn = document.getElementById('tx-btn-vincular');
                                 if (!window.txRouteVerified) window.txRouteVerified = {};
                                 if (!window.txPingActive) window.txPingActive = {};
-                                
+
                                 if (!window.txRouteVerified[s.id]) {
                                     if (btn) {
                                         btn.style.opacity = '0.5';
@@ -1538,28 +1554,32 @@ function toggleSidebar() {
                 const isZomboid = s.template === 'zomboid';
                 const isARK = s.template === 'ark';
                 const isSDTD = s.template === 'sdtd';
-                const isNonFivem = isMC || isRust || isPalworld || isCS2 || isValheim || isZomboid || isARK || isSDTD;
+                const isWordPress = s.template === 'wordpress';
+                const isDatabase = s.template === 'database';
+                const isDiscordBot = s.template === 'discord';
+                const isNonFivem = isMC || isRust || isPalworld || isCS2 || isValheim || isZomboid || isARK || isSDTD || isWordPress || isDatabase || isDiscordBot;
 
                 safeDisplay('nav-editor', 'flex');
                 safeDisplay('nav-logs', 'flex');
-                safeDisplay('nav-mc-config', isNonFivem ? 'flex' : 'none'); // Todos los juegos no-FiveM usan config visual
+                safeDisplay('nav-mc-config', (isNonFivem && !isWordPress && !isDatabase && !isDiscordBot) ? 'flex' : 'none'); // Todos los juegos no-FiveM usan config visual
                 const hasMods = isMC || isRust || isZomboid || isARK || isValheim || isPalworld || isSDTD;
                 safeDisplay('nav-mc-mods', hasMods ? 'flex' : 'none'); // Juegos con soporte de Mods/Plugins
                 const isVendor = user.role === 'vendor' || user.role === 'admin';
                 safeDisplay('nav-fivem-admin', isNonFivem ? 'none' : 'flex');
-                safeDisplay('nav-database', (isNonFivem && !isARK) ? 'none' : 'flex');
+                safeDisplay('nav-database', (isNonFivem && !isARK && !isDatabase) ? 'none' : 'flex');
                 safeDisplay('nav-vendor-portal', (isNonFivem || !isVendor) ? 'none' : 'flex');
                 safeDisplay('nav-marketplace', isNonFivem ? 'none' : 'flex');
                 safeDisplay('nav-backups', 'flex');
-                safeDisplay('nav-rcon', (isNonFivem && !isMC) ? 'flex' : 'none');
+                safeDisplay('nav-rcon', (isNonFivem && !isMC && !isWordPress && !isDatabase && !isDiscordBot) ? 'flex' : 'none');
                 safeDisplay('nav-schedules', 'flex');
                 safeDisplay('nav-subusers', 'flex');
-                
+
                 const isFivem = (s.template === 'fivem');
                 safeDisplay('nav-txadmin', isFivem ? 'flex' : 'none');
+                safeDisplay('nav-wpadmin', isWordPress ? 'flex' : 'none');
                 safeDisplay('label-multimedia', isFivem ? 'flex' : 'none');
                 safeDisplay('group-multimedia', isFivem ? 'block' : 'none');
-                
+
                 // Blender logic
                 const blenderPlanCheck = (s.runtime_plan || '').toLowerCase();
                 const canUseBlender = (isFivem && blenderPlanCheck !== 'hobby');
@@ -1600,6 +1620,9 @@ function toggleSidebar() {
                 if (isZomboid) gameLabel = 'zomboid';
                 if (isARK) gameLabel = 'ark';
                 if (isSDTD) gameLabel = '7dtd';
+                if (isWordPress) gameLabel = 'wordpress';
+                if (isDatabase) gameLabel = 'database';
+                if (isDiscordBot) gameLabel = 'discord';
 
                 if (termTitle) termTitle.textContent = isNonFivem ? `${gameLabel} ● ${s.name}` : `bash - /opt/fivem/run.sh`;
 
@@ -1625,7 +1648,7 @@ function toggleSidebar() {
                     maxRam = 32; maxDisk = 250; maxCores = 8;
                     backupMax = 10; backupFreq = 'Cada 6 Horas'; backupRet = '14 días'; autoEnabled = true;
                 }
-                
+
                 maxDisk += Number(s.extra_disk_gb || 0);
 
                 globalBackupLimit = backupMax;
@@ -1678,7 +1701,7 @@ function toggleSidebar() {
                         const txBps = (txDiff >= 0 ? txDiff : 0) * 8 / elapsedSecs;
 
                         let totalBps = (rxBps + txBps);
-                        
+
                         // Add tiny idle background traffic if server is running but there's no real traffic
                         if (totalBps === 0 && isRunning) {
                             totalBps = Math.random() * 5000 + 1000; // 1 to 6 Kbps idle noise
@@ -1696,7 +1719,7 @@ function toggleSidebar() {
                     }
 
                     window.lastNetworkStats[s.id] = { rx: currentRx, tx: currentTx, timestamp: currentTime };
-                    
+
                     const formatBytes = (bytes) => {
                         if (bytes === 0) return '0 B';
                         const k = 1024, sizes = ['B', 'KB', 'MB', 'GB', 'TB'], i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -1761,19 +1784,19 @@ function toggleSidebar() {
                 if (pending) {
                     controlButtons = `<button class="btn-control" disabled style="opacity:0.7; cursor:wait; background: rgba(255,255,255,0.05); color: var(--muted);"><i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i> Procesando...</button>`;
                 } else {
-                    const verifyBtn = s.game === 'ark' ? `<button class="btn-control" style="background: rgba(139, 92, 246, 0.15); color: #c4b5fd; border: 1px solid rgba(139, 92, 246, 0.3);" title="Forzar Verificación de Archivos (Útil si SteamCMD se atasca)" onclick="verifyArkVersion('${s.id}', this)"><i class="fa-solid fa-hammer"></i> Validar Versión</button>` : '';
+                    const verifyBtn = s.game === 'ark' ? `<button class="btn-control" style="background: rgba(139, 92, 246, 0.15); color: #c4b5fd; border: 1px solid rgba(139, 92, 246, 0.3);" title="Forzar Verificación de Archivos (Útil si SteamCMD se atasca)" ${rnBind("click", (event, element) => { verifyArkVersion((s.id), element) })}><i class="fa-solid fa-hammer"></i> Validar Versión</button>` : '';
                     controlButtons = isRunning
-                        ? `<button class="btn-control restart" title="Reiniciar servidor" ${pending ? 'disabled' : ''} onclick="srvAction('${s.id}', 'restart')">
+                        ? `<button class="btn-control restart" title="Reiniciar servidor" ${pending ? 'disabled' : ''} ${rnBind("click", (event, element) => { srvAction((s.id), 'restart') })}>
                                    ${pending && pending.action === 'restart'
                             ? '<i class="fa-solid fa-spinner fa-spin"></i> Reiniciando'
                             : '<i class="fa-solid fa-rotate-right"></i> Reiniciar'}
                                </button>
-                               <button class="btn-control stop" title="Apagar servidor" ${pending ? 'disabled' : ''} onclick="srvAction('${s.id}', 'stop')">
+                               <button class="btn-control stop" title="Apagar servidor" ${pending ? 'disabled' : ''} ${rnBind("click", (event, element) => { srvAction((s.id), 'stop') })}>
                                    ${pending && pending.action === 'stop'
                             ? '<i class="fa-solid fa-spinner fa-spin"></i> Apagando'
                             : '<i class="fa-solid fa-power-off"></i> Apagar'}
                                </button> ${verifyBtn}`
-                        : `<button class="btn-control start" title="Iniciar servidor" ${pending ? 'disabled' : ''} onclick="srvAction('${s.id}', 'start')">
+                        : `<button class="btn-control start" title="Iniciar servidor" ${pending ? 'disabled' : ''} ${rnBind("click", (event, element) => { srvAction((s.id), 'start') })}>
                                    ${pending && pending.action === 'start'
                             ? '<i class="fa-solid fa-spinner fa-spin"></i> Iniciando'
                             : '<i class="fa-solid fa-play"></i> Iniciar'}
@@ -1855,9 +1878,9 @@ function toggleSidebar() {
                         else if (srv.template === 'discordbot') sImage = '/assets/discord_bot_bg.webp';
                         else if (srv.template === 'wordpress') sImage = '/assets/web_hosting_bg.webp';
                         else if (srv.template === 'database') sImage = '/assets/bg_premium.webp';
-                        
+
                         return `
-                      <div class="card" onclick="selectServerFromPool('${srv.id}')" style="
+                      <div class="card" ${rnBind("click", (event, element) => { selectServerFromPool((srv.id)) })} style="
                           position: relative; overflow: hidden;
                           padding: 25px 20px; background: #0a0a0a;
                           border: 1px solid ${isSelected ? 'rgba(56, 189, 248, 0.6)' : 'rgba(255,255,255,0.05)'}; border-radius: 12px;
@@ -1865,11 +1888,11 @@ function toggleSidebar() {
                       ">
                           <div style="position: absolute; inset: 0; background: url('${sImage}') center/cover no-repeat; opacity: ${isSelected ? '0.7' : '0.3'}; filter: saturate(${isSelected ? '1.3' : '0.5'}); transition: all 0.3s ease; pointer-events: none;"></div>
                           <div style="position: absolute; inset: 0; background: linear-gradient(to top, rgba(10,10,10,0.85) 0%, rgba(10,10,10,0.2) 100%); pointer-events: none;"></div>
-                          
+
                           <div style="position: relative; z-index: 1; width: 44px; height: 44px; border-radius: 10px; background: ${isSelected ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255,255,255,0.05)'}; display: flex; align-items: center; justify-content: center; box-shadow: ${isSelected ? '0 0 15px rgba(56,189,248,0.5)' : 'none'};">
                               <i class="${sIcon}" style="color: ${isSelected ? '#38bdf8' : sColor}; font-size: 1.3rem;"></i>
                           </div>
-                          
+
                           <div style="position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;">
                               <div style="font-weight: 900; font-size: 1.05rem; color: ${isSelected ? '#38bdf8' : 'white'}; display: flex; align-items: center; justify-content: center; gap: 8px; text-shadow: 0 0 12px rgba(0,0,0,1);">
                                   ${srv.name}
@@ -1939,13 +1962,13 @@ function toggleSidebar() {
                             const barFill = liveView.querySelector(`.bar-${type}-fill`);
                             const textPct = liveView.querySelector(`.bar-${type}-pct`);
                             const textAbs = liveView.querySelector(`.bar-${type}-abs`);
-                            
+
                             if (textPct) textPct.textContent = `${pct}%`;
                             if (textAbs) textAbs.textContent = abs;
-                            
+
                             const val = parseFloat(pct);
                             if (barFill) barFill.style.width = val > 0 ? `${Math.max(1, val)}%` : '0%';
-                            
+
                             if (barFill) {
                                 if (val >= 90) barFill.style.backgroundColor = 'var(--danger)';
                                 else if (val >= 70) barFill.style.backgroundColor = 'var(--warning)';
@@ -1967,7 +1990,7 @@ function toggleSidebar() {
                         if (pingVal) {
                             pingVal.innerHTML = `${pingMs}<span style="font-size: 0.65rem; color: var(--muted); margin-left: 2px;">ms</span>`;
                         }
-                        
+
                         const netVal = document.getElementById('tacho-net-val');
                         if (netVal) {
                             netVal.innerHTML = `${netSpeedMb}<span style="font-size: 0.65rem; color: var(--muted); margin-left: 2px;">${netSpeedUnit}</span>`;
@@ -1996,7 +2019,7 @@ function toggleSidebar() {
                             blenderStatus.style.color = s.blender_status === 'running' ? 'var(--success)' : 'var(--muted)';
                             blenderStatus.innerHTML = s.blender_status === 'running'
                                 ? '<i class="fa-solid fa-circle-check"></i> En Línea'
-                                : `<button class="btn-success" style="padding:2px 8px; font-size:0.65rem;" onclick="toggleBlender(event, '${s.id}', 'start')"><i class="fa-solid fa-power-off"></i> Iniciar</button>`;
+                                : `<button class="btn-success" style="padding:2px 8px; font-size:0.65rem;" ${rnBind("click", (event, element) => { toggleBlender(event, (s.id), 'start') })}><i class="fa-solid fa-power-off"></i> Iniciar</button>`;
                         }
 
                         // 🚀 Actualizar Pago y Caducidad quirúrgicamente
@@ -2037,7 +2060,7 @@ function toggleSidebar() {
                 <div class="server-header ${isRunning ? 'running' : 'stopped'}">
                     <div style="display: flex; align-items: center; z-index: 1;">
                         <div class="server-icon">
-                            <img src="${iconUrl}" class="static-bg" onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='none'; this.parentElement.querySelector('.fallback-icon').style.display='flex';">
+                            <img src="${iconUrl}" class="static-bg" ${rnBind("error", (event, element) => { element.onerror=null; element.style.display='none'; element.nextElementSibling.style.display='none'; element.parentElement.querySelector('.fallback-icon').style.display='flex'; })}>
                             <img src="${iconUrl}" class="rotating-core">
                             <div class="fallback-icon" style="display:none; width:100%; height:100%; align-items:center; justify-content:center;">${fallbackIcon}</div>
                             <div class="lightning-container">
@@ -2066,10 +2089,10 @@ function toggleSidebar() {
                             <div class="card-header" style="margin-bottom:0; padding-bottom:10px; border-bottom: 1px solid rgba(255,255,255,0.03);">
                                 <h3 style="font-size: 1rem;"><i class="fa-solid fa-chart-area" style="color:var(--info);"></i> Monitorización de Recursos</h3>
                                 <div style="display:flex; align-items:center; gap:8px; margin-left:auto;">
-                                    <button class="btn-ghost" style="padding: 4px 12px; font-size: 0.7rem; border-radius: 30px; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);" onclick="toggleMainChart()" title="Mostrar/Ocultar gráfica">
+                                    <button class="btn-ghost" style="padding: 4px 12px; font-size: 0.7rem; border-radius: 30px; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);" ${rnBind("click", (event, element) => { toggleMainChart() })} title="Mostrar/Ocultar gráfica">
                                         <i class="fa-solid fa-compress" id="toggle-chart-icon"></i> <span id="toggle-chart-text" style="display: none;">Colapsar</span>
                                     </button>
-                                    ${isRunning ? `<div style="display:flex; align-items:center; gap:8px; background:rgba(16, 185, 129, 0.1); padding: 4px 10px; border-radius:12px; border:1px solid rgba(16, 185, 129, 0.2); cursor:pointer;" title="Haz clic para cambiar frecuencia de actualización" onclick="window.cyclePollRate()">
+                                    ${isRunning ? `<div style="display:flex; align-items:center; gap:8px; background:rgba(16, 185, 129, 0.1); padding: 4px 10px; border-radius:12px; border:1px solid rgba(16, 185, 129, 0.2); cursor:pointer;" title="Haz clic para cambiar frecuencia de actualización" ${rnBind("click", (event, element) => { window.cyclePollRate() })}>
                                         <span class="live-dot" style="${(window.panelPollRate === 0) ? 'background:var(--warning); animation:none; box-shadow:none;' : ''}"></span>
                                         <span style="font-size:0.65rem; font-weight:800; color:${(window.panelPollRate === 0) ? 'var(--warning)' : '#34d399'}; letter-spacing:0.5px;">
                                             ${(window.panelPollRate === 0) ? 'PAUSADO' : 'Auto &middot; ' + ((window.panelPollRate || 1500) / 1000).toString().replace('.', ',') + ' s'}
@@ -2124,7 +2147,7 @@ function toggleSidebar() {
                                 <i class="fa-solid fa-server" style="font-size: 3rem; color: var(--muted); margin-bottom: 15px; opacity: 0.3;"></i>
                                 <h3 style="color: var(--text); font-size: 1.1rem; margin-bottom: 8px;">Servidor Apagado</h3>
                                 <p class="muted" style="max-width: 250px; line-height: 1.5; margin-bottom: 20px; font-size: 0.8rem;">Inicia el servidor para comenzar a recopilar métricas de CPU, RAM y Disco en tiempo real.</p>
-                                <button class="btn-success" onclick="srvStart('${s.id}')" style="padding: 8px 16px; font-size: 0.8rem; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);">
+                                <button class="btn-success" ${rnBind("click", (event, element) => { srvStart((s.id)) })} style="padding: 8px 16px; font-size: 0.8rem; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);">
                                     <i class="fa-solid fa-play" style="margin-right: 6px;"></i> Iniciar Servidor
                                 </button>
                             </div>
@@ -2139,7 +2162,7 @@ function toggleSidebar() {
                             </div>
                             <div class="copy-box" style="padding-right: 40px; position: relative;" title="Haz clic para copiar la IP al portapapeles">
                                 <span style="font-size: 0.85rem;">${globalSafeHost}:${s.fivem_port}</span>
-                                <button class="copy-btn" title="Copiar IP" onclick="Nexus.copyToClipboard('${globalSafeHost}:${s.fivem_port}'); showToast('IP copiada','success')" style="position: absolute; right: 10px;"><i class="fa-regular fa-copy"></i></button>
+                                <button class="copy-btn" title="Copiar IP" ${rnBind("click", (event, element) => { Nexus.copyToClipboard(`${globalSafeHost}:${s.fivem_port}`); showToast('IP copiada','success') })} style="position: absolute; right: 10px;"><i class="fa-regular fa-copy"></i></button>
                             </div>
                         </div>
 
@@ -2152,7 +2175,7 @@ function toggleSidebar() {
                                 <li><span>ID del nodo</span><span class="mono">${s.container_name}</span></li>
                                 ${s.template === 'fivem' ? `<li><span>Base de datos</span><span class="mono">${s.db_name}</span></li>` : ''}
                                 <li><span>Puerto del juego</span><span class="mono">${s.fivem_port}</span></li>
-                                ${s.template === 'fivem' && planName !== 'hobby' ? `<li><span>Editor 3D</span><span id="blender-status-text" style="color:${s.blender_status === 'running' ? 'var(--success)' : 'var(--muted)'}; font-weight:700;">${s.blender_status === 'running' ? '<i class="fa-solid fa-circle-check"></i> En Línea' : `<button class="btn-success" style="padding:2px 8px; font-size:0.65rem;" onclick="toggleBlender(event, '${s.id}', 'start')"><i class="fa-solid fa-power-off"></i> Iniciar</button>`}</span></li>` : ''}
+                                ${s.template === 'fivem' && planName !== 'hobby' ? `<li><span>Editor 3D</span><span id="blender-status-text" style="color:${s.blender_status === 'running' ? 'var(--success)' : 'var(--muted)'}; font-weight:700;">${s.blender_status === 'running' ? '<i class="fa-solid fa-circle-check"></i> En Línea' : `<button class="btn-success" style="padding:2px 8px; font-size:0.65rem;" ${rnBind("click", (event, element) => { toggleBlender(event, (s.id), 'start') })}><i class="fa-solid fa-power-off"></i> Iniciar</button>`}</span></li>` : ''}
                                 <li><span>Estado del Pago</span><span class="payment-status-text" style="color:${isExpired ? 'var(--danger)' : 'var(--success)'}; font-weight:700;">${isExpired ? 'Vencido' : 'Al Día'}</span></li>
                                 <li><span>Renovación</span><span class="expiry-date-text" style="color:${isExpired ? 'var(--danger)' : 'white'}; font-weight:600;">${isUnlimited ? 'Sin vencimiento' : expDate.toLocaleDateString()}</span></li>
                             </ul>
@@ -2165,7 +2188,7 @@ function toggleSidebar() {
                             </summary>
                             <div style="padding: 15px; border-top: 1px solid rgba(239,68,68,0.1); text-align: center;">
                                 <p style="font-size: 0.75rem; color: var(--muted); margin-bottom: 10px;">Esta acción es irreversible y eliminará todos los datos.</p>
-                                <button class="btn-danger" title="Eliminar servidor permanentemente" style="padding: 8px 16px; font-size: 0.8rem; width: 100%;" ${pending && pending.action === 'delete' ? 'disabled' : ''} onclick="srvDelete('${s.id}', '${s.container_name}')">
+                                <button class="btn-danger" title="Eliminar servidor permanentemente" style="padding: 8px 16px; font-size: 0.8rem; width: 100%;" ${pending && pending.action === 'delete' ? 'disabled' : ''} ${rnBind("click", (event, element) => { srvDelete((s.id), (s.container_name)) })}>
                                     ${pending && pending.action === 'delete'
                             ? '<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i> Destruyendo...'
                             : '<i class="fa-solid fa-trash" style="margin-right:4px;"></i> Eliminar Servidor'}
@@ -2300,7 +2323,7 @@ function toggleSidebar() {
         async function srvAction(id, action, btn) {
             if (action === 'stop' && !confirm('¿Estás seguro de que quieres apagar el servidor de forma forzosa? Esto interrumpirá la conexión de todos los jugadores de inmediato.')) return;
             if (action === 'restart' && !confirm('¿Estás seguro de que quieres reiniciar el servidor? Esto desconectará a los jugadores temporalmente.')) return;
-            
+
             if (serverActionsPending.has(id)) return;
 
             serverActionsPending.set(id, { action, timestamp: Date.now() });
@@ -2328,10 +2351,10 @@ function toggleSidebar() {
               <h3 style="margin-bottom: 10px; color: var(--danger); font-size: 1.2rem;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:8px;"></i> Zona de Peligro</h3>
               <p class="muted" style="margin-bottom: 15px; font-size: 0.9rem;">Esta acción es irreversible y se perderán todos los datos.</p>
               <p style="margin-bottom: 10px; font-size: 0.85rem;">Para confirmar, escribe <strong>${name}</strong> a continuación:</p>
-              <input type="text" id="delete-confirm-input" class="input" style="width: 100%; margin-bottom: 20px; text-align: center;" placeholder="${name}" oninput="document.getElementById('btn-confirm-delete').disabled = this.value !== '${name}'">
+              <input type="text" id="delete-confirm-input" class="input" style="width: 100%; margin-bottom: 20px; text-align: center;" placeholder="${name}" ${rnBind("input", (event, element) => { document.getElementById('btn-confirm-delete').disabled = element.value !== (name) })}>
               <div style="display:flex; gap:12px;">
-                  <button class="btn-ghost" style="flex:1;" onclick="closeActionModal()">Cancelar</button>
-                  <button id="btn-confirm-delete" class="btn-danger" style="flex:1;" disabled onclick="executeSrvDelete('${id}')"><i class="fa-solid fa-trash"></i> Destruir</button>
+                  <button class="btn-ghost" style="flex:1;" ${rnBind("click", (event, element) => { closeActionModal() })}>Cancelar</button>
+                  <button id="btn-confirm-delete" class="btn-danger" style="flex:1;" disabled ${rnBind("click", (event, element) => { executeSrvDelete((id)) })}><i class="fa-solid fa-trash"></i> Destruir</button>
               </div>
           `;
             openActionModal(html);
@@ -2515,7 +2538,7 @@ function toggleSidebar() {
 
             try {
                 const data = await Nexus.api(`/api/files/list?serverId=${currentServerId}&path=${encodeURIComponent(targetPath)}`);
-                let html = targetPath !== '/' ? `<div class="file-item dir" onclick="loadFolder('${targetPath.split('/').slice(0, -1).join('/') || '/'}')"><i class="fa-solid fa-level-up-alt"></i> .. (Atrás)</div>` : '';
+                let html = targetPath !== '/' ? `<div class="file-item dir" ${rnBind("click", (event, element) => { loadFolder((targetPath.split('/').slice(0, -1).join('/') || '/')) })}><i class="fa-solid fa-level-up-alt"></i> .. (Atrás)</div>` : '';
 
                 if (data.items.length === 0) {
                     html += `<div class="muted" style="padding:20px; text-align:center; font-size:0.8rem;"><i class="fa-solid fa-folder-open" style="font-size:1.5rem; margin-bottom:10px; opacity:0.5;"></i><br>Carpeta vacía</div>`;
@@ -2523,17 +2546,17 @@ function toggleSidebar() {
                     data.items.forEach(item => {
                         if (item.isDirectory) {
                             html += `<div class="file-item dir" style="justify-content: space-between;">
-                                      <div style="flex-grow:1" onclick="loadFolder('${item.path}')"><i class="fa-solid fa-folder"></i> ${item.name}</div>
+                                      <div style="flex-grow:1" ${rnBind("click", (event, element) => { loadFolder((item.path)) })}><i class="fa-solid fa-folder"></i> ${item.name}</div>
                                       <div style="display:flex; align-items:center;">
-                                          <i class="fa-solid fa-gear action-gear" onclick="openFmMenu(event, '${item.path}', '${item.name}', 'dir')" title="Opciones"></i>
+                                          <i class="fa-solid fa-gear action-gear" ${rnBind("click", (event, element) => { openFmMenu(event, (item.path), (item.name), 'dir') })} title="Opciones"></i>
                                       </div>
                                    </div>`;
                         } else {
                             let type = item.name.toLowerCase().endsWith('.zip') ? 'zip' : 'file';
                             html += `<div class="file-item file" style="justify-content: space-between;">
-                                      <div style="flex-grow:1" onclick="loadFile('${item.path}', '${item.name}')"><i class="fa-solid fa-file"></i> ${item.name}</div>
+                                      <div style="flex-grow:1" ${rnBind("click", (event, element) => { loadFile((item.path), (item.name)) })}><i class="fa-solid fa-file"></i> ${item.name}</div>
                                       <div style="display:flex; align-items:center;">
-                                          <i class="fa-solid fa-gear action-gear" onclick="openFmMenu(event, '${item.path}', '${item.name}', '${type}')" title="Opciones"></i>
+                                          <i class="fa-solid fa-gear action-gear" ${rnBind("click", (event, element) => { openFmMenu(event, (item.path), (item.name), (type)) })} title="Opciones"></i>
                                       </div>
                                    </div>`;
                         }
@@ -2598,8 +2621,8 @@ function toggleSidebar() {
               <h3 style="margin-bottom: 10px; color: var(--danger); font-size: 1.2rem;"><i class="fa-solid fa-trash" style="margin-right:8px;"></i> Eliminar</h3>
               <p class="muted" style="margin-bottom: 20px; word-break: break-all;">¿Borrar permanentemente <strong>${t}</strong>?</p>
               <div style="display:flex; gap:12px;">
-                  <button class="btn-ghost" style="flex:1;" onclick="closeActionModal()">Cancelar</button>
-                  <button class="btn-danger" style="flex:1;" onclick="executeFmDelete('${t}')">Eliminar</button>
+                  <button class="btn-ghost" style="flex:1;" ${rnBind("click", (event, element) => { closeActionModal() })}>Cancelar</button>
+                  <button class="btn-danger" style="flex:1;" ${rnBind("click", (event, element) => { executeFmDelete((t)) })}>Eliminar</button>
               </div>
           `;
             openActionModal(html);
@@ -2622,11 +2645,11 @@ function toggleSidebar() {
               <h3 style="margin-bottom: 10px; color: var(--info); font-size: 1.2rem;"><i class="fa-solid fa-pen-to-square" style="margin-right:8px;"></i> Renombrar</h3>
               <div style="margin-bottom: 20px;">
                   <label class="form-label" style="text-transform:none;">Nuevo nombre para <strong style="color:white;">${oldName}</strong></label>
-                  <input type="text" class="input" id="modal-input-rename" value="${oldName}" onkeydown="if(event.key === 'Enter') executeFmRename('${path}')">
+                  <input type="text" class="input" id="modal-input-rename" value="${oldName}" ${rnBind("keydown", (event, element) => { if(event.key === 'Enter') executeFmRename((path)) })}>
               </div>
               <div style="display:flex; gap:12px;">
-                  <button class="btn-ghost" style="flex:1;" onclick="closeActionModal()">Cancelar</button>
-                  <button class="btn" style="flex:1; background:var(--info);" onclick="executeFmRename('${path}')">Guardar</button>
+                  <button class="btn-ghost" style="flex:1;" ${rnBind("click", (event, element) => { closeActionModal() })}>Cancelar</button>
+                  <button class="btn" style="flex:1; background:var(--info);" ${rnBind("click", (event, element) => { executeFmRename((path)) })}>Guardar</button>
               </div>
           `;
             openActionModal(html);
@@ -2668,12 +2691,12 @@ function toggleSidebar() {
               <h3 style="margin-bottom: 10px; color: var(--warning); font-size: 1.2rem;"><i class="fa-solid fa-scissors" style="margin-right:8px;"></i> Mover Elemento</h3>
               <div style="margin-bottom: 20px;">
                   <label class="form-label" style="text-transform:none;">Ruta de destino para <strong style="color:white;">${name}</strong></label>
-                  <input type="text" class="input" id="modal-input-move" value="${currentFolderPath === '/' ? '/' : currentFolderPath + '/'}" onkeydown="if(event.key === 'Enter') executeFmMove('${path}', '${name}')">
+                  <input type="text" class="input" id="modal-input-move" value="${currentFolderPath === '/' ? '/' : currentFolderPath + '/'}" ${rnBind("keydown", (event, element) => { if(event.key === 'Enter') executeFmMove((path), (name)) })}>
                   <p class="muted" style="font-size: 0.75rem; margin-top: 5px;">Escribe la carpeta de destino. Ej: <span class="mono">/resources/[local]/</span></p>
               </div>
               <div style="display:flex; gap:12px;">
-                  <button class="btn-ghost" style="flex:1;" onclick="closeActionModal()">Cancelar</button>
-                  <button class="btn" style="flex:1; background:var(--warning);" onclick="executeFmMove('${path}', '${name}')">Mover</button>
+                  <button class="btn-ghost" style="flex:1;" ${rnBind("click", (event, element) => { closeActionModal() })}>Cancelar</button>
+                  <button class="btn" style="flex:1; background:var(--warning);" ${rnBind("click", (event, element) => { executeFmMove((path), (name)) })}>Mover</button>
               </div>
           `;
             openActionModal(html);
@@ -2718,8 +2741,8 @@ function toggleSidebar() {
               <h3 style="margin-bottom: 10px; color: var(--success); font-size: 1.2rem;"><i class="fa-solid fa-file-archive" style="margin-right:8px;"></i> Extraer ZIP</h3>
               <p class="muted" style="margin-bottom: 20px; word-break: break-all;">¿Descomprimir el archivo <strong>${t}</strong> en la carpeta actual?</p>
               <div style="display:flex; gap:12px;">
-                  <button class="btn-ghost" style="flex:1;" onclick="closeActionModal()">Cancelar</button>
-                  <button class="btn-success" style="flex:1;" onclick="executeFmUnzip('${t}')">Extraer</button>
+                  <button class="btn-ghost" style="flex:1;" ${rnBind("click", (event, element) => { closeActionModal() })}>Cancelar</button>
+                  <button class="btn-success" style="flex:1;" ${rnBind("click", (event, element) => { executeFmUnzip((t)) })}>Extraer</button>
               </div>
           `;
             openActionModal(html);
@@ -2737,61 +2760,60 @@ function toggleSidebar() {
             loadFolder(currentFolderPath);
         }
 
-        async function fmDownloadFileFromEditor() { window.open(`/api/files/download?serverId=${currentServerId}&path=${encodeURIComponent(currentFilePath)}&token=${localStorage.getItem('nexus_token')}`, '_blank'); }
+        async function fmDownloadFileFromEditor() { window.open(`/api/files/download?serverId=${currentServerId}&path=${encodeURIComponent(currentFilePath)}`, '_blank'); }
 
         function fmDownloadFolder(targetPath, event) {
             if (event) event.stopPropagation();
             if (!confirm(`¿Comprimir y descargar esta carpeta completa?\n(Nota: Si la carpeta es muy pesada, como 'txData', podría tardar unos segundos en iniciar la descarga)`)) return;
 
-            const token = localStorage.getItem('nexus_token');
-            const url = `/api/files/download-folder?serverId=${currentServerId}&path=${encodeURIComponent(targetPath)}&token=${token}`;
+            const url = `/api/files/download-folder?serverId=${currentServerId}&path=${encodeURIComponent(targetPath)}`;
             window.open(url, '_blank');
         }
 
         async function processUpload(files) {
-            const token = localStorage.getItem('nexus_token'); let sCount = 0; let fCount = 0;
+            let sCount = 0; let fCount = 0;
             const CHUNK_SIZE = 80 * 1024 * 1024; // 80 MB (Aprovechando el límite de 100MB de Cloudflare)
-            
+
             document.getElementById('fm-sidebar-list').innerHTML = `<div class="muted" style="padding:15px; text-align:center;"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><br><br><span id="upload-progress-text">Preparando subida...</span></div>`;
             const progressText = document.getElementById('upload-progress-text');
 
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
                 const destPath = currentFolderPath === '/' ? `/${file.webkitRelativePath || file.name}` : `${currentFolderPath}/${file.webkitRelativePath || file.name}`;
-                
+
                 try {
                     if (file.size <= CHUNK_SIZE) {
                         progressText.innerText = `Subiendo ${file.name} (Directo)...`;
-                        const formData = new FormData(); 
-                        formData.append('file', file); 
+                        const formData = new FormData();
+                        formData.append('file', file);
                         formData.append('serverId', currentServerId);
                         formData.append('path', destPath);
-                        const res = await fetch('/api/files/upload', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData }); 
-                        if (!res.ok) throw new Error(); 
+                        const res = await fetch('/api/files/upload', { method: 'POST', body: formData });
+                        if (!res.ok) throw new Error();
                         sCount++;
                     } else {
                         const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
                         const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                        
+
                         for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
                             progressText.innerText = `Subiendo ${file.name} (Parte ${chunkIndex + 1}/${totalChunks})...`;
                             const start = chunkIndex * CHUNK_SIZE;
                             const end = Math.min(start + CHUNK_SIZE, file.size);
                             const chunk = file.slice(start, end);
-                            
+
                             const chunkFormData = new FormData();
                             chunkFormData.append('file', chunk);
                             chunkFormData.append('uploadId', uploadId);
                             chunkFormData.append('chunkIndex', chunkIndex);
-                            
-                            const chunkRes = await fetch('/api/files/upload-chunk', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: chunkFormData });
+
+                            const chunkRes = await fetch('/api/files/upload-chunk', { method: 'POST', body: chunkFormData });
                             if (!chunkRes.ok) throw new Error(`Fallo en chunk ${chunkIndex}`);
                         }
-                        
+
                         progressText.innerText = `Ensamblando ${file.name} en el servidor...`;
                         const finishRes = await fetch('/api/files/upload-finish', {
                             method: 'POST',
-                            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                            headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 uploadId,
                                 totalChunks,
@@ -2807,9 +2829,9 @@ function toggleSidebar() {
                         }
                         sCount++;
                     }
-                } catch (err) { 
+                } catch (err) {
                     console.error("Upload error:", err);
-                    fCount++; 
+                    fCount++;
                 }
             }
             showToast(`Subida completada: Éxitos ${sCount} | Fallos ${fCount}`, fCount === 0 ? 'success' : 'warning');
@@ -2892,8 +2914,7 @@ function toggleSidebar() {
 
             term.innerHTML = '<div class="muted"><i class="fa-solid fa-sync fa-spin"></i> Conectando con el motor de logs nativo...</div>';
 
-            const token = localStorage.getItem('nexus_token');
-            const streamUrl = `${window.location.origin}/api/servers/${currentServerId}/logs/stream?token=${token}`;
+            const streamUrl = `${window.location.origin}/api/servers/${currentServerId}/logs/stream`;
             logEventSource = new EventSource(streamUrl);
 
             logEventSource.addEventListener('open', (e) => {
@@ -2956,10 +2977,7 @@ function toggleSidebar() {
             setInterval(async () => {
                 if (!currentServerId) return;
                 try {
-                    const token = localStorage.getItem('nexus_token');
-                    const res = await fetch(`/api/files/download-status?serverId=${currentServerId}`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
+                    const res = await fetch(`/api/files/download-status?serverId=${currentServerId}`);
                     if (res.status === 401) Nexus.logout();
                     const data = await res.json();
                     renderDownloads(data.tasks || []);
@@ -3023,9 +3041,7 @@ function toggleSidebar() {
             let userNow = JSON.parse(localStorage.getItem('nexus_user') || '{}');
 
             try {
-                const userRes = await fetch('/api/auth/me', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_token')}` }
-                });
+                const userRes = await fetch('/api/auth/me');
                 if (userRes.status === 401) Nexus.logout();
                 if (userRes.ok) {
                     const userData = await userRes.json();
@@ -3080,7 +3096,7 @@ function toggleSidebar() {
                 const colors = ['var(--muted)', 'var(--info)', 'var(--success)', 'var(--warning)', 'var(--danger)', 'var(--primary)'];
 
                 grid.innerHTML = plans.map((p, i) => `
-                  <div class="disk-pack premium-disk-pack" onclick="selectDiskPack('${p.paypal_plan_id}', ${p.gb_amount})" style="position: relative; background: linear-gradient(180deg, rgba(30,30,35,0.8) 0%, rgba(18,18,20,0.9) 100%); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 25px 15px; text-align: center; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden;">
+                  <div class="disk-pack premium-disk-pack" ${rnBind("click", (event, element) => { selectDiskPack((p.id), (p.paypal_plan_id), (p.gb_amount)) })} style="position: relative; background: linear-gradient(180deg, rgba(30,30,35,0.8) 0%, rgba(18,18,20,0.9) 100%); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 25px 15px; text-align: center; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden;">
                       <div class="disk-pack-glow" style="position: absolute; top: 0; left: 0; right: 0; height: 2px; background: ${colors[i % colors.length]}; opacity: 0.3; transition: opacity 0.3s;"></div>
                       <div style="position: absolute; top: -20px; left: 50%; transform: translateX(-50%); width: 80px; height: 80px; background: radial-gradient(circle, ${colors[i % colors.length]}40 0%, transparent 70%); filter: blur(15px); pointer-events: none; transition: opacity 0.3s;" class="disk-pack-blur"></div>
                       <i class="fa-solid fa-sd-card" style="font-size: 2.2rem; color: ${colors[i % colors.length]}; margin-bottom: 15px; display:block; position: relative; z-index: 1; filter: drop-shadow(0 4px 10px ${colors[i % colors.length]}60);"></i>
@@ -3093,27 +3109,34 @@ function toggleSidebar() {
             }
         }
 
-        function selectDiskPack(planId, gb) {
+        function selectDiskPack(diskPlanId, paypalPlanId, gb) {
             document.querySelectorAll('.disk-pack').forEach(el => el.classList.remove('selected'));
             event.currentTarget.classList.add('selected');
 
-            currentSelectedDiskPack = planId;
+            currentSelectedDiskPack = diskPlanId;
             currentDiskGb = gb;
 
             document.getElementById('selected-disk-label').innerText = `${gb} GB Extras`;
             document.getElementById('disk-checkout-container').classList.remove('hidden');
-            renderDiskPaypalButton(planId, gb);
+            renderDiskPaypalButton(diskPlanId, paypalPlanId, gb);
         }
 
-        function renderDiskPaypalButton(planId, gb) {
+        async function renderDiskPaypalButton(diskPlanId, paypalPlanId, gb) {
             const container = document.getElementById('paypal-disk-button-container');
             container.innerHTML = ''; // Clear previous button
+
+            try {
+                await window.loadPayPalSdk();
+            } catch (error) {
+                container.innerHTML = '<p class="muted" style="color:var(--warning)">PayPal no esta disponible en este entorno.</p>';
+                return;
+            }
 
             paypal.Buttons({
                 style: { layout: 'vertical', color: 'blue', shape: 'rect', label: 'subscribe' },
                 createSubscription: function (data, actions) {
                     return actions.subscription.create({
-                        'plan_id': planId
+                        'plan_id': paypalPlanId
                     });
                 },
                 onApprove: async function (data, actions) {
@@ -3122,10 +3145,9 @@ function toggleSidebar() {
                         const res = await fetch('/api/payments/register-disk-subscription', {
                             method: 'POST',
                             headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${localStorage.getItem('nexus_token')}`
+                                'Content-Type': 'application/json'
                             },
-                            body: JSON.stringify({ subscriptionID: data.subscriptionID, diskGb: gb })
+                            body: JSON.stringify({ subscriptionID: data.subscriptionID, diskPlanId })
                         });
                         const responseData = await res.json();
                         if (responseData.success) {
@@ -3151,25 +3173,25 @@ function toggleSidebar() {
             let buttonsHtml = '';
 
             if (currentPlan !== 'hobby') {
-                buttonsHtml += `<button class="btn-ghost" onclick="doRevisePlan('hobby')">Hobby</button>`;
+                buttonsHtml += `<button class="btn-ghost" ${rnBind("click", (event, element) => { doRevisePlan('hobby') })}>Hobby</button>`;
             } else {
                 buttonsHtml += `<button class="btn-ghost" disabled style="opacity: 0.5; cursor: not-allowed;">Hobby (Actual)</button>`;
             }
 
             if (currentPlan !== 'standard') {
-                buttonsHtml += `<button class="btn-ghost" onclick="doRevisePlan('standard')">Standard</button>`;
+                buttonsHtml += `<button class="btn-ghost" ${rnBind("click", (event, element) => { doRevisePlan('standard') })}>Standard</button>`;
             } else {
                 buttonsHtml += `<button class="btn-ghost" disabled style="opacity: 0.5; cursor: not-allowed;">Standard (Actual)</button>`;
             }
 
             if (currentPlan !== 'premium') {
-                buttonsHtml += `<button class="btn-ghost" onclick="doRevisePlan('premium')">Premium</button>`;
+                buttonsHtml += `<button class="btn-ghost" ${rnBind("click", (event, element) => { doRevisePlan('premium') })}>Premium</button>`;
             } else {
                 buttonsHtml += `<button class="btn-ghost" disabled style="opacity: 0.5; cursor: not-allowed;">Premium (Actual)</button>`;
             }
 
             if (currentPlan !== 'platinum') {
-                buttonsHtml += `<button class="btn-ghost" onclick="doRevisePlan('platinum')">Platinum</button>`;
+                buttonsHtml += `<button class="btn-ghost" ${rnBind("click", (event, element) => { doRevisePlan('platinum') })}>Platinum</button>`;
             } else {
                 buttonsHtml += `<button class="btn-ghost" disabled style="opacity: 0.5; cursor: not-allowed;">Platinum (Actual)</button>`;
             }
@@ -3180,7 +3202,7 @@ function toggleSidebar() {
               <div style="display:flex; flex-direction:column; gap:10px; margin-bottom: 20px;">
                   ${buttonsHtml}
               </div>
-              <button class="btn-danger" style="width:100%;" onclick="closeActionModal()">Cancelar</button>
+              <button class="btn-danger" style="width:100%;" ${rnBind("click", (event, element) => { closeActionModal() })}>Cancelar</button>
           `;
             openActionModal(html);
         }
@@ -3193,8 +3215,7 @@ function toggleSidebar() {
                 const res = await fetch('/api/payments/revise-plan', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('nexus_token')}`
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ newPlanId: newPlanName })
                 });
@@ -3205,7 +3226,7 @@ function toggleSidebar() {
                     const confirmHtml = `
                       <h3 style="margin-bottom: 20px; font-size: 1.2rem;"><i class="fa-solid fa-clock" style="color:var(--warning); margin-right:8px;"></i> Esperando Confirmación</h3>
                       <p class="muted" style="margin-bottom: 20px; font-size: 0.9rem;">Por favor, completa el proceso en la ventana emergente de PayPal. Cuando termines, pulsa el botón de abajo para verificar el cambio.</p>
-                      <button class="btn-success" style="width:100%;" onclick="confirmRevisePlan('${newPlanName}')">Ya he aprobado en PayPal</button>
+                      <button class="btn-success" style="width:100%;" ${rnBind("click", (event, element) => { confirmRevisePlan((newPlanName)) })}>Ya he aprobado en PayPal</button>
                   `;
                     openActionModal(confirmHtml);
                 } else {
@@ -3223,8 +3244,7 @@ function toggleSidebar() {
                 const res = await fetch('/api/payments/confirm-revise', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('nexus_token')}`
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ planName: newPlanName })
                 });
@@ -3232,7 +3252,7 @@ function toggleSidebar() {
                 if (data.success) {
                     showToast(data.message, 'success');
                     const userNow = JSON.parse(localStorage.getItem('nexus_user') || '{}');
-                    userNow.plan = newPlanName;
+                    userNow.plan = data.plan;
                     localStorage.setItem('nexus_user', JSON.stringify(userNow));
                     setTimeout(() => window.location.reload(), 2000);
                 } else {
@@ -3257,7 +3277,7 @@ function toggleSidebar() {
             if (idx === -1) idx = 0;
             idx = (idx + 1) % rates.length;
             window.panelPollRate = rates[idx];
-            
+
             clearInterval(window.serverPollInterval);
             if (window.panelPollRate > 0) {
                 window.serverPollInterval = setInterval(loadServers, window.panelPollRate);
@@ -3326,9 +3346,9 @@ function toggleSidebar() {
                 grid.innerHTML = scripts.map(s => {
                     let btnHtml = '';
                     if (isMC) {
-                        btnHtml = `<button class="btn" style="flex: 1;" onclick="installMod(${s.id}, '${s.name}')"><i class="fa-solid fa-cloud-arrow-down"></i> Instalar</button>`;
+                        btnHtml = `<button class="btn" style="flex: 1;" ${rnBind("click", (event, element) => { installMod((s.id), (s.name)) })}><i class="fa-solid fa-cloud-arrow-down"></i> Instalar</button>`;
                     } else {
-                        btnHtml = `<button class="btn" style="flex: 1;" onclick="buyScript(${s.id}, '${s.name}', ${s.price})"><i class="fa-solid ${s.price > 0 ? 'fa-cart-shopping' : 'fa-download'}"></i> ${s.price > 0 ? 'Comprar' : 'Obtener'}</button>`;
+                        btnHtml = `<button class="btn" style="flex: 1;" ${rnBind("click", (event, element) => { buyScript((s.id), (s.name), (s.price)) })}><i class="fa-solid ${s.price > 0 ? 'fa-cart-shopping' : 'fa-download'}"></i> ${s.price > 0 ? 'Comprar' : 'Obtener'}</button>`;
                     }
 
                     return `
@@ -3345,7 +3365,7 @@ function toggleSidebar() {
                           <p class="muted" style="font-size: 0.85rem; line-height: 1.5; height: 65px;">${s.description}</p>
                           <div style="display: flex; gap: 10px; margin-top: 5px;">
                               ${btnHtml}
-                              <button class="btn-ghost" style="padding: 10px;" onclick="showToast('Detalles próximamente...', 'info')"><i class="fa-solid fa-info-circle"></i></button>
+                              <button class="btn-ghost" style="padding: 10px;" ${rnBind("click", (event, element) => { showToast('Detalles próximamente...', 'info') })}><i class="fa-solid fa-info-circle"></i></button>
                           </div>
                       </div>
                   </div>`;
@@ -3393,11 +3413,11 @@ function toggleSidebar() {
                       <td>
                           <div style="display: flex; align-items: center; gap: 10px;">
                               <code style="background: rgba(0,0,0,0.3); padding: 6px 12px; border-radius: 6px; font-family: var(--font-mono); font-size: 0.9rem; color: var(--primary); border: 1px solid rgba(99,102,241,0.2);">${l.license_key}</code>
-                              <button class="btn-ghost" style="padding: 6px 10px;" onclick="Nexus.copyToClipboard('${l.license_key}'); showToast('Licencia copiada al portapapeles', 'success');"><i class="fa-regular fa-copy"></i></button>
+                              <button class="btn-ghost" style="padding: 6px 10px;" ${rnBind("click", (event, element) => { Nexus.copyToClipboard((l.license_key)); showToast('Licencia copiada al portapapeles', 'success'); })}><i class="fa-regular fa-copy"></i></button>
                           </div>
                       </td>
                       <td>
-                          <button class="btn" style="padding: 8px 16px; font-size: 0.8rem;" onclick="openInstallModal('${l.license_key}')"><i class="fa-solid fa-cloud-arrow-down"></i> Instalar en Servidor</button>
+                          <button class="btn" style="padding: 8px 16px; font-size: 0.8rem;" ${rnBind("click", (event, element) => { openInstallModal((l.license_key)) })}><i class="fa-solid fa-cloud-arrow-down"></i> Instalar en Servidor</button>
                       </td>
                   </tr>
               `).join('');
@@ -3515,12 +3535,12 @@ function toggleSidebar() {
                 const val = props[f.key] || '';
                 let inputHtml = '';
                 if (f.type === 'select') {
-                    inputHtml = `<select class="input" onchange="updateMcProp('${f.key}', this.value)" style="margin:0; padding: 8px 12px;">${f.options.map(o => `<option value="${o}" ${val == o ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
+                    inputHtml = `<select class="input" ${rnBind("change", (event, element) => { updateMcProp((f.key), element.value) })} style="margin:0; padding: 8px 12px;">${f.options.map(o => `<option value="${o}" ${val == o ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
                 } else if (f.type === 'switch') {
                     const checked = val === 'true' || val === '1' || val === 'True' ? 'checked' : '';
-                    inputHtml = `<label class="switch"><input type="checkbox" ${checked} onchange="updateMcProp('${f.key}', this.checked ? 'true' : 'false')"><span class="slider round"></span></label>`;
+                    inputHtml = `<label class="switch"><input type="checkbox" ${checked} ${rnBind("change", (event, element) => { updateMcProp((f.key), element.checked ? 'true' : 'false') })}><span class="slider round"></span></label>`;
                 } else {
-                    inputHtml = `<input type="${f.type || 'text'}" class="input" value="${val}" onchange="updateMcProp('${f.key}', this.value)" style="margin:0; padding: 8px 12px; width: ${f.type === 'number' ? '120px' : '250px'};">`;
+                    inputHtml = `<input type="${f.type || 'text'}" class="input" value="${val}" ${rnBind("change", (event, element) => { updateMcProp((f.key), element.value) })} style="margin:0; padding: 8px 12px; width: ${f.type === 'number' ? '120px' : '250px'};">`;
                 }
                 return `
                   <div class="card" style="display: flex; align-items: center; justify-content: space-between; padding: 20px;">
@@ -3569,19 +3589,19 @@ function toggleSidebar() {
                     const checked = val === 'true' ? 'checked' : '';
                     inputHtml = `
                       <label class="switch">
-                          <input type="checkbox" id="mc-prop-${f.key}" ${checked} onchange="updateMcProp('${f.key}', this.checked)">
+                          <input type="checkbox" id="mc-prop-${f.key}" ${checked} ${rnBind("change", (event, element) => { updateMcProp((f.key), element.checked) })}>
                           <span class="slider round"></span>
                       </label>
                   `;
                 } else if (f.type === 'select') {
                     inputHtml = `
-                      <select class="input" id="mc-prop-${f.key}" onchange="updateMcProp('${f.key}', this.value)" style="margin:0; padding: 8px 12px;">
+                      <select class="input" id="mc-prop-${f.key}" ${rnBind("change", (event, element) => { updateMcProp((f.key), element.value) })} style="margin:0; padding: 8px 12px;">
                           ${f.options.map(opt => `<option value="${opt}" ${val === opt ? 'selected' : ''}>${opt.charAt(0).toUpperCase() + opt.slice(1)}</option>`).join('')}
                       </select>
                   `;
                 } else {
                     inputHtml = `
-                      <input type="number" class="input" id="mc-prop-${f.key}" value="${val}" onchange="updateMcProp('${f.key}', this.value)" style="margin:0; padding: 8px 12px; width: 80px; text-align: center;">
+                      <input type="number" class="input" id="mc-prop-${f.key}" value="${val}" ${rnBind("change", (event, element) => { updateMcProp((f.key), element.value) })} style="margin:0; padding: 8px 12px; width: 80px; text-align: center;">
                   `;
                 }
 
@@ -3632,9 +3652,9 @@ function toggleSidebar() {
 
                 if (f.type === 'switch') {
                     const checked = val === 'true' || val === 'True' ? 'checked' : '';
-                    inputHtml = `<label class="switch"><input type="checkbox" ${checked} onchange="updateMcProp('${f.key}', this.checked ? 'true' : 'false')"><span class="slider round"></span></label>`;
+                    inputHtml = `<label class="switch"><input type="checkbox" ${checked} ${rnBind("change", (event, element) => { updateMcProp((f.key), element.checked ? 'true' : 'false') })}><span class="slider round"></span></label>`;
                 } else {
-                    inputHtml = `<input type="${f.type || 'text'}" class="input" value="${val}" onchange="updateMcProp('${f.key}', this.value)" style="margin:0; padding: 8px 12px; width: ${f.type === 'number' ? '120px' : '250px'};">`;
+                    inputHtml = `<input type="${f.type || 'text'}" class="input" value="${val}" ${rnBind("change", (event, element) => { updateMcProp((f.key), element.value) })} style="margin:0; padding: 8px 12px; width: ${f.type === 'number' ? '120px' : '250px'};">`;
                 }
 
                 return `
@@ -3683,13 +3703,13 @@ function toggleSidebar() {
 
                 if (f.type === 'switch') {
                     const checked = val === 'True' || val === 'true' ? 'checked' : '';
-                    inputHtml = `<label class="switch"><input type="checkbox" ${checked} onchange="updateMcProp('${f.key}', this.checked ? 'True' : 'False')"><span class="slider round"></span></label>`;
+                    inputHtml = `<label class="switch"><input type="checkbox" ${checked} ${rnBind("change", (event, element) => { updateMcProp((f.key), element.checked ? 'True' : 'False') })}><span class="slider round"></span></label>`;
                 } else if (f.type === 'select') {
-                    inputHtml = `<select class="input" onchange="updateMcProp('${f.key}', this.value)" style="margin:0; padding: 8px 12px;">
+                    inputHtml = `<select class="input" ${rnBind("change", (event, element) => { updateMcProp((f.key), element.value) })} style="margin:0; padding: 8px 12px;">
                       ${f.options.map(opt => `<option value="${opt}" ${val === opt ? 'selected' : ''}>${opt}</option>`).join('')}
                   </select>`;
                 } else {
-                    inputHtml = `<input type="${f.type || 'number'}" step="${f.step || '1'}" class="input" value="${val}" onchange="updateMcProp('${f.key}', this.value)" style="margin:0; padding: 8px 12px; width: 120px; text-align: center;">`;
+                    inputHtml = `<input type="${f.type || 'number'}" step="${f.step || '1'}" class="input" value="${val}" ${rnBind("change", (event, element) => { updateMcProp((f.key), element.value) })} style="margin:0; padding: 8px 12px; width: 120px; text-align: center;">`;
                 }
 
                 return `
@@ -3732,10 +3752,10 @@ function toggleSidebar() {
                 let inputHtml = '';
                 if (f.type === 'switch') {
                     const checked = val === '1' || val === 'true' ? 'checked' : '';
-                    inputHtml = `<label class="switch"><input type="checkbox" ${checked} onchange="updateMcProp('${f.key}', this.checked ? '1' : '0')"><span class="slider round"></span></label>`;
+                    inputHtml = `<label class="switch"><input type="checkbox" ${checked} ${rnBind("change", (event, element) => { updateMcProp((f.key), element.checked ? '1' : '0') })}><span class="slider round"></span></label>`;
                 } else {
                     const w = f.type === 'number' ? '120px' : '250px';
-                    inputHtml = `<input type="${f.type}" step="${f.step || '1'}" class="input" value="${val}" onchange="updateMcProp('${f.key}', this.value)" style="margin:0;padding:8px 12px;width:${w};">`;
+                    inputHtml = `<input type="${f.type}" step="${f.step || '1'}" class="input" value="${val}" ${rnBind("change", (event, element) => { updateMcProp((f.key), element.value) })} style="margin:0;padding:8px 12px;width:${w};">`;
                 }
                 return `<div class="card" style="display:flex;align-items:center;justify-content:space-between;padding:20px;">
                   <div style="display:flex;align-items:center;gap:15px;">
@@ -3771,9 +3791,9 @@ function toggleSidebar() {
                 let inputHtml = '';
                 if (f.type === 'switch') {
                     const checked = val === '1' || val === 'true' ? 'checked' : '';
-                    inputHtml = `<label class="switch"><input type="checkbox" ${checked} onchange="updateMcProp('${f.key}', this.checked ? '1' : '0')"><span class="slider round"></span></label>`;
+                    inputHtml = `<label class="switch"><input type="checkbox" ${checked} ${rnBind("change", (event, element) => { updateMcProp((f.key), element.checked ? '1' : '0') })}><span class="slider round"></span></label>`;
                 } else {
-                    inputHtml = `<input type="text" class="input" value="${val}" onchange="updateMcProp('${f.key}', this.value)" style="margin:0;padding:8px 12px;width:250px;">`;
+                    inputHtml = `<input type="text" class="input" value="${val}" ${rnBind("change", (event, element) => { updateMcProp((f.key), element.value) })} style="margin:0;padding:8px 12px;width:250px;">`;
                 }
                 return `<div class="card" style="display:flex;align-items:center;justify-content:space-between;padding:20px;">
                   <div style="display:flex;align-items:center;gap:15px;">
@@ -3808,10 +3828,10 @@ function toggleSidebar() {
                 let inputHtml = '';
                 if (f.type === 'switch') {
                     const checked = val === 'true' || val === '1' ? 'checked' : '';
-                    inputHtml = `<label class="switch"><input type="checkbox" ${checked} onchange="updateMcProp('${f.key}', this.checked ? 'true' : 'false')"><span class="slider round"></span></label>`;
+                    inputHtml = `<label class="switch"><input type="checkbox" ${checked} ${rnBind("change", (event, element) => { updateMcProp((f.key), element.checked ? 'true' : 'false') })}><span class="slider round"></span></label>`;
                 } else {
                     const w = f.type === 'number' ? '100px' : '250px';
-                    inputHtml = `<input type="${f.type}" class="input" value="${val}" onchange="updateMcProp('${f.key}', this.value)" style="margin:0;padding:8px 12px;width:${w};">`;
+                    inputHtml = `<input type="${f.type}" class="input" value="${val}" ${rnBind("change", (event, element) => { updateMcProp((f.key), element.value) })} style="margin:0;padding:8px 12px;width:${w};">`;
                 }
                 return `<div class="card" style="display:flex;align-items:center;justify-content:space-between;padding:20px;">
                   <div style="display:flex;align-items:center;gap:15px;">
@@ -4191,7 +4211,7 @@ function toggleSidebar() {
                           <p class="muted" style="margin:0; font-size: 0.85rem;">Enlaza varios servidores bajo el mismo ID para viajar entre mapas con personajes y dinosaurios.</p>
                       </div>
                   </div>
-                  <button class="btn" onclick="saveClusterConfig()" style="background: #c084fc; color: #000; font-weight: 700;"><i class="fa-solid fa-link"></i> Enlazar Clúster</button>
+                  <button class="btn" ${rnBind("click", (event, element) => { saveClusterConfig() })} style="background: #c084fc; color: #000; font-weight: 700;"><i class="fa-solid fa-link"></i> Enlazar Clúster</button>
               </div>
               <div style="display:flex; gap: 15px; align-items: center;">
                   <div style="flex-grow:1;">
@@ -4218,7 +4238,7 @@ function toggleSidebar() {
                           <p class="muted" style="margin:0; font-size: 0.85rem;">Recibe alertas en tiempo real sobre el estado del servidor, conexión de jugadores y copias de seguridad.</p>
                       </div>
                   </div>
-                  <button class="btn" onclick="saveWebhookConfig()" style="background: #5865F2; color: #fff; font-weight: 700;"><i class="fa-solid fa-floppy-disk"></i> Guardar Webhook</button>
+                  <button class="btn" ${rnBind("click", (event, element) => { saveWebhookConfig() })} style="background: #5865F2; color: #fff; font-weight: 700;"><i class="fa-solid fa-floppy-disk"></i> Guardar Webhook</button>
               </div>
               <div style="margin-bottom: 15px;">
                   <label class="form-label" style="font-size: 0.75rem; color:#93c5fd;">URL del Webhook de Discord</label>
@@ -4251,12 +4271,12 @@ function toggleSidebar() {
                     <div style="flex-grow: 1; min-width: 300px;">
                         <div class="fm-search-box" style="margin: 0; width: 100%;">
                             <i class="fa-solid fa-magnifying-glass"></i>
-                            <input type="text" id="ark-search-input" placeholder="Buscar ajustes ..." oninput="filterArkSettings()" style="width: 100%; background: transparent; border: none; color: white; padding: 10px 10px 10px 40px; font-size: 0.95rem;" autocomplete="off">
+                            <input type="text" id="ark-search-input" placeholder="Buscar ajustes ..." ${rnBind("input", (event, element) => { filterArkSettings() })} style="width: 100%; background: transparent; border: none; color: white; padding: 10px 10px 10px 40px; font-size: 0.95rem;" autocomplete="off">
                         </div>
                     </div>
                     <div style="display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,0.4); padding: 10px 20px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
                         <label class="switch" style="margin: 0;">
-                            <input type="checkbox" id="ark-show-internal-names" onchange="filterArkSettings()">
+                            <input type="checkbox" id="ark-show-internal-names" ${rnBind("change", (event, element) => { filterArkSettings() })}>
                             <span class="slider round"></span>
                         </label>
                         <span style="font-size: 0.85rem; color: #bbf7d0; font-weight: 600;">Mostrar nombres internos (como en los archivos de configuración)</span>
@@ -4270,12 +4290,12 @@ function toggleSidebar() {
                     let inputHtml = '';
                     if (f.type === 'switch') {
                         const checked = val === 'True' || val === 'true' ? 'checked' : '';
-                        inputHtml = `<label class="switch"><input type="checkbox" ${checked} onchange="updateMcProp('${f.key}', this.checked ? 'True' : 'False')"><span class="slider round"></span></label>`;
+                        inputHtml = `<label class="switch"><input type="checkbox" ${checked} ${rnBind("change", (event, element) => { updateMcProp((f.key), element.checked ? 'True' : 'False') })}><span class="slider round"></span></label>`;
                     } else if (f.type === 'select') {
-                        inputHtml = `<select class="input" onchange="updateMcProp('${f.key}', this.value)" style="margin:0; padding: 8px 12px; background: rgba(0,0,0,0.5); border-color: rgba(255,255,255,0.1); color: white;">${f.options.map(o => `<option value="${o}" ${val == o ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
+                        inputHtml = `<select class="input" ${rnBind("change", (event, element) => { updateMcProp((f.key), element.value) })} style="margin:0; padding: 8px 12px; background: rgba(0,0,0,0.5); border-color: rgba(255,255,255,0.1); color: white;">${f.options.map(o => `<option value="${o}" ${val == o ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
                     } else {
                         const w = f.type === 'number' ? '120px' : '250px';
-                        inputHtml = `<input type="${f.type}" step="${f.step || '1'}" class="input" value="${val}" onchange="updateMcProp('${f.key}', this.value)" style="margin:0;padding:8px 12px;width:${w}; background: rgba(0,0,0,0.5); border-color: rgba(255,255,255,0.1); color: white;">`;
+                        inputHtml = `<input type="${f.type}" step="${f.step || '1'}" class="input" value="${val}" ${rnBind("change", (event, element) => { updateMcProp((f.key), element.value) })} style="margin:0;padding:8px 12px;width:${w}; background: rgba(0,0,0,0.5); border-color: rgba(255,255,255,0.1); color: white;">`;
                     }
 
                     return `
@@ -4375,14 +4395,15 @@ function toggleSidebar() {
                   <div style="background: rgba(99,102,241,0.05); border: 1px dashed var(--primary); padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 0.8rem; color: var(--muted); text-align: left;">
                       <i class="fa-solid fa-circle-info" style="color: var(--primary);"></i> <strong>Instrucciones de uso:</strong> Una vez obtenido, recibirás una licencia Vault™. Deberás insertarla en el archivo de configuración del script (o en tu <code>server.cfg</code> como <code>setr vault_license "TU_LICENCIA"</code>) para activarlo.
                   </div>
-                  <button class="btn" style="width: 100%; padding: 15px; font-size: 1.1rem; background: var(--success);" onclick="claimFreeScript(${id}, '${name}')">
+                  <button class="btn" style="width: 100%; padding: 15px; font-size: 1.1rem; background: var(--success);" ${rnBind("click", (event, element) => { claimFreeScript((id), (name)) })}>
                       <i class="fa-solid fa-download"></i> Reclamar Ahora
                   </button>
-                  <button class="btn-ghost" style="width: 100%; margin-top: 15px;" onclick="closeActionModal()">Cancelar</button>
+                  <button class="btn-ghost" style="width: 100%; margin-top: 15px;" ${rnBind("click", (event, element) => { closeActionModal() })}>Cancelar</button>
               `;
                 openActionModal(html);
                 return;
             }
+
 
             const html = `
               <h3 style="margin-bottom: 20px; font-size: 1.2rem;"><i class="fa-solid fa-cart-shopping" style="color:var(--primary); margin-right:8px;"></i> Checkout: ${name}</h3>
@@ -4390,19 +4411,23 @@ function toggleSidebar() {
 
               <div id="paypal-marketplace-button-container" style="min-height: 150px;"></div>
 
-              <button class="btn-ghost" style="width: 100%; margin-top: 15px;" onclick="closeActionModal()">Cancelar</button>
+              <button class="btn-ghost" style="width: 100%; margin-top: 15px;" ${rnBind("click", (event, element) => { closeActionModal() })}>Cancelar</button>
           `;
             openActionModal(html);
+
+            try {
+                await window.loadPayPalSdk();
+            } catch (error) {
+                document.getElementById('paypal-marketplace-button-container').innerHTML = '<p class="muted" style="color:var(--warning)">PayPal no esta disponible en este entorno.</p>';
+                return;
+            }
 
             setTimeout(() => {
                 paypal.Buttons({
                     style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'pay' },
                     createOrder: async function () {
                         try {
-                            const res = await fetch(`/api/marketplace/purchase/create-order/${id}`, {
-                                method: 'POST',
-                                headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_token')}` }
-                            });
+                            const res = await fetch(`/api/marketplace/purchase/create-order/${id}`, { method: 'POST' });
                             const data = await res.json();
                             if (data.id) return data.id;
                             throw new Error(data.error || 'Error al crear orden');
@@ -4413,10 +4438,7 @@ function toggleSidebar() {
                     onApprove: async function (data) {
                         document.getElementById('paypal-marketplace-button-container').innerHTML = '<div style="text-align:center; padding:20px;"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><br><p class="muted">Capturando pago y generando licencia...</p></div>';
                         try {
-                            const res = await fetch(`/api/marketplace/purchase/capture/${data.orderID}`, {
-                                method: 'POST',
-                                headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_token')}` }
-                            });
+                            const res = await fetch(`/api/marketplace/purchase/capture/${data.orderID}`, { method: 'POST' });
                             const result = await res.json();
                             if (result.success) {
                                 openActionModal(`
@@ -4429,7 +4451,7 @@ function toggleSidebar() {
                                           <div style="font-family: monospace; font-size: 1.1rem; color: white; letter-spacing: 1px;">${result.licenseKey}</div>
                                       </div>
                                       <p style="margin-top: 20px; font-size: 0.8rem; color: var(--muted);">Para usar el script, añade <code>setr vault_license "${result.licenseKey}"</code> en tu <code>server.cfg</code> o en la configuración del script.</p>
-                                      <button class="btn" style="width: 100%; margin-top: 25px;" onclick="closeActionModal(); switchView('my-licenses', document.getElementById('nav-my-licenses'));"><i class="fa-solid fa-key"></i> Ir a Mis Licencias para Descargar</button>
+                                      <button class="btn" style="width: 100%; margin-top: 25px;" ${rnBind("click", (event, element) => { closeActionModal(); switchView('my-licenses', document.getElementById('nav-my-licenses')); })}><i class="fa-solid fa-key"></i> Ir a Mis Licencias para Descargar</button>
                                   </div>
                               `);
                             } else {
@@ -4449,10 +4471,7 @@ function toggleSidebar() {
                 document.querySelector('#action-modal .btn').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Reclamando...';
                 document.querySelector('#action-modal .btn').disabled = true;
 
-                const res = await fetch(`/api/marketplace/purchase/claim-free/${id}`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_token')}` }
-                });
+                const res = await fetch(`/api/marketplace/purchase/claim-free/${id}`, { method: 'POST' });
                 const result = await res.json();
                 if (result.success) {
                     openActionModal(`
@@ -4465,7 +4484,7 @@ function toggleSidebar() {
                               <div style="font-family: monospace; font-size: 1.1rem; color: white; letter-spacing: 1px;">${result.licenseKey}</div>
                           </div>
                           <p style="margin-top: 20px; font-size: 0.8rem; color: var(--muted);">Para usar el script, añade <code>setr vault_license "${result.licenseKey}"</code> en tu <code>server.cfg</code> o en la configuración del script.</p>
-                          <button class="btn" style="width: 100%; margin-top: 25px;" onclick="closeActionModal(); switchView('my-licenses', document.getElementById('nav-my-licenses'));"><i class="fa-solid fa-key"></i> Ir a Mis Licencias para Descargar</button>
+                          <button class="btn" style="width: 100%; margin-top: 25px;" ${rnBind("click", (event, element) => { closeActionModal(); switchView('my-licenses', document.getElementById('nav-my-licenses')); })}><i class="fa-solid fa-key"></i> Ir a Mis Licencias para Descargar</button>
                       </div>
                   `);
                 } else {
@@ -4538,9 +4557,6 @@ function toggleSidebar() {
             try {
                 const response = await fetch('/api/marketplace/upload', {
                     method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('nexus_token')}`
-                    },
                     body: formData
                 });
                 const res = await response.json();
@@ -4636,9 +4652,6 @@ function toggleSidebar() {
                 try {
                     const response = await fetch('/api/marketplace/upload', {
                         method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('nexus_token')}`
-                        },
                         body: formData
                     });
                     const res = await response.json();
@@ -4699,8 +4712,8 @@ function toggleSidebar() {
                            </div>
                            <div style="display:flex; gap:8px;">
                                ${v.status === 'pending' ? `
-                                   <button class="btn btn-success" style="padding:8px 12px; font-size:0.85rem;" onclick="adminVendorAction(${v.id}, 'accepted')"><i class="fa-solid fa-check"></i></button>
-                                   <button class="btn btn-danger" style="padding:8px 12px; font-size:0.85rem;" onclick="adminVendorAction(${v.id}, 'rejected')"><i class="fa-solid fa-xmark"></i></button>
+                                   <button class="btn btn-success" style="padding:8px 12px; font-size:0.85rem;" ${rnBind("click", (event, element) => { adminVendorAction((v.id), 'accepted') })}><i class="fa-solid fa-check"></i></button>
+                                   <button class="btn btn-danger" style="padding:8px 12px; font-size:0.85rem;" ${rnBind("click", (event, element) => { adminVendorAction((v.id), 'rejected') })}><i class="fa-solid fa-xmark"></i></button>
                                ` : ''}
                            </div>
                        </div>
@@ -4794,9 +4807,11 @@ function toggleSidebar() {
             }
         }
 
-        function renderZomboidModTools() {
+        async function renderZomboidModTools() {
             const grid = document.getElementById('mods-grid');
-            grid.innerHTML = `
+
+            // Renderizar formulario de instalación
+            let html = `
               <div class="card" style="grid-column: 1/-1; padding: 30px;">
                   <h3 style="margin-bottom: 15px;"><i class="fa-brands fa-steam" style="color: #171a21;"></i> Instalar mod de Steam Workshop</h3>
                   <div style="display: flex; gap: 15px; margin-bottom: 20px;">
@@ -4809,9 +4824,44 @@ function toggleSidebar() {
                           <input type="text" id="zomboid-mod-name" class="input" placeholder="Ej: CommonSense">
                       </div>
                   </div>
-                  <button class="btn" style="width: 200px;" onclick="installZomboidMod()"><i class="fa-solid fa-download"></i> Instalar Mod</button>
+                  <button class="btn" style="width: 200px;" ${rnBind("click", (event, element) => { installZomboidMod() })}><i class="fa-solid fa-download"></i> Instalar Mod</button>
               </div>
-          `;
+            `;
+
+            grid.innerHTML = html + `<div style="grid-column: 1/-1; padding: 20px; text-align: center;"><i class="fa-solid fa-circle-notch fa-spin"></i> Cargando mods instalados...</div>`;
+
+            try {
+                const data = await Nexus.api(`/api/mods/${currentServer.id}`);
+
+                let modsHtml = `<div style="grid-column: 1/-1; margin-top: 20px;"><h3 style="margin-bottom: 15px;">Mods Instalados (${data.activeModNames?.length || 0})</h3></div>`;
+
+                if (data.activeModNames && data.activeModNames.length > 0) {
+                    for (let i = 0; i < data.activeModNames.length; i++) {
+                        const mName = data.activeModNames[i];
+                        const wId = data.activeWorkshopIds[i] || "Desconocido";
+                        modsHtml += `
+                            <div class="card" style="padding: 20px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--primary); gap: 15px;">
+                                <div style="display: flex; gap: 15px; align-items: center;">
+                                    <img src="/api/mods/steam-image/${wId}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);" ${rnBind("error", (event, element) => { element.src='/img/default_steam.png' })} />
+                                    <div>
+                                        <h4 style="margin: 0 0 5px 0; font-size: 1.1rem;">${mName}</h4>
+                                        <p class="muted" style="margin: 0; font-size: 0.9em;"><i class="fa-brands fa-steam"></i> Workshop ID: ${wId}</p>
+                                    </div>
+                                </div>
+                                <button class="btn btn-danger" style="padding: 8px 15px;" ${rnBind("click", (event, element) => { uninstallZomboidMod((wId), (mName)) })}>
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        `;
+                    }
+                } else {
+                    modsHtml += `<div class="card" style="grid-column: 1/-1; padding: 30px; text-align: center;"><p class="muted">No hay mods instalados en este servidor.</p></div>`;
+                }
+
+                grid.innerHTML = html + modsHtml;
+            } catch (e) {
+                grid.innerHTML = html + `<div class="card" style="grid-column: 1/-1; padding: 20px; border-left: 4px solid var(--danger);"><p style="color: var(--danger);">Error cargando mods: ${e.message}</p></div>`;
+            }
         }
 
         async function installZomboidMod() {
@@ -4825,9 +4875,22 @@ function toggleSidebar() {
                     method: 'POST',
                     body: JSON.stringify({ workshopId, modName })
                 });
-                showToast("Mod añadido. Reinicia el servidor para descargarlo.", "success");
-                document.getElementById('zomboid-workshop-id').value = '';
-                document.getElementById('zomboid-mod-name').value = '';
+                showToast("Mod añadido con éxito. Reinicia el servidor para aplicarlo.", "success");
+                renderZomboidModTools();
+            } catch (e) { showToast(e.message, "danger"); }
+        }
+
+        async function uninstallZomboidMod(workshopId, modName) {
+            if (!confirm(`¿Estás seguro de que deseas desinstalar el mod ${modName}?`)) return;
+
+            showToast("Desinstalando mod...", "info");
+            try {
+                await Nexus.api(`/api/mods/${currentServer.id}/zomboid/uninstall`, {
+                    method: 'POST',
+                    body: JSON.stringify({ workshopId, modName })
+                });
+                showToast("Mod desinstalado. Reinicia el servidor para aplicar.", "success");
+                renderZomboidModTools();
             } catch (e) { showToast(e.message, "danger"); }
         }
 
@@ -4847,7 +4910,7 @@ function toggleSidebar() {
                           <input type="text" id="rust-plugin-name" class="input" placeholder="GatherManager">
                       </div>
                   </div>
-                  <button class="btn" style="width: 200px;" onclick="installRustPlugin()"><i class="fa-solid fa-download"></i> Instalar Plugin</button>
+                  <button class="btn" style="width: 200px;" ${rnBind("click", (event, element) => { installRustPlugin() })}><i class="fa-solid fa-download"></i> Instalar Plugin</button>
               </div>
           `;
         }
@@ -4879,7 +4942,7 @@ function toggleSidebar() {
                       <label class="form-label">Mod ID</label>
                       <input type="text" id="ark-mod-id" class="input" placeholder="Ej: 928793">
                   </div>
-                  <button class="btn" style="width: 200px;" onclick="installArkMod()"><i class="fa-solid fa-plus"></i> Añadir Mod</button>
+                  <button class="btn" style="width: 200px;" ${rnBind("click", (event, element) => { installArkMod() })}><i class="fa-solid fa-plus"></i> Añadir Mod</button>
               </div>
           `;
         }
@@ -4966,7 +5029,7 @@ function toggleSidebar() {
             grid.innerHTML = results.map(m => `
               <div class="card" style="padding: 15px; gap: 10px; min-width: 280px; max-width: 400px; flex: 1;">
                   <div style="display: flex; gap: 12px; align-items: flex-start;">
-                      <img src="${m.icon_url || 'https://placehold.co/100x100/1a1a1e/38bdf8?text=MOD'}" onerror="this.onerror=null; this.src='https://placehold.co/100x100/1a1a1e/38bdf8?text=MOD'" style="width: 50px; height: 50px; border-radius: 8px; background: #1a1a1e; object-fit: cover;">
+                      <img src="${m.icon_url || 'https://placehold.co/100x100/1a1a1e/38bdf8?text=MOD'}" ${rnBind("error", (event, element) => { element.onerror=null; element.src='https://placehold.co/100x100/1a1a1e/38bdf8?text=MOD' })} style="width: 50px; height: 50px; border-radius: 8px; background: #1a1a1e; object-fit: cover;">
                       <div style="flex: 1;">
                           <h4 style="margin: 0; font-size: 0.95rem;">${m.title}</h4>
                           <p class="muted" style="font-size: 0.75rem; margin: 4px 0; line-height: 1.3;">${m.description.slice(0, 70)}${m.description.length > 70 ? '...' : ''}</p>
@@ -4976,7 +5039,7 @@ function toggleSidebar() {
                           </div>
                       </div>
                   </div>
-                  <button class="btn" style="width: 100%; justify-content: center; padding: 6px;" onclick="installGenericMod('${type}', '${m.project_id}', '${m.title.replace(/'/g, "\\'")}')">
+                  <button class="btn" style="width: 100%; justify-content: center; padding: 6px;" ${rnBind("click", (event, element) => { installGenericMod(type, m.project_id, m.title) })}>
                       <i class="fa-solid fa-download"></i> Instalar
                   </button>
               </div>
@@ -5008,7 +5071,7 @@ function toggleSidebar() {
                 grid.innerHTML = results.map(m => `
                   <div class="card" style="padding: 15px; gap: 10px; min-width: 280px; max-width: 400px; flex: 1;">
                       <div style="display: flex; gap: 12px; align-items: flex-start;">
-                          <img src="${m.icon_url || 'https://placehold.co/100x100/1a1a1e/38bdf8?text=MOD'}" onerror="this.onerror=null; this.src='https://placehold.co/100x100/1a1a1e/38bdf8?text=MOD'" style="width: 50px; height: 50px; border-radius: 8px; background: #1a1a1e; object-fit: cover;">
+                          <img src="${m.icon_url || 'https://placehold.co/100x100/1a1a1e/38bdf8?text=MOD'}" ${rnBind("error", (event, element) => { element.onerror=null; element.src='https://placehold.co/100x100/1a1a1e/38bdf8?text=MOD' })} style="width: 50px; height: 50px; border-radius: 8px; background: #1a1a1e; object-fit: cover;">
                           <div style="flex: 1;">
                               <h4 style="margin: 0; font-size: 0.95rem;">${m.title}</h4>
                               <p class="muted" style="font-size: 0.75rem; margin: 4px 0; line-height: 1.3;">${m.description.slice(0, 70)}${m.description.length > 70 ? '...' : ''}</p>
@@ -5018,7 +5081,7 @@ function toggleSidebar() {
                               </div>
                           </div>
                       </div>
-                      <button class="btn-ghost" style="width: 100%; justify-content: center; padding: 6px;" onclick="loadModVersions('${m.project_id}', '${m.title.replace(/'/g, "\\'")}')">
+                      <button class="btn-ghost" style="width: 100%; justify-content: center; padding: 6px;" ${rnBind("click", (event, element) => { loadModVersions(m.project_id, m.title) })}>
                           <i class="fa-solid fa-list-ul"></i> Versiones
                       </button>
                   </div>
@@ -5044,13 +5107,13 @@ function toggleSidebar() {
                                   <div style="font-weight: 700; font-size: 0.9rem;">${v.version_number}</div>
                                   <div class="muted" style="font-size: 0.7rem;">${v.game_versions.join(', ')} • ${v.loaders.join(', ')}</div>
                               </div>
-                              <button class="btn-success" style="padding: 6px 12px; font-size: 0.75rem;" onclick="installMcMod('${v.id}', '${modName}')">
+                              <button class="btn-success" style="padding: 6px 12px; font-size: 0.75rem;" ${rnBind("click", (event, element) => { installMcMod((v.id), (modName)) })}>
                                   <i class="fa-solid fa-download"></i> Instalar
                               </button>
                           </div>
                       `).join('')}
                   </div>
-                  <button class="btn-ghost" style="width: 100%; margin-top: 20px;" onclick="closeActionModal()">Cancelar</button>
+                  <button class="btn-ghost" style="width: 100%; margin-top: 20px;" ${rnBind("click", (event, element) => { closeActionModal() })}>Cancelar</button>
               `;
                 openActionModal(html);
             } catch (e) {
@@ -5143,13 +5206,13 @@ function toggleSidebar() {
         async function loadGamePremiumPanels() {
             if (!currentServer) return;
             const t = currentServer.template;
-            
+
             if (window._loadedGameTemplates !== t) {
                 try {
                     let fetchFile = t; if (t === "fivem") fetchFile = "fivem_v3"; const res = await fetch(`/games/${fetchFile}.html?v=${Date.now()}`);
                     if (res.ok) {
                         const html = await res.text();
-                        
+
                         const sidebarContainer = document.getElementById('game-specific-sidebar');
                         const viewsContainer = document.getElementById('game-specific-views');
                         if (sidebarContainer) sidebarContainer.innerHTML = '';
@@ -5158,7 +5221,7 @@ function toggleSidebar() {
                         // Use a detached element to parse the templates
                         const parserDiv = document.createElement('div');
                         parserDiv.innerHTML = html;
-                        
+
                         const templates = parserDiv.querySelectorAll('template.game-module-sidebar, template.game-module-views, template.game-module-rcon');
                         templates.forEach(tpl => {
                             if (tpl.classList.contains('game-module-sidebar') && sidebarContainer) {
@@ -5181,7 +5244,7 @@ function toggleSidebar() {
                 }
             }
             // ----------------------------------------
-            
+
             document.querySelectorAll('[id^="rcon-panel-"]').forEach(el => el.classList.add('hidden'));
 
             const activePanel = document.getElementById('rcon-panel-' + t);
@@ -5219,7 +5282,7 @@ function toggleSidebar() {
                                 const type = listName.replace('.txt','');
                                 box.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:rgba(99,102,241,0.1); border:1px solid #6366f1; border-radius:6px;">
                                     <div style="font-weight:bold; color:#e0e7ff;">[${type.toUpperCase()}] <span style="font-family:monospace; margin-left:5px; color:#a5b4fc;">${id}</span></div>
-                                    <button class="btn btn-danger" style="padding:4px 8px; font-size:0.75rem;" onclick="updateValheimAccess('remove', '${type}', '${id}')"><i class="fa-solid fa-trash"></i></button>
+                                    <button class="btn btn-danger" style="padding:4px 8px; font-size:0.75rem;" ${rnBind("click", (event, element) => { updateValheimAccess('remove', (type), (id)) })}><i class="fa-solid fa-trash"></i></button>
                                 </div>`;
                             });
                         }
@@ -5292,9 +5355,9 @@ function toggleSidebar() {
                       </div>
                   </div>
                   <div style="display:flex; gap:6px;">
-                      <button class="btn-ghost" style="padding:5px 10px; font-size:0.75rem; color:#f59e0b;" onclick="rconAction('kick', '${p.steamId}')" title="Expulsar"><i class="fa-solid fa-user-slash"></i> Kick</button>
-                      <button class="btn-ghost" style="padding:5px 10px; font-size:0.75rem; color:#ef4444;" onclick="rconAction('ban', '${p.steamId}')" title="Banear"><i class="fa-solid fa-gavel"></i> Ban</button>
-                      <button class="btn-ghost" style="padding:5px 10px; font-size:0.75rem; color:#22c55e;" onclick="rconAction('whitelist', '${p.steamId}')" title="Whitelistar"><i class="fa-solid fa-user-check"></i> WL</button>
+                      <button class="btn-ghost" style="padding:5px 10px; font-size:0.75rem; color:#f59e0b;" ${rnBind("click", (event, element) => { rconAction('kick', (p.steamId)) })} title="Expulsar"><i class="fa-solid fa-user-slash"></i> Kick</button>
+                      <button class="btn-ghost" style="padding:5px 10px; font-size:0.75rem; color:#ef4444;" ${rnBind("click", (event, element) => { rconAction('ban', (p.steamId)) })} title="Banear"><i class="fa-solid fa-gavel"></i> Ban</button>
+                      <button class="btn-ghost" style="padding:5px 10px; font-size:0.75rem; color:#22c55e;" ${rnBind("click", (event, element) => { rconAction('whitelist', (p.steamId)) })} title="Whitelistar"><i class="fa-solid fa-user-check"></i> WL</button>
                   </div>
               </div>`).join('');
             } catch (e) { }
@@ -5370,7 +5433,7 @@ function toggleSidebar() {
                   <td><span class="badge" style="background:rgba(244,114,182,0.2); color:#f472b6;">${(Array.isArray(su.permissions) ? su.permissions : JSON.parse(su.permissions || '[]')).join(', ')}</span></td>
                   <td class="muted">${new Date(su.created_at).toLocaleDateString()}</td>
                   <td style="text-align: right; padding-right: 20px;">
-                      <button class="btn-ghost" style="color: #ef4444; padding: 6px 12px;" onclick="removeSubuser('${su.subuser_id}')"><i class="fa-solid fa-trash"></i> Quitar</button>
+                      <button class="btn-ghost" style="color: #ef4444; padding: 6px 12px;" ${rnBind("click", (event, element) => { removeSubuser((su.subuser_id)) })}><i class="fa-solid fa-trash"></i> Quitar</button>
                   </td>
               </tr>`).join('');
             } catch (e) { tbody.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align:center; color:var(--danger);">${e.message}</td></tr>`; }
@@ -5382,11 +5445,11 @@ function toggleSidebar() {
             const permSelect = document.getElementById('subuser-perm-select');
             const usernameOrEmail = input.value.trim();
             const permissions = permSelect.value.split(',');
-            
+
             if (!usernameOrEmail) {
                 return showToast('Por favor, ingresa el correo del usuario que deseas añadir.', 'warning');
             }
-            
+
             try {
                 showToast('Procesando invitación y configurando cuenta...', 'info');
                 const res = await Nexus.api(`/api/servers/${currentServer.id}/subusers`, {
@@ -5425,7 +5488,7 @@ function toggleSidebar() {
             if(!currentServerId) return;
             const container = document.getElementById('schedules-card-container');
             if(!container) return; // safeguard
-            
+
             // Loading State
             container.innerHTML = `
                 <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--line); border-radius: 12px; padding: 40px; text-align: center; color: var(--muted);">
@@ -5433,11 +5496,9 @@ function toggleSidebar() {
                     Cargando tareas programadas...
                 </div>
             `;
-            
+
             try {
-                const res = await fetch(`/api/cron/${currentServerId}`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_token')}` }
-                });
+                const res = await fetch(`/api/cron/${currentServerId}`);
                 const data = await res.json();
                 const schedules = data.items || [];
                 if(!res.ok) throw new Error(data.error || 'Endpoint no configurado');
@@ -5450,7 +5511,7 @@ function toggleSidebar() {
                             </div>
                             <h4 style="color: white; font-size: 1.2rem; margin-bottom: 10px;">No hay tareas programadas</h4>
                             <p style="color: var(--muted); max-width: 400px; margin-bottom: 25px;">Automatiza procesos de tu servidor creando tareas que se ejecuten en intervalos específicos.</p>
-                            <button class="btn" onclick="openScheduleModal()" style="background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);"><i class="fa-solid fa-plus"></i> Crear Primera Tarea</button>
+                            <button class="btn" ${rnBind("click", (event, element) => { openScheduleModal() })} style="background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);"><i class="fa-solid fa-plus"></i> Crear Primera Tarea</button>
                         </div>
                     `;
                     return;
@@ -5461,11 +5522,11 @@ function toggleSidebar() {
                     const nextRun = s.next_run_at ? new Date(s.next_run_at).toLocaleString() : 'Pendiente';
                     const statusColor = s.is_active ? 'var(--success)' : 'var(--muted)';
                     const statusText = s.is_active ? 'Activa' : 'Inactiva';
-                    
+
                     html += `
-                        <div style="background: rgba(15,15,18,0.4); border: 1px solid var(--line); border-radius: 12px; padding: 20px 25px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: space-between; transition: all 0.3s; position: relative; overflow: hidden;" onmouseover="this.style.borderColor='rgba(255,255,255,0.1)'; this.style.background='rgba(20,20,24,0.6)';" onmouseout="this.style.borderColor='var(--line)'; this.style.background='rgba(15,15,18,0.4)';">
+                        <div style="background: rgba(15,15,18,0.4); border: 1px solid var(--line); border-radius: 12px; padding: 20px 25px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: space-between; transition: all 0.3s; position: relative; overflow: hidden;" ${rnBind("mouseover", (event, element) => { element.style.borderColor='rgba(255,255,255,0.1)'; element.style.background='rgba(20,20,24,0.6)'; })} ${rnBind("mouseout", (event, element) => { element.style.borderColor='var(--line)'; element.style.background='rgba(15,15,18,0.4)'; })}>
                             <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: ${statusColor};"></div>
-                            
+
                             <div style="display: flex; gap: 15px; align-items: center; flex-grow: 1;">
                                 <div style="width: 45px; height: 45px; background: rgba(255,255,255,0.05); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
                                     <i class="fa-solid fa-calendar-check" style="font-size: 1.2rem; color: ${statusColor};"></i>
@@ -5478,18 +5539,18 @@ function toggleSidebar() {
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div style="display: flex; flex-direction: column; align-items: flex-end; justify-content: center; min-width: 200px;">
                                 <span style="font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; text-transform: uppercase;">Próxima Ejecución</span>
                                 <span style="color: #e2e8f0; font-size: 0.9rem; font-weight: 500;">${nextRun}</span>
                             </div>
-                            
+
                             <div style="display: flex; gap: 10px; align-items: center;">
                                 <div style="display: flex; align-items: center; gap: 6px; margin-right: 15px; background: rgba(255,255,255,0.05); padding: 6px 12px; border-radius: 20px;">
                                     <div style="width: 8px; height: 8px; border-radius: 50%; background: ${statusColor}; box-shadow: 0 0 8px ${statusColor};"></div>
                                     <span style="font-size: 0.85rem; color: ${statusColor}; font-weight: 600;">${statusText}</span>
                                 </div>
-                                <button class="btn-ghost" onclick="deleteSchedule(${s.id})" style="color: #ef4444; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); padding: 8px; border-radius: 8px; transition: all 0.2s;" onmouseover="this.style.background='rgba(239,68,68,0.2)'" onmouseout="this.style.background='rgba(239,68,68,0.1)'" title="Eliminar Tarea">
+                                <button class="btn-ghost" ${rnBind("click", (event, element) => { deleteSchedule((s.id)) })} style="color: #ef4444; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); padding: 8px; border-radius: 8px; transition: all 0.2s;" ${rnBind("mouseover", (event, element) => { element.style.background='rgba(239,68,68,0.2)' })} ${rnBind("mouseout", (event, element) => { element.style.background='rgba(239,68,68,0.1)' })} title="Eliminar Tarea">
                                     <i class="fa-solid fa-trash"></i>
                                 </button>
                             </div>
@@ -5519,14 +5580,13 @@ function toggleSidebar() {
                 const res = await fetch(`/api/cron/${currentServerId}`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('nexus_token')}`
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ time_hh_mm, action, payload })
                 });
                 const data = await res.json();
                 if(!res.ok) throw new Error(data.error || 'Endpoint no configurado');
-                
+
                 showToast('Tarea guardada exitosamente', 'success');
                 closeScheduleModal();
                 loadSchedules();
@@ -5538,10 +5598,7 @@ function toggleSidebar() {
         window.deleteSchedule = async function(id) {
             if(!confirm('¿Seguro que deseas eliminar esta tarea programada?')) return;
             try {
-                const res = await fetch(`/api/cron/${currentServerId}/${id}`, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_token')}` }
-                });
+                const res = await fetch(`/api/cron/${currentServerId}/${id}`, { method: 'DELETE' });
                 if(!res.ok) throw new Error('Error eliminando');
                 showToast('Eliminado', 'success');
                 loadSchedules();

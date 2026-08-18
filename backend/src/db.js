@@ -8,6 +8,21 @@ import { createClient } from 'redis';
 export const pool = new pg.Pool({ connectionString: config.databaseUrl });
 export async function query(text, params = []) { return pool.query(text, params); }
 
+export async function withTransaction(callback) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await callback((text, params = []) => client.query(text, params));
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export const redisClient = createClient({ url: 'redis://redis:6379' });
 redisClient.on('error', (err) => console.log('Redis Client Error', err));
 redisClient.connect().catch(console.error);
@@ -109,6 +124,7 @@ export async function initDb() {
     CREATE TABLE IF NOT EXISTS servers (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(), owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       name TEXT NOT NULL, slug TEXT NOT NULL, template TEXT NOT NULL, runtime_plan TEXT NOT NULL,
+      mc_version TEXT NOT NULL DEFAULT 'LATEST', mc_type TEXT NOT NULL DEFAULT 'PAPER', cpuset TEXT,
       status TEXT NOT NULL DEFAULT 'creating', fivem_port INTEGER NOT NULL UNIQUE, txadmin_port INTEGER NOT NULL UNIQUE,
       blender_port INTEGER UNIQUE, blender_pass TEXT,
       container_name TEXT NOT NULL UNIQUE, data_path TEXT NOT NULL, license_key_hint TEXT NOT NULL,
@@ -281,7 +297,7 @@ export async function initDb() {
     VALUES (0, 'Master Node (Local)', 'localhost', 'internal', 'active')
     ON CONFLICT (id) DO NOTHING;
   `);
-  await runMigrations();
+  await runMigrations(query, withTransaction);
 
 // 🚀 OPTIMIZACIÓN: Índices Esenciales
     const indices = [
@@ -333,10 +349,13 @@ export async function initDb() {
   `);
 
   // Usuario admin
-  const adminUser = config.adminUser || 'admin';
-  const adminPass = config.adminPass || 'admin123';
-  const existing = await query('SELECT id FROM users WHERE username = $1', [adminUser]);
-  if (!existing.rowCount) {
+  const adminUser = config.adminUser;
+  const adminPass = config.adminPass;
+  const existingAdmin = await query("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
+  if (!existingAdmin.rowCount) {
+    if (!adminUser || !adminPass || adminPass.length < 12) {
+      throw new Error('No existe ningun administrador. Configura ADMIN_BOOTSTRAP_USER y ADMIN_BOOTSTRAP_PASS (minimo 12 caracteres).');
+    }
     const hash = await bcrypt.hash(adminPass, 12);
     await query(
         'INSERT INTO users (username, password_hash, role, plan, server_limit, is_verified) VALUES ($1, $2, $3, $4, $5, true)',

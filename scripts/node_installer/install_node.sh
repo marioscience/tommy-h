@@ -108,7 +108,7 @@ systemctl restart docker
 echo -e "${GREEN}[5/5] Creando directorios base de Ragenodes...${NC}"
 mkdir -p /srv/ragenodes-data/templates
 chown -R 1000:1000 /srv/ragenodes-data
-chmod -R 777 /srv/ragenodes-data
+chmod -R u=rwX,g=rX,o= /srv/ragenodes-data
 
 # Abrir el puerto en UFW si está activo
 if command -v ufw &> /dev/null && ufw status | grep -q "Status: active"; then
@@ -158,9 +158,9 @@ advanced_tuning:
     handshake_timeout_ms: 1500
 EOF
 
-docker pull ragenodes/oxideproxy:latest > /dev/null 2>&1
-# Arrancamos con NET_ADMIN y SYS_ADMIN para permitir eBPF/XDP
-docker run -d --name oxideproxy --network host --restart always -v "$PROXY_DIR:/app/config" --cap-add=NET_ADMIN --cap-add=SYS_ADMIN ragenodes/oxideproxy:latest > /dev/null 2>&1
+docker pull ragenodes/oxideproxy:1.0.0 > /dev/null 2>&1
+# OxideProxy recibe únicamente NET_ADMIN para su filtrado de red; no usa SYS_ADMIN.
+docker run -d --name oxideproxy --network host --restart always -v "$PROXY_DIR:/app/config:ro" --cap-drop=ALL --cap-add=NET_ADMIN ragenodes/oxideproxy:1.0.0 > /dev/null 2>&1
 echo -e "${YELLOW}OxideProxy activado en modo Perimetral (Edge).${NC}"
 
 echo -e "\n${BLUE}=================================================${NC}"

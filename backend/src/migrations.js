@@ -1,5 +1,3 @@
-import { query } from './db.js';
-
 const migrations = [
   {
     id: '202605170001_user_session_columns',
@@ -147,10 +145,34 @@ const migrations = [
       'CREATE INDEX IF NOT EXISTS idx_invoices_paypal_sub ON invoices(paypal_subscription_id)',
       'CREATE INDEX IF NOT EXISTS idx_payments_paypal_sub ON payments(paypal_subscription_id)'
     ]
+  },
+  {
+    id: '202608160001_payment_entitlement_hardening',
+    statements: [
+      'ALTER TABLE marketplace_licenses ADD COLUMN IF NOT EXISTS paypal_order_id TEXT',
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_marketplace_licenses_paypal_order ON marketplace_licenses(paypal_order_id) WHERE paypal_order_id IS NOT NULL',
+      'CREATE INDEX IF NOT EXISTS idx_users_paypal_sub_id ON users(paypal_sub_id) WHERE paypal_sub_id IS NOT NULL',
+      'CREATE INDEX IF NOT EXISTS idx_users_disk_sub_id ON users(disk_sub_id) WHERE disk_sub_id IS NOT NULL',
+      `CREATE TABLE IF NOT EXISTS paypal_webhook_events (
+        id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'processing',
+        received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        processed_at TIMESTAMPTZ
+      )`
+    ]
+  },
+  {
+    id: '202608170002_server_game_runtime_columns',
+    statements: [
+      "ALTER TABLE servers ADD COLUMN IF NOT EXISTS mc_version TEXT NOT NULL DEFAULT 'LATEST'",
+      "ALTER TABLE servers ADD COLUMN IF NOT EXISTS mc_type TEXT NOT NULL DEFAULT 'PAPER'",
+      'ALTER TABLE servers ADD COLUMN IF NOT EXISTS cpuset TEXT'
+    ]
   }
 ];
 
-export async function runMigrations() {
+export async function runMigrations(query, withTransaction) {
   await query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       id TEXT PRIMARY KEY,
@@ -164,15 +186,14 @@ export async function runMigrations() {
 
     console.log(`[DB] Aplicando migracion ${migration.id}...`);
     try {
-      await query('BEGIN');
-      for (const statement of migration.statements) {
-        await query(statement);
-      }
-      await query('INSERT INTO schema_migrations (id) VALUES ($1)', [migration.id]);
-      await query('COMMIT');
+      await withTransaction(async (tx) => {
+        for (const statement of migration.statements) {
+          await tx(statement);
+        }
+        await tx('INSERT INTO schema_migrations (id) VALUES ($1)', [migration.id]);
+      });
       console.log(`[DB] Migracion ${migration.id} aplicada.`);
     } catch (error) {
-      await query('ROLLBACK').catch(() => {});
       if (migration.optional) {
         console.warn(`[DB] Migracion opcional ${migration.id} omitida: ${error.message}`);
         await query('INSERT INTO schema_migrations (id) VALUES ($1) ON CONFLICT DO NOTHING', [migration.id]);

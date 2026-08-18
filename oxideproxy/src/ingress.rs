@@ -7,7 +7,10 @@ use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use tokio::net::{TcpListener, UdpSocket};
 
-pub async fn start_ingress(config: ProxyConfig, worker_threads: usize) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn start_ingress(
+    config: ProxyConfig,
+    worker_threads: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
     let config_arc = Arc::new(config);
     let tcp_addr = config_arc.ingress.tcp_listen_addr;
     let udp_addr = config_arc.ingress.udp_listen_addr;
@@ -20,14 +23,17 @@ pub async fn start_ingress(config: ProxyConfig, worker_threads: usize) -> Result
 
     // --- MPSC Fail2Ban Channel ---
     let (ban_tx, mut ban_rx) = tokio::sync::mpsc::channel::<std::net::IpAddr>(1024);
-    
+
     let consumer_xdp_arc = Arc::clone(&xdp_arc);
     tokio::spawn(async move {
         tracing::info!("[Fail2Ban] Consumidor MPSC asíncrono iniciado para baneos L7->L4.");
         while let Some(ip) = ban_rx.recv().await {
             if let Ok(xdp_read) = consumer_xdp_arc.read() {
                 xdp_read.blacklist.insert(ip);
-                tracing::warn!("[eBPF/XDP] IP {} bloqueada permanentemente (Fail2Ban L7).", ip);
+                tracing::warn!(
+                    "[eBPF/XDP] IP {} bloqueada permanentemente (Fail2Ban L7).",
+                    ip
+                );
             }
         }
     });
@@ -48,13 +54,69 @@ pub async fn start_ingress(config: ProxyConfig, worker_threads: usize) -> Result
     let tcp_xdp = Arc::clone(&xdp_arc);
     let tcp_ban_tx = ban_tx.clone();
     let tcp_handle = tokio::spawn(async move {
-        tracing::info!("Ingress TCP Principal escuchando en {} con SO_REUSEPORT", tcp_addr);
+        tracing::info!(
+            "Ingress TCP Principal escuchando en {} con SO_REUSEPORT",
+            tcp_addr
+        );
         match create_reuseport_tcp_listener(tcp_addr) {
-            Ok(listener) => {
-                loop {
+            Ok(listener) => loop {
+                match listener.accept().await {
+                    Ok((mut stream, peer_addr)) => {
+                        let allowed = if let Ok(xdp_read) = tcp_xdp.read() {
+                            xdp_read.inspect_and_filter(peer_addr.ip())
+                        } else {
+                            true
+                        };
+                        if !allowed {
+                            continue;
+                        }
+                        tracing::debug!("Conexion TCP aceptada de {}", peer_addr);
+                        let cfg = Arc::clone(&tcp_config);
+                        let ban_sender = tcp_ban_tx.clone();
+                        tokio::spawn(async move {
+                            let mut buffer = BytesMut::with_capacity(initial_buf_size);
+                            match tokio::io::AsyncReadExt::read_buf(&mut stream, &mut buffer).await
+                            {
+                                Ok(0) => {
+                                    tracing::debug!("Conexion cerrada por el cliente {}", peer_addr)
+                                }
+                                Ok(_) => {
+                                    process_tcp_stream(stream, buffer, cfg, None, false, ban_sender)
+                                        .await
+                                }
+                                Err(e) => tracing::error!("Error leyendo de {}: {}", peer_addr, e),
+                            }
+                        });
+                    }
+                    Err(e) => tracing::error!("Error aceptando conexion TCP: {}", e),
+                }
+            },
+            Err(e) => tracing::error!(
+                "Fallo al vincular Ingress TCP Principal en {}: {}",
+                tcp_addr,
+                e
+            ),
+        }
+    });
+    handles.push(tcp_handle);
+
+    for http_addr in [
+        "0.0.0.0:80".parse::<SocketAddr>().unwrap(),
+        "0.0.0.0:8088".parse::<SocketAddr>().unwrap(),
+    ] {
+        let http_config = Arc::clone(&config_arc);
+        let http_xdp = Arc::clone(&xdp_arc);
+        let http_ban_tx = ban_tx.clone();
+        let http_handle = tokio::spawn(async move {
+            tracing::info!(
+                "Ingress TCP HTTP Principal escuchando en {} con SO_REUSEPORT",
+                http_addr
+            );
+            match create_reuseport_tcp_listener(http_addr) {
+                Ok(listener) => loop {
                     match listener.accept().await {
                         Ok((mut stream, peer_addr)) => {
-                            let allowed = if let Ok(xdp_read) = tcp_xdp.read() {
+                            let allowed = if let Ok(xdp_read) = http_xdp.read() {
                                 xdp_read.inspect_and_filter(peer_addr.ip())
                             } else {
                                 true
@@ -62,69 +124,46 @@ pub async fn start_ingress(config: ProxyConfig, worker_threads: usize) -> Result
                             if !allowed {
                                 continue;
                             }
-                            tracing::debug!("Conexion TCP aceptada de {}", peer_addr);
-                            let cfg = Arc::clone(&tcp_config);
-                            let ban_sender = tcp_ban_tx.clone();
+                            tracing::debug!("Conexion HTTP TCP aceptada de {}", peer_addr);
+                            let cfg = Arc::clone(&http_config);
+                            let ban_sender = http_ban_tx.clone();
                             tokio::spawn(async move {
                                 let mut buffer = BytesMut::with_capacity(initial_buf_size);
-                                match tokio::io::AsyncReadExt::read_buf(&mut stream, &mut buffer).await {
-                                    Ok(0) => tracing::debug!("Conexion cerrada por el cliente {}", peer_addr),
-                                    Ok(_) => process_tcp_stream(stream, buffer, cfg, None, false, ban_sender).await,
-                                    Err(e) => tracing::error!("Error leyendo de {}: {}", peer_addr, e),
+                                match tokio::io::AsyncReadExt::read_buf(&mut stream, &mut buffer)
+                                    .await
+                                {
+                                    Ok(0) => tracing::debug!(
+                                        "Conexion cerrada por el cliente {}",
+                                        peer_addr
+                                    ),
+                                    Ok(_) => {
+                                        process_tcp_stream(
+                                            stream, buffer, cfg, None, true, ban_sender,
+                                        )
+                                        .await
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("Error leyendo de {}: {}", peer_addr, e)
+                                    }
                                 }
                             });
                         }
-                        Err(e) => tracing::error!("Error aceptando conexion TCP: {}", e),
+                        Err(e) => tracing::error!("Error aceptando conexion HTTP TCP: {}", e),
                     }
+                },
+                Err(e) => {
+                    tracing::error!("Fallo al vincular Ingress TCP HTTP en {}: {}", http_addr, e)
                 }
-            }
-            Err(e) => tracing::error!("Fallo al vincular Ingress TCP Principal en {}: {}", tcp_addr, e),
-        }
-    });
-    handles.push(tcp_handle);
-
-    for http_addr in ["0.0.0.0:80".parse::<SocketAddr>().unwrap(), "0.0.0.0:8088".parse::<SocketAddr>().unwrap()] {
-        let http_config = Arc::clone(&config_arc);
-        let http_xdp = Arc::clone(&xdp_arc);
-        let http_ban_tx = ban_tx.clone();
-        let http_handle = tokio::spawn(async move {
-            tracing::info!("Ingress TCP HTTP Principal escuchando en {} con SO_REUSEPORT", http_addr);
-            match create_reuseport_tcp_listener(http_addr) {
-                Ok(listener) => {
-                    loop {
-                        match listener.accept().await {
-                            Ok((mut stream, peer_addr)) => {
-                                let allowed = if let Ok(xdp_read) = http_xdp.read() {
-                                    xdp_read.inspect_and_filter(peer_addr.ip())
-                                } else {
-                                    true
-                                };
-                                if !allowed {
-                                    continue;
-                                }
-                                tracing::debug!("Conexion HTTP TCP aceptada de {}", peer_addr);
-                                let cfg = Arc::clone(&http_config);
-                                let ban_sender = http_ban_tx.clone();
-                                tokio::spawn(async move {
-                                    let mut buffer = BytesMut::with_capacity(initial_buf_size);
-                                    match tokio::io::AsyncReadExt::read_buf(&mut stream, &mut buffer).await {
-                                        Ok(0) => tracing::debug!("Conexion cerrada por el cliente {}", peer_addr),
-                                        Ok(_) => process_tcp_stream(stream, buffer, cfg, None, true, ban_sender).await,
-                                        Err(e) => tracing::error!("Error leyendo de {}: {}", peer_addr, e),
-                                    }
-                                });
-                            }
-                            Err(e) => tracing::error!("Error aceptando conexion HTTP TCP: {}", e),
-                        }
-                    }
-                }
-                Err(e) => tracing::error!("Fallo al vincular Ingress TCP HTTP en {}: {}", http_addr, e),
             }
         });
         handles.push(http_handle);
     }
 
-    tracing::info!("Iniciando {} bucles Ingress UDP Principal independientes con SO_REUSEPORT en {}", worker_threads, udp_addr);
+    tracing::info!(
+        "Iniciando {} bucles Ingress UDP Principal independientes con SO_REUSEPORT en {}",
+        worker_threads,
+        udp_addr
+    );
     for i in 0..worker_threads {
         let udp_config = Arc::clone(&config_arc);
         let udp_xdp = Arc::clone(&xdp_arc);
@@ -153,13 +192,19 @@ pub async fn start_ingress(config: ProxyConfig, worker_threads: usize) -> Result
                                     continue;
                                 }
                                 let packet_data = buffer.split_to(size).freeze();
-                                process_udp_packet_inline(sock, packet_data, peer_addr, cfg, None).await;
+                                process_udp_packet_inline(sock, packet_data, peer_addr, cfg, None)
+                                    .await;
                             }
                             Err(e) => tracing::error!("Error en bucle UDP Principal #{}: {}", i, e),
                         }
                     }
                 }
-                Err(e) => tracing::error!("Fallo al vincular Ingress UDP Principal #{} en {}: {}", i, udp_addr, e),
+                Err(e) => tracing::error!(
+                    "Fallo al vincular Ingress UDP Principal #{} en {}: {}",
+                    i,
+                    udp_addr,
+                    e
+                ),
             }
         });
         handles.push(handle);
@@ -184,7 +229,10 @@ pub async fn start_ingress(config: ProxyConfig, worker_threads: usize) -> Result
         let proto = route.protocol.as_deref().unwrap_or("DUAL").to_uppercase();
         let listen_ip = tcp_addr.ip();
         let custom_addr = SocketAddr::new(listen_ip, port);
-        let route_name = route.name.clone().unwrap_or_else(|| format!("GameID {}", route.game_id));
+        let route_name = route
+            .name
+            .clone()
+            .unwrap_or_else(|| format!("GameID {}", route.game_id));
 
         if proto == "TCP" || proto == "DUAL" {
             let tcp_cfg = Arc::clone(&config_arc);
@@ -193,37 +241,67 @@ pub async fn start_ingress(config: ProxyConfig, worker_threads: usize) -> Result
             let r_name = route_name.clone();
             let backend = backend_addr.clone();
             let h = tokio::spawn(async move {
-                tracing::info!("Ingress TCP Dedicado para [{}] escuchando en {} -> {}", r_name, custom_addr, backend);
+                tracing::info!(
+                    "Ingress TCP Dedicado para [{}] escuchando en {} -> {}",
+                    r_name,
+                    custom_addr,
+                    backend
+                );
                 match create_reuseport_tcp_listener(custom_addr) {
-                    Ok(listener) => {
-                        loop {
-                            match listener.accept().await {
-                                Ok((mut stream, peer_addr)) => {
-                                    let allowed = if let Ok(xdp_read) = tcp_xdp.read() {
-                                        xdp_read.inspect_and_filter(peer_addr.ip())
-                                    } else {
-                                        true
-                                    };
-                                    if !allowed {
-                                        continue;
-                                    }
-                                    let cfg = Arc::clone(&tcp_cfg);
-                                    let backend_for_conn = backend.clone();
-                                    let ban_sender = tcp_ban_tx.clone();
-                                    tokio::spawn(async move {
-                                        let mut buffer = BytesMut::with_capacity(initial_buf_size);
-                                        match tokio::io::AsyncReadExt::read_buf(&mut stream, &mut buffer).await {
-                                            Ok(0) => {}
-                                            Ok(_) => process_tcp_stream(stream, buffer, cfg, Some(backend_for_conn), false, ban_sender).await,
-                                            Err(e) => tracing::error!("Error leyendo TCP de {}: {}", peer_addr, e),
-                                        }
-                                    });
+                    Ok(listener) => loop {
+                        match listener.accept().await {
+                            Ok((mut stream, peer_addr)) => {
+                                let allowed = if let Ok(xdp_read) = tcp_xdp.read() {
+                                    xdp_read.inspect_and_filter(peer_addr.ip())
+                                } else {
+                                    true
+                                };
+                                if !allowed {
+                                    continue;
                                 }
-                                Err(e) => tracing::error!("Error aceptando conexion TCP dedicado en {}: {}", custom_addr, e),
+                                let cfg = Arc::clone(&tcp_cfg);
+                                let backend_for_conn = backend.clone();
+                                let ban_sender = tcp_ban_tx.clone();
+                                tokio::spawn(async move {
+                                    let mut buffer = BytesMut::with_capacity(initial_buf_size);
+                                    match tokio::io::AsyncReadExt::read_buf(
+                                        &mut stream,
+                                        &mut buffer,
+                                    )
+                                    .await
+                                    {
+                                        Ok(0) => {}
+                                        Ok(_) => {
+                                            process_tcp_stream(
+                                                stream,
+                                                buffer,
+                                                cfg,
+                                                Some(backend_for_conn),
+                                                false,
+                                                ban_sender,
+                                            )
+                                            .await
+                                        }
+                                        Err(e) => tracing::error!(
+                                            "Error leyendo TCP de {}: {}",
+                                            peer_addr,
+                                            e
+                                        ),
+                                    }
+                                });
                             }
+                            Err(e) => tracing::error!(
+                                "Error aceptando conexion TCP dedicado en {}: {}",
+                                custom_addr,
+                                e
+                            ),
                         }
-                    }
-                    Err(e) => tracing::error!("Fallo al vincular Ingress TCP Dedicado en {}: {}", custom_addr, e),
+                    },
+                    Err(e) => tracing::error!(
+                        "Fallo al vincular Ingress TCP Dedicado en {}: {}",
+                        custom_addr,
+                        e
+                    ),
                 }
             });
             handles.push(h);
@@ -239,7 +317,12 @@ pub async fn start_ingress(config: ProxyConfig, worker_threads: usize) -> Result
                     match create_reuseport_udp_socket(custom_addr) {
                         Ok(socket) => {
                             let socket_arc = Arc::new(socket);
-                            tracing::debug!("Bucle UDP Dedicado #{} para [{}] vinculado en {}", i, r_name, custom_addr);
+                            tracing::debug!(
+                                "Bucle UDP Dedicado #{} para [{}] vinculado en {}",
+                                i,
+                                r_name,
+                                custom_addr
+                            );
                             let mut buffer = BytesMut::with_capacity(64 * 1024);
                             loop {
                                 if buffer.capacity() < initial_buf_size {
@@ -260,13 +343,27 @@ pub async fn start_ingress(config: ProxyConfig, worker_threads: usize) -> Result
                                             continue;
                                         }
                                         let packet_data = buffer.split_to(size).freeze();
-                                        process_udp_packet_inline(sock, packet_data, peer_addr, cfg, Some(backend.clone())).await;
+                                        process_udp_packet_inline(
+                                            sock,
+                                            packet_data,
+                                            peer_addr,
+                                            cfg,
+                                            Some(backend.clone()),
+                                        )
+                                        .await;
                                     }
-                                    Err(e) => tracing::error!("Error en bucle UDP Dedicado #{}: {}", i, e),
+                                    Err(e) => {
+                                        tracing::error!("Error en bucle UDP Dedicado #{}: {}", i, e)
+                                    }
                                 }
                             }
                         }
-                        Err(e) => tracing::error!("Fallo al vincular Ingress UDP Dedicado #{} en {}: {}", i, custom_addr, e),
+                        Err(e) => tracing::error!(
+                            "Fallo al vincular Ingress UDP Dedicado #{} en {}: {}",
+                            i,
+                            custom_addr,
+                            e
+                        ),
                     }
                 });
                 handles.push(h);

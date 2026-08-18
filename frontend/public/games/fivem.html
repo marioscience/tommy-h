@@ -9,7 +9,7 @@
             <p style="color: #94a3b8; font-size: 1.05rem; max-width: 500px; margin: 0 auto 30px; line-height: 1.6;">
                 La gestión de jugadores, comandos y reportes para servidores de <strong style="color:white;">FiveM</strong> se administra de forma nativa a través del panel premium de <strong style="color:white;">txAdmin</strong>.
             </p>
-            <button class="btn" onclick="openTxAdminPopup()" style="background: var(--primary); color: white; border: none; font-size: 1.05rem; font-weight: 600; padding: 12px 30px; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 0 20px rgba(99,102,241,0.4);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 0 30px rgba(99,102,241,0.6)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 0 20px rgba(99,102,241,0.4)'">
+            <button class="btn" data-rn-onclick="priv_0175" style="background: var(--primary); color: white; border: none; font-size: 1.05rem; font-weight: 600; padding: 12px 30px; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 0 20px rgba(99,102,241,0.4);" data-rn-onmouseover="priv_0176" data-rn-onmouseout="priv_0177">
                 <i class="fa-solid fa-arrow-up-right-from-square" style="margin-right: 8px;"></i> Abrir txAdmin
             </button>
 
@@ -21,16 +21,16 @@
                 <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                     <input type="text" id="fivem-resource-name" class="input" style="background: rgba(0,0,0,0.4); flex-grow: 1; min-width: 200px;" placeholder="Ej. qb-core">
                     
-                    <button class="btn btn-success" onclick="executeFiveMResource('start')" style="padding: 10px 20px;">
+                    <button class="btn btn-success" data-rn-onclick="priv_0178" style="padding: 10px 20px;">
                         <i class="fa-solid fa-play"></i> Start
                     </button>
-                    <button class="btn btn-danger" onclick="executeFiveMResource('stop')" style="padding: 10px 20px;">
+                    <button class="btn btn-danger" data-rn-onclick="priv_0179" style="padding: 10px 20px;">
                         <i class="fa-solid fa-stop"></i> Stop
                     </button>
-                    <button class="btn btn-warning" onclick="executeFiveMResource('restart')" style="padding: 10px 20px; color: black;">
+                    <button class="btn btn-warning" data-rn-onclick="priv_0180" style="padding: 10px 20px; color: black;">
                         <i class="fa-solid fa-rotate-right"></i> Restart
                     </button>
-                    <button class="btn btn-info" onclick="executeFiveMResource('ensure')" style="padding: 10px 20px; color: black;">
+                    <button class="btn btn-info" data-rn-onclick="priv_0181" style="padding: 10px 20px; color: black;">
                         <i class="fa-solid fa-check-double"></i> Ensure
                     </button>
                 </div>
@@ -90,13 +90,13 @@
                 </div>
 
                 <div style="display: flex; gap: 15px; align-items: center; flex-wrap:wrap; margin-left:auto;">
-                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">Host: <strong style="color:white">host.docker.internal</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar Host" onclick="Nexus.copyToClipboard('host.docker.internal'); showToast('Copiado','success');"></i></div>
-                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">DB: <strong style="color:white" id="tx-top-db">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar DB" onclick="Nexus.copyToClipboard(document.getElementById('tx-top-db').innerText); showToast('Copiado','success');"></i></div>
-                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">User: <strong style="color:white" id="tx-top-user">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar Usuario" onclick="Nexus.copyToClipboard(document.getElementById('tx-top-user').innerText); showToast('Copiado','success');"></i></div>
-                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">Pass: <strong style="color:var(--warning)" id="tx-top-pass">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar Contraseña" onclick="Nexus.copyToClipboard(document.getElementById('tx-top-pass').innerText); showToast('Copiado','success');"></i></div>
+                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">Host: <strong style="color:white">host.docker.internal</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar Host" data-rn-onclick="priv_0182"></i></div>
+                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">DB: <strong style="color:white" id="tx-top-db">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar DB" data-rn-onclick="priv_0183"></i></div>
+                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">User: <strong style="color:white" id="tx-top-user">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar Usuario" data-rn-onclick="priv_0184"></i></div>
+                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">Pass: <strong style="color:var(--warning)" id="tx-top-pass">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar Contraseña" data-rn-onclick="priv_0185"></i></div>
 
-                    <button class="btn-ghost" style="padding:6px 12px; margin-left:15px;" onclick="refreshTxAdmin()" title="Recargar Panel"><i class="fa-solid fa-rotate-right"></i></button>
-                    <button class="btn-ghost" style="padding:6px 12px;" onclick="document.getElementById('txadmin-iframe').requestFullscreen()" title="Pantalla Completa"><i class="fa-solid fa-expand"></i></button>
+                    <button class="btn-ghost" style="padding:6px 12px; margin-left:15px;" data-rn-onclick="priv_0186" title="Recargar Panel"><i class="fa-solid fa-rotate-right"></i></button>
+                    <button class="btn-ghost" style="padding:6px 12px;" data-rn-onclick="priv_0187" title="Pantalla Completa"><i class="fa-solid fa-expand"></i></button>
                 </div>
             </div>
 
@@ -113,8 +113,8 @@
                     </div>
 
                     <div style="display:flex; gap:15px;">
-                        <button class="btn-success" style="padding: 12px 20px;" onclick="openTxAdminPopup()"><i class="fa-solid fa-key"></i> Vincular PIN (Popup)</button>
-                        <button class="btn-ghost" style="padding: 12px 20px;" onclick="hideAuthOverlay()"><i class="fa-solid fa-check"></i> Ya lo he vinculado</button>
+                        <button class="btn-success" style="padding: 12px 20px;" data-rn-onclick="priv_0175"><i class="fa-solid fa-key"></i> Vincular PIN (Popup)</button>
+                        <button class="btn-ghost" style="padding: 12px 20px;" data-rn-onclick="priv_0188"><i class="fa-solid fa-check"></i> Ya lo he vinculado</button>
                     </div>
                 </div>
 
@@ -141,10 +141,10 @@
                 </div>
                 <div style="display: flex; gap: 15px; align-items: center; flex-wrap:wrap;">
                     <div class="mono" style="color:var(--muted)">User: <strong style="color:white" id="blender-tab-user">admin</strong></div>
-                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">Pass: <strong style="color:var(--warning)" id="blender-tab-pass">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:white;" onclick="Nexus.copyToClipboard(document.getElementById('blender-tab-pass').innerText); showToast('Copiado','success');"></i></div>
+                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">Pass: <strong style="color:var(--warning)" id="blender-tab-pass">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:white;" data-rn-onclick="priv_0189"></i></div>
                     <div style="display:flex; gap:8px; margin-left:auto;">
-                        <button class="btn-ghost" style="padding:6px 12px;" onclick="document.getElementById('blender-iframe').requestFullscreen()"><i class="fa-solid fa-expand"></i> Pantalla Completa</button>
-                        <button class="btn-danger" style="padding:6px 12px; background: rgba(239, 68, 68, 0.15);" onclick="toggleBlender(event, currentServerId, 'stop')"><i class="fa-solid fa-power-off"></i> Cerrar Entorno</button>
+                        <button class="btn-ghost" style="padding:6px 12px;" data-rn-onclick="priv_0190"><i class="fa-solid fa-expand"></i> Pantalla Completa</button>
+                        <button class="btn-danger" style="padding:6px 12px; background: rgba(239, 68, 68, 0.15);" data-rn-onclick="priv_0191"><i class="fa-solid fa-power-off"></i> Cerrar Entorno</button>
                     </div>
                 </div>
             </div>

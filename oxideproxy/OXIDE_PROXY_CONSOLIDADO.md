@@ -766,7 +766,7 @@ services:
       - "3000:3000"
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus@sha256:508729e0e2d18e11fd742a5a5ca70e557b940a93948c3c95fd0123a6fd538b69
     container_name: oxide_prometheus
     volumes:
       - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml
@@ -774,10 +774,10 @@ services:
       - oxide_staging_net
 
   grafana:
-    image: grafana/grafana-enterprise:latest
+    image: grafana/grafana-enterprise@sha256:f85df358623d706d686b3b83dc5fc22d83c0228faf6e054a6d0356bd2d161f46
     container_name: oxide_grafana
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set}
     networks:
       - oxide_staging_net
     ports:

@@ -1,6 +1,13 @@
 import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG , sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
 
+const MINECRAFT_IMAGES = {
+    java11: 'itzg/minecraft-server:java11@sha256:b71159ed67e389fac6cbdc2e7205167e210e9012858a9a47cd1d64cd8de28241',
+    java17: 'itzg/minecraft-server:java17@sha256:032c6ac2c1a418bde85e19a54222fc1c3220eacc62226e08586cc4d5b7b0c676',
+    java21: 'itzg/minecraft-server:java21@sha256:2849cd16063903439cd34c6eaddbcecc8914367ac9334c9757f6a7ea5007273c',
+    java25: config.minecraftBaseImage
+};
+
 export async function createMinecraftContainer(opts) {
     const docker = await getNodeConnection(opts.nodeId || 0);
     await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath} && chown -R 1000:1000 ${opts.dataPath}`);
@@ -25,7 +32,7 @@ export async function createMinecraftContainer(opts) {
     if (version.startsWith('1.8') || version.startsWith('1.12') || version.startsWith('1.16')) imageTag = 'java11';
     if (version.startsWith('1.20.5') || version.startsWith('1.20.6') || version.startsWith('1.21') || version.startsWith('1.22') || version.startsWith('1.23') || version.startsWith('1.24') || version.startsWith('1.25')) imageTag = 'java21';
     if (version.startsWith('26') || version.startsWith('1.26') || version === 'LATEST') imageTag = 'java25';
-    const targetImage = `itzg/minecraft-server:${imageTag}`;
+    const targetImage = MINECRAFT_IMAGES[imageTag];
 
     // 📥 Asegurar que la imagen existe (Auto-pull)
     try {
@@ -59,8 +66,8 @@ export async function createMinecraftContainer(opts) {
             'USE_AIKAR_FLAGS=true',
             'ENABLE_RCON=false',
             'OVERRIDE_SERVER_PROPERTIES=false',
-            'ONLINE_MODE=FALSE',
-            'ENFORCE_SECURE_PROFILE=FALSE'
+            'ONLINE_MODE=TRUE',
+            'ENFORCE_SECURE_PROFILE=TRUE'
         ],
         ExposedPorts: { '25565/tcp': {}, '25565/udp': {} },
         Tty: true,
@@ -77,7 +84,7 @@ export async function createMinecraftContainer(opts) {
             RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: opts.plan.memoryBytes,
             NanoCpus: opts.plan.nanoCpus, CpuShares: Math.round((opts.plan.nanoCpus / 10**9) * 1024),
-            BlkioWeight: 100, // Prioridad I/O baja
+            BlkioWeight: config.dockerBlkioWeight,
             ...GAME_SECURITY_CONFIG
         }
     });

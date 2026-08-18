@@ -1,5 +1,6 @@
-import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, detachMutableTemplatePath , sh } from '../dockerUtils.js';
+import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, detachMutableTemplatePath, deriveServicePassword, sh } from '../dockerUtils.js';
 import path from 'path';
+import { config } from '../../config.js';
 
 function sanitizeArkLaunchValue(value, fallback = '') {
     return String(value || fallback)
@@ -36,6 +37,31 @@ const ARK_MAP_ALIASES = {
     astraeos: 'Astraeos_WP',
     astraeos_wp: 'Astraeos_WP'
 };
+
+const ARK_CAPABILITIES = [
+    'CHOWN',
+    'SETUID',
+    'SETGID',
+    'KILL',
+    'DAC_OVERRIDE'
+];
+
+export function buildARKHostConfig(opts, clusterBinds = []) {
+    return {
+        NetworkMode: 'host',
+        Binds: [`${opts.dataPath}:/home/steam/Steam/steamapps`, ...clusterBinds],
+        RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
+        Memory: opts.plan.memoryBytes,
+        NanoCpus: opts.plan.nanoCpus,
+        CpuShares: Math.round((opts.plan.nanoCpus / 10**9) * 1024),
+        ShmSize: 1024 * 1024 * 1024,
+        BlkioWeight: 100,
+        ...GAME_SECURITY_CONFIG,
+        CapAdd: ARK_CAPABILITIES,
+        PidsLimit: 2048,
+        Init: true
+    };
+}
 
 function normalizeArkMapName(value) {
     const raw = sanitizeArkLaunchValue(value, 'TheIsland_WP');
@@ -79,16 +105,17 @@ export async function createARKContainer(opts) {
         clusterBinds.push(`${clusterDir}:/home/steam/Steam/steamapps/common/ARK Survival Ascended Dedicated Server/ShooterGame/Saved/clusters/${opts.clusterId}`);
     }
 
-    try { await docker.getImage('auhrus/arksurvivalascended-server:latest').inspect(); }
+    try { await docker.getImage(config.arkBaseImage).inspect(); }
     catch (e) {
-        console.log(`🚚 [Docker] Descargando imagen ${'auhrus/arksurvivalascended-server:latest'}...`);
-        const stream = await docker.pull('auhrus/arksurvivalascended-server:latest');
+        console.log(`🚚 [Docker] Descargando imagen ${config.arkBaseImage}...`);
+        const stream = await docker.pull(config.arkBaseImage);
         await new Promise((resolve, reject) => { docker.modem.followProgress(stream, (err, res) => err ? reject(err) : resolve(res)); });
     }
 
     let mapName = 'TheIsland_WP';
     let sessionName = opts.serverName;
-    let adminPassword = 'ragenodes_admin';
+    const generatedAdminPassword = deriveServicePassword('ark-admin', opts.serverId || opts.containerName);
+    let adminPassword = generatedAdminPassword;
     let serverPassword = '';
 
     try {
@@ -97,14 +124,17 @@ export async function createARKContainer(opts) {
         if (arkConfig) {
             mapName = arkConfig.CustomMapName || arkConfig.MapName || 'TheIsland_WP';
             sessionName = sanitizeArkLaunchValue(arkConfig.SessionName || opts.serverName, 'ARK_Server');
-            adminPassword = sanitizeArkLaunchValue(arkConfig.ServerAdminPassword || 'ragenodes_admin', 'ragenodes_admin');
+            const configuredPassword = arkConfig.ServerAdminPassword;
+            adminPassword = configuredPassword && configuredPassword !== 'ragenodes_admin'
+                ? sanitizeArkLaunchValue(configuredPassword, generatedAdminPassword)
+                : generatedAdminPassword;
             serverPassword = sanitizeArkLaunchValue(arkConfig.ServerPassword || '', '');
         }
     } catch (e) {}
 
     mapName = normalizeArkMapName(mapName);
     sessionName = sanitizeArkLaunchValue(sessionName || opts.serverName, 'ARK_Server');
-    adminPassword = sanitizeArkLaunchValue(adminPassword, 'ragenodes_admin');
+    adminPassword = sanitizeArkLaunchValue(adminPassword, generatedAdminPassword);
     serverPassword = sanitizeArkLaunchValue(serverPassword, '');
 
     let connectionString = `${mapName}?listen?SessionName=${sessionName}?Port=${opts.gamePort}?QueryPort=${opts.gamePort + 1}?MaxPlayers=70`;
@@ -118,7 +148,7 @@ export async function createARKContainer(opts) {
     }
 
     const container = await docker.createContainer({
-        Image: 'auhrus/arksurvivalascended-server:latest',
+        Image: config.arkBaseImage,
         name: opts.containerName,
         Env: [
             `startcommands=${connectionString}`,
@@ -138,18 +168,7 @@ export async function createARKContainer(opts) {
         },
         Tty: true,
         OpenStdin: true,
-        HostConfig: {
-            NetworkMode: "host",
-            Binds: [`${opts.dataPath}:/home/steam/Steam/steamapps`, ...clusterBinds],
-            RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
-            Memory: opts.plan.memoryBytes,
-            NanoCpus: opts.plan.nanoCpus, CpuShares: Math.round((opts.plan.nanoCpus / 10**9) * 1024),
-            ShmSize: 1024 * 1024 * 1024,
-            BlkioWeight: 100,
-            SecurityOpt: ["apparmor:unconfined", "seccomp:unconfined", "no-new-privileges:true"],
-            CapDrop: ["ALL"],
-            CapAdd: [...GAME_SECURITY_CONFIG.CapAdd, "SYS_PTRACE", "SYS_RAWIO", "SYS_ADMIN", "SYS_RESOURCE"]
-        }
+        HostConfig: buildARKHostConfig(opts, clusterBinds)
     });
 
     await container.start();

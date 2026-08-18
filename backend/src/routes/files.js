@@ -14,6 +14,8 @@ import { rustUtil } from '../utils/rustUtil.js';
 import { PLAN_LIMITS } from '../config.js';
 import { query } from '../db.js';
 import crypto from 'crypto';
+import net from 'net';
+import dns from 'dns/promises';
 
 const execFilePromise = util.promisify(execFile);
 const router = express.Router();
@@ -25,6 +27,11 @@ const activeDownloads = new Map();
 const storageCache = new Map(); // serverId -> { size, timestamp }
 const DOWNLOAD_RETRY_LIMIT = Math.max(1, Number(process.env.DOWNLOAD_RETRY_LIMIT || 2));
 const DOWNLOAD_JOB_RETENTION_MS = Math.max(60000, Number(process.env.DOWNLOAD_JOB_RETENTION_MS || 10 * 60 * 1000));
+const configuredRemoteMaxBytes = Number(process.env.REMOTE_DOWNLOAD_MAX_BYTES);
+const REMOTE_DOWNLOAD_MAX_BYTES = Number.isSafeInteger(configuredRemoteMaxBytes) && configuredRemoteMaxBytes >= 1024 * 1024
+    ? configuredRemoteMaxBytes
+    : 10 * 1024 * 1024 * 1024;
+const REMOTE_REDIRECT_LIMIT = 5;
 let downloadWorkerStarted = false;
 let downloadWorkerBusy = false;
 
@@ -53,31 +60,112 @@ const isVaultProtected = (reqPath) => {
     return ext === '.lua' && !allowedLuaFiles.includes(fileName);
 };
 
-async function checkStorageLimit(row, incomingBytes = 0) {
-    try {
-        const now = Date.now();
-        const cached = storageCache.get(row.id);
-        let usedBytes;
+async function getStorageAllowance(row, forceRefresh = false) {
+    const now = Date.now();
+    const cached = storageCache.get(row.id);
+    let usedBytes;
 
-        // 🚀 OPTIMIZACIÓN: Caché de 15 segundos para el tamaño del disco
-        if (cached && (now - cached.timestamp < 15000)) {
-            usedBytes = cached.size;
-        } else {
-            usedBytes = await rustUtil.getDirSize(row.data_path);
-            storageCache.set(row.id, { size: usedBytes, timestamp: now });
-        }
-
-        const plan = PLAN_LIMITS[row.runtime_plan] || PLAN_LIMITS.hobby;
-        const maxBytes = Number(plan?.diskBytes || PLAN_LIMITS.hobby.diskBytes) + ((row.extra_disk_gb || 0) * 1024 ** 3);
-
-        if ((usedBytes + incomingBytes) > maxBytes) {
-            throw new Error(`Has alcanzado el límite de almacenamiento de tu plan (${maxBytes / (1024**3)} GB). Borra archivos o mejora tu plan.`);
-        }
-        return true;
-    } catch (e) {
-        if (e.message.includes('Has alcanzado el límite')) throw e;
-        return true;
+    if (!forceRefresh && cached && (now - cached.timestamp < 15000)) {
+        usedBytes = cached.size;
+    } else {
+        usedBytes = await rustUtil.getDirSize(row.data_path);
+        storageCache.set(row.id, { size: usedBytes, timestamp: now });
     }
+
+    const plan = PLAN_LIMITS[row.runtime_plan] || PLAN_LIMITS.hobby;
+    const maxBytes = Number(plan?.diskBytes || PLAN_LIMITS.hobby.diskBytes) + ((row.extra_disk_gb || 0) * 1024 ** 3);
+    return { usedBytes, maxBytes, remainingBytes: Math.max(0, maxBytes - usedBytes) };
+}
+
+async function checkStorageLimit(row, incomingBytes = 0, forceRefresh = false) {
+    const { usedBytes, maxBytes } = await getStorageAllowance(row, forceRefresh);
+    if ((usedBytes + incomingBytes) > maxBytes) {
+        throw new Error(`Has alcanzado el límite de almacenamiento de tu plan (${maxBytes / (1024**3)} GB). Borra archivos o mejora tu plan.`);
+    }
+    return true;
+}
+
+function isForbiddenRemoteAddress(address) {
+    const normalized = String(address || '').toLowerCase().split('%')[0];
+    if (net.isIP(normalized) === 4) {
+        const [a, b] = normalized.split('.').map(Number);
+        return a === 0 || a === 10 || a === 127 || a >= 224
+            || (a === 100 && b >= 64 && b <= 127)
+            || (a === 169 && b === 254)
+            || (a === 172 && b >= 16 && b <= 31)
+            || (a === 192 && b === 168)
+            || (a === 198 && (b === 18 || b === 19));
+    }
+    if (net.isIP(normalized) === 6) {
+        if (normalized.startsWith('::ffff:')) return isForbiddenRemoteAddress(normalized.slice(7));
+        return normalized === '::' || normalized === '::1'
+            || normalized.startsWith('fc') || normalized.startsWith('fd')
+            || /^fe[89ab]/.test(normalized)
+            || normalized.startsWith('ff') || normalized.startsWith('2001:db8:');
+    }
+    return true;
+}
+
+async function validateRemoteUrl(rawUrl) {
+    if (typeof rawUrl !== 'string' || rawUrl.length > 2048) throw new Error('URL remota inválida.');
+    let parsed;
+    try { parsed = new URL(rawUrl); } catch { throw new Error('URL remota inválida.'); }
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) {
+        throw new Error('Solo se permiten URLs HTTP/HTTPS públicas y sin credenciales.');
+    }
+
+    const hostname = parsed.hostname.toLowerCase().replace(/\.$/, '');
+    if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) {
+        throw new Error('No se permiten destinos de red internos.');
+    }
+
+    const addresses = await dns.lookup(hostname, { all: true, verbatim: true });
+    if (addresses.length === 0 || addresses.some(({ address }) => isForbiddenRemoteAddress(address))) {
+        throw new Error('No se permiten destinos de red internos o reservados.');
+    }
+    return parsed;
+}
+
+async function fetchRemoteFile(rawUrl) {
+    let currentUrl = rawUrl;
+    for (let redirectCount = 0; redirectCount <= REMOTE_REDIRECT_LIMIT; redirectCount++) {
+        const parsed = await validateRemoteUrl(currentUrl);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
+        let response;
+        try {
+            response = await fetch(parsed, { redirect: 'manual', signal: controller.signal });
+        } finally {
+            clearTimeout(timeout);
+        }
+
+        if ([301, 302, 303, 307, 308].includes(response.status)) {
+            const location = response.headers.get('location');
+            if (!location || redirectCount === REMOTE_REDIRECT_LIMIT) throw new Error('Demasiadas redirecciones remotas.');
+            await response.body?.cancel().catch(() => {});
+            currentUrl = new URL(location, parsed).toString();
+            continue;
+        }
+        return response;
+    }
+    throw new Error('Demasiadas redirecciones remotas.');
+}
+
+function validateZipArchive(filePath, destination, maxExpandedBytes) {
+    const zip = new AdmZip(filePath);
+    let expandedBytes = 0;
+    for (const entry of zip.getEntries()) {
+        getSafePath(destination, entry.entryName);
+        const unixMode = (Number(entry.header?.attr || 0) >>> 16) & 0xffff;
+        if ((unixMode & 0o170000) === 0o120000) {
+            throw new Error('El ZIP contiene enlaces simbólicos no permitidos.');
+        }
+        expandedBytes += Number(entry.header?.size || 0);
+        if (!Number.isSafeInteger(expandedBytes) || expandedBytes > maxExpandedBytes) {
+            throw new Error('El ZIP excede el espacio disponible al descomprimirse.');
+        }
+    }
+    return zip;
 }
 
 async function extractZipNatively(filePath, destDir) {
@@ -208,7 +296,11 @@ async function processDownloadJob(job) {
         downloadUrl = `https://drive.google.com/uc?export=download&id=${gdriveMatch[1]}`;
     }
 
-    const response = await fetch(downloadUrl);
+    const { remainingBytes } = await getStorageAllowance(row, true);
+    const maxDownloadBytes = Math.min(remainingBytes, REMOTE_DOWNLOAD_MAX_BYTES);
+    if (maxDownloadBytes < 1) throw new Error('No queda espacio disponible para la descarga.');
+
+    const response = await fetchRemoteFile(downloadUrl);
     if (!response.ok) throw new Error(`El servidor remoto rechazó la descarga (HTTP ${response.status}).`);
 
     const contentType = response.headers.get('content-type') || '';
@@ -217,13 +309,16 @@ async function processDownloadJob(job) {
     }
 
     const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
-    await checkStorageLimit(row, contentLength > 0 ? contentLength : 2 * 1024 * 1024 * 1024);
+    if (contentLength > maxDownloadBytes) throw new Error('El archivo remoto excede el espacio o tamaño máximo permitido.');
 
     let downloadedBytes = 0;
     let lastUpdate = Date.now();
     const progressTracker = new Transform({
         transform(chunk, encoding, callback) {
             downloadedBytes += chunk.length;
+            if (downloadedBytes > maxDownloadBytes) {
+                return callback(new Error('La descarga excede el espacio o tamaño máximo permitido.'));
+            }
 
             if (Date.now() - lastUpdate > 500) {
                 lastUpdate = Date.now();
@@ -253,23 +348,26 @@ async function processDownloadJob(job) {
         bytes_downloaded: downloadedBytes,
         bytes_total: contentLength || downloadedBytes
     });
-    await checkStorageLimit(row, downloadedBytes);
+    await checkStorageLimit(row, 0, true);
     await fs.rename(tempFile, finalFile);
 
     if (job.file_name.toLowerCase().endsWith('.zip')) {
         await updateDownloadJob(job.id, { status_message: 'Descomprimiendo archivo...', progress: 100 });
+        const allowance = await getStorageAllowance(row, true);
+        const validatedZip = validateZipArchive(finalFile, targetDir, allowance.remainingBytes);
         const nativeResult = await extractZipNatively(finalFile, targetDir);
         if (nativeResult.success) {
             await fs.unlink(finalFile).catch(()=>{});
         } else {
             try {
-                const zip = new AdmZip(finalFile);
-                zip.extractAllTo(targetDir, true);
+                validatedZip.extractAllTo(targetDir, true);
                 await fs.unlink(finalFile).catch(()=>{});
             } catch {
                 throw new Error('El archivo ZIP se descargó pero está corrupto o protegido con contraseña.');
             }
         }
+        storageCache.delete(row.id);
+        await checkStorageLimit(row, 0, true);
     }
 
     await finishDownloadJob(job.id, {
@@ -336,7 +434,7 @@ async function startDownloadWorker() {
 startDownloadWorker();
 
 router.get('/list', requireAuth, async (req, res) => {
-    const row = await getServerByIdForUser(req.query.serverId, req.user.sub, req.user.role === 'admin');
+    const row = await getServerByIdForUser(req.query.serverId, req.user.sub, req.user.role === 'admin', 'files');
     if (!row) return res.status(404).json({ error: 'No encontrado' });
     try {
         const reqPath = req.query.path || '/';
@@ -363,7 +461,7 @@ router.get('/list', requireAuth, async (req, res) => {
 });
 
 router.get('/read', requireAuth, async (req, res) => {
-    const row = await getServerByIdForUser(req.query.serverId, req.user.sub, req.user.role === 'admin');
+    const row = await getServerByIdForUser(req.query.serverId, req.user.sub, req.user.role === 'admin', 'files');
     if (!row) return res.status(404).json({ error: 'No encontrado' });
     try {
         const reqPath = req.query.path || 'server.cfg';
@@ -378,7 +476,7 @@ router.get('/read', requireAuth, async (req, res) => {
 });
 
 router.put('/write', requireAuth, async (req, res) => {
-    const row = await getServerByIdForUser(req.body.serverId, req.user.sub, req.user.role === 'admin');
+    const row = await getServerByIdForUser(req.body.serverId, req.user.sub, req.user.role === 'admin', 'files');
     if (!row) return res.status(404).json({ error: 'No encontrado' });
     try {
         const reqPath = req.body.path || 'server.cfg';
@@ -396,7 +494,7 @@ router.put('/write', requireAuth, async (req, res) => {
 });
 
 router.post('/action', requireAuth, async (req, res) => {
-    const row = await getServerByIdForUser(req.body.serverId, req.user.sub, req.user.role === 'admin');
+    const row = await getServerByIdForUser(req.body.serverId, req.user.sub, req.user.role === 'admin', 'files');
     if (!row) return res.status(404).json({ error: 'No encontrado' });
     try {
         const reqPath = req.body.path;
@@ -447,20 +545,21 @@ router.post('/action', requireAuth, async (req, res) => {
             await fs.rename(targetPath, newPath);
         }
         else if (req.body.action === 'unzip') {
-             // 🚀 MEJORA: Validar espacio antes de descomprimir (estimación de 500MB si no se conoce)
-             await checkStorageLimit(row, 500 * 1024 * 1024);
              const extractDir = path.dirname(targetPath);
+             const allowance = await getStorageAllowance(row, true);
+             const validatedZip = validateZipArchive(targetPath, extractDir, allowance.remainingBytes);
 
              const nativeResult = await extractZipNatively(targetPath, extractDir);
 
              if (!nativeResult.success) {
                  try {
-                     const zip = new AdmZip(targetPath);
-                     zip.extractAllTo(extractDir, true);
+                     validatedZip.extractAllTo(extractDir, true);
                  } catch (admErr) {
                      throw new Error(`Detalle Linux: ${nativeResult.error.substring(0, 150)} | Fallo Extra: El archivo supera la memoria máxima o está corrupto.`);
                  }
              }
+             storageCache.delete(row.id);
+             await checkStorageLimit(row, 0, true);
         }
         res.json({ success: true });
     } catch(e) { res.status(500).json({error: e.message || "Error ejecutando la acción"}); }
@@ -468,7 +567,7 @@ router.post('/action', requireAuth, async (req, res) => {
 
 router.post('/upload', requireAuth, upload.single('file'), async (req, res) => {
     if(!req.file) return res.status(400).json({error: "No hay archivo"});
-    const row = await getServerByIdForUser(req.body.serverId, req.user.sub, req.user.role === 'admin');
+    const row = await getServerByIdForUser(req.body.serverId, req.user.sub, req.user.role === 'admin', 'files');
     if (!row) {
         await fs.unlink(req.file.path).catch(()=>{});
         return res.status(404).json({ error: 'No encontrado' });
@@ -508,7 +607,7 @@ router.post('/upload-chunk', requireAuth, upload.single('file'), async (req, res
 router.post('/upload-finish', requireAuth, async (req, res) => {
     const { uploadId, totalChunks, serverId, path: destPath, fileName, totalSize } = req.body;
     
-    const row = await getServerByIdForUser(serverId, req.user.sub, req.user.role === 'admin');
+    const row = await getServerByIdForUser(serverId, req.user.sub, req.user.role === 'admin', 'files');
     if (!row) return res.status(404).json({ error: 'No encontrado' });
 
     try {
@@ -543,7 +642,7 @@ router.post('/upload-finish', requireAuth, async (req, res) => {
 });
 
 router.get('/download', requireAuth, async (req, res) => {
-    const row = await getServerByIdForUser(req.query.serverId, req.user.sub, req.user.role === 'admin');
+    const row = await getServerByIdForUser(req.query.serverId, req.user.sub, req.user.role === 'admin', 'files');
     if (!row) return res.status(404).send('No encontrado');
     try {
         const reqPath = req.query.path;
@@ -557,7 +656,7 @@ router.get('/download', requireAuth, async (req, res) => {
 });
 
 router.get('/download-folder', requireAuth, async (req, res) => {
-    const row = await getServerByIdForUser(req.query.serverId, req.user.sub, req.user.role === 'admin');
+    const row = await getServerByIdForUser(req.query.serverId, req.user.sub, req.user.role === 'admin', 'files');
     if (!row) return res.status(404).send('No encontrado');
     try {
         const reqPath = req.query.path || '';
@@ -586,7 +685,7 @@ router.get('/download-folder', requireAuth, async (req, res) => {
 
 // 🚀 RUTA DE ESTADO: El frontend llama aquí para actualizar la barra
 router.get('/download-status', requireAuth, async (req, res) => {
-    const row = await getServerByIdForUser(req.query.serverId, req.user.sub, req.user.role === 'admin');
+    const row = await getServerByIdForUser(req.query.serverId, req.user.sub, req.user.role === 'admin', 'files');
     if (!row) return res.status(404).json({ error: 'No encontrado' });
 
     const { rows } = await query(`
@@ -607,13 +706,15 @@ router.get('/download-status', requireAuth, async (req, res) => {
 
 // 🌟 DESCARGAS EN SEGUNDO PLANO (cola persistente en Postgres)
 router.post('/download-remote', requireAuth, async (req, res) => {
-    const row = await getServerByIdForUser(req.body.serverId, req.user.sub, req.user.role === 'admin');
+    const row = await getServerByIdForUser(req.body.serverId, req.user.sub, req.user.role === 'admin', 'files');
     if (!row) return res.status(404).json({ error: 'No encontrado' });
 
     try {
         if (!req.body.url || !req.body.fileName) {
             return res.status(400).json({ error: 'URL y nombre de archivo son obligatorios.' });
         }
+
+        await validateRemoteUrl(req.body.url);
 
         const targetDir = getSafePath(row.data_path, req.body.path || '/');
         getSafePath(targetDir, req.body.fileName);

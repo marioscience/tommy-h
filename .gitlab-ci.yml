@@ -10,6 +10,21 @@ stages:
 - secret-detection
 variables:
   SECRET_DETECTION_ENABLED: 'true'
+
+security_contracts:
+  stage: test
+  image: node:24-bookworm
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-npm"
+    paths:
+    - .npm-cache/
+  before_script:
+  - npm ci --ignore-scripts --cache .npm-cache
+  script:
+  - npm run security:secrets
+  - npm run security:csp-bindings
+  - npm run security:inline-code
+
 secret_detection:
   stage: secret-detection
 include:
