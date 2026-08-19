@@ -8,9 +8,7 @@ import { query, queryCached, logAudit } from '../db.js';
 import { config, PLAN_LIMITS, generateSecurePassword } from '../config.js';
 import * as Docker from './dockerService.js';
 import { execFile } from 'child_process';
-import util from 'util';
-import { updateTunnelConfig, updateServerTunnelConfig, cleanOrphanedTunnels } from './cloudflareService.js';
-import { rustUtil } from '../utils/rustUtil.js';
+import { updateTunnelConfig, updateServerTunnelConfig, cleanOrphanedTunnels, getRagenodesTunnelHostname } from './cloudflareService.js';
 import { sendTeamInviteEmail } from './emailService.js';
 import os from 'os';
 import net from 'net';
@@ -488,7 +486,7 @@ export async function createServerForUser(userId, payload) {
 
   const tunnelUrl = isNonFivem
     ? `${config.fivemPublicHost}:${fPort}`
-    : `https://tx${tPort}.ragenodes.com`;
+    : `https://${getRagenodesTunnelHostname(serverId, tPort, '', 'tx')}`;
 
   await query(
     `INSERT INTO servers (id, owner_id, name, slug, template, runtime_plan, status, fivem_port, txadmin_port, blender_port, blender_pass, db_name, db_user, db_pass, container_name, data_path, license_key_hint, txadmin_url, expires_at, mc_version, mc_type, allocated_ram_gb) VALUES ($1,$2,$3,$4,$5,$6,'running',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
@@ -1051,9 +1049,9 @@ setInterval(async () => {
 
                     // 🚀 AUTOMATIZACIÓN CLOUDFLARE (Solo para FiveM)
                     if (s.template === 'fivem' && s.txadmin_port) {
-                        const tunnelUrl = `https://tx${s.txadmin_port}.ragenodes.com`;
+                        const tunnelUrl = `https://${getRagenodesTunnelHostname(s.id, s.txadmin_port, '', 'tx')}`;
                         const activeTunnelUrl = s.txadmin_url || tunnelUrl;
-                        if (/^https:\/\/tx[0-9]+\.ragenodes\.com\/?$/i.test(activeTunnelUrl)) {
+                        if (/^https:\/\/(?:[a-z0-9-_]+\.)?ragenodes\.com\/?$/i.test(activeTunnelUrl)) {
                             // Sync is handled by createServer and deleteServer, no need to blindly sync every 60s
                         }
                         if (s.txadmin_url !== tunnelUrl) {

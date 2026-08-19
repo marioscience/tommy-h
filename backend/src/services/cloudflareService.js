@@ -171,7 +171,7 @@ const executeUpdate = async (serverId, targetPort, action = 'add', targetIp = 'h
         }
         headers['Content-Type'] = 'application/json';
 
-        const hostname = hostnameOverride || `tx${targetPort}.ragenodes.com`;
+        const hostname = hostnameOverride || getRagenodesTunnelHostname(serverId, targetPort, '', 'tx');
         console.log(`DEBUG: Cloudflare -> Host: ${hostname} | Target: ${targetIp}:${targetPort} | Auth: ${isToken ? 'Bearer (Token)' : 'X-Auth-Key (Global)'}`);
 
         try {
