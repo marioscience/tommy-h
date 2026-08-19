@@ -148,7 +148,10 @@ services:
     image: ragenodes/oxideproxy:1.0.0-local
     restart: unless-stopped
     networks:
-      - ragenodes_net_staging
+      ragenodes_net_staging:
+        aliases:
+          - oxide_web
+          - ragenodes-ultimate-oxide_web-1
     ports:
       - "127.0.0.1:8089:80"  # Puerto local para la interfaz web de staging
     volumes:
