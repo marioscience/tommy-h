@@ -13,6 +13,7 @@ import { sendTeamInviteEmail } from './emailService.js';
 import os from 'os';
 import net from 'net';
 import dgram from 'dgram';
+import util from 'util';
 
 const repairBackoffCache = new Map();
 const MAX_REPAIRS_PER_HOUR = 3;
