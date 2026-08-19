@@ -26,8 +26,25 @@ if [ "$LOCAL" != "$REMOTE" ]; then
 
     # Ejecutar el script de despliegue de staging
     if [ -x "./deploy_staging.sh" ]; then
-        bash ./deploy_staging.sh >> "$LOG_FILE" 2>&1
-        echo "$(date): Actualización de Staging completada con éxito." >> "$LOG_FILE"
+        if bash ./deploy_staging.sh >> "$LOG_FILE" 2>&1; then
+            echo "$(date): Despliegue completado. Esperando 30s para pruebas de salud..." >> "$LOG_FILE"
+            sleep 30
+            
+            # Verificación básica
+            if docker compose -f docker-compose.staging.yml ps | grep -qEi "Exit|restarting|unhealthy"; then
+                echo "$(date): ERROR CRÍTICO - Contenedores fallaron o están inestables. Iniciando ROLLBACK a $LOCAL..." >> "$LOG_FILE"
+                git reset --hard "$LOCAL"
+                bash ./deploy_staging.sh >> "$LOG_FILE" 2>&1
+                echo "$(date): ROLLBACK completado. Se restauró la versión funcional anterior." >> "$LOG_FILE"
+            else
+                echo "$(date): Pruebas pasadas exitosamente. Actualización de Staging completada." >> "$LOG_FILE"
+            fi
+        else
+            echo "$(date): ERROR FATAL - deploy_staging.sh falló. Iniciando ROLLBACK a $LOCAL..." >> "$LOG_FILE"
+            git reset --hard "$LOCAL"
+            bash ./deploy_staging.sh >> "$LOG_FILE" 2>&1
+            echo "$(date): ROLLBACK completado. Se restauró la versión funcional anterior." >> "$LOG_FILE"
+        fi
     else
         echo "$(date): Error - deploy_staging.sh no tiene permisos de ejecución o no existe." >> "$LOG_FILE"
     fi
