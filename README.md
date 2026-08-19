@@ -177,7 +177,7 @@ npm run security:routes
 ---
 
 ## 🤝 Contribuidores
-* [@payniko24](https://github.com/payniko24)
+* [@payniko24](https://gitlab.com/payniko24)
 * [@marioscience](https://github.com/marioscience)
 
 ---
