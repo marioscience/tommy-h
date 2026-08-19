@@ -78,8 +78,8 @@ services:
         condition: service_started
     volumes:
       - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
-      - ${INSTANCE_DATA_ROOT}:${INSTANCE_DATA_ROOT}
-      - ${BACKUP_ROOT}:${BACKUP_ROOT}
+      - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}:${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}
+      - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
       - ./backend/src:/app/src
       - ./rclone.conf:/root/.config/rclone/rclone.conf:ro
       - ./fivem-base:/app/fivem-base
@@ -117,9 +117,9 @@ services:
         condition: service_started
     volumes:
       - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
-      - ${INSTANCE_DATA_ROOT}:${INSTANCE_DATA_ROOT}
-      - ${INSTANCE_DATA_ROOT}/templates:${INSTANCE_DATA_ROOT}/templates:ro
-      - ${BACKUP_ROOT}:${BACKUP_ROOT}
+      - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}:${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}
+      - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}/templates:${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}/templates:ro
+      - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
       - ./backend/src:/app/src
       - ./rclone.conf:/root/.config/rclone/rclone.conf:ro
       - ./fivem-base:/app/fivem-base
@@ -146,9 +146,9 @@ services:
         condition: service_healthy
     volumes:
       - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
-      - ${INSTANCE_DATA_ROOT}:${INSTANCE_DATA_ROOT}
-      - ${INSTANCE_DATA_ROOT}/templates:${INSTANCE_DATA_ROOT}/templates:ro
-      - ${BACKUP_ROOT}:${BACKUP_ROOT}
+      - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}:${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}
+      - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}/templates:${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}/templates:ro
+      - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
       - ./backend/src:/app/src
       - ./rclone.conf:/root/.config/rclone/rclone.conf:ro
       - ./fivem-base:/app/fivem-base
@@ -175,9 +175,9 @@ services:
         condition: service_healthy
     volumes:
       - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
-      - ${INSTANCE_DATA_ROOT}:${INSTANCE_DATA_ROOT}
-      - ${INSTANCE_DATA_ROOT}/templates:${INSTANCE_DATA_ROOT}/templates:ro
-      - ${BACKUP_ROOT}:${BACKUP_ROOT}
+      - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}:${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}
+      - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}/templates:${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}/templates:ro
+      - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
       - ./backend/src:/app/src
       - ./rclone.conf:/root/.config/rclone/rclone.conf:ro
       - ./certs:/opt/ragenodes-ultimate/certs:ro
@@ -234,8 +234,8 @@ services:
     volumes:
       - ./oxideproxy/config:/app/config
       - ./frontend/public:/var/www/frontend:ro
-      - ${INSTANCE_DATA_ROOT}:/var/www/frontend/data:ro
-      - ${INSTANCE_DATA_ROOT}/templates:/var/www/frontend/data/templates:ro
+      - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}:/var/www/frontend/data:ro
+      - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}/templates:/var/www/frontend/data/templates:ro
       - query_cache_data:/var/www/query-cache:ro
     depends_on:
       oxide_control_panel:
@@ -257,7 +257,7 @@ services:
   tunnel:
     image: cloudflare/cloudflared@sha256:0aa26e284f05e6c77ae375b8c9c11d9eb6a448fb7bcd8d40f31cb6176189eb38
     restart: unless-stopped
-    command: tunnel --protocol http2 --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+    command: tunnel --protocol http2 --no-autoupdate run --token ${CF_TUNNEL_TOKEN:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

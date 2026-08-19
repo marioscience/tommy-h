@@ -69,7 +69,7 @@ Whether you're running a massive FiveM roleplay community or a private Rust serv
    ```
 3. Start the core panel services using Docker Compose:
    ```bash
-   docker-compose up -d
+   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
    ```
 4. Access the web dashboard at `http://YOUR_SERVER_IP:3000`
 
