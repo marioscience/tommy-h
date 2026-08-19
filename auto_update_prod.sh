@@ -4,7 +4,7 @@
 
 PROJECT_DIR="/opt/ragenodes-ultimate"
 BRANCH="main"
-LOG_FILE="/var/log/ragenodes_prod_update.log"
+LOG_FILE="/opt/ragenodes-ultimate/update.log"
 
 # Asegurarse de que el directorio del proyecto exista
 cd "$PROJECT_DIR" || { echo "$(date): Error - No se encontró el directorio $PROJECT_DIR" >> "$LOG_FILE"; exit 1; }
