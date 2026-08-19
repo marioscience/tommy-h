@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
   <img src="frontend/public/assets/icon.png" alt="RageNodes Logo" width="130" />
   <h1>🎮 RageNodes Ultimate</h1>
   <p><strong>Plataforma de Alto Rendimiento para Orquestación de Servidores de Juegos y Bots</strong></p>
@@ -173,6 +173,12 @@ npm run security:routes
 * [ADR-001: OxideProxy en Rust](docs/adr/ADR-001-rust-reverse-proxy.md)
 * [ADR-002: Arquitectura POO y GameFactory](docs/adr/ADR-002-game-factory-oop-architecture.md)
 * [ADR-003: Aislamiento de Túneles Cloudflare](docs/adr/ADR-003-cloudflare-tunnel-namespace-isolation.md)
+
+---
+
+## 🤝 Contribuidores
+* [@payniko24](https://github.com/payniko24)
+* [@marioscience](https://github.com/marioscience)
 
 ---
 
