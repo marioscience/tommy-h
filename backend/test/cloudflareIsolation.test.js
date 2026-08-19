@@ -1,4 +1,4 @@
-﻿import { describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     getRagenodesTunnelHostname,
@@ -27,6 +27,14 @@ describe('☁️ Cloudflare Tunnel Namespace Isolation Tests (Seguridad Multi-En
         it('debería generar hostnames prefijados para Dev (dev-)', () => {
             const host = getRagenodesTunnelHostname('srv-12345678', 40120, '', 'tx', 'dev-');
             assert.equal(host, 'dev-tx40120.ragenodes.com');
+        });
+
+        it('debería generar URLs completas de txAdmin según el entorno', () => {
+            const prodUrl = `https://${getRagenodesTunnelHostname('srv-1', 40120, '', 'tx', '')}/`;
+            assert.equal(prodUrl, 'https://tx40120.ragenodes.com/');
+
+            const stagingUrl = `https://${getRagenodesTunnelHostname('srv-1', 40120, '', 'tx', 'staging-')}/`;
+            assert.equal(stagingUrl, 'https://staging-tx40120.ragenodes.com/');
         });
     });
 

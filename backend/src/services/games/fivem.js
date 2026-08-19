@@ -1,5 +1,6 @@
-﻿import { BaseGameService } from './BaseGameService.js';
+import { BaseGameService } from './BaseGameService.js';
 import { GameFactory } from './GameFactory.js';
+import { getRagenodesTunnelHostname } from '../cloudflareService.js';
 import { config } from '../../config.js';
 
 /**
@@ -15,6 +16,10 @@ export class FiveMService extends BaseGameService {
     }
 
     buildEnvironment(opts) {
+        const txHostUrl = opts.txadminPort
+            ? `https://${getRagenodesTunnelHostname(opts.containerName || 'srv', opts.txadminPort, '', 'tx')}/`
+            : null;
+
         return [
             `TXADMIN_PORT=${opts.txadminPort}`,
             `FIVEM_PORT=${opts.fivemPort}`,
@@ -24,7 +29,7 @@ export class FiveMService extends BaseGameService {
             `TXHOST_DATA_PATH=/opt/fivem/txData`,
             `TXHOST_GAME_NAME=fivem`,
             `TXHOST_IGNORE_DEPRECATED_CONFIGS=true`,
-            ...(opts.txadminPort ? [`TXHOST_TXA_URL=https://tx${opts.txadminPort}.ragenodes.com/`] : []),
+            ...(txHostUrl ? [`TXHOST_TXA_URL=${txHostUrl}`] : []),
             ...(opts.dbName ? [`DB_NAME=${opts.dbName}`] : []),
             ...(opts.dbUser ? [`DB_USER=${opts.dbUser}`] : []),
             ...(opts.dbPass ? [`DB_PASS=${opts.dbPass}`] : []),

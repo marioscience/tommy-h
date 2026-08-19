@@ -54,7 +54,10 @@ export const config = {
   databaseBaseImage: process.env.DATABASE_BASE_IMAGE || 'mariadb:10.11@sha256:de61fed4a40d3842f3ee09944ba52792156cfd9adf489b2cc670fc6ded28df8d',
 
   // Host y Puertos
-  fivemPublicHost: process.env.FIVEM_PUBLIC_HOST || 'localhost',
+  fivemPublicHost: process.env.FIVEM_PUBLIC_HOST || (
+    process.env.NODE_ENV === 'staging' ? 'staging.ragenodes.com' :
+    process.env.NODE_ENV === 'production' ? 'node1.ragenodes.com' : 'localhost'
+  ),
   fivemPortStart: Number(process.env.FIVEM_PORT_START || 30100),
   txAdminPortStart: Number(process.env.TXADMIN_PORT_START || 40100),
   blenderPortStart: Number(process.env.BLENDER_PORT_START || 50100),
