@@ -2,6 +2,13 @@
 # Script de auto-actualización para el entorno de Staging
 # Este script está diseñado para ser ejecutado por un Cron Job (Opcional).
 
+# Prevenir ejecuciones simultáneas (Evita corrupción si el despliegue tarda más de 1 minuto)
+exec 9>/tmp/ragenodes_staging_update.lock
+if ! flock -n 9; then
+    # Ya hay una actualización en curso, salir silenciosamente
+    exit 0
+fi
+
 PROJECT_DIR="/opt/ragenodes-ultimate"
 BRANCH="staging"
 LOG_FILE="/opt/ragenodes-ultimate/update_staging.log"
