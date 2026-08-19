@@ -1,118 +1,180 @@
-<div align="center">
-  <img src="frontend/public/assets/icon.png" alt="RageNodes Logo" width="150" />
+﻿<div align="center">
+  <img src="frontend/public/assets/icon.png" alt="RageNodes Logo" width="130" />
   <h1>🎮 RageNodes Ultimate</h1>
-  <p><strong>The Most Advanced, Self-Hosted Web Panel for Game Servers & Discord Bots</strong></p>
+  <p><strong>Plataforma de Alto Rendimiento para Orquestación de Servidores de Juegos y Bots</strong></p>
 
   <p>
-    <img src="https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js" />
-    <img src="https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" />
-    <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
-    <img src="https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Linux" />
+    <img src="https://img.shields.io/badge/Node.js-24.x-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js" />
+    <img src="https://img.shields.io/badge/Rust-OxideProxy-DEA584?style=for-the-badge&logo=rust&logoColor=black" alt="Rust" />
+    <img src="https://img.shields.io/badge/Docker-Rootless-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
+    <img src="https://img.shields.io/badge/PostgreSQL-15-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+    <img src="https://img.shields.io/badge/Redis-Cache-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
   </p>
 </div>
 
-<br/>
+---
 
-## 🚀 Overview
-**RageNodes Ultimate** is an all-in-one, ultra-fast hosting control panel designed to deploy and manage isolated containers with a single click. Built with a beautiful modern glassmorphism UI, a robust Node.js backend, and a blazing-fast Rust reverse proxy.
+## 🚀 Visión General
+**RageNodes Ultimate** es una plataforma integral y modular de hosting y orquestación de servidores de juegos y aplicaciones. Combina una arquitectura orientada a objetos en **Node.js**, un proxy inverso ultra-rápido de baja latencia en **Rust (`OxideProxy`)**, y aislamiento estricto de contenedores en **Docker**.
 
-Whether you're running a massive FiveM roleplay community or a private Rust server, RageNodes gives you complete control over your hardware without the monthly fees of commercial panels.
+---
 
-## 🌟 Key Features
-- **🕹️ 1-Click Game Servers:** Deploy and manage FiveM, Rust, Minecraft, Palworld, 7 Days to Die, Ark: Survival Ascended, Project Zomboid, and more.
-- **🤖 Discord Bot Hosting:** Secure, isolated containers for Node.js and Python Discord bots.
-- **⚡ OxideProxy (Rust):** Custom, hyper-optimized Layer 4/Layer 7 reverse proxy written in Rust to handle high-traffic game networking, DDoS mitigation, and SSL termination.
-- **🐳 Docker-Native:** Every server runs inside strict, secure, resource-limited Docker containers.
-- **📊 Live Analytics:** Real-time CPU, RAM, and Disk usage monitoring for all running instances.
-- **🎨 Premium UI:** Fully responsive, modern, dark-themed dashboard with fluid micro-animations.
+## 🛠️ Stack Tecnológico y Arquitectura
 
-## 🛠️ Technology Stack
-* **Frontend:** Vanilla JS, HTML5, Modern CSS (Glassmorphism, Animations)
-* **Backend:** Node.js, Express, SQLite/PostgreSQL
-* **Networking/Proxy:** Rust (`oxideproxy`), eBPF
-* **Containerization:** Docker, Docker Compose
-* **OS Support:** Debian / Ubuntu / Proxmox LXC
+* **Backend:** Node.js (ESM), Express, PostgreSQL, MariaDB, Redis.
+* **Capa de Red & Proxy:** Rust (`oxideproxy`), TLS termination, Nonce CSP y caché de consultas.
+* **Patrones de Diseño:** *Template Method* (`BaseGameService`), *Factory & Registry* (`GameFactory`), *Observer* (Docker Events), *Strategy* (Backups).
+* **Testing:** Test runner nativo de Node.js (`node:test` y `node:assert/strict`).
+* **Frontend:** Vanilla JS moderno, CSS Glassmorphism, WebSockets para métricas en vivo.
 
-## 🖥️ Supported Services & Games
+---
 
-### 🎮 Game Servers
-| Game | Engine | Status |
-|---|---|---|
-| **FiveM** (GTA V) | FXServer | ✅ Fully Supported |
-| **Rust** | Unity | ✅ Fully Supported |
-| **Minecraft** | Java/Bedrock | ✅ Fully Supported |
-| **Counter-Strike 2** | Source 2 | ✅ Fully Supported |
-| **Valheim** | Unity | ✅ Fully Supported |
-| **Palworld** | Unreal | ✅ Fully Supported |
-| **7 Days to Die** | Unity | ✅ Fully Supported |
-| **Ark: Survival Evolved/Ascended** | Unreal | ✅ Fully Supported |
-| **Project Zomboid** | Java | ✅ Fully Supported |
+## 💻 Guía Rápida para Nuevos Desarrolladores (Local Setup)
 
-### 🛠️ Hosting & Applications
-| Service | Environment | Status |
-|---|---|---|
-| **Discord Bots** | Node.js / Python | ✅ Fully Supported |
-| **WordPress & Web Hosting** | Nginx / PHP | ✅ Fully Supported |
-| **Dedicated Databases** | MySQL / MariaDB / PostgreSQL | ✅ Fully Supported |
+### 1. Requisitos Previos
+* **Node.js** >= 20.x (recomendado Node 22 o 24).
+* **Docker Desktop** (o Docker Engine en Linux) con soporte para Docker Compose v2.
+* **Git**.
 
-## ⚙️ Installation & Usage
-*(Detailed installation guide coming soon...)*
+### 2. Clonar y Preparar el Entorno
+```bash
+# 1. Clonar el repositorio
+git clone https://gitlab.com/mariomatos/ragenodesultimate.git
+cd ragenodesultimate
 
-1. Clone the repository to your Linux server:
-   ```bash
-   git clone https://github.com/Noko34/ragenodes-ultimate.git
-   cd ragenodes-ultimate
-   ```
-2. Install dependencies:
-   ```bash
-   cd backend && npm install
-   ```
-3. Start the core panel services using Docker Compose:
-   ```bash
-   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
-   ```
-4. Access the web dashboard at `http://YOUR_SERVER_IP:3000`
+# 2. Crear tu rama de trabajo (según el protocolo de equipo)
+git checkout -b feat/mi-nueva-caracteristica
 
-## 🛡️ Security & production checklist
+# 3. Configurar variables de entorno locales
+cp .env.example .env
+```
 
-Game containers use resource limits, `no-new-privileges`, a minimal capability allowlist and rotated logs. ARK additionally has a bounded process count and a reduced compatibility allowlist; Minecraft authentication is enabled by default. OxideProxy generates a cryptographic CSP nonce for every HTML response, restricts external origins, applies COEP to views that do not embed payments, and limits the admin, Oxide and phpMyAdmin surfaces to the local network. The Oxide control panel is internal-only, requires an authenticated administrator, validates the origin of every mutation, uses only locally hosted browser assets and has no Docker socket or published port. All directly served application pages, including the panel and administration, use same-origin event modules or CSP-safe closure bindings and enforce `script-src-attr 'none'` without `eval`.
+### 3. Instalar Dependencias
+```bash
+# En el backend
+cd backend
+npm install
+cd ..
+```
 
-Local development deliberately uses HTTP and may use Docker Desktop's rootful socket, but its published panel/API ports bind to `127.0.0.1`. Do not expose that configuration to a public network.
+### 4. Ejecutar la Suite de Pruebas Automatizadas
+Verifica que todos los módulos y pruebas unitarias pasen al 100%:
+```bash
+cd backend
+npm test
+cd ..
+```
+*(Debe ejecutar 15 pruebas unitarias en ~500ms validando cálculos de recursos, bridges de Rust, GameFactory, aislamiento de Cloudflare y salud).*
 
-Docker Desktop development disables optional blkio weighting (`DOCKER_BLKIO_WEIGHT=0`) because its cgroup setup may not expose `io.weight`. Production Linux nodes may set a value from 10 to 1000 after verifying that the I/O controller is enabled.
+### 5. Levantar el Stack Completo en Local
+Para desarrollo local, utiliza el override `docker-compose.local.yml` (que mantiene el túnel Cloudflare en modo opcional):
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+```
 
-PayPal is disabled when `PAYPAL_CLIENT` or `PAYPAL_SECRET` is empty. Its public client identifier is delivered from the backend only when payments are configured, the SDK is loaded on demand with the response CSP nonce, and non-production environments reject `PAYPAL_MODE=live`. Webhooks default to disabled and cannot be enabled with configured payment credentials until `PAYPAL_WEBHOOK_ID` is present.
+### 6. Acceso al Panel en Local
+* **Panel de Control Web:** [http://localhost:8088](http://localhost:8088)
+* **API Backend:** [http://localhost:3011](http://localhost:3011)
+* **Sonda de Salud en Vivo:** [http://localhost:3011/readyz](http://localhost:3011/readyz)
+* **phpMyAdmin:** [http://localhost:8089](http://localhost:8089)
 
-Production starts only when all of these conditions are met:
+---
 
-- `NODE_ENV=production`, `PUBLIC_BASE_URL` and every `CORS_ORIGIN` use HTTPS.
-- `COOKIE_SECURE=true` and `COOKIE_SAMESITE=Strict`.
-- `DOCKER_SOCKET=/run/user/<uid>/docker.sock` points to a rootless Docker daemon.
-- Remote Docker nodes use port 2376 with mTLS certificates.
-- `ALLOW_INSECURE_DOCKER_NODES=false`.
-- Secrets are generated outside Git from `.env.example`; `.env`, certificates, backups and reports remain ignored.
+## 🛡️ Protocolo de Git y Ramas para el Equipo (*GitFlow*)
 
-`ALLOW_ROOTFUL_DOCKER_SOCKET=true` is only an explicit break-glass compatibility override. A mounted rootful Docker socket remains equivalent to host-administrator access even when the mount is marked read-only. It is not considered a secure production configuration.
+Para garantizar la estabilidad y prevenir conflictos o regresiones en los servidores de producción, **todos los desarrolladores deben seguir estas reglas estrictas**:
 
-For the Linux development stack, start the security-test services and run the local contracts:
+```mermaid
+flowchart LR
+    DevBranch["💻 Tu Rama de Trabajo<br/><b>feat/*</b> o <b>fix/*</b> o <b>local-niko</b>"] -->|Push a tu rama| RemoteBranch["☁️ origin/tu-rama"]
+    RemoteBranch -->|Merge Request| Dev["🔒 origin/dev<br/><i>(Integración del equipo)</i>"]
+    Dev --> Staging["🔒 origin/staging<br/><i>(Pre-producción)</i>"]
+    Staging --> Main["🚀 origin/main<br/><i>(Producción Real)</i>"]
+```
+
+### 📋 Reglas de Colaboración:
+1. **Ramas Protegidas (`dev`, `staging`, `main`):**
+   - 🚫 **PROHIBIDO hacer push directo** a `dev`, `staging` o `main`.
+2. **Flujo de Trabajo:**
+   - Trabaja siempre en tu rama asignada (ej: `local-niko`, `feat/nombre-feature`, `fix/nombre-bug`).
+   - Sube los cambios a tu rama remota: `git push origin mi-rama`.
+   - Abre un **Merge Request (MR)** en GitLab hacia la rama **`dev`** para revisión del equipo.
+   - Una vez aprobado y probado en `dev`, se promueve a `staging` y posteriormente a `main`.
+
+---
+
+## ☁️ Aislamiento de Túneles Cloudflare (*Namespace Isolation*)
+
+El proyecto cuenta con un sistema de aislamiento por prefijos (`CF_TUNNEL_ENV_PREFIX`) para que el desarrollo local y de staging **jamás interfiera ni borre túneles de Producción**:
+
+* **Producción:** `CF_TUNNEL_ENV_PREFIX=""` (URLs: `tx40120.ragenodes.com`, `node1.ragenodes.com`).
+* **Staging:** `CF_TUNNEL_ENV_PREFIX="staging-"` (URLs: `staging-tx40120.ragenodes.com`, `staging.ragenodes.com`).
+* **Desarrollo:** `CF_TUNNEL_ENV_PREFIX="dev-"` (URLs: `dev-tx40120.ragenodes.com`).
+
+*Los workers de limpieza solo pueden evaluar y eliminar túneles que coincidan con su prefijo exacto.*
+
+---
+
+## 🕹️ Cómo Añadir un Nuevo Juego (Extender `GameFactory`)
+
+Gracias a la arquitectura orientada a objetos, añadir soporte para un nuevo juego requiere únicamente crear su clase especializada heredando de `BaseGameService`:
+
+1. Crea el archivo `backend/src/services/games/nuevoJuego.js`:
+```javascript
+import { BaseGameService } from './BaseGameService.js';
+import { GameFactory } from './GameFactory.js';
+import { config } from '../../config.js';
+
+export class NuevoJuegoService extends BaseGameService {
+    constructor() {
+        super('nuevo_juego', 'imagen/docker:latest');
+    }
+
+    buildEnvironment(opts) {
+        return [
+            `SERVER_NAME=${opts.serverName}`,
+            `PORT=${opts.gamePort}`
+        ];
+    }
+
+    buildPortBindings(opts) {
+        return {
+            exposed: { [`${opts.gamePort}/udp`]: {} },
+            bindings: { [`${opts.gamePort}/udp`]: [{ HostIp: "0.0.0.0", HostPort: String(opts.gamePort) }] }
+        };
+    }
+}
+
+// Instanciar y registrar en la fábrica
+export const nuevoJuegoService = new NuevoJuegoService();
+GameFactory.register('nuevo_juego', nuevoJuegoService);
+```
+2. ¡Listo! El orquestador `dockerService`, las cuotas de RAM/CPU, permisos de archivos `1000:1000`, branding y logs se gestionan automáticamente.
+
+---
+
+## 🧪 Comandos de Calidad y Seguridad
 
 ```bash
-npm run security:stack
-npm run security:containers
-npm run security:authz-http
-npm run security:browser
+# Ejecutar todas las pruebas unitarias e integración del backend
+npm --prefix backend test
+
+# Ejecutar auditorías de contratos de seguridad
+npm run security:secrets
 npm run security:csp-bindings
 npm run security:inline-code
-npm run security:secrets
 npm run security:routes
 ```
 
-Before every public release, also run dependency audits and an OWASP ZAP baseline against a staging deployment. These checks reduce risk but do not replace an independent authenticated penetration test. The ARK runtime compatibility test still requires the pinned multi-gigabyte game image and should be performed on a disposable game node before release.
+---
 
-The GitLab pipeline runs the candidate-file secret scan, first-party inline-code checks and CSP closure-binding fixture for every branch and merge request. GitLab Secret Detection remains enabled as an independent scanner.
+## 📚 Documentación Técnica Detallada
+* [Arquitectura del Sistema & Diagramas UML](docs/ARCHITECTURE.md)
+* [ADR-001: OxideProxy en Rust](docs/adr/ADR-001-rust-reverse-proxy.md)
+* [ADR-002: Arquitectura POO y GameFactory](docs/adr/ADR-002-game-factory-oop-architecture.md)
+* [ADR-003: Aislamiento de Túneles Cloudflare](docs/adr/ADR-003-cloudflare-tunnel-namespace-isolation.md)
 
-## 🤝 Contributors
-* [@marioscience](https://github.com/marioscience)
+---
 
-## 📜 License
-This project is for private/personal use. Please ensure you comply with the respective EULAs and TOS of the game servers (FiveM, SteamCMD, etc.) you intend to host.
+## 📜 Licencia
+Este proyecto es privado. Asegúrate de cumplir con los términos y EULAs de los servidores de juego respectivos (FiveM, SteamCMD, etc.).
