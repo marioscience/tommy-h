@@ -1,13 +1,15 @@
 import { config } from '../config.js';
 import { query, pool } from '../db.js';
-import * as Docker from './dockerService.js';
 
 const CF_API = 'https://api.cloudflare.com/client/v4';
 
 let isUpdating = false;
 const queue = [];
 
-const getRagenodesTunnelHostname = (serverId, targetPort = null, txadminUrl = '', prefix = 'tx') => {
+/**
+ * 🏷️ Genera el hostname del túnel aplicando el prefijo de espacio de nombres (Environment Namespace).
+ */
+export const getRagenodesTunnelHostname = (serverId, targetPort = null, txadminUrl = '', prefix = 'tx', envPrefixOverride = null) => {
     try {
         const parsed = new URL(txadminUrl);
         if (parsed.hostname.toLowerCase().endsWith('.ragenodes.com')) {
@@ -15,10 +17,71 @@ const getRagenodesTunnelHostname = (serverId, targetPort = null, txadminUrl = ''
         }
     } catch {}
 
+    const envPrefix = envPrefixOverride !== null ? envPrefixOverride : (config.cfTunnelEnvPrefix || '');
     if (targetPort) {
-        return `${prefix}${targetPort}.ragenodes.com`;
+        return `${envPrefix}${prefix}${targetPort}.ragenodes.com`.toLowerCase();
     }
-    return `tx${serverId.split('-')[0]}.ragenodes.com`; // Fallback (not recommended)
+    return `${envPrefix}tx${String(serverId).split('-')[0]}.ragenodes.com`.toLowerCase();
+};
+
+/**
+ * 🔒 Verifica si un hostname pertenece al ámbito de gestión del entorno actual.
+ * Evita que un worker de Staging borre túneles de Producción o que Producción borre Staging/Dev.
+ */
+export const isHostnameManagedByCurrentEnv = (hostname, currentEnvPrefix = config.cfTunnelEnvPrefix || '') => {
+    if (!hostname || typeof hostname !== 'string' || !hostname.toLowerCase().endsWith('.ragenodes.com')) {
+        return false;
+    }
+
+    const host = hostname.toLowerCase();
+    const prefix = String(currentEnvPrefix).toLowerCase();
+
+    // Lista de prefijos conocidos de entornos no productivos
+    const knownForeignPrefixes = ['staging-', 'staging.', 'stg-', 'dev-', 'local-', 'test-'];
+
+    if (prefix.length > 0) {
+        // Entorno no productivo (ej: 'staging-' o 'dev-'):
+        // Solo gestiona los hostnames que inicien con su prefijo exacto (o 'staging.' para staging)
+        if (prefix === 'staging-') {
+            return host.startsWith('staging-') || host.startsWith('staging.');
+        }
+        return host.startsWith(prefix);
+    } else {
+        // Entorno de Producción (prefijo vacío ""):
+        // Solo gestiona hostnames de producción (que NO inicien con ninguno de los prefijos conocidos de staging/dev)
+        return !knownForeignPrefixes.some(foreignPrefix => host.startsWith(foreignPrefix));
+    }
+};
+
+/**
+ * 🧹 Separa las reglas de ingress entre válidas y huérfanas aplicando el aislamiento estricto de entornos.
+ */
+export const partitionIngressRulesByEnv = (ingressRules, activeHostnames, currentEnvPrefix = config.cfTunnelEnvPrefix || '') => {
+    const validIngress = [];
+    const orphanedHostnames = [];
+
+    for (const rule of (ingressRules || [])) {
+        const host = rule.hostname;
+        if (!host || !host.endsWith('.ragenodes.com')) {
+            validIngress.push(rule);
+            continue;
+        }
+
+        // Si el túnel NO pertenece al entorno actual, se PRESERVA incondicionalmente
+        if (!isHostnameManagedByCurrentEnv(host, currentEnvPrefix)) {
+            validIngress.push(rule);
+            continue;
+        }
+
+        // Si el túnel pertenece a este entorno, verificamos si está activo en la DB local
+        if (activeHostnames.has(host.toLowerCase())) {
+            validIngress.push(rule);
+        } else {
+            orphanedHostnames.push(host);
+        }
+    }
+
+    return { validIngress, orphanedHostnames };
 };
 
 const processQueue = async () => {
@@ -227,18 +290,18 @@ const executeCleanOrphanedTunnels = async () => {
             const { rows } = await query("SELECT id, container_name, txadmin_url, txadmin_port, template, fivem_port FROM servers");
             const activeHostnames = new Set();
 
+            const Docker = await import('./dockerService.js');
             for (const s of rows) {
                 const state = await Docker.resolveContainerState(s.container_name);
                 if (state.exists) {
                     const shortId = s.id.slice(0, 8);
                     if (s.txadmin_port) {
-                        activeHostnames.add(`tx${s.txadmin_port}.ragenodes.com`);
+                        activeHostnames.add(getRagenodesTunnelHostname(shortId, s.txadmin_port, '', 'tx'));
                     }
                     if (s.template === 'wordpress') {
-                        activeHostnames.add(`wp${s.fivem_port}.ragenodes.com`);
+                        activeHostnames.add(getRagenodesTunnelHostname(shortId, s.fivem_port, '', 'wp'));
                     }
-                    activeHostnames.add(`s${shortId}.ragenodes.com`); // Keep for legacy
-                    activeHostnames.add(getRagenodesTunnelHostname(shortId, s.txadmin_port, s.txadmin_url));
+                    activeHostnames.add(getRagenodesTunnelHostname(shortId, null, s.txadmin_url));
                 }
             }
 
@@ -256,25 +319,15 @@ const executeCleanOrphanedTunnels = async () => {
             const tunnelConfig = data.result?.config;
             if (!tunnelConfig || !Array.isArray(tunnelConfig.ingress)) return;
 
-            const validIngress = [];
-            const orphanedHostnames = [];
-
-            for (const rule of tunnelConfig.ingress) {
-                if (rule.hostname && rule.hostname.endsWith('.ragenodes.com')) {
-                    // Protect staging tunnel from being deleted
-                    if (activeHostnames.has(rule.hostname) || rule.hostname.startsWith('staging.')) {
-                        validIngress.push(rule);
-                    } else {
-                        orphanedHostnames.push(rule.hostname);
-                        console.log(`☁️ [Cloudflare Limpieza] Detectado túnel huérfano: ${rule.hostname}. Eliminando...`);
-                    }
-                } else {
-                    validIngress.push(rule);
-                }
-            }
+            // 3. Particionar reglas aplicando aislamiento estricto por espacio de nombres de entorno
+            const { validIngress, orphanedHostnames } = partitionIngressRulesByEnv(
+                tunnelConfig.ingress,
+                activeHostnames,
+                config.cfTunnelEnvPrefix
+            );
 
             if (orphanedHostnames.length === 0) {
-                console.log("☁️ [Cloudflare Limpieza] Todo limpio. No se detectaron túneles huérfanos.");
+                console.log(`☁️ [Cloudflare Limpieza (${config.cfTunnelEnvPrefix || 'prod'})] Todo limpio. No se detectaron túneles huérfanos.`);
                 return;
             }
 

@@ -23,22 +23,45 @@ export async function withTransaction(callback) {
   }
 }
 
-export const redisClient = createClient({ url: 'redis://redis:6379' });
-redisClient.on('error', (err) => console.log('Redis Client Error', err));
-redisClient.connect().catch(console.error);
+export const redisClient = createClient({ url: process.env.REDIS_URL || 'redis://redis:6379' });
+redisClient.on('error', (err) => {
+  if (process.env.NODE_ENV !== 'test') {
+    console.log('Redis Client Error', err.message);
+  }
+});
+
+let isRedisConnecting = false;
+async function ensureRedis() {
+  if (!redisClient.isOpen && !isRedisConnecting && process.env.NODE_ENV !== 'test') {
+    isRedisConnecting = true;
+    try {
+      await redisClient.connect();
+    } catch (e) {
+      // Fallback a Postgres si Redis no está disponible
+    } finally {
+      isRedisConnecting = false;
+    }
+  }
+}
 
 export async function queryCached(text, params = [], ttlSeconds = 3) {
   try {
-    const key = `query:${Buffer.from(text).toString('base64')}:${JSON.stringify(params)}`;
-    const cached = await redisClient.get(key);
-    if (cached) {
-      return JSON.parse(cached);
+    await ensureRedis();
+    if (redisClient.isOpen) {
+      const key = `query:${Buffer.from(text).toString('base64')}:${JSON.stringify(params)}`;
+      const cached = await redisClient.get(key);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+      const result = await query(text, params);
+      await redisClient.setEx(key, ttlSeconds, JSON.stringify(result));
+      return result;
     }
-    const result = await query(text, params);
-    await redisClient.setEx(key, ttlSeconds, JSON.stringify(result));
-    return result;
+    return query(text, params);
   } catch (e) {
-    console.error('Redis cache error, falling back to DB:', e.message);
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('Redis cache error, falling back to DB:', e.message);
+    }
     return query(text, params);
   }
 }

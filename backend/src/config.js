@@ -71,13 +71,16 @@ export const config = {
   serverLimitPerUser: Number(process.env.SERVER_LIMIT_PER_USER || 1),
   centralDbPass: process.env.CENTRAL_DB_PASS,
 
-  // ☁️ CLOUDFLARE AUTOMATION CONFIG
+  // ☁️ CLOUDFLARE AUTOMATION & NAMESPACE ISOLATION
   cfAccountId: process.env.CF_ACCOUNT_ID,
   cfZoneId: process.env.CF_ZONE_ID,
   cfTunnelId: process.env.CF_TUNNEL_ID,
   cfApiToken: process.env.CF_API_TOKEN,
   cfEmail: process.env.CF_EMAIL,
   cfDdnsDomain: process.env.CF_DDNS_DOMAIN,
+  cfTunnelEnvPrefix: process.env.CF_TUNNEL_ENV_PREFIX !== undefined
+    ? String(process.env.CF_TUNNEL_ENV_PREFIX).trim()
+    : (process.env.NODE_ENV === 'staging' ? 'staging-' : (process.env.NODE_ENV === 'production' ? '' : 'dev-')),
   allowLocalAdmin: process.env.ALLOW_LOCAL_ADMIN === 'true'
 };
 

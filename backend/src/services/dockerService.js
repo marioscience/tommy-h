@@ -128,7 +128,7 @@ async function startNodeMonitor() {
     }, 60000);
 }
 
-const dockerTelemetryOwner = !process.env.RAGENODES_ROLE || process.env.RAGENODES_ROLE === 'worker-stats';
+const dockerTelemetryOwner = (process.env.NODE_ENV !== 'test') && (!process.env.RAGENODES_ROLE || process.env.RAGENODES_ROLE === 'worker-stats');
 if (dockerTelemetryOwner) {
     startStatsCollector();
     startNodeMonitor();
