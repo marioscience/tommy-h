@@ -56,7 +56,7 @@ services:
     volumes:
       - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
       - /srv/ragenodes-staging-data:/srv/ragenodes-staging-data
-      - ${BACKUP_ROOT}:${BACKUP_ROOT}
+      - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
       - ./backend/src:/app/src
       - ./fivem-base:/app/fivem-base
       - ./certs:/opt/ragenodes-ultimate/certs:ro
@@ -93,7 +93,7 @@ services:
       - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
       - /srv/ragenodes-staging-data:/srv/ragenodes-staging-data
       - /srv/ragenodes-staging-data/templates:/srv/ragenodes-staging-data/templates:ro
-      - ${BACKUP_ROOT}:${BACKUP_ROOT}
+      - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
       - ./backend/src:/app/src
     security_opt:
       - no-new-privileges:true

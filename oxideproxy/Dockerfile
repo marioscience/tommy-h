@@ -18,6 +18,11 @@ RUN cargo run --release --locked --bin cert_gen
 # Compilamos el binario principal de producción en modo release
 RUN touch src/main.rs && cargo build --release --locked
 
+# Preparamos los puntos de montaje que Docker necesita antes de aplicar el
+# sistema de archivos de solo lectura de la imagen final.
+RUN mkdir -p /runtime-root/var/www/frontend/data/templates \
+    /runtime-root/var/www/query-cache
+
 # Etapa 2: Imagen de Producción Minimalista (Distroless cc-debian12)
 FROM gcr.io/distroless/cc-debian12@sha256:6e1871c34683dc9ee996d13084497783fd98ac0200213d0826625f4e9d4be1d0
 
@@ -26,6 +31,7 @@ WORKDIR /app
 # Copiamos el binario compilado y los certificados generados
 COPY --from=builder /usr/src/oxide_proxy/target/release/oxide_proxy /app/oxide_proxy
 COPY --from=builder /usr/src/oxide_proxy/config /app/config
+COPY --from=builder /runtime-root/var/www /var/www
 
 # Configuramos variables de entorno para telemetría
 ENV RUST_LOG=warn,oxide_proxy=info
