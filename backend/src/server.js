@@ -81,7 +81,38 @@ app.use('/api', (req, res, next) => {
     }
     next();
 });
+// 🩺 Sondas de Observabilidad y Salud Empresarial (Módulo 4: Production Readiness)
 app.get('/healthz', (req, res) => res.status(200).send('OK'));
+
+app.get('/readyz', async (req, res) => {
+    const checks = {
+        database: 'unknown',
+        memory: 'ok',
+        uptime_seconds: Math.floor(process.uptime()),
+        timestamp: new Date().toISOString()
+    };
+
+    let isHealthy = true;
+
+    // Verificar conectividad con base de datos
+    try {
+        await query('SELECT 1');
+        checks.database = 'connected';
+    } catch (dbErr) {
+        checks.database = `error: ${dbErr.message}`;
+        isHealthy = false;
+    }
+
+    // Monitoreo de huella de memoria del proceso
+    const memUsage = process.memoryUsage();
+    checks.memory_heap_used_mb = Math.round(memUsage.heapUsed / 1024 / 1024);
+
+    if (isHealthy) {
+        return res.status(200).json({ status: 'ready', checks });
+    } else {
+        return res.status(503).json({ status: 'degraded', checks });
+    }
+});
 
 // 🔒 Limitador de tasa para rutas de autenticación
 const authLimiter = rateLimit({
