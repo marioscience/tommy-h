@@ -121,8 +121,14 @@ app.get('/readyz', async (req, res) => {
     }
 });
 
-// 🔒 Rutas de autenticación
-app.use('/api/auth', authRoutes);
+// 🔒 Limitador de tasa para rutas de autenticación
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 50, // Limitar a 50 peticiones por IP en 15 mins para endpoints de auth
+    message: { error: 'Demasiados intentos de inicio de sesión o registro, por favor intenta de nuevo en 15 minutos.' }
+});
+
+// 🔒 Limitador de tasa para rutas de administrador
 const adminLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
     max: 2000, // Aumentado a 2000 porque el panel hace muchas peticiones de actualización
@@ -152,6 +158,9 @@ const ticketLimiter = rateLimit({
     legacyHeaders: false,
     message: { error: 'Has enviado demasiados tickets. Inténtalo más tarde.' }
 });
+
+// Aplicamos el limitador estricto SOLAMENTE a las rutas de autenticación
+app.use('/api/auth', authLimiter, authRoutes);
 
 // 🤖 Rutas de la API de Discord
 app.use('/api/discord', serviceApiLimiter, discordRoutes);

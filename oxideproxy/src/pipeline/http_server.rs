@@ -23,7 +23,7 @@ fn get_proxy_client() -> &'static hyper::Client<hyper::client::HttpConnector> {
         hyper::Client::builder()
             .pool_idle_timeout(std::time::Duration::from_secs(60))
             .pool_max_idle_per_host(64)
-            .keep_alive(true)
+            .http1_keep_alive(true)
             .build_http()
     })
 }
