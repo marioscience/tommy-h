@@ -31,7 +31,7 @@ services:
     networks:
       ragenodes_net_staging:
         aliases:
-          - postgres
+          - mariadb
 
   backend-staging:
     build:

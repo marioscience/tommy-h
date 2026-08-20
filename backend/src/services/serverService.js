@@ -470,7 +470,7 @@ export async function createServerForUser(userId, payload) {
     dbPass = generateSecurePassword();
     try {
         const dbConnection = await mysql.createConnection({
-            host: 'mariadb', user: 'root', password: config.centralDbPass
+            host: process.env.MARIADB_HOST || 'mariadb', user: 'root', password: config.centralDbPass
         });
         const escapedDbName = mysql.escapeId(dbName);
         await dbConnection.query(`CREATE DATABASE IF NOT EXISTS ${escapedDbName}`);
@@ -546,7 +546,7 @@ export async function createServerForUser(userId, payload) {
     if (dbName && dbUser) {
       try {
         const centralConn = await mysql.createConnection({
-          host: 'mariadb',
+          host: process.env.MARIADB_HOST || 'mariadb',
           user: 'root',
           password: config.centralDbPass,
           port: 3306
