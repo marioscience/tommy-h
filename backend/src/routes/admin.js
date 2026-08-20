@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import si from 'systeminformation';
 import { config } from '../config.js';
 import { query, logAudit } from '../db.js';
-import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import { requireAuth, requireAdmin, signToken, setSessionCookie } from '../middleware/auth.js';
 import { controlServer, deleteServer } from '../services/serverService.js';
 import { getNodeConnection } from '../services/dockerService.js';
 import { buildEvidenceBundle, buildEvidenceZip } from '../services/billingEvidenceService.js';
@@ -137,6 +137,19 @@ router.get('/disputes/evidence.zip', async (req, res) => {
         console.error('[admin:dispute-evidence]', error);
         res.status(500).json({ error: 'Error generando evidencia.' });
     }
+});
+
+router.post('/users/:id/reset-password', async (req, res) => {
+    const { newPassword } = req.body || {};
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
+        return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres.' });
+    }
+    try {
+        const hash = await bcrypt.hash(newPassword, 12);
+        await query('UPDATE users SET password_hash = $1, token_version = COALESCE(token_version, 0) + 1 WHERE id = $2', [hash, req.params.id]);
+        await logAudit(req, 'admin.user.reset_password', { targetUserId: req.params.id });
+        res.json({ success: true, message: 'Contraseña actualizada correctamente.' });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 router.get('/nodes', async (req, res) => {
@@ -470,10 +483,8 @@ router.post('/users/:id/impersonate', async (req, res) => {
 
   const user = result.rows[0];
 
-  import('../middleware/auth.js').then(({ signToken }) => {
-      const token = signToken(user);
-      res.json({ token, user });
-  }).catch(() => res.status(500).json({ error: "Error al generar token" }));
+  setSessionCookie(res, signToken(user));
+  res.json({ user });
 });
 
 router.post('/invite-keys', async (req, res) => {
