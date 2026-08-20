@@ -1757,7 +1757,8 @@ function toggleSidebar() {
                 const diskText = `${maxDisk} GB`;
                 const cpuText = `${maxCores} vCPU`;
 
-                const iconUrl = `/data/${s.id}/txData/${s.db_name}.base/icon.png`;
+                const hasCustomIcon = s.template === 'fivem' && Boolean(s.db_name);
+                const iconUrl = hasCustomIcon ? `/data/${s.id}/txData/${s.db_name}.base/icon.png` : '';
                 let sIconClass = 'fa-solid fa-car';
                 if (s.template === 'minecraft') sIconClass = 'fa-solid fa-cube';
                 else if (s.template === 'rust') sIconClass = 'fa-solid fa-radiation';
@@ -2071,9 +2072,13 @@ function toggleSidebar() {
                 <div class="server-header ${isRunning ? 'running' : 'stopped'}">
                     <div style="display: flex; align-items: center; z-index: 1;">
                         <div class="server-icon">
-                            <img src="${iconUrl}" class="static-bg" ${rnBind("error", (event, element) => { element.onerror=null; element.style.display='none'; element.nextElementSibling.style.display='none'; element.parentElement.querySelector('.fallback-icon').style.display='flex'; })}>
-                            <img src="${iconUrl}" class="rotating-core">
-                            <div class="fallback-icon" style="display:none; width:100%; height:100%; align-items:center; justify-content:center;">${fallbackIcon}</div>
+                            ${hasCustomIcon ? `
+                                <img src="${iconUrl}" class="static-bg" ${rnBind("error", (event, element) => { element.onerror=null; element.style.display='none'; if (element.nextElementSibling) element.nextElementSibling.style.display='none'; const fb = element.parentElement.querySelector('.fallback-icon'); if (fb) fb.style.display='flex'; })}>
+                                <img src="${iconUrl}" class="rotating-core">
+                                <div class="fallback-icon" style="display:none; width:100%; height:100%; align-items:center; justify-content:center;">${fallbackIcon}</div>
+                            ` : `
+                                <div class="fallback-icon" style="display:flex; width:100%; height:100%; align-items:center; justify-content:center;">${fallbackIcon}</div>
+                            `}
                             <div class="lightning-container">
                                 <svg class="bolt-svg b-1" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
                                 <svg class="bolt-svg b-2" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
