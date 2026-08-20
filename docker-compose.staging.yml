@@ -48,9 +48,7 @@ services:
       DB_PASS: ${POSTGRES_PASSWORD}_staging
       DB_NAME: ${POSTGRES_DB}_staging
     networks:
-      ragenodes_net_staging:
-        aliases:
-          - backend
+      - ragenodes_net_staging
     depends_on:
       postgres-staging:
         condition: service_healthy
