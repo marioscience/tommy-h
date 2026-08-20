@@ -9,6 +9,7 @@ import { config, PLAN_LIMITS, generateSecurePassword } from '../config.js';
 import * as Docker from './dockerService.js';
 import { execFile } from 'child_process';
 import { updateTunnelConfig, updateServerTunnelConfig, cleanOrphanedTunnels, getRagenodesTunnelHostname } from './cloudflareService.js';
+import { GameFactory } from './games/GameFactory.js';
 import { sendTeamInviteEmail } from './emailService.js';
 import os from 'os';
 import net from 'net';
@@ -497,55 +498,32 @@ export async function createServerForUser(userId, payload) {
 
 
   try {
-    if (isMinecraft) {
-      await Docker.createMinecraftContainer({
-        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName,
-        mcVersion: payload.mcVersion || 'LATEST', mcType: payload.mcType || 'PAPER',
-        maxPlayers: payload.maxPlayers || 20, plan: customPlan || plan, nodeId: targetNodeId
-      });
-    } else if (isRust) {
-      await Docker.createRustContainer({
-        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName, plan: customPlan || plan, nodeId: targetNodeId
-      });
-    } else if (isPalworld) {
-      await Docker.createPalworldContainer({
-        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName, plan: customPlan || plan, nodeId: targetNodeId
-      });
-    } else if (isCS2) {
-      await Docker.createCS2Container({
-        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName, plan: customPlan || plan, nodeId: targetNodeId
-      });
-    } else if (isValheim) {
-      await Docker.createValheimContainer({
-        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName, plan: customPlan || plan, nodeId: targetNodeId
-      });
-    } else if (isSDTD) {
-      await Docker.createSDTDContainer(cName, serverId, fPort, customPlan || plan, instanceDir, targetNodeId);
-    } else if (isZomboid) {
-      await Docker.createProjectZomboidContainer({
-        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName, plan: customPlan || plan, nodeId: targetNodeId
-      });
-    } else if (isARK) {
-      await Docker.createARKContainer({
-        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName, plan: customPlan || plan, nodeId: targetNodeId
-      });
-    } else if (isDiscordBot) {
-      await Docker.createDiscordBotContainer({
-        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName, plan: customPlan || plan, nodeId: targetNodeId
-      });
-    } else if (isWordPress) {
-      await Docker.createWordPressContainer({
-        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName, plan: customPlan || plan, nodeId: targetNodeId
-      });
-    } else if (isDatabase) {
-      await Docker.createDatabaseContainer({
-        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName, plan: customPlan || plan, nodeId: targetNodeId
-      });
+    const containerOpts = {
+      containerName: cName,
+      dataPath: instanceDir,
+      gamePort: fPort,
+      fivemPort: fPort,
+      txadminPort: tPort,
+      serverId,
+      serverName: payload.serverName,
+      licenseKey: payload.licenseKey,
+      plan: customPlan || plan,
+      dbName,
+      dbUser,
+      dbPass,
+      nodeId: targetNodeId,
+      mcVersion: payload.mcVersion || 'LATEST',
+      mcType: payload.mcType || 'PAPER',
+      maxPlayers: payload.maxPlayers || 20
+    };
+
+    if (GameFactory.has(template)) {
+      await GameFactory.create(template, containerOpts);
+      if (template === 'fivem' && tPort) {
+        updateTunnelConfig(serverId.slice(0, 8), tPort, 'add').catch(e => console.error(e));
+      }
     } else {
-      await Docker.createFivemContainer({
-        containerName: cName, dataPath: instanceDir, fivemPort: fPort, txadminPort: tPort,
-        serverId, serverName: payload.serverName, licenseKey: payload.licenseKey, plan: customPlan || plan, dbName, dbUser, dbPass, nodeId: targetNodeId
-      });
+      await Docker.createFivemContainer(containerOpts);
       updateTunnelConfig(serverId.slice(0, 8), tPort, 'add').catch(e => console.error(e));
     }
   } catch (dockerError) {
@@ -562,6 +540,24 @@ export async function createServerForUser(userId, payload) {
       await Docker.runRemoteCommand(targetNodeId, Docker.sh`rm -rf -- ${instanceDir}`);
     } catch (cleanupError) {
       console.warn(`⚠️ No se pudo retirar el directorio incompleto ${instanceDir}: ${cleanupError.message}`);
+    }
+    // 🛡️ Rollback de MySQL/MariaDB si se crearon credenciales
+    if (dbName && dbUser) {
+      try {
+        const centralConn = await mysql.createConnection({
+          host: 'mariadb',
+          user: 'root',
+          password: config.centralDbPass,
+          port: 3306
+        });
+        const safeDb = dbName.replace(/[^a-zA-Z0-9_]/g, '');
+        const safeUser = dbUser.replace(/[^a-zA-Z0-9_]/g, '');
+        await centralConn.query(`DROP DATABASE IF EXISTS \`${safeDb}\``);
+        await centralConn.query(`DROP USER IF EXISTS '${safeUser}'@'%'`);
+        await centralConn.end();
+      } catch (dbCleanupError) {
+        console.warn(`⚠️ No se pudo eliminar la base de datos MariaDB ${dbName}: ${dbCleanupError.message}`);
+      }
     }
     await query('DELETE FROM servers WHERE id = $1', [serverId]);
     throw new Error('No se pudo iniciar el servidor. La operación se revirtió de forma segura; inténtalo de nuevo o contacta con soporte.');
