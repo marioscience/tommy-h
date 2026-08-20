@@ -39,24 +39,6 @@ impl TlsTerminator {
         cert_path: &Path,
         key_path: &Path,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        if !cert_path.exists() || !key_path.exists() {
-            tracing::info!("Certificados TLS no encontrados. Generando certificados autofirmados automáticos...");
-            if let Some(parent) = cert_path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            let subject_alt_names = vec![
-                "localhost".to_string(),
-                "127.0.0.1".to_string(),
-                "0.0.0.0".to_string(),
-                "ragenodes.com".to_string(),
-                "*.ragenodes.com".to_string(),
-            ];
-            let rcgen::CertifiedKey { cert, signing_key } =
-                rcgen::generate_simple_self_signed(subject_alt_names)?;
-            let _ = std::fs::write(cert_path, cert.pem().as_bytes());
-            let _ = std::fs::write(key_path, signing_key.serialize_pem().as_bytes());
-        }
-
         let cert_chain =
             CertificateDer::pem_file_iter(cert_path)?.collect::<Result<Vec<_>, _>>()?;
         if cert_chain.is_empty() {
