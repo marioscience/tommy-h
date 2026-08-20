@@ -2277,7 +2277,7 @@
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                      username: document.getElementById('login-user').value,
+                      username: document.getElementById('login-user').value.trim(),
                       password: document.getElementById('login-pass').value
                   })
               });
