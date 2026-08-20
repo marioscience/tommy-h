@@ -10,6 +10,7 @@ import * as Docker from './dockerService.js';
 import { execFile } from 'child_process';
 import { updateTunnelConfig, updateServerTunnelConfig, cleanOrphanedTunnels, getRagenodesTunnelHostname } from './cloudflareService.js';
 import { GameFactory } from './games/GameFactory.js';
+import { rustUtil } from '../utils/rustUtil.js';
 import { sendTeamInviteEmail } from './emailService.js';
 import os from 'os';
 import net from 'net';
