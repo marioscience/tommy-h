@@ -490,11 +490,13 @@ async fn reverse_proxy_request(
     strip_prefix: Option<&str>,
     peer_addr: SocketAddr,
 ) -> Result<Response<Body>, Infallible> {
+    let req_method = req.method().to_string();
     let path_and_query = req
         .uri()
         .path_and_query()
         .map(|pq| pq.as_str())
-        .unwrap_or("");
+        .unwrap_or("")
+        .to_string();
 
     let modified_path = match strip_prefix {
         Some(prefix) => {
@@ -505,10 +507,10 @@ async fn reverse_proxy_request(
                     stripped.to_string()
                 }
             } else {
-                path_and_query.to_string()
+                path_and_query.clone()
             }
         }
-        None => path_and_query.to_string(),
+        None => path_and_query.clone(),
     };
 
     if let Some(prefix) = strip_prefix {
@@ -560,7 +562,7 @@ async fn reverse_proxy_request(
 
             tracing::info!(
                 "HTTP Proxy: {} {} -> http://{}{}",
-                req.method(),
+                req_method,
                 path_and_query,
                 target_addr,
                 modified_path
