@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 🏭 GameFactory (Módulo 4: Patrón de Diseño Factory & Registry)
  * Centraliza la creación e instanciación polimórfica de cualquier servidor de juegos.
  */
@@ -52,10 +52,6 @@ class GameFactoryRegistry {
     async createContainer(gameType, opts) {
         const service = this.get(gameType);
         return service.createContainer(opts);
-    }
-
-    async create(gameType, opts) {
-        return this.createContainer(gameType, opts);
     }
 }
 

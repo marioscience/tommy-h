@@ -520,7 +520,7 @@ export async function createServerForUser(userId, payload) {
     };
 
     if (GameFactory.has(template)) {
-      await GameFactory.createContainer(template, containerOpts);
+      await GameFactory.create(template, containerOpts);
       if (template === 'fivem' && tPort) {
         updateTunnelConfig(serverId.slice(0, 8), tPort, 'add').catch(e => console.error(e));
       }
