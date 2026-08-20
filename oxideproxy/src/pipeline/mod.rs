@@ -73,20 +73,22 @@ pub async fn process_tcp_stream(
         .peer_addr()
         .unwrap_or_else(|_| "0.0.0.0:0".parse().unwrap());
 
-    if let Ok((_remaining, packet)) = parse_game_packet(&buffer) {
-        tracing::info!(
-            "Paquete Gaming TCP detectado en Ingress. GameID: {}, Payload Len: {}",
-            packet.game_id,
-            packet.payload_len
-        );
-
-        if let Some(backend_addr) = config.routing.game_servers_map.get(&packet.game_id) {
-            tracing::debug!(
-                "Enrutando flujo de juego TCP directamente a backend: {}",
-                backend_addr
+    if !is_http_ingress {
+        if let Ok((_remaining, packet)) = parse_game_packet(&buffer) {
+            tracing::info!(
+                "Paquete Gaming TCP detectado en Ingress. GameID: {}, Payload Len: {}",
+                packet.game_id,
+                packet.payload_len
             );
-            forward_tcp(stream, buffer, backend_addr).await;
-            return;
+
+            if let Some(backend_addr) = config.routing.game_servers_map.get(&packet.game_id) {
+                tracing::debug!(
+                    "Enrutando flujo de juego TCP directamente a backend: {}",
+                    backend_addr
+                );
+                forward_tcp(stream, buffer, backend_addr).await;
+                return;
+            }
         }
     }
 
