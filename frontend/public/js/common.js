@@ -63,10 +63,11 @@ window.Nexus = {
       if (res.status === 401 && path !== '/api/auth/logout') {
         localStorage.removeItem('nexus_user');
         location.href = '/';
-      } else {
-        alert(data.error || 'Error en la petición');
       }
-      throw new Error(data.error || `HTTP ${res.status}`);
+      const err = new Error(data.error || `HTTP ${res.status}`);
+      err.status = res.status;
+      err.data = data;
+      throw err;
     }
     return data;
   },
