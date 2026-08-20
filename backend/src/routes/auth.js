@@ -1,12 +1,21 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto'; // 🔥 IMPORTANTE: Necesario para generar tokens seguros
+import { rateLimit } from 'express-rate-limit';
 import { query, logAudit, withTransaction } from '../db.js';
 import { signToken, setSessionCookie, clearSessionCookie, requireAuth } from '../middleware/auth.js'; // 🔥 Añadido requireAuth para la ruta de ajustes
 import { sendWelcomeEmail, sendVerificationEmail, sendPasswordResetEmail } from '../services/emailService.js'; // 🔥 Todos los correos
 
 const router = express.Router();
 const DUMMY_PASSWORD_HASH = '$2a$12$83WzC23z2J7aw0o4AfUZG.kauDaz2kmF.y1QAbYMNgDG6IqYAMuDy';
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos de inicio de sesión o registro, por favor intenta de nuevo en 15 minutos.' }
+});
 
 function isValidUsername(value) {
   return typeof value === 'string' && /^[A-Za-z0-9_.-]{3,32}$/.test(value);
@@ -23,7 +32,7 @@ function isValidPassword(value) {
 // ==========================================
 // 🟢 LOGIN
 // ==========================================
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   const { username, password } = req.body || {};
   if (!isValidUsername(username) || typeof password !== 'string' || password.length > 128) {
     return res.status(401).json({ error: 'Credenciales inválidas' });
@@ -51,7 +60,7 @@ router.post('/logout', (_req, res) => {
 // ==========================================
 // 🟢 REGISTRO (CON BETA KEY)
 // ==========================================
-router.post('/register', async (req, res) => {
+router.post('/register', authLimiter, async (req, res) => {
   const { username, email, password, inviteKey } = req.body || {};
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
   if (!isValidUsername(username) || (normalizedEmail && !isValidEmail(normalizedEmail)) || !isValidPassword(password) || typeof inviteKey !== 'string' || inviteKey.length > 128) {
@@ -97,7 +106,7 @@ router.post('/register', async (req, res) => {
 // ==========================================
 // 🔒 RECUPERAR CONTRASEÑA (Paso 1: Enviar Email)
 // ==========================================
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', authLimiter, async (req, res) => {
     const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
     const userResult = isValidEmail(email)
         ? await query('SELECT * FROM users WHERE email = $1', [email])
@@ -125,7 +134,7 @@ router.post('/forgot-password', async (req, res) => {
 // ==========================================
 // 🔒 RECUPERAR CONTRASEÑA (Paso 2: Cambiarla)
 // ==========================================
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', authLimiter, async (req, res) => {
     const { token, newPassword } = req.body || {};
 
     if (typeof token !== 'string' || !/^[a-f0-9]{64}$/i.test(token) || !isValidPassword(newPassword)) {
@@ -216,7 +225,7 @@ router.post('/change-settings', requireAuth, async (req, res) => {
 // ==========================================
 // 🔄 REENVIAR CORREO DE VERIFICACIÓN
 // ==========================================
-router.post('/resend-verification', requireAuth, async (req, res) => {
+router.post('/resend-verification', requireAuth, authLimiter, async (req, res) => {
     const userId = req.user.sub;
     const userResult = await query('SELECT username, email, is_verified FROM users WHERE id = $1', [userId]);
     const user = userResult.rows[0];
