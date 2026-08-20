@@ -292,8 +292,8 @@ async fn handle_http_request(
     let uri_path_string = normalize_uri_path(raw_uri_path);
     let uri_path = uri_path_string.as_str();
 
-    tracing::info!(
-        "REQ: host='{}', path='{}' (raw: '{}')",
+    tracing::debug!(
+        "Petición HTTP L7: Host: '{}', Path: '{}' (Raw: '{}')",
         host,
         uri_path,
         raw_uri_path
