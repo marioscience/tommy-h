@@ -26,8 +26,8 @@ function getCookie(req, name) {
   return '';
 }
 
-function buildSessionCookie(value, maxAge, isSecure = config.cookieSecure) {
-  const sameSite = ['Strict', 'Lax', 'None'].includes(config.cookieSameSite) ? config.cookieSameSite : 'Lax';
+function buildSessionCookie(value, maxAge) {
+  const sameSite = ['Strict', 'Lax', 'None'].includes(config.cookieSameSite) ? config.cookieSameSite : 'Strict';
   const parts = [
     `${config.sessionCookieName}=${encodeURIComponent(value)}`,
     'HttpOnly',
@@ -35,18 +35,16 @@ function buildSessionCookie(value, maxAge, isSecure = config.cookieSecure) {
     `SameSite=${sameSite}`,
     `Max-Age=${maxAge}`
   ];
-  if (isSecure) parts.push('Secure');
+  if (config.cookieSecure) parts.push('Secure');
   return parts.join('; ');
 }
 
-export function setSessionCookie(res, token, req = null) {
-  const isSecure = req ? (req.protocol === 'https' || req.get('x-forwarded-proto') === 'https') : config.cookieSecure;
-  res.append('Set-Cookie', buildSessionCookie(token, SESSION_MAX_AGE_SECONDS, isSecure));
+export function setSessionCookie(res, token) {
+  res.append('Set-Cookie', buildSessionCookie(token, SESSION_MAX_AGE_SECONDS));
 }
 
-export function clearSessionCookie(res, req = null) {
-  const isSecure = req ? (req.protocol === 'https' || req.get('x-forwarded-proto') === 'https') : config.cookieSecure;
-  res.append('Set-Cookie', buildSessionCookie('', 0, isSecure));
+export function clearSessionCookie(res) {
+  res.append('Set-Cookie', buildSessionCookie('', 0));
 }
 
 export function hasSessionCookie(req) {
