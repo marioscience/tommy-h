@@ -542,7 +542,6 @@ async fn reverse_proxy_request(
     match new_uri.parse::<hyper::Uri>() {
         Ok(uri) => {
             *req.uri_mut() = uri;
-            *req.version_mut() = hyper::Version::HTTP_11;
 
             let is_upgrade = req.headers().contains_key(hyper::header::UPGRADE);
             let req_upgrade = if is_upgrade {

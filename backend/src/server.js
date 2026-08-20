@@ -199,8 +199,6 @@ app.use((error, req, res, _next) => {
 });
 
 const server = http.createServer(app);
-server.keepAliveTimeout = 65000;
-server.headersTimeout = 66000;
 
 async function bootstrap() {
     try {
