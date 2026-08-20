@@ -66,8 +66,9 @@ window.Nexus = {
       }
     }
     const data = await res.json().catch(() => ({}));
+    const isAuthPath = path.includes('/auth/login') || path.includes('/auth/me') || path.includes('/auth/logout');
     if (!res.ok) {
-      if (res.status === 401 && path !== '/api/auth/logout' && path !== '/app-api/auth/logout') {
+      if (res.status === 401 && !isAuthPath) {
         localStorage.removeItem('nexus_user');
         location.href = '/';
       }
