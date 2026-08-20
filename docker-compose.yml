@@ -238,6 +238,8 @@ services:
       - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}/templates:/var/www/frontend/data/templates:ro
       - query_cache_data:/var/www/query-cache:ro
     depends_on:
+      backend:
+        condition: service_healthy
       oxide_control_panel:
         condition: service_healthy
     cpu_shares: 2048
