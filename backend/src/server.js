@@ -36,6 +36,7 @@ import cronRoutes from './routes/cron.js'; // 🕒 AÑADIDO: Rutas de Cron Jobs
 
 import pluginsRoutes from './routes/plugins.js';
 import { startCronManager } from './services/cronManager.js';
+import { runStagingHealthSuite } from './services/stagingHealthTestRunner.js';
 import { logger } from './utils/logger.js';
 import { requestLogger } from './middleware/requestLogger.js';
 
@@ -231,6 +232,12 @@ async function bootstrap() {
             console.log(`🧪 Diagnóstico Admin: Disponible en /api/admin/diagnostics/run`);
             console.log(`🧩 Workers externos: backups, docker-events y stats se ejecutan en servicios separados.`);
             console.log(`---------------------------------------------------`);
+
+            if (process.env.NODE_ENV === 'staging' || process.env.STAGING_AUTO_TEST === 'true') {
+                setTimeout(() => {
+                    runStagingHealthSuite('SERVER_BOOTSTRAP').catch(console.error);
+                }, 3000);
+            }
         });
     } catch (error) {
         console.error("❌ Error durante el inicio del servidor:", error);

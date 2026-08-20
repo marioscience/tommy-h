@@ -1147,9 +1147,23 @@
                             <button class="btn-ghost" data-rn-onclick="priv_0060">
                                 <i class="fa-solid fa-copy"></i> Copiar JSON
                             </button>
-                            <button class="btn-ghost" data-rn-onclick="priv_0061">
-                                <i class="fa-solid fa-file-arrow-down"></i> Exportar
-                            </button>
+                            <a href="/api/admin/diagnostics/report-pdf" target="_blank" class="btn-ghost" style="text-decoration:none; color:inherit; display:inline-flex; align-items:center; gap:6px;">
+                                <i class="fa-solid fa-file-pdf" style="color:#ef4444;"></i> Exportar PDF
+                            </a>
+                        </div>
+
+                        <div class="diag-section-title" style="margin-top:15px; color:#38bdf8;"><i class="fa-solid fa-shield-cat"></i> Pruebas de Despliegue & Rollback Inteligente</div>
+                        <div id="diag-staging-suite-box" class="diag-card" style="border:1px solid rgba(56, 189, 248, 0.3); padding:16px;">
+                            <div class="diag-card-head" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                                <div>
+                                    <div class="diag-title" id="staging-suite-status-title" style="font-size:1.05rem; color:#38bdf8;">Pruebas Adaptativas de Staging</div>
+                                    <div class="diag-sub" id="staging-suite-sub">Comprobación de concurrencia adaptativa, APIs y BD.</div>
+                                </div>
+                                <div style="display:flex; gap:10px;">
+                                    <button class="btn-ghost" id="btn-run-staging-suite"><i class="fa-solid fa-rotate-right"></i> Ejecutar Suite</button>
+                                    <a href="/api/admin/diagnostics/report-pdf" target="_blank" class="btn-success" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:6px; font-weight:700; font-size:0.8rem; background:#10b981; color:white;"><i class="fa-solid fa-file-pdf"></i> Descargar PDF</a>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="diag-section-title">Estado</div>
@@ -1732,7 +1746,7 @@
             if (id === 'tab-financials') { loadPlans(); loadDiskPlans(); }
             if (id === 'tab-vendors') { loadAdminVendors(); }
             if (id === 'tab-evidence') { resetEvidencePreview(); }
-            if (id === 'tab-diagnostics') { loadDiagnosticDefaults(null, false); }
+            if (id === 'tab-diagnostics') { loadDiagnosticDefaults(null, false); loadStagingTestSuiteStatus(); }
             if (id === 'tab-nodes') { loadAdminNodes(); }
             if (id === 'tab-proxies') { loadAdminProxies(); }
             if (id === 'tab-oxide') {
@@ -1752,6 +1766,38 @@
                 }
             }
             loadData(true);
+        }
+
+        async function loadStagingTestSuiteStatus() {
+            const titleEl = document.getElementById('staging-suite-status-title');
+            const subEl = document.getElementById('staging-suite-sub');
+            const btn = document.getElementById('btn-run-staging-suite');
+            if (btn && !btn.dataset.bound) {
+                btn.dataset.bound = 'true';
+                btn.addEventListener('click', runStagingTestSuiteAdmin);
+            }
+            try {
+                const res = await Nexus.api('/api/admin/diagnostics/test-suite');
+                if (res && res.status === 'PASSED_STABLE') {
+                    if (titleEl) titleEl.innerHTML = '<span style="color:#10b981;"><i class="fa-solid fa-circle-check"></i> Pruebas 100% Exitosas (Versión Estable)</span>';
+                    if (subEl) subEl.innerHTML = `Pasadas: ${res.summary.passed}/${res.summary.total} pruebas en ${res.summary.durationMs}ms. Concurrencia: ${res.hardware.concurrencyLevel} workers.`;
+                } else if (res && res.status === 'FAILED_ROLLBACK') {
+                    if (titleEl) titleEl.innerHTML = '<span style="color:#ef4444;"><i class="fa-solid fa-circle-xmark"></i> Rollback Inteligente Activado</span>';
+                    if (subEl) subEl.innerHTML = `Fallos: ${res.summary.failed} pruebas. Se descargó el PDF de diagnóstico y se restauró la versión estable.`;
+                }
+            } catch(e) {}
+        }
+
+        async function runStagingTestSuiteAdmin() {
+            const titleEl = document.getElementById('staging-suite-status-title');
+            const subEl = document.getElementById('staging-suite-sub');
+            if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Ejecutando pruebas adaptativas...';
+            try {
+                const res = await Nexus.api('/api/admin/diagnostics/run-suite', { method: 'POST' });
+                loadStagingTestSuiteStatus();
+            } catch(e) {
+                if (titleEl) titleEl.innerHTML = '<span style="color:#ef4444;">Error ejecutando suite</span>';
+            }
         }
 
         function renderLocalOxideFallback(ifr) {
