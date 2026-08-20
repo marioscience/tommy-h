@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
   <img src="frontend/public/assets/icon.png" alt="RageNodes Logo" width="130" />
   <h1>🎮 RageNodes Ultimate</h1>
   <p><strong>High-Performance Game Server & Discord Bot Orchestration Platform</strong></p>
@@ -375,6 +375,7 @@ npm run security:routes
 * [ADR-001: Rust OxideProxy](docs/adr/ADR-001-rust-reverse-proxy.md)
 * [ADR-002: OOP Architecture & GameFactory](docs/adr/ADR-002-game-factory-oop-architecture.md)
 * [ADR-003: Cloudflare Tunnel Namespace Isolation](docs/adr/ADR-003-cloudflare-tunnel-namespace-isolation.md)
+* [ADR-005: Structured JSON Logging & Request Correlation](docs/adr/ADR-005-structured-logging-and-request-correlation.md)
 
 ---
 

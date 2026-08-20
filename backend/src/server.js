@@ -36,15 +36,17 @@ import cronRoutes from './routes/cron.js'; // 🕒 AÑADIDO: Rutas de Cron Jobs
 
 import pluginsRoutes from './routes/plugins.js';
 import { startCronManager } from './services/cronManager.js';
+import { logger } from './utils/logger.js';
+import { requestLogger } from './middleware/requestLogger.js';
 
 // 🤖 ESCUDO ANTI-CRASHEO SILENCIOSO
 process.on('uncaughtException', (err) => {
-    console.error('💥 CRASHEO FATAL (Uncaught Exception):', err);
+    logger.fatal({ err }, '💥 CRASHEO FATAL (Uncaught Exception)');
     process.exit(1);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('💥 PROMESA RECHAZADA (Unhandled Rejection):', reason);
+process.on('unhandledRejection', (reason) => {
+    logger.error({ err: reason }, '💥 PROMESA RECHAZADA (Unhandled Rejection)');
 });
 
 assertSecureConfig();
@@ -52,6 +54,7 @@ assertSecureConfig();
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
+app.use(requestLogger);
 const allowedOrigins = new Set(
     String(config.corsOrigin || '').split(',').map(origin => origin.trim()).filter(Boolean)
 );
@@ -187,17 +190,21 @@ app.use('/api/cron', cronRoutes);
 app.use('/api/plugins', pluginsRoutes);
 
 app.use((error, req, res, _next) => {
+    const reqLog = req.log || logger;
     if (error?.type === 'entity.too.large') {
-        return res.status(413).json({ error: 'La solicitud supera el tamaño permitido.' });
+        reqLog.warn({ reqId: req.id, statusCode: 413 }, 'La solicitud supera el tamaño permitido');
+        return res.status(413).json({ error: 'La solicitud supera el tamaño permitido.', requestId: req.id });
     }
     if (error instanceof SyntaxError && error.status === 400) {
-        return res.status(400).json({ error: 'JSON inválido.' });
+        reqLog.warn({ reqId: req.id, statusCode: 400 }, 'JSON inválido en el cuerpo de la petición');
+        return res.status(400).json({ error: 'JSON inválido.', requestId: req.id });
     }
     if (error?.message === 'Origen CORS no permitido.') {
-        return res.status(403).json({ error: 'Origen no permitido.' });
+        reqLog.warn({ reqId: req.id, statusCode: 403, origin: req.get('origin') }, 'Origen CORS bloqueado');
+        return res.status(403).json({ error: 'Origen no permitido.', requestId: req.id });
     }
-    console.error('[HTTP] Error no controlado:', error);
-    return res.status(500).json({ error: 'Error interno del servidor.' });
+    reqLog.error({ reqId: req.id, err: error, url: req.originalUrl, method: req.method }, '[HTTP] Error no controlado en servidor');
+    return res.status(500).json({ error: 'Error interno del servidor.', requestId: req.id });
 });
 
 const server = http.createServer(app);
