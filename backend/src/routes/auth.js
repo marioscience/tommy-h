@@ -25,11 +25,12 @@ function isValidPassword(value) {
 // ==========================================
 router.post('/login', async (req, res) => {
   const { username, password } = req.body || {};
-  if (!isValidUsername(username) || typeof password !== 'string' || password.length > 128) {
+  const identifier = String(username || '').trim();
+  if (!identifier || typeof password !== 'string' || password.length > 128) {
     return res.status(401).json({ error: 'Credenciales inválidas' });
   }
 
-  const result = await query('SELECT * FROM users WHERE username = $1', [username]);
+  const result = await query('SELECT * FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1)', [identifier]);
   const user = result.rows[0];
   const passwordMatches = await bcrypt.compare(password, user?.password_hash || DUMMY_PASSWORD_HASH);
   if (!user || !passwordMatches) return res.status(401).json({ error: 'Credenciales inválidas' });
@@ -37,7 +38,7 @@ router.post('/login', async (req, res) => {
   await logAudit(user.id, 'auth.login');
 
   const token = signToken(user);
-  setSessionCookie(res, token);
+  setSessionCookie(res, token, req);
   const response = { user: { id: user.id, username: user.username, email: user.email, role: user.role, is_verified: user.is_verified } };
   if (req.get('X-Auth-Mode') === 'bearer') response.token = token;
   res.json(response);

@@ -60,7 +60,7 @@ window.Nexus = {
     const res = await fetch(path, { ...opts, headers, credentials: 'same-origin' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      if (res.status === 401 && path !== '/api/auth/logout') {
+      if (res.status === 401 && !path.startsWith('/api/auth/')) {
         localStorage.removeItem('nexus_user');
         location.href = '/';
       }
