@@ -28,7 +28,7 @@ echo "==> 🛡️ Verificando integridad de producción y migraciones SQL..."
 docker compose exec -T backend node src/verify_production_readiness.js
 
 echo ""
-echo "🔥 RAGENODES V55.9 ACTUALIZADO CON ÉXITO 🔥"
+echo "🔥 RAGENODES V0.0.1 ACTUALIZADO CON ÉXITO 🔥"
 echo "👉 Panel Web: ${PUBLIC_BASE_URL}"
 echo "👉 Admin User: ${ADMIN_BOOTSTRAP_USER}"
 echo "✅ Las instancias de juego no han sido afectadas."
