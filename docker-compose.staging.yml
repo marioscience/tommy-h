@@ -23,7 +23,7 @@ services:
     restart: unless-stopped
     env_file: [ .env ]
     environment:
-      MYSQL_ROOT_PASSWORD: ${CENTRAL_DB_PASS}_staging
+      MYSQL_ROOT_PASSWORD: ${CENTRAL_DB_PASS}
     volumes:
       - mariadb_data_staging:/var/lib/mysql
     ports:
@@ -45,6 +45,7 @@ services:
       PORT_BASE_OFFSET: 10000
       CF_TUNNEL_ENV_PREFIX: staging-
       INSTANCE_DATA_ROOT: /srv/ragenodes-staging-data
+      MARIADB_HOST: mariadb
       DB_HOST: postgres-staging
       DB_USER: ${POSTGRES_USER}_staging
       DB_PASS: ${POSTGRES_PASSWORD}_staging
