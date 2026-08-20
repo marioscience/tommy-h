@@ -1,5 +1,4 @@
 import express from 'express';
-import path from 'path';
 import { requireAuth } from '../middleware/auth.js';
 import * as ServerService from '../services/serverService.js';
 import * as RustService from '../services/rustService.js';
@@ -9,7 +8,7 @@ const router = express.Router();
 // 🛠️ Obtener configuración visual de Rust
 router.get('/config/:id', requireAuth, async (req, res) => {
     try {
-        const s = await ServerService.getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'files');
+        const s = await ServerService.getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin');
         if (!s) return res.status(404).json({ error: "No encontrado" });
         const config = await RustService.getRustConfig(s.data_path);
         res.json(config);
@@ -21,7 +20,7 @@ router.get('/config/:id', requireAuth, async (req, res) => {
 // 💾 Guardar configuración visual de Rust
 router.post('/config/:id', requireAuth, async (req, res) => {
     try {
-        const s = await ServerService.getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'files');
+        const s = await ServerService.getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin');
         if (!s) return res.status(404).json({ error: "No encontrado" });
         await RustService.saveRustConfig(s.data_path, req.body);
         res.json({ success: true });
@@ -32,7 +31,7 @@ router.post('/config/:id', requireAuth, async (req, res) => {
 // 💥 Limpieza de Servidor (Wipe)
 router.post('/wipe/:id', requireAuth, async (req, res) => {
     try {
-        const s = await ServerService.getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'files');
+        const s = await ServerService.getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin');
         if (!s) return res.status(404).json({ error: "No encontrado" });
         
         const type = req.body.type; // 'map', 'bp', or 'full'

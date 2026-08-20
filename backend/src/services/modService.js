@@ -5,7 +5,6 @@ import { query } from '../db.js';
 import * as Docker from './dockerService.js';
 import { config } from '../config.js';
 import * as Thunderstore from './thunderstoreService.js';
-import { getServerByIdForUser } from './serverService.js';
 
 /**
  * 📦 UNIFIED MOD SERVICE
@@ -13,8 +12,10 @@ import { getServerByIdForUser } from './serverService.js';
  */
 
 export async function getGameMods(serverId, userId, isAdmin) {
-    const s = await getServerByIdForUser(serverId, userId, isAdmin, 'files');
-    if (!s) throw new Error("Servidor no encontrado o sin permiso de archivos");
+    const res = await query('SELECT * FROM servers WHERE id = $1', [serverId]);
+    if (res.rowCount === 0) throw new Error("Servidor no encontrado");
+    const s = res.rows[0];
+    if (!isAdmin && s.owner_id !== userId) throw new Error("No autorizado");
 
     switch (s.template) {
         case 'zomboid': return await getZomboidMods(s);
@@ -30,12 +31,12 @@ export async function getGameMods(serverId, userId, isAdmin) {
 // --- 🧟 PROJECT ZOMBOID (Steam Workshop) ---
 async function getZomboidMods(s) {
     // Leer el archivo de configuración server.ini
-    const iniPath = path.join(s.data_path, 'Zomboid', 'Server', `${s.name}.ini`);
+    const iniPath = path.join(s.data_path, 'Zomboid', 'Server', `${s.container_name}.ini`);
     try {
         const content = await fs.readFile(iniPath, 'utf8');
-        const workshopIds = content.match(/^WorkshopItems=([\d;]+)/m)?.[1] || "";
-        const modIds = content.match(/^Mods=([^;\r\n][^\r\n]*)/m)?.[1] || "";
-
+        const workshopIds = content.match(/WorkshopItems=([\d;]+)/)?.[1] || "";
+        const modIds = content.match(/Mods=([\w;]+)/)?.[1] || "";
+        
         return {
             type: 'workshop',
             activeWorkshopIds: workshopIds.split(';').filter(Boolean),
@@ -47,51 +48,26 @@ async function getZomboidMods(s) {
 }
 
 export async function installZomboidMod(serverId, userId, isAdmin, workshopId, modName) {
-    const s = await getServerByIdForUser(serverId, userId, isAdmin, 'files');
-    if (!s) throw new Error('Servidor no encontrado o sin permiso de archivos');
-
-    const iniPath = path.join(s.data_path, 'Zomboid', 'Server', `${s.name}.ini`);
+    const res = await query('SELECT * FROM servers WHERE id = $1', [serverId]);
+    const s = res.rows[0];
+    
+    const iniPath = path.join(s.data_path, 'Zomboid', 'Server', `${s.container_name}.ini`);
     let content = await fs.readFile(iniPath, 'utf8');
-
+    
     // Actualizar WorkshopItems
-    let workshopItems = content.match(/^WorkshopItems=([^\r\n]*)/m)?.[1] || "";
+    let workshopItems = content.match(/WorkshopItems=(.*)/)?.[1] || "";
     if (!workshopItems.includes(workshopId)) {
         workshopItems = workshopItems ? `${workshopItems};${workshopId}` : workshopId;
-        content = content.replace(/^WorkshopItems=([^\r\n]*)/m, `WorkshopItems=${workshopItems}`);
+        content = content.replace(/WorkshopItems=.*/, `WorkshopItems=${workshopItems}`);
     }
-
+    
     // Actualizar Mods
-    let mods = content.match(/^Mods=([^\r\n]*)/m)?.[1] || "";
+    let mods = content.match(/Mods=(.*)/)?.[1] || "";
     if (!mods.includes(modName)) {
         mods = mods ? `${mods};${modName}` : modName;
-        content = content.replace(/^Mods=([^\r\n]*)/m, `Mods=${mods}`);
+        content = content.replace(/Mods=.*/, `Mods=${mods}`);
     }
-
-    await fs.writeFile(iniPath, content);
-    return { success: true };
-}
-
-export async function uninstallZomboidMod(serverId, userId, isAdmin, workshopId, modName) {
-    const s = await getServerByIdForUser(serverId, userId, isAdmin, 'files');
-    if (!s) throw new Error('Servidor no encontrado o sin permiso de archivos');
-
-    const iniPath = path.join(s.data_path, 'Zomboid', 'Server', `${s.name}.ini`);
-    let content = await fs.readFile(iniPath, 'utf8');
-
-    // Remover WorkshopItems
-    let workshopItems = content.match(/^WorkshopItems=([^\r\n]*)/m)?.[1] || "";
-    if (workshopItems.includes(workshopId)) {
-        workshopItems = workshopItems.split(';').filter(id => id !== workshopId).join(';');
-        content = content.replace(/^WorkshopItems=([^\r\n]*)/m, `WorkshopItems=${workshopItems}`);
-    }
-
-    // Remover Mods
-    let mods = content.match(/^Mods=([^\r\n]*)/m)?.[1] || "";
-    if (mods.includes(modName)) {
-        mods = mods.split(';').filter(name => name !== modName).join(';');
-        content = content.replace(/^Mods=([^\r\n]*)/m, `Mods=${mods}`);
-    }
-
+    
     await fs.writeFile(iniPath, content);
     return { success: true };
 }
@@ -110,15 +86,15 @@ async function getRustMods(s) {
     }
 }
 
-export async function installRustPlugin(serverId, userId, isAdmin, pluginUrl, pluginName) {
-    const s = await getServerByIdForUser(serverId, userId, isAdmin, 'files');
-    if (!s) throw new Error('Servidor no encontrado o sin permiso de archivos');
+export async function installRustPlugin(serverId, pluginUrl, pluginName) {
+    const res = await query('SELECT * FROM servers WHERE id = $1', [serverId]);
+    const s = res.rows[0];
     const pluginsDir = path.join(s.data_path, 'oxide', 'plugins');
-
+    
     await fs.mkdir(pluginsDir, { recursive: true });
     const response = await axios.get(pluginUrl, { responseType: 'arraybuffer' });
     await fs.writeFile(path.join(pluginsDir, `${pluginName}.cs`), response.data);
-
+    
     return { success: true };
 }
 
@@ -137,14 +113,14 @@ async function getArkMods(s) {
     }
 }
 
-export async function installArkMod(serverId, userId, isAdmin, modId) {
-    const s = await getServerByIdForUser(serverId, userId, isAdmin, 'files');
-    if (!s) throw new Error('Servidor no encontrado o sin permiso de archivos');
+export async function installArkMod(serverId, modId) {
+    const res = await query('SELECT * FROM servers WHERE id = $1', [serverId]);
+    const s = res.rows[0];
     const iniPath = path.join(s.data_path, 'common', 'ARK Survival Ascended Dedicated Server', 'ShooterGame', 'Saved', 'Config', 'WindowsServer', 'GameUserSettings.ini');
-
+    
     let content = await fs.readFile(iniPath, 'utf8');
     let activeMods = content.match(/ActiveMods=(.*)/)?.[1] || "";
-
+    
     if (!activeMods.includes(modId)) {
         activeMods = activeMods ? `${activeMods},${modId}` : modId;
         if (content.includes('ActiveMods=')) {
@@ -153,7 +129,7 @@ export async function installArkMod(serverId, userId, isAdmin, modId) {
             content += `\nActiveMods=${activeMods}`;
         }
     }
-
+    
     await fs.writeFile(iniPath, content);
     return { success: true };
 }

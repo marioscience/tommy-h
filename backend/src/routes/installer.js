@@ -3,23 +3,8 @@ import { config } from '../config.js';
 import { query } from '../db.js';
 import fs from 'fs/promises';
 import path from 'path';
-import crypto from 'crypto';
-import net from 'net';
 
 const router = express.Router();
-
-function secretsEqual(left, right) {
-    const leftDigest = crypto.createHash('sha256').update(String(left || '')).digest();
-    const rightDigest = crypto.createHash('sha256').update(String(right || '')).digest();
-    return crypto.timingSafeEqual(leftDigest, rightDigest);
-}
-
-function validPem(value, label) {
-    return typeof value === 'string'
-        && value.length <= 32_000
-        && value.startsWith(`-----BEGIN ${label}-----`)
-        && value.includes(`-----END ${label}-----`);
-}
 
 // ==========================================
 // 🚀 RUTA PÚBLICA DE INSTALACIÓN
@@ -43,16 +28,13 @@ router.post('/auto-register', async (req, res) => {
     try {
         const providedKey = req.headers['x-api-key'];
         
-        if (!providedKey || !secretsEqual(providedKey, config.apiKey)) {
+        if (!providedKey || providedKey !== config.apiKey) {
             return res.status(401).json({ error: "No autorizado. API_KEY inválida." });
         }
 
         const { ip_address, ca_pem, cert_pem, key_pem } = req.body;
 
-        if (!net.isIP(String(ip_address || ''))
-            || !validPem(cert_pem, 'CERTIFICATE')
-            || !(validPem(key_pem, 'PRIVATE KEY') || validPem(key_pem, 'RSA PRIVATE KEY'))
-            || (ca_pem && !validPem(ca_pem, 'CERTIFICATE'))) {
+        if (!ip_address || !cert_pem || !key_pem) {
             return res.status(400).json({ error: "Faltan certificados o IP en el payload." });
         }
 
@@ -92,7 +74,7 @@ router.post('/auto-register', async (req, res) => {
         res.json({ success: true, nodeId: nodeId, message: "Nodo auto-registrado correctamente." });
     } catch (e) {
         console.error("[Installer] Error en auto-register:", e);
-        res.status(500).json({ error: "Error interno del servidor" });
+        res.status(500).json({ error: "Error interno del servidor", details: e.message });
     }
 });
 

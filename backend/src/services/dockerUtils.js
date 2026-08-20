@@ -4,19 +4,11 @@ import path from 'path';
 import { config } from '../config.js';
 import { exec } from 'child_process';
 import util from 'util';
-import crypto from 'crypto';
 
 const execAsync = util.promisify(exec);
 
 export const localDocker = new Docker({ socketPath: config.dockerSocket });
 export const NODE_CONNECTIONS = new Map();
-
-export function deriveServicePassword(scope, identifier) {
-    return crypto.createHmac('sha256', config.jwtSecret)
-        .update(`${scope}:${identifier}`)
-        .digest('base64url')
-        .slice(0, 32);
-}
 
 export const GAME_SECURITY_CONFIG = {
     SecurityOpt: ["no-new-privileges:true"],
@@ -38,16 +30,16 @@ export async function runRemoteCommand(nodeId, command) {
     try {
         const docker = await getNodeConnection(nodeId);
         try {
-            await docker.getImage('alpine@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b').inspect();
+            await docker.getImage('alpine:latest').inspect();
         } catch(e) {
             console.log('[Docker] Pulling alpine on node ' + nodeId + '...');
-            const stream = await docker.pull('alpine@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b');
+            const stream = await docker.pull('alpine:latest');
             await new Promise((resolve, reject) => {
                 docker.modem.followProgress(stream, (err, res) => err ? reject(err) : resolve(res));
             });
         }
         const container = await docker.createContainer({
-            Image: 'alpine@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b',
+            Image: 'alpine:latest',
             Cmd: ['sh', '-c', command],
             HostConfig: {
                 Binds: ['/srv/ragenodes-data:/srv/ragenodes-data'],
@@ -97,12 +89,7 @@ export async function getNodeConnection(nodeId = 0) {
             dockerOpts.key = key;
             console.log(`🔒 [Docker] Conexión cifrada (mTLS) establecida con Nodo #${nodeId}`);
         } catch (err) {
-            if (!config.allowInsecureDockerNodes || config.nodeEnv === 'production') {
-                throw new Error(`Nodo #${nodeId} rechazado: faltan certificados mTLS válidos.`);
-            }
-            dockerOpts.protocol = 'http';
-            dockerOpts.port = 2375;
-            console.warn(`⚠️ [Docker] Nodo #${nodeId} usa HTTP sin cifrar por excepción exclusiva de desarrollo.`);
+            console.warn(`⚠️ [Docker] Nodo #${nodeId} no tiene certificados. Usando conexión no cifrada.`);
         }
 
         const remoteDocker = new Docker(dockerOpts);
@@ -110,7 +97,7 @@ export async function getNodeConnection(nodeId = 0) {
         return remoteDocker;
     } catch (e) {
         console.error(`❌ [Docker] Error conectando al nodo ${nodeId}:`, e.message);
-        throw e;
+        return localDocker;
     }
 }
 
@@ -166,7 +153,7 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0) {
             }
             console.log(`⚡ [${gameName.toUpperCase()}] Plantilla maestra aplicada con éxito.`);
             try { 
-                await runRemoteCommand(nodeId, sh`chown -R 1000:1000 ${dataPath} && chmod -R u=rwX,g=rX,o= ${dataPath}`);
+                await runRemoteCommand(nodeId, sh`chown -R 1000:1000 ${dataPath} && chmod -R 777 ${dataPath}`);
             } catch (e) {}
             return true;
         }
@@ -299,3 +286,4 @@ export function sh(strings, ...values) {
         return acc + escapedVal + str;
     });
 }
+

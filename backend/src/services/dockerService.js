@@ -3,7 +3,6 @@ import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config.js';
 import { rustUtil } from '../utils/rustUtil.js';
-import { redisClient } from '../db.js';
 import { saveSDTDConfig } from './sdtdService.js';
 import { exec } from 'child_process';
 import util from 'util';
@@ -33,14 +32,8 @@ import { createDiscordBotContainer } from './games/discordbot.js';
 import { createWordPressContainer } from './games/wordpress.js';
 import { createDatabaseContainer } from './games/database.js';
 
-const execAsync = util.promisify(exec);
 
-export function promiseWithTimeout(promise, ms, timeoutErrorMsg = 'Operation timed out') {
-    return Promise.race([
-        promise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error(timeoutErrorMsg)), ms))
-    ]);
-}
+const execAsync = util.promisify(exec);
 
 const STATS_CACHE = new Map();
 const CONTAINER_INSPECT_CACHE = new Map();
@@ -91,8 +84,7 @@ async function startStatsCollector() {
                                 const result = await rustUtil.calculateStats(stats);
 
                                 if (result) {
-                                    const key = cInfo.Names[0].replace('/', '');
-                                    const payload = {
+                                    STATS_CACHE.set(cInfo.Names[0].replace('/', ''), {
                                         cpu: result.cpu,
                                         ram: result.ram,
                                         ramGb: result.ram_gb,
@@ -102,11 +94,7 @@ async function startStatsCollector() {
                                         diskGb: "0.0",
                                         updatedAt: Date.now(),
                                         nodeId: nodeRow.id
-                                    };
-                                    STATS_CACHE.set(key, payload);
-                                    if (redisClient?.isOpen) {
-                                        redisClient.setEx('ragenodes:stats:' + key, 60, JSON.stringify(payload)).catch(() => {});
-                                    }
+                                    });
                                 }
                             } catch (e) {}
                         }));
@@ -140,7 +128,7 @@ async function startNodeMonitor() {
     }, 60000);
 }
 
-const dockerTelemetryOwner = (process.env.NODE_ENV !== 'test') && (!process.env.RAGENODES_ROLE || process.env.RAGENODES_ROLE === 'worker-stats');
+const dockerTelemetryOwner = !process.env.RAGENODES_ROLE || process.env.RAGENODES_ROLE === 'worker-stats';
 if (dockerTelemetryOwner) {
     startStatsCollector();
     startNodeMonitor();
@@ -173,23 +161,10 @@ export async function getContainerStats(name, { force = false } = {}) {
         return cached;
     }
 
-    // 🚀 Intentar leer de Redis (donde worker-stats escribe periódicamente)
-    if (!force && redisClient?.isOpen) {
-        try {
-            const rawRedis = await promiseWithTimeout(redisClient.get('ragenodes:stats:' + name), 300);
-            if (rawRedis) {
-                const parsed = JSON.parse(rawRedis);
-                STATS_CACHE.set(name, parsed);
-                return parsed;
-            }
-        } catch (e) {}
-    }
-
     try {
         const docker = await getDockerForContainer(name);
         const container = docker.getContainer(name);
-        // Timeout estricto de 2.5s para no bloquear peticiones HTTP concurrentes
-        const stats = await promiseWithTimeout(container.stats({ stream: false }), 2500, 'Docker stats timeout');
+        const stats = await container.stats({ stream: false });
         const result = await rustUtil.calculateStats(stats);
 
         if (result) {
@@ -204,22 +179,41 @@ export async function getContainerStats(name, { force = false } = {}) {
                 updatedAt: Date.now()
             };
             STATS_CACHE.set(name, normalized);
-            if (redisClient?.isOpen) {
-                redisClient.setEx('ragenodes:stats:' + name, 60, JSON.stringify(normalized)).catch(() => {});
-            }
             return normalized;
         }
     } catch (e) {
         if (cached) return cached;
+        console.warn(`[Stats] No se pudieron obtener stats en vivo para ${name}: ${e.message}`);
     }
 
-    return { cpu: "0.0", ram: "0.0", ramGb: "0.0", disk: cached?.disk ?? "0.0", diskGb: cached?.diskGb ?? "0.0", updatedAt: Date.now() };
+    return { cpu: "0.0", ram: "0.0", ramGb: "0.0", disk: "0.0", diskGb: "0.0", updatedAt: Date.now() };
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /**
  * 🔍 BUSCADOR DE NODOS POR CONTENEDOR
  * Determina en qué nodo vive un contenedor consultando la DB.
  */
+
 
 export async function sendCommandToContainer(containerName, command) {
     const docker = await getDockerForContainer(containerName);
@@ -245,7 +239,7 @@ export async function inspectContainer(name, { force = false } = {}) {
     if (!force && cached && cached.expiresAt > Date.now()) return cached.data;
 
     const docker = await getDockerForContainer(name);
-    const data = await promiseWithTimeout(docker.getContainer(name).inspect(), 3000, 'Docker inspect timeout');
+    const data = await docker.getContainer(name).inspect();
     if (CONTAINER_STATE_CACHE_MS > 0) {
         CONTAINER_INSPECT_CACHE.set(name, { data, expiresAt: Date.now() + CONTAINER_STATE_CACHE_MS });
     }
@@ -415,7 +409,7 @@ export async function toggleBlender(opts, action) {
                 Memory: 4 * 1024 * 1024 * 1024,
                 NanoCpus: 2 * 10 ** 9, CpuShares: 2048,
                 // CpuShares: 512,
-                BlkioWeight: config.dockerBlkioWeight,
+                BlkioWeight: 100,
                 ShmSize: 1024 * 1024 * 1024,
                 SecurityOpt: ["no-new-privileges:true"]
             }

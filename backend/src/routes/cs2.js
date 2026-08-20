@@ -8,7 +8,7 @@ const router = express.Router();
 // 🛠️ Obtener configuración visual de CS2
 router.get('/config/:id', requireAuth, async (req, res) => {
     try {
-        const s = await ServerService.getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'files');
+        const s = await ServerService.getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin');
         if (!s) return res.status(404).json({ error: "No encontrado" });
         const config = await CS2Service.getCS2Config(s.data_path);
         res.json(config);
@@ -20,7 +20,7 @@ router.get('/config/:id', requireAuth, async (req, res) => {
 // 💾 Guardar configuración visual de CS2
 router.post('/config/:id', requireAuth, async (req, res) => {
     try {
-        const s = await ServerService.getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'files');
+        const s = await ServerService.getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin');
         if (!s) return res.status(404).json({ error: "No encontrado" });
         await CS2Service.saveCS2Config(s.data_path, req.body);
         res.json({ success: true });

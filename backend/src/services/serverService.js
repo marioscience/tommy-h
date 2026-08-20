@@ -8,14 +8,13 @@ import { query, queryCached, logAudit } from '../db.js';
 import { config, PLAN_LIMITS, generateSecurePassword } from '../config.js';
 import * as Docker from './dockerService.js';
 import { execFile } from 'child_process';
-import { updateTunnelConfig, updateServerTunnelConfig, cleanOrphanedTunnels, getRagenodesTunnelHostname } from './cloudflareService.js';
-import { GameFactory } from './games/GameFactory.js';
+import util from 'util';
+import { updateTunnelConfig, updateServerTunnelConfig, cleanOrphanedTunnels } from './cloudflareService.js';
 import { rustUtil } from '../utils/rustUtil.js';
 import { sendTeamInviteEmail } from './emailService.js';
 import os from 'os';
 import net from 'net';
 import dgram from 'dgram';
-import util from 'util';
 
 const repairBackoffCache = new Map();
 const MAX_REPAIRS_PER_HOUR = 3;
@@ -185,9 +184,7 @@ async function selectDeploymentNode(plan, requestedRamGb, template, explicitNode
     });
   }
 
-  console.log(`[DEBUG selectDeploymentNode] requestedRamGb=${requestedRamGb}, template=${template}, nodes.length=${nodes?.length}, candidates.length=${candidates?.length}`);
   if (!candidates.length) {
-    if (nodes && nodes.length > 0) return nodes[0].id;
     throw new Error(`No hay nodos activos con recursos suficientes para ${template.toUpperCase()} (${requiredRamGb} GB RAM).`);
   }
 
@@ -220,16 +217,6 @@ export async function getServersForUser(userId, isAdmin = false) {
 
          s.blender_status = bState.running ? 'running' : 'stopped';
          delete s.blender_pass;
-         if (!isAdmin && s.owner_id !== userId) {
-             delete s.db_name;
-             delete s.db_user;
-             delete s.db_pass;
-             delete s.discord_webhook_url;
-             delete s.data_path;
-             delete s.container_name;
-             delete s.license_key_hint;
-             delete s.subuser_permissions;
-         }
          s.status = !state.exists ? 'missing' : (state.running ? 'running' : 'stopped');
 
          const plan = PLANS[s.runtime_plan] || PLANS.hobby;
@@ -250,19 +237,9 @@ export async function getServersForUser(userId, isAdmin = false) {
   return servers;
 }
 
-export async function getServerByIdForUser(id, userId, isAdmin = false, requiredPermission = null) {
-  const sql = isAdmin
-    ? 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id WHERE servers.id = $1'
-    : `SELECT servers.*, users.extra_disk_gb, su.permissions AS subuser_permissions
-       FROM servers
-       LEFT JOIN users ON servers.owner_id = users.id
-       LEFT JOIN server_subusers su ON su.server_id = servers.id AND su.user_id = $2
-       WHERE servers.id = $1 AND (servers.owner_id = $2 OR su.user_id = $2)`;
-  const server = (await queryCached(sql, isAdmin ? [id] : [id, userId], 2)).rows[0];
-  if (!server || isAdmin || server.owner_id === userId || !requiredPermission) return server;
-
-  const permissions = Array.isArray(server.subuser_permissions) ? server.subuser_permissions : [];
-  return permissions.includes(requiredPermission) ? server : undefined;
+export async function getServerByIdForUser(id, userId, isAdmin = false) {
+  const sql = isAdmin ? 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id WHERE servers.id = $1' : 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id WHERE servers.id = $1 AND (servers.owner_id = $2 OR servers.id IN (SELECT server_id FROM server_subusers WHERE user_id = $2))';
+  return (await queryCached(sql, isAdmin ? [id] : [id, userId], 2)).rows[0];
 }
 
 async function getNextAvailablePort(startPort, range = 1, targetNodeId = 0) {
@@ -366,22 +343,11 @@ export async function createServerForUser(userId, payload) {
       currentAllocatedRamGb += (s.allocated_ram_gb > 0) ? s.allocated_ram_gb : Math.round((plan?.memoryBytes || 4*1024**3) / (1024**3));
   }
 
-  const TEMPLATE_MIN_RAM_GB = {
-      'zomboid': 4,
-      'rust': 4,
-      'palworld': 8,
-      'minecraft': 2,
-      'fivem': 1,
-      'cs2': 2
-  };
-
-  const templateMinRam = TEMPLATE_MIN_RAM_GB[template] || 1;
-  const planMinRamGb = plan?.minRamGb || 1;
-  const minRamGb = Math.max(planMinRamGb, templateMinRam);
+  const minRamGb = plan?.minRamGb || 2;
   const requestedRamGb = payload.allocatedRamGb ? Number(payload.allocatedRamGb) : minRamGb;
 
   if (requestedRamGb < minRamGb) {
-      throw new Error(`Para garantizar la estabilidad del servidor de ${template.toUpperCase()}, se requiere una asignación mínima de ${minRamGb} GB de RAM. Has solicitado ${requestedRamGb} GB.`);
+      throw new Error(`Para mantener un estándar de calidad óptimo, la asignación mínima permitida para este juego es de ${minRamGb} GB de RAM.`);
   }
 
   const maxPlanRamGb = Math.round((plan?.memoryBytes || 4*1024**3) / (1024**3));
@@ -470,7 +436,7 @@ export async function createServerForUser(userId, payload) {
     dbPass = generateSecurePassword();
     try {
         const dbConnection = await mysql.createConnection({
-            host: process.env.MARIADB_HOST || 'mariadb', user: 'root', password: config.centralDbPass
+            host: 'mariadb', user: 'root', password: config.centralDbPass
         });
         const escapedDbName = mysql.escapeId(dbName);
         await dbConnection.query(`CREATE DATABASE IF NOT EXISTS ${escapedDbName}`);
@@ -479,8 +445,7 @@ export async function createServerForUser(userId, payload) {
         await dbConnection.query(`FLUSH PRIVILEGES`);
         await dbConnection.end();
     } catch (e) {
-        console.error("❌ Error conectando o creando BD MariaDB:", e);
-        throw new Error(`No se pudo crear la base de datos MySQL para este servidor: ${e.message}`);
+        throw new Error("No se pudo crear la base de datos MySQL para este servidor.");
     }
   }
 
@@ -490,7 +455,7 @@ export async function createServerForUser(userId, payload) {
 
   const tunnelUrl = isNonFivem
     ? `${config.fivemPublicHost}:${fPort}`
-    : `https://${getRagenodesTunnelHostname(serverId, tPort, '', 'tx')}`;
+    : `https://tx${tPort}.ragenodes.com`;
 
   await query(
     `INSERT INTO servers (id, owner_id, name, slug, template, runtime_plan, status, fivem_port, txadmin_port, blender_port, blender_pass, db_name, db_user, db_pass, container_name, data_path, license_key_hint, txadmin_url, expires_at, mc_version, mc_type, allocated_ram_gb) VALUES ($1,$2,$3,$4,$5,$6,'running',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
@@ -500,69 +465,61 @@ export async function createServerForUser(userId, payload) {
 
 
   try {
-    const containerOpts = {
-      containerName: cName,
-      dataPath: instanceDir,
-      gamePort: fPort,
-      fivemPort: fPort,
-      txadminPort: tPort,
-      serverId,
-      serverName: payload.serverName,
-      licenseKey: payload.licenseKey,
-      plan: customPlan || plan,
-      dbName,
-      dbUser,
-      dbPass,
-      nodeId: targetNodeId,
-      mcVersion: payload.mcVersion || 'LATEST',
-      mcType: payload.mcType || 'PAPER',
-      maxPlayers: payload.maxPlayers || 20
-    };
-
-    if (GameFactory.has(template)) {
-      await GameFactory.create(template, containerOpts);
-      if (template === 'fivem' && tPort) {
-        updateTunnelConfig(serverId.slice(0, 8), tPort, 'add').catch(e => console.error(e));
-      }
+    if (isMinecraft) {
+      await Docker.createMinecraftContainer({
+        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName,
+        mcVersion: payload.mcVersion || 'LATEST', mcType: payload.mcType || 'PAPER',
+        maxPlayers: payload.maxPlayers || 20, plan: customPlan || plan, nodeId: targetNodeId
+      });
+    } else if (isRust) {
+      await Docker.createRustContainer({
+        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName, plan: customPlan || plan, nodeId: targetNodeId
+      });
+    } else if (isPalworld) {
+      await Docker.createPalworldContainer({
+        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName, plan: customPlan || plan, nodeId: targetNodeId
+      });
+    } else if (isCS2) {
+      await Docker.createCS2Container({
+        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName, plan: customPlan || plan, nodeId: targetNodeId
+      });
+    } else if (isValheim) {
+      await Docker.createValheimContainer({
+        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName, plan: customPlan || plan, nodeId: targetNodeId
+      });
+    } else if (isSDTD) {
+      await Docker.createSDTDContainer(cName, serverId, fPort, customPlan || plan, instanceDir, targetNodeId);
+    } else if (isZomboid) {
+      await Docker.createProjectZomboidContainer({
+        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName, plan: customPlan || plan, nodeId: targetNodeId
+      });
+    } else if (isARK) {
+      await Docker.createARKContainer({
+        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName, plan: customPlan || plan, nodeId: targetNodeId
+      });
+    } else if (isDiscordBot) {
+      await Docker.createDiscordBotContainer({
+        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName, plan: customPlan || plan, nodeId: targetNodeId
+      });
+    } else if (isWordPress) {
+      await Docker.createWordPressContainer({
+        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName, plan: customPlan || plan, nodeId: targetNodeId
+      });
+    } else if (isDatabase) {
+      await Docker.createDatabaseContainer({
+        containerName: cName, dataPath: instanceDir, gamePort: fPort, serverName: payload.serverName, plan: customPlan || plan, nodeId: targetNodeId
+      });
     } else {
-      await Docker.createFivemContainer(containerOpts);
+      await Docker.createFivemContainer({
+        containerName: cName, dataPath: instanceDir, fivemPort: fPort, txadminPort: tPort,
+        serverId, serverName: payload.serverName, licenseKey: payload.licenseKey, plan: customPlan || plan, dbName, dbUser, dbPass, nodeId: targetNodeId
+      });
       updateTunnelConfig(serverId.slice(0, 8), tPort, 'add').catch(e => console.error(e));
     }
   } catch (dockerError) {
     console.error("❌ Error creando contenedor de Docker, haciendo ROLLBACK en BD:", dockerError.message);
-    try {
-      const failedDocker = await Docker.getNodeConnection(targetNodeId);
-      await failedDocker.getContainer(cName).remove({ force: true });
-    } catch (cleanupError) {
-      if (cleanupError?.statusCode !== 404) {
-        console.warn(`⚠️ No se pudo retirar el contenedor fallido ${cName}: ${cleanupError.message}`);
-      }
-    }
-    try {
-      await Docker.runRemoteCommand(targetNodeId, Docker.sh`rm -rf -- ${instanceDir}`);
-    } catch (cleanupError) {
-      console.warn(`⚠️ No se pudo retirar el directorio incompleto ${instanceDir}: ${cleanupError.message}`);
-    }
-    // 🛡️ Rollback de MySQL/MariaDB si se crearon credenciales
-    if (dbName && dbUser) {
-      try {
-        const centralConn = await mysql.createConnection({
-          host: process.env.MARIADB_HOST || 'mariadb',
-          user: 'root',
-          password: config.centralDbPass,
-          port: 3306
-        });
-        const safeDb = dbName.replace(/[^a-zA-Z0-9_]/g, '');
-        const safeUser = dbUser.replace(/[^a-zA-Z0-9_]/g, '');
-        await centralConn.query(`DROP DATABASE IF EXISTS \`${safeDb}\``);
-        await centralConn.query(`DROP USER IF EXISTS '${safeUser}'@'%'`);
-        await centralConn.end();
-      } catch (dbCleanupError) {
-        console.warn(`⚠️ No se pudo eliminar la base de datos MariaDB ${dbName}: ${dbCleanupError.message}`);
-      }
-    }
     await query('DELETE FROM servers WHERE id = $1', [serverId]);
-    throw new Error('No se pudo iniciar el servidor. La operación se revirtió de forma segura; inténtalo de nuevo o contacta con soporte.');
+    throw new Error("No se pudo instanciar el servidor en el nodo (Rollback ejecutado): " + dockerError.message);
   }
 
   await logAudit(userId, 'SERVER.CREATE', { serverId, serverName: payload.serverName, plan: assignedPlan, template });
@@ -575,10 +532,9 @@ export async function createServerForUser(userId, payload) {
 export async function getServerDetails(id, userId, isAdmin) {
   const s = await getServerByIdForUser(id, userId, isAdmin);
   if (!s) return null;
-  const canViewSecrets = isAdmin || s.owner_id === userId;
 
   // 🦖 Auto-crear base de datos para servidores ARK existentes si no la tienen
-  if (canViewSecrets && s.template === 'ark' && !s.db_name) {
+  if (s.template === 'ark' && !s.db_name) {
     const shortId = s.id.slice(0,8);
     const dbName = `ark_${shortId.replace(/-/g, '_')}`;
     const dbUser = `usr_${shortId}`;
@@ -621,22 +577,11 @@ export async function getServerDetails(id, userId, isAdmin) {
 
   const bState = await Docker.resolveContainerState(`ragenodes-blender-${s.id.slice(0,8)}`);
   s.blender_status = bState.running ? 'running' : 'stopped';
-  if (!canViewSecrets) {
-      delete s.db_name;
-      delete s.db_user;
-      delete s.db_pass;
-      delete s.blender_pass;
-      delete s.discord_webhook_url;
-      delete s.data_path;
-      delete s.container_name;
-      delete s.license_key_hint;
-      delete s.subuser_permissions;
-  }
   return s;
 }
 
 export async function toggleBlenderForServer(id, userId, isAdmin, action) {
-  const s = await getServerByIdForUser(id, userId, isAdmin, 'files');
+  const s = await getServerByIdForUser(id, userId, isAdmin);
   if (!s) throw new Error("No encontrado");
   if (s.runtime_plan === 'hobby') throw new Error("El plan Hobby no incluye Editor 3D.");
 
@@ -653,7 +598,7 @@ export async function toggleBlenderForServer(id, userId, isAdmin, action) {
 }
 
 export async function renewBlenderHeartbeat(id, userId, isAdmin) {
-    const s = await getServerByIdForUser(id, userId, isAdmin, 'files');
+    const s = await getServerByIdForUser(id, userId, isAdmin);
     if (!s) throw new Error("No encontrado");
     blenderActivity.set(id, Date.now());
     return { success: true, timestamp: Date.now() };
@@ -734,13 +679,11 @@ export async function repairServer(id, userId, isAdmin) {
           default: throw new Error(`Plantilla desconocida: ${s.template}`);
       }
       await query("UPDATE servers SET status = 'running' WHERE id = $1", [s.id]);
-
+      
       // Ensure Cloudflare tunnel is restored if it was dropped
-      if ((s.template === 'fivem' && s.txadmin_port) || s.template === 'wordpress') {
+      if (s.template === 'fivem' && s.txadmin_port) {
           import('./cloudflareService.js').then(({ updateServerTunnelConfig }) => {
-              const port = s.template === 'fivem' ? s.txadmin_port : s.fivem_port;
-              const prefix = s.template === 'fivem' ? 'tx' : 'wp';
-              updateServerTunnelConfig(s.id, port, s.txadmin_url, 'add', 'host.docker.internal', prefix).catch(e => console.error(e));
+              updateServerTunnelConfig(s.id, s.txadmin_port, s.txadmin_url, 'add', 'host.docker.internal').catch(e => console.error(e));
           }).catch(e => {});
       }
       return { success: true };
@@ -752,8 +695,7 @@ export async function repairServer(id, userId, isAdmin) {
 }
 
 export async function getServerLogs(id, userId, isAdmin) {
-  const s = await getServerByIdForUser(id, userId, isAdmin, 'console');
-  if (!s) throw new Error('Servidor no encontrado o sin permiso de consola.');
+  const s = await getServerByIdForUser(id, userId, isAdmin);
   return { logs: await Docker.fetchContainerLogs(s.container_name) };
 }
 
@@ -763,16 +705,12 @@ export async function getAllServers() {
 }
 
 export async function setServerBackupTime(id, userId, time, isAdmin) {
-  const s = await getServerByIdForUser(id, userId, isAdmin, 'files');
-  if (!s) throw new Error('Servidor no encontrado o sin permiso de archivos.');
-  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(time))) throw new Error('Hora de backup inválida.');
   await query('UPDATE servers SET backup_time = $1 WHERE id = $2', [time, id]);
   return { success: true };
 }
 
 export async function getServerStatsHistory(id, userId, isAdmin) {
     const s = await getServerByIdForUser(id, userId, isAdmin);
-    if (!s) throw new Error("Servidor no encontrado");
     const { rows } = await query('SELECT cpu, ram, ram_gb, created_at FROM server_stats_history WHERE server_id = $1 ORDER BY created_at DESC LIMIT 50', [s.id]);
     return rows.reverse();
 }
@@ -798,7 +736,7 @@ export async function controlServer(id, userId, action, isAdmin) {
       checkSystemLoad();
       try {
           await Docker.startContainer(s.container_name);
-
+          
           if (s.template === 'fivem') {
               setTimeout(() => {
                   Docker.runRemoteCommand(s.node_id, `docker exec -u 0 ${s.container_name} sh -c "cat /opt/fivem/alpine/opt/cfx-server/citizen/system_resources/monitor/core/index.js | sed 's/sameSite:\\"lax\\"/sameSite:\\"none\\",secure:true/g' > /tmp/index.js && cp /tmp/index.js /opt/fivem/alpine/opt/cfx-server/citizen/system_resources/monitor/core/index.js" || true`);
@@ -860,17 +798,12 @@ export async function controlServer(id, userId, action, isAdmin) {
               case 'zomboid': await Docker.restartZomboidContainer(opts); break;
               case 'ark': await Docker.restartARKContainer(opts); break;
               case 'sdtd': await Docker.restartSDTDContainer(s.container_name, s.id, s.fivem_port, plan, s.data_path); break;
-              case 'discord': await Docker.restartDiscordBotContainer(opts); break;
-              case 'wordpress': await Docker.restartWordPressContainer(opts); break;
-              case 'database': await Docker.restartDatabaseContainer(opts); break;
               default: await Docker.restartFivemContainer(opts); break;
           }
-
-          if ((s.template === 'fivem' && s.txadmin_port) || s.template === 'wordpress') {
+          
+          if (s.template === 'fivem' && s.txadmin_port) {
               import('./cloudflareService.js').then(({ updateServerTunnelConfig }) => {
-                  const port = s.template === 'fivem' ? s.txadmin_port : s.fivem_port;
-                  const prefix = s.template === 'fivem' ? 'tx' : 'wp';
-                  updateServerTunnelConfig(s.id, port, s.txadmin_url, 'add', 'host.docker.internal', prefix).catch(e => console.error(e));
+                  updateServerTunnelConfig(s.id, s.txadmin_port, s.txadmin_url, 'add', 'host.docker.internal').catch(e => console.error(e));
               }).catch(e => {});
           }
       } finally {
@@ -885,7 +818,6 @@ export async function controlServer(id, userId, action, isAdmin) {
 export async function deleteServer(id, userId, isAdmin) {
   const s = await getServerByIdForUser(id, userId, isAdmin);
   if (!s) throw new Error("No encontrado");
-  if (!isAdmin && s.owner_id !== userId) throw new Error('Solo el propietario puede eliminar el servidor.');
 
   await query("UPDATE servers SET status = 'deleting' WHERE id = $1", [s.id]);
 
@@ -902,7 +834,7 @@ export async function deleteServer(id, userId, isAdmin) {
 setInterval(async () => {
     try {
         console.log("🛠️ [Mantenimiento] Iniciando escaneo de salud de servidores...");
-
+        
         // 🛡️ Auto-curado de infraestructura crítica
         const coreContainers = ['oxide_web', 'tunnel', 'wg-easy', 'oxide_control_panel'];
         for (const core of coreContainers) {
@@ -914,12 +846,12 @@ setInterval(async () => {
                 }
             } catch (e) {}
         }
-
+        
         // Limpieza automática de sub-usuarios huérfanos (Auto-Curado de Base de Datos)
         await query(`
-            DELETE FROM users
-            WHERE id NOT IN (SELECT owner_id FROM servers)
-            AND id NOT IN (SELECT user_id FROM server_subusers)
+            DELETE FROM users 
+            WHERE id NOT IN (SELECT owner_id FROM servers) 
+            AND id NOT IN (SELECT user_id FROM server_subusers) 
             AND role != 'admin'
             AND username ~ '_[0-9a-f]{4}$'
         `);
@@ -966,7 +898,7 @@ setInterval(async () => {
                         if (!needsFix) {
                             const uptimeStr = inspect.State.StartedAt;
                             const uptimeMs = Date.now() - new Date(uptimeStr).getTime();
-
+                            
                             // 🛡️ Verificar Logs para errores fatales
                             const logs = await Docker.fetchContainerLogs(s.container_name);
                             const tailLogs = logs.slice(-5000).toLowerCase();
@@ -980,55 +912,13 @@ setInterval(async () => {
                                 let checkPort = s.fivem_port;
                                 if (s.template === 'rust' || s.template === 'palworld') checkPort = s.fivem_port + 1; // RCON
                                 if (s.template === 'ark') checkPort = s.fivem_port + 13; // RCON
-
+                                
                                 if (s.template !== 'valheim' && s.template !== 'zomboid' && s.template !== 'ark') {
                                     const isPortReachable = await verifyServerPort('172.17.0.1', checkPort, 'tcp');
                                     if (!isPortReachable) {
                                         console.log(`⚠️ [Mantenimiento] Puerto TCP ${checkPort} no responde para ${s.name} (Uptime: ${Math.round(uptimeMs/60000)}m). Posible cuelgue.`);
                                         needsFix = true;
                                     }
-                                }
-                            }
-
-                            // 🛡️ CONTROL DE CUOTA DE DISCO EN 3 PASOS
-                            const usedDiskBytes = getFolderSizeSnapshot(s.data_path);
-                            const plan = PLANS[s.runtime_plan] || PLANS.hobby;
-                            const maxDisk = (plan.diskBytes || (20 * 1024 ** 3)) + ((s.extra_disk_gb || 0) * 1024 ** 3);
-                            const diskPercent = (usedDiskBytes / maxDisk) * 100;
-
-                            const lastWarn = global.lastQuotaWarning || new Map();
-                            global.lastQuotaWarning = lastWarn;
-
-                            if (diskPercent >= 100 && !needsFix) {
-                                console.log(`🛑 [Cuota de Disco] Servidor ${s.name} alcanzó el 100% de uso. Apagando por seguridad.`);
-                                await Docker.stopContainer(s.container_name);
-                                await query("UPDATE servers SET status = 'stopped' WHERE id = $1", [s.id]);
-                                await query("INSERT INTO notifications (title, content, type) VALUES ($1, $2, $3)", [
-                                    `Servidor Apagado: ${s.name}`,
-                                    `El servidor superó su límite de almacenamiento (${(maxDisk / (1024**3)).toFixed(2)} GB). Fue apagado por seguridad.`,
-                                    'error'
-                                ]);
-                                needsFix = false; // Ya lo detuvimos
-                            } else if (diskPercent >= 95 && !needsFix) {
-                                const last = lastWarn.get(`${s.id}_95`) || 0;
-                                if (Date.now() - last > 6 * 60 * 60 * 1000) { // 6 hours
-                                    console.log(`⚠️ [Cuota de Disco] Servidor ${s.name} superó el 95% de uso.`);
-                                    await query("INSERT INTO notifications (title, content, type) VALUES ($1, $2, $3)", [
-                                        `Alerta Crítica de Espacio: ${s.name}`,
-                                        `El servidor superó el 95% de almacenamiento (${diskPercent.toFixed(1)}%). Si llega al 100% se apagará automáticamente.`,
-                                        'warning'
-                                    ]);
-                                    lastWarn.set(`${s.id}_95`, Date.now());
-                                }
-                            } else if (diskPercent >= 85 && !needsFix) {
-                                const last = lastWarn.get(`${s.id}_85`) || 0;
-                                if (Date.now() - last > 24 * 60 * 60 * 1000) { // 24 hours
-                                    await query("INSERT INTO notifications (title, content, type) VALUES ($1, $2, $3)", [
-                                        `Aviso de Espacio: ${s.name}`,
-                                        `El servidor superó el 85% de almacenamiento (${diskPercent.toFixed(1)}%). Considera limpiar archivos innecesarios.`,
-                                        'info'
-                                    ]);
-                                    lastWarn.set(`${s.id}_85`, Date.now());
                                 }
                             }
                         }
@@ -1048,9 +938,9 @@ setInterval(async () => {
 
                     // 🚀 AUTOMATIZACIÓN CLOUDFLARE (Solo para FiveM)
                     if (s.template === 'fivem' && s.txadmin_port) {
-                        const tunnelUrl = `https://${getRagenodesTunnelHostname(s.id, s.txadmin_port, '', 'tx')}`;
+                        const tunnelUrl = `https://tx${s.txadmin_port}.ragenodes.com`;
                         const activeTunnelUrl = s.txadmin_url || tunnelUrl;
-                        if (/^https:\/\/(?:[a-z0-9-_]+\.)?ragenodes\.com\/?$/i.test(activeTunnelUrl)) {
+                        if (/^https:\/\/tx[0-9]+\.ragenodes\.com\/?$/i.test(activeTunnelUrl)) {
                             // Sync is handled by createServer and deleteServer, no need to blindly sync every 60s
                         }
                         if (s.txadmin_url !== tunnelUrl) {
@@ -1132,12 +1022,10 @@ export async function repairOneServer(s) {
         }
 
         await query("UPDATE servers SET status = 'running' WHERE id = $1", [s.id]);
-
-        if ((s.template === 'fivem' && s.txadmin_port) || s.template === 'wordpress') {
+        
+        if (s.template === 'fivem' && s.txadmin_port) {
             import('./cloudflareService.js').then(({ updateServerTunnelConfig }) => {
-                const port = s.template === 'fivem' ? s.txadmin_port : s.fivem_port;
-                const prefix = s.template === 'fivem' ? 'tx' : 'wp';
-                updateServerTunnelConfig(s.id, port, s.txadmin_url, 'add', 'host.docker.internal', prefix).catch(e => console.error(e));
+                updateServerTunnelConfig(s.id, s.txadmin_port, s.txadmin_url, 'add', 'host.docker.internal').catch(e => console.error(e));
             }).catch(e => {});
         }
     } catch (e) {
@@ -1153,7 +1041,6 @@ export async function repairOneServer(s) {
 export async function getSubusersForServer(serverId, userId, isAdmin = false) {
     const s = await getServerByIdForUser(serverId, userId, isAdmin);
     if (!s) throw new Error("Servidor no encontrado");
-    if (!isAdmin && s.owner_id !== userId) throw new Error('Solo el propietario puede consultar el equipo.');
 
     const res = await query(`
         SELECT su.id as subuser_id, u.id as user_id, u.username, u.email, su.permissions, su.created_at
@@ -1172,12 +1059,12 @@ export async function addSubuserToServer(serverId, userId, isAdmin, usernameOrEm
     let targetUserId;
     let isNewUser = false;
     const targetRes = await query("SELECT id FROM users WHERE username = $1 OR email = $1", [usernameOrEmail]);
-
+    
     if (targetRes.rowCount === 0) {
         if (!usernameOrEmail.includes('@')) {
             throw new Error("Usuario no encontrado. Para invitar a un nuevo colaborador sin cuenta, introduce su correo electrónico.");
         }
-
+        
         isNewUser = true;
         const tempPassword = generateSecurePassword();
         const baseUsername = usernameOrEmail.split('@')[0].replace(/[^a-zA-Z0-9]/g, '');
@@ -1206,9 +1093,9 @@ export async function addSubuserToServer(serverId, userId, isAdmin, usernameOrEm
         ON CONFLICT (server_id, user_id) DO UPDATE SET permissions = EXCLUDED.permissions
     `, [serverId, targetUserId, JSON.stringify(permissions)]);
 
-    return {
-        success: true,
-        message: isNewUser ? "Cuenta de equipo creada automáticamente y miembro añadido con éxito." : "Sub-usuario añadido o actualizado correctamente."
+    return { 
+        success: true, 
+        message: isNewUser ? "Cuenta de equipo creada automáticamente y miembro añadido con éxito." : "Sub-usuario añadido o actualizado correctamente." 
     };
 }
 
@@ -1228,9 +1115,8 @@ export async function removeSubuserFromServer(serverId, userId, isAdmin, subuser
 export async function updateServerWebhook(serverId, userId, isAdmin, webhookUrl, events) {
     const s = await getServerByIdForUser(serverId, userId, isAdmin);
     if (!s) throw new Error("Servidor no encontrado");
-    if (!isAdmin && s.owner_id !== userId) throw new Error('Solo el propietario puede configurar webhooks.');
 
-    await query("UPDATE servers SET discord_webhook_url = $1, discord_webhook_events = $2 WHERE id = $3",
+    await query("UPDATE servers SET discord_webhook_url = $1, discord_webhook_events = $2 WHERE id = $3", 
         [webhookUrl || null, JSON.stringify(events || ['online', 'offline', 'player_join', 'player_leave', 'update']), serverId]);
     return { success: true };
 }
@@ -1242,7 +1128,6 @@ export async function updateServerWebhook(serverId, userId, isAdmin, webhookUrl,
 export async function updateServerCluster(serverId, userId, isAdmin, clusterId) {
     const s = await getServerByIdForUser(serverId, userId, isAdmin);
     if (!s) throw new Error("Servidor no encontrado");
-    if (!isAdmin && s.owner_id !== userId) throw new Error('Solo el propietario puede configurar el clúster.');
 
     await query("UPDATE servers SET cluster_id = $1 WHERE id = $2", [clusterId || null, serverId]);
     return { success: true };
@@ -1253,7 +1138,7 @@ export async function updateServerCluster(serverId, userId, isAdmin, clusterId) 
 // ==========================================
 
 export async function updateServerAutoRestart(serverId, userId, isAdmin, time, enabled, backupBeforeRestart) {
-    const s = await getServerByIdForUser(serverId, userId, isAdmin, 'files');
+    const s = await getServerByIdForUser(serverId, userId, isAdmin);
     if (!s) throw new Error("Servidor no encontrado");
 
     await query("UPDATE servers SET auto_restart_time = $1, auto_restart_enabled = $2, backup_before_restart = $3 WHERE id = $4",

@@ -20,15 +20,7 @@ router.get('/backup-jobs/:jobId', async (req, res) => {
     res.json(job);
 });
 
-router.get('/', async (req, res) => {
-  try {
-    const items = await getServersForUser(req.user.sub, req.user.role === 'admin');
-    res.json({ items, publicHost: config.fivemPublicHost });
-  } catch (e) {
-    req.log?.error?.(e, 'Error al listar servidores del usuario');
-    res.status(500).json({ error: e.message || 'Error al obtener servidores' });
-  }
-});
+router.get('/', async (req, res) => { res.json({ items: await getServersForUser(req.user.sub, req.user.role === 'admin'), publicHost: config.fivemPublicHost }); });
 
 router.post('/', async (req, res) => { try { res.status(201).json({ item: await createServerForUser(req.user.sub, req.body) }); } catch(e) { res.status(400).json({ error: e.message }); } });
 
@@ -51,7 +43,7 @@ router.get('/:id/backups', async (req, res) => {
 // 2. Generar un backup manual (Con soporte para nombre personalizado y COLA DE PRIORIDAD)
 router.post('/:id/backup', async (req, res) => {
   try {
-      const s = await getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'files');
+      const s = await getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin');
       if (!s) return res.status(404).json({ error: "Servidor no encontrado" });
 
       const job = backupQueue.enqueue(
@@ -134,7 +126,7 @@ router.get('/:id/logs', async (req, res) => { try { res.json(await getServerLogs
 // 🚀 NUEVO: Streaming de logs en tiempo real vía SSE (Optimizado con LogHub)
 router.get('/:id/logs/stream', async (req, res) => {
     const serverId = req.params.id;
-    const s = await getServerByIdForUser(serverId, req.user.sub, req.user.role === 'admin', 'console');
+    const s = await getServerByIdForUser(serverId, req.user.sub, req.user.role === 'admin');
     if (!s) return res.status(404).end();
 
     res.setHeader('Content-Type', 'text/event-stream');
@@ -167,7 +159,7 @@ router.post('/:id/command', async (req, res) => {
         if (!command || typeof command !== 'string') return res.status(400).json({ error: 'Comando inválido.' });
         if (command.length > 256) return res.status(400).json({ error: 'Comando demasiado largo.' });
 
-        const s = await getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'console');
+        const s = await getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin');
         if (!s) return res.status(404).json({ error: 'Servidor no encontrado.' });
         if (s.status !== 'running') return res.status(400).json({ error: 'El servidor debe estar encendido.' });
 
@@ -185,7 +177,7 @@ router.post('/:id/command', async (req, res) => {
 
 router.get('/:id/blender-access', async (req, res) => {
   try {
-    const s = await getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'files');
+    const s = await getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin');
     if (!s) return res.status(404).json({ error: "No encontrado" });
     res.json({
         host: config.fivemPublicHost,
@@ -241,7 +233,7 @@ router.post('/:id/auto-restart', async (req, res) => {
 // 5. Verificar versión ARK
 router.post('/:id/force-update-ark', async (req, res) => {
     try {
-        const s = await getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'files');
+        const s = await getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin');
         if (!s) return res.status(404).json({ error: 'Servidor no encontrado.' });
         if (s.game !== 'ark') return res.status(400).json({ error: 'Solo disponible para servidores ARK.' });
 
@@ -262,7 +254,7 @@ router.post('/:id/force-update-ark', async (req, res) => {
 // 6. Instalador automático de dependencias
 router.post('/:id/auto-install', async (req, res) => {
     try {
-        const s = await getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'files');
+        const s = await getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin');
         if (!s) return res.status(404).json({ error: 'Servidor no encontrado.' });
         if (s.game !== 'discordbot') return res.status(400).json({ error: 'Solo disponible para Discord Bots.' });
 

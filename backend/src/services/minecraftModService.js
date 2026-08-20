@@ -49,7 +49,7 @@ export async function getModVersions(modId) {
  * Instala un mod descargando el archivo a la carpeta mods del servidor
  */
 export async function installMod(serverId, userId, isAdmin, versionId) {
-    const server = await getServerByIdForUser(serverId, userId, isAdmin, 'files');
+    const server = await getServerByIdForUser(serverId, userId, isAdmin);
     if (!server || server.template !== 'minecraft') {
         throw new Error('Servidor no válido o sin acceso');
     }

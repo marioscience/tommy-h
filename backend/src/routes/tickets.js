@@ -5,19 +5,12 @@ import { resend } from '../services/emailService.js'; // Usamos la instancia de 
 
 const router = express.Router();
 
-function escapeHtml(value) {
-    return String(value).replace(/[&<>'"]/g, char => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
-    })[char]);
-}
-
 // 🟢 CREAR UN TICKET (Envío de correo a soporte)
 router.post('/create', requireAuth, async (req, res) => {
     const { subject, message } = req.body;
     const userId = req.user.sub;
 
-    if (typeof subject !== 'string' || typeof message !== 'string' || !subject.trim() || !message.trim()
-        || subject.length > 160 || message.length > 10_000) {
+    if (!subject || !message) {
         return res.status(400).json({ error: 'Asunto y mensaje son obligatorios.' });
     }
 
@@ -30,16 +23,16 @@ router.post('/create', requireAuth, async (req, res) => {
         await resend.emails.send({
             from: 'RageNodes Support <system@ragenodes.com>',
             to: 'soporte@ragenodes.com', // 📧 Aquí recibes tú los tickets
-            subject: `[TICKET] ${subject.replace(/[\r\n]/g, ' ')} - @${user.username}`,
+            subject: `[TICKET] ${subject} - @${user.username}`,
             html: `
                 <div style="font-family: sans-serif; color: #333;">
                     <h2>Nuevo Ticket de Soporte</h2>
-                    <p><strong>Usuario:</strong> ${escapeHtml(user.username)} (${escapeHtml(user.email)})</p>
-                    <p><strong>Asunto:</strong> ${escapeHtml(subject)}</p>
+                    <p><strong>Usuario:</strong> ${user.username} (${user.email})</p>
+                    <p><strong>Asunto:</strong> ${subject}</p>
                     <hr />
                     <p><strong>Mensaje:</strong></p>
                     <div style="background: #f4f4f4; padding: 15px; border-radius: 8px;">
-                        ${escapeHtml(message).replace(/\n/g, '<br>')}
+                        ${message.replace(/\n/g, '<br>')}
                     </div>
                     <hr />
                     <p style="font-size: 0.8rem; color: #888;">Este es un mensaje automático del sistema de RageNodes.</p>

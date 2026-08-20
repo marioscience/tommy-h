@@ -1,21 +1,10 @@
-import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, sh } from '../dockerUtils.js';
+import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate , sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
-import { saveValheimConfig } from '../valheimService.js';
 
 export async function createValheimContainer(opts) {
     const docker = await getNodeConnection(opts.nodeId || 0);
     await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath} && chown -R 1000:1000 ${opts.dataPath}`);
     await cloneFromMasterTemplate('valheim', opts.dataPath, opts.nodeId);
-    const serverPassword = opts.serverPassword || deriveServicePassword('valheim-server', opts.serverId || opts.containerName).slice(0, 16);
-    await saveValheimConfig(opts.dataPath, {
-        SERVER_NAME: opts.serverName,
-        SERVER_PASS: serverPassword,
-        WORLD_NAME: 'RageNodesWorld',
-        SERVER_PUBLIC: '1',
-        SERVER_ARGS: '-crossplay',
-        UPDATE_CRON: '0 4 * * *',
-        BACKUPS: 'false'
-    });
 
     try { await docker.getImage(config.valheimBaseImage).inspect(); }
     catch (e) {
@@ -29,7 +18,7 @@ export async function createValheimContainer(opts) {
         name: opts.containerName,
         Env: [
             `SERVER_NAME=${opts.serverName}`,
-            `SERVER_PASS=${serverPassword}`,
+            `SERVER_PASS=vikingos`,
             `WORLD_NAME=RageNodesWorld`,
             `SERVER_PUBLIC=1`,
             `UPDATE_CRON=0 4 * * *`,
@@ -50,7 +39,7 @@ export async function createValheimContainer(opts) {
             RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: opts.plan.memoryBytes,
             NanoCpus: opts.plan.nanoCpus, CpuShares: Math.round((opts.plan.nanoCpus / 10**9) * 1024),
-            BlkioWeight: config.dockerBlkioWeight,
+            BlkioWeight: 100,
             ...GAME_SECURITY_CONFIG
         }
     });

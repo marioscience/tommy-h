@@ -23,30 +23,7 @@ async function getAccessToken() {
         headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" }
     });
     const data = await response.json();
-    if (!response.ok || !data.access_token) {
-        throw new Error(`PayPal OAuth fallo (${response.status}).`);
-    }
     return data.access_token;
-}
-
-async function paypalJson(path, options = {}) {
-    const token = await getAccessToken();
-    const response = await fetch(`${PAYPAL_API}${path}`, {
-        ...options,
-        headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            ...(options.headers || {})
-        }
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-        const error = new Error(`PayPal API fallo (${response.status}).`);
-        error.status = response.status;
-        error.details = data;
-        throw error;
-    }
-    return data;
 }
 
 /**
@@ -79,43 +56,27 @@ export async function createOrder(amount, description, customId) {
  * Captura una Orden de Pago ya aprobada
  */
 export async function captureOrder(orderId) {
-    return paypalJson(`/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, {
+    const token = await getAccessToken();
+    const response = await fetch(`${PAYPAL_API}/v2/checkout/orders/${orderId}/capture`, {
         method: "POST",
-        body: JSON.stringify({})
+        headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+        }
     });
-}
-
-export async function getOrderDetails(orderId) {
-    return paypalJson(`/v2/checkout/orders/${encodeURIComponent(orderId)}`, { method: 'GET' });
+    return await response.json();
 }
 
 /**
  * Obtiene detalles de una Suscripción
  */
 export async function getSubscriptionDetails(subscriptionId) {
-    return paypalJson(`/v1/billing/subscriptions/${encodeURIComponent(subscriptionId)}`, { method: "GET" });
-}
-
-export async function verifyWebhookSignature(headers, event) {
-    const webhookId = process.env.PAYPAL_WEBHOOK_ID;
-    if (!webhookId) {
-        throw new Error('PAYPAL_WEBHOOK_ID no esta configurado.');
-    }
-
-    const required = {
-        auth_algo: headers['paypal-auth-algo'],
-        cert_url: headers['paypal-cert-url'],
-        transmission_id: headers['paypal-transmission-id'],
-        transmission_sig: headers['paypal-transmission-sig'],
-        transmission_time: headers['paypal-transmission-time']
-    };
-    if (Object.values(required).some(value => !value)) return false;
-
-    const result = await paypalJson('/v1/notifications/verify-webhook-signature', {
-        method: 'POST',
-        body: JSON.stringify({ ...required, webhook_id: webhookId, webhook_event: event })
+    const token = await getAccessToken();
+    const response = await fetch(`${PAYPAL_API}/v1/billing/subscriptions/${subscriptionId}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
     });
-    return result.verification_status === 'SUCCESS';
+    return await response.json();
 }
 
 /**
@@ -192,10 +153,8 @@ export async function createBillingPlan(productId, name, price) {
 
 export default {
     createOrder,
-    getOrderDetails,
     captureOrder,
     getSubscriptionDetails,
-    verifyWebhookSignature,
     reviseSubscription,
     createProduct,
     createBillingPlan

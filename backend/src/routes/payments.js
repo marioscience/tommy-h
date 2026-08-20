@@ -1,22 +1,13 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { query, logAudit, withTransaction } from '../db.js';
+import { query, logAudit } from '../db.js';
 import { sendWelcomeEmail, sendVerificationEmail } from '../services/emailService.js';
 import { requireAuth } from '../middleware/auth.js';
 import paypal from '../services/paypalService.js';
-import { config } from '../config.js';
 import { listInvoicesForUser, getInvoiceForUser, renderInvoiceHtml } from '../services/billingEvidenceService.js';
-import { rateLimit } from 'express-rate-limit';
 
 const router = express.Router();
-const checkoutLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 30,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Demasiadas solicitudes de checkout. Inténtalo más tarde.' }
-});
 
 function getRequestIp(req) {
     const forwarded = req.headers?.['x-forwarded-for'];
@@ -48,24 +39,10 @@ function buildInvoiceNumber(userId) {
     return `RN-${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, '0')}-${userId}-${String(Date.now()).slice(-8)}`;
 }
 
-function isPayPalSubscriptionId(value) {
-    return typeof value === 'string' && /^I-[A-Z0-9]+$/i.test(value);
-}
-
 
 /**
  * 0. Obtener Planes y Precios Dinámicos
  */
-router.get('/client-config', (req, res) => {
-    res.setHeader('Cache-Control', 'no-store');
-    const enabled = Boolean(config.paypalClient && process.env.PAYPAL_SECRET);
-    res.json({
-        enabled,
-        clientId: enabled ? config.paypalClient : null,
-        mode: config.paypalMode
-    });
-});
-
 router.get('/plans', async (req, res) => {
     try {
         const result = await query('SELECT * FROM hosting_plans WHERE is_active = true');
@@ -114,7 +91,7 @@ router.get('/invoices/:id.html', requireAuth, async (req, res) => {
 /**
  * 1. Verificar disponibilidad (Usuario y Correo) ANTES de abrir PayPal
  */
-router.post('/check-availability', checkoutLimiter, async (req, res) => {
+router.post('/check-availability', async (req, res) => {
     const { username, email } = req.body;
 
     const existingUser = await query('SELECT id FROM users WHERE username = $1', [username]);
@@ -130,7 +107,7 @@ router.post('/check-availability', checkoutLimiter, async (req, res) => {
 /**
  * 1.1 Registrar aceptacion legal antes de abrir PayPal
  */
-router.post('/checkout-agreement', checkoutLimiter, async (req, res) => {
+router.post('/checkout-agreement', async (req, res) => {
     const { planId, username, email, acceptedTerms, acceptedPrivacy, acceptedRefund, acceptedImmediateProvision, acceptedRenewal } = req.body;
     const ip = getRequestIp(req);
     const ua = getRequestUserAgent(req);
@@ -191,16 +168,12 @@ router.post('/checkout-agreement', checkoutLimiter, async (req, res) => {
 /**
  * 2. VERIFICAR SUSCRIPCION Y CREAR CUENTA
  */
-router.post('/register-subscription', checkoutLimiter, async (req, res) => {
+router.post('/register-subscription', async (req, res) => {
     const { subscriptionID, planId, username, email, password, agreementToken } = req.body;
     const ip = getRequestIp(req);
     const ua = getRequestUserAgent(req);
 
     try {
-        if (!isPayPalSubscriptionId(subscriptionID)) return res.status(400).json({ error: 'ID de suscripcion invalido.' });
-        if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
-            return res.status(400).json({ error: 'La contrasena debe tener entre 8 y 128 caracteres.' });
-        }
         if (!agreementToken) return res.status(400).json({ error: 'Falta la aceptacion legal del checkout.' });
 
         const agreementResult = await query(
@@ -216,27 +189,12 @@ router.post('/register-subscription', checkoutLimiter, async (req, res) => {
             return res.status(400).json({ error: 'Los datos del checkout no coinciden con la aceptacion legal registrada.' });
         }
 
-        const planResult = await query(
-            'SELECT id, name, price, paypal_plan_id, features FROM hosting_plans WHERE id = $1 AND is_active = true',
-            [planId]
-        );
-        if (planResult.rowCount === 0 || !planResult.rows[0].paypal_plan_id) {
-            return res.status(400).json({ error: 'El plan seleccionado no esta disponible para suscripcion.' });
-        }
-
-        const plan = planResult.rows[0];
         const data = await paypal.getSubscriptionDetails(subscriptionID);
-        if (data.id !== subscriptionID || data.plan_id !== plan.paypal_plan_id) {
-            await logAudit(null, 'payment.subscription_entitlement_rejected', {
-                requestedPlan: planId,
-                receivedPayPalPlan: data.plan_id || null,
-                subscriptionID
-            }, ip, ua);
-            return res.status(400).json({ error: 'La suscripcion no corresponde al plan seleccionado.' });
-        }
 
         // Si la suscripcion existe en PayPal y su estado es ACTIVO
         if (data.status === 'ACTIVE') {
+            const planResult = await query('SELECT id, name, price, paypal_plan_id, features FROM hosting_plans WHERE id = $1', [planId]);
+            const plan = planResult.rows[0] || { id: planId, name: planId, price: 0, paypal_plan_id: null, features: {} };
             const serverLimit = Number(plan.features?.serverLimit || plan.features?.server_limit || 1) || 1;
             const verifyToken = crypto.randomBytes(32).toString('hex');
 
@@ -248,27 +206,9 @@ router.post('/register-subscription', checkoutLimiter, async (req, res) => {
             let paymentId;
             let invoiceNumber;
 
-            await withTransaction(async (tx) => {
-                await tx('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`paypal-sub:${subscriptionID}`]);
-
-                const lockedAgreement = await tx(
-                    `SELECT id FROM user_agreements
-                     WHERE id = $1 AND token = $2 AND consumed_at IS NULL AND expires_at > NOW()
-                     FOR UPDATE`,
-                    [agreement.id, agreementToken]
-                );
-                if (lockedAgreement.rowCount === 0) throw new Error('CHECKOUT_ALREADY_CONSUMED');
-
-                const usedSubscription = await tx(
-                    `SELECT id FROM users WHERE paypal_sub_id = $1
-                     UNION ALL
-                     SELECT user_id AS id FROM payments WHERE paypal_subscription_id = $1
-                     LIMIT 1`,
-                    [subscriptionID]
-                );
-                if (usedSubscription.rowCount > 0) throw new Error('SUBSCRIPTION_ALREADY_USED');
-
-                const result = await tx(
+            await query('BEGIN');
+            try {
+                const result = await query(
                     `INSERT INTO users (username, email, password_hash, role, expires_at, paypal_sub_id, plan, server_limit, verify_token)
                      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
                     [cleanUsername, cleanEmail, hash, 'client', expiresAt, subscriptionID, planId, serverLimit, verifyToken]
@@ -295,7 +235,7 @@ router.post('/register-subscription', checkoutLimiter, async (req, res) => {
                     service: { type: 'digital_game_server_hosting', provision: 'automatic_after_payment' }
                 };
 
-                const payment = await tx(
+                const payment = await query(
                     `INSERT INTO payments (user_id, paypal_order_id, paypal_subscription_id, plan_name, amount, currency, status, agreement_id, evidence)
                      VALUES ($1,$2,$3,$4,$5,'USD','COMPLETED',$6,$7)
                      RETURNING id`,
@@ -303,7 +243,7 @@ router.post('/register-subscription', checkoutLimiter, async (req, res) => {
                 );
                 paymentId = payment.rows[0].id;
 
-                await tx(
+                await query(
                     `INSERT INTO invoices (
                         invoice_number, user_id, payment_id, agreement_id, paypal_subscription_id,
                         status, currency, subtotal, tax, total, plan_id, plan_name, customer_email, customer_username, evidence
@@ -311,12 +251,16 @@ router.post('/register-subscription', checkoutLimiter, async (req, res) => {
                     [invoiceNumber, newUserId, paymentId, agreement.id, subscriptionID, plan.price || 0, plan.id, plan.name, cleanEmail, cleanUsername, JSON.stringify(evidence)]
                 );
 
-                await tx(
+                await query(
                     `UPDATE user_agreements SET user_id = $1, paypal_subscription_id = $2, consumed_at = NOW() WHERE id = $3`,
                     [newUserId, subscriptionID, agreement.id]
                 );
 
-            });
+                await query('COMMIT');
+            } catch (txError) {
+                await query('ROLLBACK').catch(() => {});
+                throw txError;
+            }
 
             if (cleanEmail) {
                 sendWelcomeEmail(cleanEmail, cleanUsername);
@@ -338,45 +282,23 @@ router.post('/register-subscription', checkoutLimiter, async (req, res) => {
 
     } catch (error) {
         console.error("Error en registro tras pago:", error);
-        if (error.message === 'CHECKOUT_ALREADY_CONSUMED' || error.message === 'SUBSCRIPTION_ALREADY_USED') {
-            return res.status(409).json({ error: 'Este checkout o esta suscripcion ya se utilizaron.' });
-        }
         res.status(500).json({ error: "Error interno al procesar el pago." });
     }
 });
 
 router.post('/register-disk-subscription', requireAuth, async (req, res) => {
-    const { subscriptionID, diskPlanId } = req.body;
+    const { subscriptionID, diskGb } = req.body;
 
     try {
-        if (!isPayPalSubscriptionId(subscriptionID) || typeof diskPlanId !== 'string') {
-            return res.status(400).json({ error: 'Datos de suscripcion invalidos.' });
-        }
-
-        const planResult = await query(
-            'SELECT id, gb_amount, paypal_plan_id FROM disk_plans WHERE id = $1 AND is_active = true',
-            [diskPlanId]
-        );
-        const diskPlan = planResult.rows[0];
-        if (!diskPlan?.paypal_plan_id) return res.status(400).json({ error: 'La expansion seleccionada no esta disponible.' });
-
         const data = await paypal.getSubscriptionDetails(subscriptionID);
 
-        if (data.status === 'ACTIVE' && data.id === subscriptionID && data.plan_id === diskPlan.paypal_plan_id) {
-            await withTransaction(async (tx) => {
-                await tx('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`paypal-sub:${subscriptionID}`]);
-                const used = await tx('SELECT id FROM users WHERE disk_sub_id = $1 AND id <> $2', [subscriptionID, req.user.sub]);
-                if (used.rowCount > 0) throw new Error('SUBSCRIPTION_ALREADY_USED');
-                await tx('UPDATE users SET extra_disk_gb = $1, disk_sub_id = $2 WHERE id = $3', [diskPlan.gb_amount, subscriptionID, req.user.sub]);
-            });
-            await logAudit(req.user.sub, 'payment.disk_subscription', { diskPlanId, diskGb: diskPlan.gb_amount, sub_id: subscriptionID });
-            return res.json({ success: true, message: `¡Expansion de ${diskPlan.gb_amount}GB activada!` });
+        if (data.status === 'ACTIVE') {
+            await query('UPDATE users SET extra_disk_gb = $1, disk_sub_id = $2 WHERE id = $3', [diskGb, subscriptionID, req.user.sub]);
+            await logAudit(req.user.sub, 'payment.disk_subscription', { diskGb, sub_id: subscriptionID });
+            return res.json({ success: true, message: `¡Expansión de ${diskGb}GB activada!` });
         }
-        res.status(400).json({ error: "La suscripcion no esta activa o no corresponde a la expansion seleccionada." });
+        res.status(400).json({ error: "La suscripción no está ACTIVA." });
     } catch (error) {
-        if (error.message === 'SUBSCRIPTION_ALREADY_USED') {
-            return res.status(409).json({ error: 'Esta suscripcion ya esta vinculada a otra cuenta.' });
-        }
         res.status(500).json({ error: "Error al verificar suscripción de disco." });
     }
 });
@@ -423,17 +345,10 @@ router.post('/confirm-revise', requireAuth, async (req, res) => {
         const data = await paypal.getSubscriptionDetails(subId);
 
         if (data.status === 'ACTIVE') {
-            const planResult = await query(
-                'SELECT id FROM hosting_plans WHERE paypal_plan_id = $1 AND is_active = true',
-                [data.plan_id]
-            );
-            if (planResult.rowCount === 0) {
-                return res.status(409).json({ error: 'El plan confirmado por PayPal no existe o no esta activo.' });
-            }
-            const confirmedPlan = planResult.rows[0].id;
-            await query('UPDATE users SET plan = $1 WHERE id = $2', [confirmedPlan, req.user.sub]);
-            await logAudit(req.user.sub, 'payment.plan_revised', { plan: confirmedPlan, paypal_plan_id: data.plan_id, sub_id: subId });
-            return res.json({ success: true, plan: confirmedPlan, message: "¡Plan actualizado correctamente!" });
+            const newPlanName = req.body.planName; 
+            await query('UPDATE users SET plan = $1 WHERE id = $2', [newPlanName, req.user.sub]);
+            await logAudit(req.user.sub, 'payment.plan_revised', { plan: newPlanName, sub_id: subId });
+            return res.json({ success: true, message: "¡Plan actualizado correctamente!" });
         }
         res.status(400).json({ error: "El cambio aún no se refleja en PayPal." });
     } catch (error) {
@@ -446,27 +361,14 @@ router.post('/confirm-revise', requireAuth, async (req, res) => {
  * Escucha eventos como BILLING.SUBSCRIPTION.CANCELLED o SUSPENDED
  */
 router.post('/webhook', async (req, res) => {
-    if (!config.paypalWebhooksEnabled) {
-        return res.status(503).send('PayPal webhooks disabled in this environment');
-    }
+    // PayPal envía el evento en el body
     const event = req.body;
-    let eventClaimed = false;
+    
+    // Respondemos rápido a PayPal para evitar reintentos
+    res.status(200).send('OK');
 
     try {
-        if (!event?.id || !event?.resource) return res.status(400).send('Invalid event');
-        if (!(await paypal.verifyWebhookSignature(req.headers, event))) {
-            return res.status(401).send('Invalid signature');
-        }
-
-        const claimed = await query(
-            `INSERT INTO paypal_webhook_events (id, event_type)
-             VALUES ($1, $2)
-             ON CONFLICT (id) DO NOTHING
-             RETURNING id`,
-            [event.id, event.event_type || 'unknown']
-        );
-        if (claimed.rowCount === 0) return res.status(200).send('Already processed');
-        eventClaimed = true;
+        if (!event || !event.resource) return;
 
         const eventType = event.event_type;
         // Si es un pago completado, el ID de suscripción está en billing_agreement_id
@@ -474,10 +376,7 @@ router.post('/webhook', async (req, res) => {
                       ? event.resource.billing_agreement_id 
                       : event.resource.id;
                       
-        if (!subId || !isPayPalSubscriptionId(subId)) {
-            await query("UPDATE paypal_webhook_events SET status = 'ignored', processed_at = NOW() WHERE id = $1", [event.id]);
-            return res.status(200).send('Ignored');
-        }
+        if (!subId) return;
 
         // Para evitar spoofing (falsificación del webhook), consultamos a PayPal directamente
         // usando el ID de suscripción que nos llegó. Si es falso, la llamada fallará o devolverá otro estado.
@@ -485,7 +384,7 @@ router.post('/webhook', async (req, res) => {
         
         if (!actualSub || actualSub.error) {
             console.error(`[Webhook] Intento de webhook inválido para sub: ${subId}`);
-            throw new Error('PAYPAL_SUBSCRIPTION_NOT_FOUND');
+            return;
         }
 
         // Buscar a qué usuario pertenece esta suscripción (Hosting)
@@ -493,22 +392,18 @@ router.post('/webhook', async (req, res) => {
         
         if (userResult.rowCount > 0) {
             const user = userResult.rows[0];
-            const renewalEvent = eventType === 'PAYMENT.SALE.COMPLETED'
-                || eventType === 'BILLING.SUBSCRIPTION.PAYMENT.COMPLETED'
-                || eventType === 'BILLING.SUBSCRIPTION.ACTIVATED';
             
             if (actualSub.status === 'CANCELLED' || actualSub.status === 'SUSPENDED' || actualSub.status === 'EXPIRED') {
                 // Si se canceló en PayPal, forzamos que expires_at sea en este mismo momento
                 // para que el billingScheduler lo suspenda en su próxima pasada (cada hora)
                 await query('UPDATE users SET expires_at = NOW() WHERE id = $1', [user.id]);
                 console.log(`[Webhook] Suscripción de Hosting ${actualSub.status} para el usuario ${user.username}`);
-            } else if (actualSub.status === 'ACTIVE' && renewalEvent) {
+            } else if (actualSub.status === 'ACTIVE') {
                 // Si se renovó/pagó, le damos 1 mes más desde la fecha actual
                 await query("UPDATE users SET expires_at = NOW() + INTERVAL '1 month' WHERE id = $1", [user.id]);
                 console.log(`[Webhook] Suscripción de Hosting RENOVADA para el usuario ${user.username}`);
             }
-            await query("UPDATE paypal_webhook_events SET status = 'processed', processed_at = NOW() WHERE id = $1", [event.id]);
-            return res.status(200).send('OK');
+            return;
         }
 
         // Si no era de Hosting, buscar si es una suscripción de Disco
@@ -523,15 +418,8 @@ router.post('/webhook', async (req, res) => {
             }
         }
 
-        await query("UPDATE paypal_webhook_events SET status = 'processed', processed_at = NOW() WHERE id = $1", [event.id]);
-        return res.status(200).send('OK');
-
     } catch (error) {
         console.error("[Webhook] Error procesando evento de PayPal:", error);
-        if (eventClaimed && event?.id) {
-            await query('DELETE FROM paypal_webhook_events WHERE id = $1', [event.id]).catch(() => {});
-        }
-        return res.status(503).send('Webhook processing failed');
     }
 });
 

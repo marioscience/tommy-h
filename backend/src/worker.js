@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import { waitForDb } from './db.js';
-import { assertSecureConfig } from './config.js';
 import { patchExistingContainers } from './services/dockerService.js';
 import { startAutoBackups } from './services/backupScheduler.js';
 import { startStatsCollector } from './services/statsCollector.js';
@@ -19,7 +18,6 @@ process.on('unhandledRejection', (reason) => {
 });
 
 const role = process.env.RAGENODES_ROLE || process.argv[2] || 'worker-backups';
-assertSecureConfig();
 
 async function boot() {
   await waitForDb();

@@ -3,7 +3,6 @@ import { requireAuth } from '../middleware/auth.js';
 import { getServerByIdForUser } from '../services/serverService.js';
 import { executeRconCommand, getLivePlayers, getLiveChat, getRustKillFeed, getPalworldGuilds, getValheimLists, updateValheimList } from '../services/rconService.js';
 import { query, logAudit } from '../db.js';
-import { deriveServicePassword } from '../services/dockerUtils.js';
 
 const router = express.Router();
 router.use(requireAuth);
@@ -38,7 +37,7 @@ router.use('/:id', checkRconPermission);
 
 function getRconConfig(s) {
     let rconPort = s.fivem_port + 13;
-    let rconPass = deriveServicePassword('generic-rcon', s.id);
+    let rconPass = 'ragenodes_admin';
     let kickCmd = 'kickplayer';
     let banCmd = 'banplayer';
     let wlCmd = 'allowplayertojoinnocheck';
@@ -57,22 +56,19 @@ function getRconConfig(s) {
             wlCmd = 'mute';
             break;
         case 'palworld':
-            rconPort = s.fivem_port + 1;
-            rconPass = deriveServicePassword('palworld-admin', s.id);
+            rconPort = s.fivem_port + 10;
             kickCmd = 'KickPlayer';
             banCmd = 'BanPlayer';
             wlCmd = 'Broadcast';
             break;
         case 'cs2':
             rconPort = s.fivem_port;
-            rconPass = deriveServicePassword('cs2-rcon', s.id);
             kickCmd = 'kickid';
             banCmd = 'banid';
             wlCmd = 'status';
             break;
         case 'zomboid':
             rconPort = s.fivem_port + 1;
-            rconPass = deriveServicePassword('zomboid-admin', s.id);
             kickCmd = 'kickuser';
             banCmd = 'banuser';
             wlCmd = 'addalltowhitelist';
@@ -85,17 +81,9 @@ function getRconConfig(s) {
             break;
         case 'sdtd':
             rconPort = s.fivem_port + 2;
-            rconPass = deriveServicePassword('sdtd-telnet', s.id);
             kickCmd = 'kick';
             banCmd = 'ban';
             wlCmd = 'admin add';
-            break;
-        case 'ark':
-            rconPort = s.fivem_port + 13;
-            rconPass = deriveServicePassword('ark-admin', s.id);
-            kickCmd = 'KickPlayer';
-            banCmd = 'BanPlayer';
-            wlCmd = 'allowplayertojoinnocheck';
             break;
     }
     return { rconPort, rconPass, kickCmd, banCmd, wlCmd };
@@ -110,7 +98,7 @@ router.post('/:id/command', async (req, res) => {
         const s = req.server;
         const { rconPort, rconPass } = getRconConfig(s);
 
-        const output = await executeRconCommand('172.17.0.1', rconPort, rconPass, command, s.container_name, s.template);
+        const output = await executeRconCommand('localhost', rconPort, rconPass, command, s.container_name);
         await logAudit(req, 'server.rcon.command', { serverId: s.id, command });
 
         res.json({ success: true, output });
@@ -125,7 +113,7 @@ router.get('/:id/players', async (req, res) => {
         const s = req.server;
         const { rconPort, rconPass } = getRconConfig(s);
 
-        const players = await getLivePlayers('172.17.0.1', rconPort, rconPass, s.container_name, s.template);
+        const players = await getLivePlayers('localhost', rconPort, rconPass, s.container_name);
         res.json({ players });
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -141,7 +129,7 @@ router.post('/:id/players/kick', async (req, res) => {
         const s = req.server;
         const { rconPort, rconPass, kickCmd } = getRconConfig(s);
 
-        const output = await executeRconCommand('172.17.0.1', rconPort, rconPass, `${kickCmd} ${steamId}`, s.container_name, s.template);
+        const output = await executeRconCommand('localhost', rconPort, rconPass, `${kickCmd} ${steamId}`, s.container_name);
         await logAudit(req, 'server.rcon.kick', { serverId: s.id, steamId });
 
         res.json({ success: true, output });
@@ -159,7 +147,7 @@ router.post('/:id/players/ban', async (req, res) => {
         const s = req.server;
         const { rconPort, rconPass, banCmd } = getRconConfig(s);
 
-        const output = await executeRconCommand('172.17.0.1', rconPort, rconPass, `${banCmd} ${steamId}`, s.container_name, s.template);
+        const output = await executeRconCommand('localhost', rconPort, rconPass, `${banCmd} ${steamId}`, s.container_name);
         await logAudit(req, 'server.rcon.ban', { serverId: s.id, steamId });
 
         res.json({ success: true, output });
@@ -177,7 +165,7 @@ router.post('/:id/players/whitelist', async (req, res) => {
         const s = req.server;
         const { rconPort, rconPass, wlCmd } = getRconConfig(s);
 
-        const output = await executeRconCommand('172.17.0.1', rconPort, rconPass, `${wlCmd} ${steamId}`, s.container_name, s.template);
+        const output = await executeRconCommand('localhost', rconPort, rconPass, `${wlCmd} ${steamId}`, s.container_name);
         await logAudit(req, 'server.rcon.whitelist', { serverId: s.id, steamId });
 
         res.json({ success: true, output });
@@ -192,7 +180,7 @@ router.get('/:id/chat', async (req, res) => {
         const s = req.server;
         const { rconPort, rconPass } = getRconConfig(s);
 
-        const chat = await getLiveChat('172.17.0.1', rconPort, rconPass, s.container_name, s.template);
+        const chat = await getLiveChat('localhost', rconPort, rconPass, s.container_name);
         res.json({ chat });
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -232,7 +220,7 @@ router.post('/:id/matchpad', async (req, res) => {
         const { command } = req.body;
         const s = req.server;
         const { rconPort, rconPass } = getRconConfig(s);
-        const output = await executeRconCommand('172.17.0.1', rconPort, rconPass, command, s.container_name, s.template);
+        const output = await executeRconCommand('localhost', rconPort, rconPass, command, s.container_name);
         res.json({ success: true, output });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });

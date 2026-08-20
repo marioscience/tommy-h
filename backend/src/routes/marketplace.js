@@ -4,9 +4,8 @@ import multer from 'multer';
 import fs from 'fs';
 import fsPromises from 'fs/promises';
 import path from 'path';
-import AdmZip from 'adm-zip';
 import { rustUtil } from '../utils/rustUtil.js';
-import { query, logAudit, withTransaction } from '../db.js';
+import { query, logAudit } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { config } from '../config.js'; 
 import paypal from '../services/paypalService.js';
@@ -21,77 +20,15 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadDir),
-    filename: (req, file, cb) => {
-        const parsed = path.parse(path.basename(file.originalname));
-        const safeBase = parsed.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100) || 'upload';
-        cb(null, `${Date.now()}-${crypto.randomBytes(8).toString('hex')}-${safeBase}${parsed.ext.toLowerCase()}`);
-    }
+    filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
 });
-const allowedUploadExtensions = new Set(['.zip', '.jar']);
-const upload = multer({
-    storage,
-    limits: { fileSize: 100 * 1024 * 1024, files: 1 },
-    fileFilter: (req, file, cb) => {
-        const extension = path.extname(path.basename(file.originalname)).toLowerCase();
-        cb(null, allowedUploadExtensions.has(extension));
-    }
-});
-
-async function requireVendorOrAdmin(req, res, next) {
-    try {
-        const userCheck = await query('SELECT role FROM users WHERE id = $1', [req.user.sub]);
-        const role = userCheck.rows[0]?.role;
-        if (role !== 'admin' && role !== 'vendor') {
-            return res.status(403).json({ error: 'No tienes permisos de vendedor' });
-        }
-        next();
-    } catch {
-        res.status(500).json({ error: 'No se pudo validar el permiso de subida' });
-    }
-}
-
-function receiveMarketplaceFile(req, res, next) {
-    upload.single('scriptFile')(req, res, (error) => {
-        if (!error) return next();
-        if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
-            return res.status(413).json({ error: 'El archivo supera el limite de 100 MB' });
-        }
-        return res.status(400).json({ error: 'Archivo de subida invalido' });
-    });
-}
-
-function validateMarketplaceArchive(filePath, destination, maxExpandedBytes = 1024 * 1024 * 1024) {
-    const destinationRoot = path.resolve(destination);
-    const archive = new AdmZip(filePath);
-    let expandedBytes = 0;
-    for (const entry of archive.getEntries()) {
-        const resolvedEntry = path.resolve(destinationRoot, entry.entryName);
-        if (resolvedEntry !== destinationRoot && !resolvedEntry.startsWith(`${destinationRoot}${path.sep}`)) {
-            throw new Error('El archivo contiene una ruta no permitida');
-        }
-        const unixMode = (Number(entry.header?.attr || 0) >>> 16) & 0xffff;
-        if ((unixMode & 0o170000) === 0o120000) {
-            throw new Error('El archivo contiene enlaces simbolicos no permitidos');
-        }
-        expandedBytes += Number(entry.header?.size || 0);
-        if (!Number.isSafeInteger(expandedBytes) || expandedBytes > maxExpandedBytes) {
-            throw new Error('El archivo excede 1 GB al descomprimirse');
-        }
-    }
-}
+const upload = multer({ storage });
 
 // 1. Obtener todos los scripts activos (Filtrado opcional por juego)
 router.get('/scripts', async (req, res) => {
     try {
         const game = req.query.game || 'fivem';
-        const result = await query(
-            `SELECT id, name, description, price, version, category,
-                    icon_type, icon_color, image_url, game, created_at
-             FROM marketplace_scripts
-             WHERE is_active = true AND game = $1
-             ORDER BY created_at DESC`,
-            [game]
-        );
+        const result = await query('SELECT * FROM marketplace_scripts WHERE is_active = true AND game = $1 ORDER BY created_at DESC', [game]);
         res.json(result.rows);
     } catch (error) {
         res.status(500).json({ error: 'Error al obtener los scripts' });
@@ -195,60 +132,14 @@ router.post('/purchase/capture/:orderId', requireAuth, async (req, res) => {
     const { orderId } = req.params;
     const { scriptId } = req.body;
     try {
-        if (!/^[A-Z0-9]+$/i.test(orderId) || !/^\d+$/.test(String(scriptId))) {
-            return res.status(400).json({ error: 'Datos de compra invalidos.' });
-        }
-
-        const scriptResult = await query(
-            'SELECT id, name, price FROM marketplace_scripts WHERE id = $1 AND is_active = true',
-            [scriptId]
-        );
-        if (scriptResult.rowCount === 0) return res.status(404).json({ error: 'Script no encontrado.' });
-        const script = scriptResult.rows[0];
-        if (Number(script.price) <= 0) return res.status(400).json({ error: 'Este script no requiere pago.' });
-
-        const expectedCustomId = `SCRIPT_${script.id}`;
-        const expectedAmount = Number(script.price);
-        const order = await paypal.getOrderDetails(orderId);
-        const orderedUnit = order.purchase_units?.find(unit => unit.custom_id === expectedCustomId);
-        const orderedAmount = Number(orderedUnit?.amount?.value);
-        if (!orderedUnit || orderedUnit.amount?.currency_code !== 'USD' || !Number.isFinite(orderedAmount) || Math.abs(orderedAmount - expectedAmount) > 0.001) {
-            return res.status(400).json({ error: 'La orden no corresponde al script solicitado.' });
-        }
-
         const capture = await paypal.captureOrder(orderId);
         if (capture.status === 'COMPLETED') {
-            const purchaseUnit = capture.purchase_units?.find(unit => unit.custom_id === expectedCustomId);
-            const completedCapture = purchaseUnit?.payments?.captures?.find(item => item.status === 'COMPLETED');
-            const paidAmount = Number(completedCapture?.amount?.value);
-            const currency = completedCapture?.amount?.currency_code;
-
-            if (!purchaseUnit || !completedCapture || currency !== 'USD' || !Number.isFinite(paidAmount) || Math.abs(paidAmount - expectedAmount) > 0.001) {
-                await logAudit(req.user.sub, 'marketplace.payment_entitlement_rejected', {
-                    orderId,
-                    requestedScriptId: script.id,
-                    customId: purchaseUnit?.custom_id || null,
-                    paidAmount: Number.isFinite(paidAmount) ? paidAmount : null,
-                    expectedAmount,
-                    currency: currency || null
-                });
-                return res.status(400).json({ error: 'El pago no corresponde al script solicitado.' });
-            }
-
             const licenseKey = `VAULT-${crypto.randomBytes(16).toString('hex').toUpperCase()}`;
-            await withTransaction(async (tx) => {
-                await tx('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`paypal-order:${orderId}`]);
-                await tx(
-                    'INSERT INTO marketplace_licenses (script_id, user_id, license_key, paypal_order_id) VALUES ($1, $2, $3, $4)',
-                    [script.id, req.user.sub, licenseKey, orderId]
-                );
-            });
-            await logAudit(req.user.sub, 'marketplace.purchase_completed', { orderId, scriptId: script.id, amount: paidAmount, currency });
+            await query('INSERT INTO marketplace_licenses (script_id, user_id, license_key) VALUES ($1, $2, $3)', [scriptId, req.user.sub, licenseKey]);
             return res.json({ success: true, licenseKey });
         }
         res.status(400).json({ error: 'Pago no completado.' });
     } catch (error) {
-        if (error?.code === '23505') return res.status(409).json({ error: 'Esta orden ya fue canjeada.' });
         res.status(500).json({ error: 'Error al procesar el pago' });
     }
 });
@@ -338,7 +229,7 @@ router.post('/purchase/install/:licenseKey', requireAuth, async (req, res) => {
         }
 
         // 2. Verificar que el usuario sea el dueño del servidor
-        const server = await getServerByIdForUser(serverId, req.user.sub, req.user.role === 'admin', 'files');
+        const server = await getServerByIdForUser(serverId, req.user.sub, req.user.role === 'admin');
         if (!server) {
             return res.status(403).json({ error: 'No tienes acceso a este servidor.' });
         }
@@ -357,7 +248,6 @@ router.post('/purchase/install/:licenseKey', requireAuth, async (req, res) => {
 
         // 4. Extraer el ZIP en resources/[market]/<scriptName>
         const resourcesDir = path.join(serverCfgDir, 'resources', '[market]', scriptName);
-        validateMarketplaceArchive(filePath, resourcesDir);
         await fsPromises.mkdir(resourcesDir, { recursive: true });
 
         const nativeResult = await rustUtil.unzip(filePath, resourcesDir);
@@ -410,24 +300,12 @@ router.post('/install-mod/:id', requireAuth, async (req, res) => {
         if (!serverId) return res.status(400).json({ error: 'ID de servidor requerido' });
 
         // 1. Obtener datos del mod
-        const modRes = await query(
-            `SELECT s.*,
-                    EXISTS (
-                        SELECT 1 FROM marketplace_licenses l
-                        WHERE l.script_id = s.id AND l.user_id = $2 AND l.is_active = true
-                    ) AS has_license
-             FROM marketplace_scripts s
-             WHERE s.id = $1 AND s.game = 'minecraft' AND s.is_active = true`,
-            [modId, req.user.sub]
-        );
+        const modRes = await query('SELECT * FROM marketplace_scripts WHERE id = $1 AND game = \'minecraft\'', [modId]);
         if (modRes.rowCount === 0) return res.status(404).json({ error: 'Mod no encontrado o no pertenece a Minecraft' });
         const mod = modRes.rows[0];
-        if (Number(mod.price) > 0 && !mod.has_license) {
-            return res.status(403).json({ error: 'Debes adquirir este mod antes de instalarlo' });
-        }
 
         // 2. Verificar servidor
-        const server = await getServerByIdForUser(serverId, req.user.sub, req.user.role === 'admin', 'files');
+        const server = await getServerByIdForUser(serverId, req.user.sub, req.user.role === 'admin');
         if (!server || server.template !== 'minecraft') {
             return res.status(403).json({ error: 'Servidor no válido para instalación de mods' });
         }
@@ -471,6 +349,7 @@ router.post('/vault/validate', async (req, res) => {
         res.json({ 
             authenticated: true, 
             scriptName: result.rows[0].name,
+            owner: result.rows[0].user_id,
             timestamp: new Date().toISOString()
         });
     } catch (error) {
@@ -479,7 +358,7 @@ router.post('/vault/validate', async (req, res) => {
 });
 
 // 6. SUBIDA DE SCRIPTS/MODS (Solo para Vendedores/Admin)
-router.post('/upload', requireAuth, requireVendorOrAdmin, receiveMarketplaceFile, async (req, res) => {
+router.post('/upload', requireAuth, upload.single('scriptFile'), async (req, res) => {
     let { name, description, price, version, category, iconType, iconColor, imageUrl, game } = req.body;
     const authorId = req.user.sub;
     const filePath = req.file ? req.file.path : null;
@@ -487,19 +366,13 @@ router.post('/upload', requireAuth, requireVendorOrAdmin, receiveMarketplaceFile
     if (!filePath) return res.status(400).json({ error: 'El archivo es obligatorio' });
 
     try {
-        const normalizedGame = String(game || 'fivem').toLowerCase();
-        const extension = path.extname(req.file.originalname).toLowerCase();
-        if (!['fivem', 'minecraft'].includes(normalizedGame)) throw new Error('Juego no permitido');
-        if (normalizedGame === 'fivem' && extension !== '.zip') throw new Error('FiveM requiere un archivo ZIP');
-        if (normalizedGame === 'minecraft' && !['.jar', '.zip'].includes(extension)) throw new Error('Archivo de Minecraft no permitido');
-        game = normalizedGame;
+        const userCheck = await query('SELECT role FROM users WHERE id = $1', [authorId]);
+        const isAdmin = userCheck.rows[0].role === 'admin';
+        const isVendor = userCheck.rows[0].role === 'vendor';
 
-        if (name && String(name).length > 120) throw new Error('Nombre demasiado largo');
-        if (description && String(description).length > 5000) throw new Error('Descripcion demasiado larga');
-        if (version && String(version).length > 40) throw new Error('Version demasiado larga');
-        const numericPrice = Number(price || 0);
-        if (!Number.isFinite(numericPrice) || numericPrice < 0 || numericPrice > 10000) throw new Error('Precio invalido');
-        price = numericPrice;
+        if (!isAdmin && !isVendor) {
+            return res.status(403).json({ error: 'No tienes permisos de vendedor' });
+        }
 
         // 🚀 MEJORA: Valores por defecto para "Subida Rápida" de Admin
         if (!name && req.file) {
@@ -521,7 +394,6 @@ router.post('/upload', requireAuth, requireVendorOrAdmin, receiveMarketplaceFile
 
         res.json({ success: true, message: 'Subido correctamente.' });
     } catch (error) {
-        if (filePath) await fsPromises.unlink(filePath).catch(() => {});
         console.error('Error al subir:', error);
         res.status(500).json({ error: 'Error interno al procesar la subida' });
     }
@@ -530,12 +402,7 @@ router.post('/upload', requireAuth, requireVendorOrAdmin, receiveMarketplaceFile
 // 7. Mis scripts subidos (Vendedor)
 router.get('/my-scripts', requireAuth, async (req, res) => {
     try {
-        const result = await query(
-            `SELECT id, name, description, price, version, category, icon_type,
-                    icon_color, image_url, game, is_active, created_at
-             FROM marketplace_scripts WHERE author_id = $1 ORDER BY created_at DESC`,
-            [req.user.sub]
-        );
+        const result = await query('SELECT * FROM marketplace_scripts WHERE author_id = $1 ORDER BY created_at DESC', [req.user.sub]);
         res.json(result.rows);
     } catch (error) {
         res.status(500).json({ error: 'Error al obtener tus scripts' });

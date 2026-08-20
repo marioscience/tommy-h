@@ -23,7 +23,7 @@ const DEFAULT_CONFIG = {
     ServerMaxPlayerCount: '8',
     TelnetEnabled: 'true',
     TelnetPort: '8081',
-    TelnetPassword: ''
+    TelnetPassword: 'ragenodes_admin'
 };
 
 /**

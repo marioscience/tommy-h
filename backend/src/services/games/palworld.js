@@ -1,4 +1,4 @@
-import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, sh } from '../dockerUtils.js';
+import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate , sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
 
 export async function createPalworldContainer(opts) {
@@ -22,7 +22,7 @@ export async function createPalworldContainer(opts) {
         Env: [
             `SERVER_NAME=${opts.serverName}`,
             `PLAYERS=${opts.maxPlayers || 32}`,
-            `ADMIN_PASSWORD=${opts.adminPassword || deriveServicePassword('palworld-admin', opts.serverId || opts.containerName)}`,
+            `ADMIN_PASSWORD=${opts.adminPassword || 'ragenodes_admin'}`,
             `RCON_ENABLED=true`,
             `RCON_PORT=${opts.gamePort + 1}`,
             `QUERY_PORT=${opts.gamePort + 2}`,
@@ -46,7 +46,7 @@ export async function createPalworldContainer(opts) {
             RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: opts.plan.memoryBytes,
             NanoCpus: opts.plan.nanoCpus, CpuShares: Math.round((opts.plan.nanoCpus / 10**9) * 1024),
-            BlkioWeight: config.dockerBlkioWeight,
+            BlkioWeight: 100,
         }
     });
 

@@ -1,5 +1,4 @@
 node_modules/
-.npm-cache/
 .env
 
 
@@ -16,16 +15,11 @@ credentials*.json
 # Dependencies
 venv/
 .venv/
-__pycache__/
-*.py[cod]
 
 # Runtime data and generated artifacts
-backups/
-certs/
 backend/uploads/
 backend/scratch/
 scratch/
-security-reports/
 backend/database.sqlite
 *.sqlite
 *.sqlite3
@@ -48,22 +42,10 @@ oxideproxy/target/
 
 # Local backup and dump artifacts
 *.before-*
-*.pre-*
 *.remote
 *.dump
 *.sql
-*.tar.gz
 oxideproxy/config/logs/
 frontend/public/backup_parts/
 sync.log
 basura_historica/
-
-# Local diagnostics and one-off migration artifacts
-diff.txt
-full_diff.txt
-log.txt
-log2.txt
-query_db.js
-query_db.mjs
-screenshot.js
-test_panel.js

@@ -1,4 +1,4 @@
-import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, sh } from '../dockerUtils.js';
+import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate , sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
 import { saveSDTDConfig } from '../sdtdService.js';
 
@@ -8,28 +8,24 @@ export async function createSDTDContainer(containerName, serverId, gamePort, pla
     await cloneFromMasterTemplate('sdtd', dataPath);
 
     try {
-        await docker.getImage(config.sdtdBaseImage).inspect();
+        await docker.getImage('didstopia/7dtd-server:latest').inspect();
     } catch (e) {
-        console.log(`🚚 [Docker] Descargando imagen ${config.sdtdBaseImage}...`);
-        const stream = await docker.pull(config.sdtdBaseImage);
+        console.log(`🚚 [Docker] Descargando imagen ${'didstopia/7dtd-server:latest'}...`);
+        const stream = await docker.pull('didstopia/7dtd-server:latest');
         await new Promise((resolve, reject) => {
             docker.modem.followProgress(stream, (err, res) => err ? reject(err) : resolve(res));
         });
     }
 
-    const telnetPassword = deriveServicePassword('sdtd-telnet', serverId);
-    await saveSDTDConfig(dataPath, {
-        ServerPort: String(gamePort),
-        TelnetPassword: telnetPassword
-    });
+    await saveSDTDConfig(dataPath, { ServerPort: String(gamePort) });
 
     const container = await docker.createContainer({
-        Image: config.sdtdBaseImage,
+        Image: 'didstopia/7dtd-server:latest',
         name: containerName,
         Env: [
             `SEVEN_DAYS_TO_DIE_SERVER_PORT=${gamePort}`,
             'SEVEN_DAYS_TO_DIE_TELNET_PORT=8081',
-            `SEVEN_DAYS_TO_DIE_TELNET_PASSWORD=${telnetPassword}`,
+            'SEVEN_DAYS_TO_DIE_TELNET_PASSWORD=ragenodes_admin',
             'SEVEN_DAYS_TO_DIE_UPDATE_CHECKING=1',
             'SEVEN_DAYS_TO_DIE_CONFIG_FILE=/app/.local/share/7DaysToDie/serverconfig.xml',
             'TZ=Europe/Madrid'
@@ -58,7 +54,7 @@ export async function createSDTDContainer(containerName, serverId, gamePort, pla
             RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: plan.memoryBytes,
             NanoCpus: plan.nanoCpus, CpuShares: Math.round((plan.nanoCpus / 10**9) * 1024),
-            BlkioWeight: config.dockerBlkioWeight,
+            BlkioWeight: 100,
             ...GAME_SECURITY_CONFIG
         }
     });

@@ -65,18 +65,16 @@ router.post('/install/:serverId', async (req, res) => {
         const { pluginId, game } = req.body;
         if (!pluginId || !game) return res.status(400).json({ error: 'Faltan campos (pluginId, game)' });
 
-        const s = await getServerByIdForUser(req.params.serverId, req.user.sub, req.user.role === 'admin', 'files');
+        const s = await getServerByIdForUser(req.params.serverId, req.user.sub, req.user.role === 'admin');
         if (!s) return res.status(404).json({ error: 'Servidor no encontrado' });
 
         let cmd = '';
 
         if (game === 'rust') {
-            if (!/^[A-Za-z0-9_-]{1,80}$/.test(String(pluginId))) return res.status(400).json({ error: 'Plugin inválido.' });
             const pluginUrl = `https://umod.org/plugins/${pluginId}.cs`;
             // Rust plugins go into oxide/plugins/
             cmd = `docker exec -w /home/container/oxide/plugins ${s.container_name} bash -c "curl -sL -A 'Mozilla/5.0' -o ${pluginId}.cs ${pluginUrl}"`;
         } else if (game === 'minecraft') {
-            if (!/^\d{1,20}$/.test(String(pluginId))) return res.status(400).json({ error: 'Plugin inválido.' });
             const pluginUrl = `https://api.spiget.org/v2/resources/${pluginId}/download`;
             // Minecraft plugins go into plugins/
             cmd = `docker exec -w /home/container/plugins ${s.container_name} bash -c "curl -sL -A 'Mozilla/5.0' -o plugin_${pluginId}.jar ${pluginUrl}"`;

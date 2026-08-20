@@ -18,7 +18,7 @@ router.get('/requirements/:planName', requireAuth, async (req, res) => {
 // 🛠️ Obtener configuración visual de ARK
 router.get('/config/:id', requireAuth, async (req, res) => {
     try {
-        const s = await ServerService.getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'files');
+        const s = await ServerService.getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin');
         if (!s) return res.status(404).json({ error: 'No encontrado' });
         const config = await ARKService.getARKConfig(s.data_path);
         res.json(config);
@@ -30,7 +30,7 @@ router.get('/config/:id', requireAuth, async (req, res) => {
 // 💾 Guardar configuración visual de ARK
 router.post('/config/:id', requireAuth, async (req, res) => {
     try {
-        const s = await ServerService.getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'files');
+        const s = await ServerService.getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin');
         if (!s) return res.status(404).json({ error: 'No encontrado' });
         await ARKService.saveARKConfig(s.data_path, req.body, s.cluster_id);
         res.json({ success: true });

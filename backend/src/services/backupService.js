@@ -102,7 +102,7 @@ export async function syncBackupsToGDrive() {
 }
 
 export async function createFullBackup(id, userId, isAdmin, customName = null) {
-    const s = await getServerByIdForUser(id, userId, isAdmin, 'files');
+    const s = await getServerByIdForUser(id, userId, isAdmin);
     if (!s) throw new Error('Servidor no encontrado');
     assertSafeDbName(s.db_name);
 
@@ -200,7 +200,7 @@ async function enforceBackupRetentionPolicy(serverId, maxRetain = 5, isAuto = fa
 }
 
 export async function listServerBackups(id, userId, isAdmin) {
-    const s = await getServerByIdForUser(id, userId, isAdmin, 'files');
+    const s = await getServerByIdForUser(id, userId, isAdmin);
     if (!s) throw new Error('Servidor no encontrado');
 
     const shortId = s.id.slice(0, 8);
@@ -225,7 +225,7 @@ export async function listServerBackups(id, userId, isAdmin) {
 }
 
 export async function restoreBackup(id, filename, userId, isAdmin) {
-    const s = await getServerByIdForUser(id, userId, isAdmin, 'files');
+    const s = await getServerByIdForUser(id, userId, isAdmin);
     if (!s) throw new Error('Servidor no encontrado');
     assertSafeDbName(s.db_name);
 
@@ -272,7 +272,7 @@ export async function restoreBackup(id, filename, userId, isAdmin) {
 }
 
 export async function deleteBackup(id, filename, userId, isAdmin) {
-    const s = await getServerByIdForUser(id, userId, isAdmin, 'files');
+    const s = await getServerByIdForUser(id, userId, isAdmin);
     if (!s) throw new Error('Servidor no encontrado');
 
     const { safeFilename, backupPath } = getBackupPathForServer(s.id, filename);

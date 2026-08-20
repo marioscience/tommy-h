@@ -11,7 +11,7 @@ router.use(requireAuth);
 // Obtener tareas programadas de un servidor
 router.get('/:serverId', async (req, res) => {
     try {
-        const s = await getServerByIdForUser(req.params.serverId, req.user.sub, req.user.role === 'admin', 'files');
+        const s = await getServerByIdForUser(req.params.serverId, req.user.sub, req.user.role === 'admin');
         if (!s) return res.status(404).json({ error: 'Servidor no encontrado' });
 
         const result = await query(
@@ -30,7 +30,7 @@ router.post('/:serverId', async (req, res) => {
         const { time_hh_mm, action, payload } = req.body;
         if (!time_hh_mm || !action) return res.status(400).json({ error: 'Faltan campos requeridos' });
 
-        const s = await getServerByIdForUser(req.params.serverId, req.user.sub, req.user.role === 'admin', 'files');
+        const s = await getServerByIdForUser(req.params.serverId, req.user.sub, req.user.role === 'admin');
         if (!s) return res.status(404).json({ error: 'Servidor no encontrado' });
 
         const result = await query(
@@ -48,7 +48,7 @@ router.post('/:serverId', async (req, res) => {
 // Eliminar una tarea
 router.delete('/:serverId/:jobId', async (req, res) => {
     try {
-        const s = await getServerByIdForUser(req.params.serverId, req.user.sub, req.user.role === 'admin', 'files');
+        const s = await getServerByIdForUser(req.params.serverId, req.user.sub, req.user.role === 'admin');
         if (!s) return res.status(404).json({ error: 'Servidor no encontrado' });
 
         const result = await query(
