@@ -203,9 +203,10 @@ app.disable('x-powered-by');
 app.use((req, res, next) => {
     res.set({
         'Cache-Control': 'no-store',
-        'Content-Security-Policy': "default-src 'self'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'; object-src 'none'; script-src 'self'; script-src-attr 'none'; style-src 'self'; style-src-attr 'none'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-src 'none'; manifest-src 'none'; media-src 'none'; worker-src 'none'",
-        'Cross-Origin-Opener-Policy': 'same-origin',
-        'Cross-Origin-Resource-Policy': 'same-origin',
+        'Content-Security-Policy': "default-src 'self'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; style-src-attr 'none'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-src 'none'; manifest-src 'none'; media-src 'none'; worker-src 'none'",
+        'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
+        'Cross-Origin-Embedder-Policy': 'credentialless',
         'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
         'Referrer-Policy': 'no-referrer',
         'X-Content-Type-Options': 'nosniff',
@@ -241,22 +242,27 @@ function requestOriginAllowed(req) {
 
 const requireAdmin = asyncHandler(async (req, res, next) => {
     const cookie = req.get('cookie');
-    if (!cookie) return res.status(401).json({ error: 'Autenticación requerida.' });
+    const authHeader = req.get('authorization');
+    const tokenHeader = req.get('x-auth-token') || req.query.token;
+
+    const headers = {};
+    if (cookie) headers.cookie = cookie;
+    if (authHeader) headers.authorization = authHeader;
+    if (tokenHeader) headers['x-auth-token'] = tokenHeader;
 
     let authResponse;
     try {
         authResponse = await axios.get(`${BACKEND_URL}/api/auth/me`, {
-            headers: { cookie },
+            headers,
             timeout: 3000,
             validateStatus: () => true
         });
     } catch {
-        return res.status(503).json({ error: 'Servicio de autenticación no disponible.' });
+        return res.status(503).send('<h3 style="color:#f59e0b;font-family:sans-serif;text-align:center;margin-top:50px;">Servicio de autenticación no disponible.</h3>');
     }
 
-    if (authResponse.status === 401) return res.status(401).json({ error: 'Sesión no válida.' });
     if (authResponse.status !== 200 || authResponse.data?.role !== 'admin') {
-        return res.status(403).json({ error: 'Acceso reservado a administradores.' });
+        return res.status(403).send('<h3 style="color:#ef4444;font-family:sans-serif;text-align:center;margin-top:50px;">Acceso reservado a Administradores.</h3>');
     }
     req.admin = authResponse.data;
     next();

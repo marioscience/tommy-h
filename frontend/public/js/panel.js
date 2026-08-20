@@ -1404,9 +1404,13 @@ function toggleSidebar() {
                 globalSafeHost = (data.publicHost && data.publicHost.includes('.')) ? data.publicHost : location.hostname;
 
                 if (globalServersList.length === 0) {
-                    if (!document.getElementById('view-servers').classList.contains('hidden')) {
-                        document.getElementById('btn-deploy').style.display = 'inline-flex';
-                        document.getElementById('client-servers').innerHTML = `<div class="card muted" style="text-align:center; padding:50px; max-width:600px; margin: 50px auto;"><i class="fa-solid fa-server" style="font-size:3.5rem; margin-bottom:20px; color:var(--line)"></i><br><h3 style="color:white; font-size:1.4rem; margin-bottom:10px;">Sin Servidores</h3>Aún no tienes una instancia asignada. Haz clic en "Desplegar" para comenzar.</div>`;
+                    const btnDeploy = document.getElementById('btn-deploy');
+                    if (btnDeploy) btnDeploy.style.display = 'inline-flex';
+                    const topbarPoolText = document.getElementById('topbar-pool-text');
+                    if (topbarPoolText) topbarPoolText.innerText = `0/1`;
+                    const clientServers = document.getElementById('client-servers');
+                    if (clientServers) {
+                        clientServers.innerHTML = `<div class="card muted" style="text-align:center; padding:50px; max-width:600px; margin: 50px auto;"><i class="fa-solid fa-server" style="font-size:3.5rem; margin-bottom:20px; color:var(--line)"></i><br><h3 style="color:white; font-size:1.4rem; margin-bottom:10px;">Sin Servidores</h3>Aún no tienes una instancia asignada. Haz clic en "Desplegar" para comenzar.</div>`;
                     }
                     currentServerId = null;
                     if (window._downloadInterval) clearInterval(window._downloadInterval);

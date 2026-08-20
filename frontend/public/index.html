@@ -2294,6 +2294,9 @@
               }
 
               localStorage.setItem('nexus_user', JSON.stringify(data.user));
+              if (data.user && data.user.role === 'admin') {
+                  sessionStorage.setItem('rn_v559_master', 't');
+              }
               window.location.href = data.user.role === 'admin' ? '/admin' : '/panel';
           } catch (e) {
               if (errorDiv) {

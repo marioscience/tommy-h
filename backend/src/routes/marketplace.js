@@ -83,15 +83,18 @@ function validateMarketplaceArchive(filePath, destination, maxExpandedBytes = 10
 // 1. Obtener todos los scripts activos (Filtrado opcional por juego)
 router.get('/scripts', async (req, res) => {
     try {
-        const game = req.query.game || 'fivem';
-        const result = await query(
-            `SELECT id, name, description, price, version, category,
+        const game = req.query.game;
+        let queryStr = `SELECT id, name, description, price, version, category,
                     icon_type, icon_color, image_url, game, created_at
              FROM marketplace_scripts
-             WHERE is_active = true AND game = $1
-             ORDER BY created_at DESC`,
-            [game]
-        );
+             WHERE is_active = true`;
+        const params = [];
+        if (game && game !== 'all') {
+            queryStr += ` AND game = $1`;
+            params.push(game);
+        }
+        queryStr += ` ORDER BY created_at DESC`;
+        const result = await query(queryStr, params);
         res.json(result.rows);
     } catch (error) {
         res.status(500).json({ error: 'Error al obtener los scripts' });

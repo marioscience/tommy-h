@@ -20,6 +20,21 @@ const router = express.Router();
 // Protegemos todas las rutas con autenticación y rol admin
 router.use(requireAuth, requireAdmin);
 
+router.get('/oxide-status', async (_req, res) => {
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 1200);
+        const response = await fetch('http://oxide_control_panel:3000/healthz', { signal: controller.signal });
+        clearTimeout(timeout);
+        if (response.ok) {
+            return res.json({ available: true });
+        }
+        res.json({ available: false });
+    } catch {
+        res.json({ available: false });
+    }
+});
+
 router.get('/backup-jobs/:jobId', async (req, res) => {
     const job = backupQueue.getJob(req.params.jobId, req.user.sub, true);
     if (!job) return res.status(404).json({ error: 'Job no encontrado' });
@@ -137,6 +152,19 @@ router.get('/disputes/evidence.zip', async (req, res) => {
         console.error('[admin:dispute-evidence]', error);
         res.status(500).json({ error: 'Error generando evidencia.' });
     }
+});
+
+router.post('/users/:id/reset-password', async (req, res) => {
+    const { newPassword } = req.body || {};
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
+        return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres.' });
+    }
+    try {
+        const hash = await bcrypt.hash(newPassword, 12);
+        await query('UPDATE users SET password_hash = $1, token_version = COALESCE(token_version, 0) + 1 WHERE id = $2', [hash, req.params.id]);
+        await logAudit(req, 'admin.user.reset_password', { targetUserId: req.params.id });
+        res.json({ success: true, message: 'Contraseña actualizada correctamente.' });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 router.get('/nodes', async (req, res) => {

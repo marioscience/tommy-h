@@ -31,13 +31,20 @@ redisClient.on('error', (err) => {
 });
 
 let isRedisConnecting = false;
+let redisDisabledUntil = 0;
+
 async function ensureRedis() {
+  if (Date.now() < redisDisabledUntil) return;
   if (!redisClient.isOpen && !isRedisConnecting && process.env.NODE_ENV !== 'test') {
     isRedisConnecting = true;
     try {
-      await redisClient.connect();
+      await Promise.race([
+        redisClient.connect(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Redis connection timeout')), 1000))
+      ]);
     } catch (e) {
-      // Fallback a Postgres si Redis no está disponible
+      redisDisabledUntil = Date.now() + 60000;
+      try { await redisClient.disconnect(); } catch (dcErr) {}
     } finally {
       isRedisConnecting = false;
     }

@@ -1187,7 +1187,7 @@
             <!-- TAB: OXIDEPROXY ADMIN -->
             <div id="tab-oxide" class="hidden view-fullscreen" style="display:flex; flex-direction:column; height:100%; margin: -10px -30px -30px -30px;">
                 <div class="card glass-panel" style="flex-grow:1; padding:0; overflow:hidden; display:flex; flex-direction:column; border: none; border-top: 1px solid rgba(16, 185, 129, 0.2); border-radius: 0;">
-                    <iframe id="oxide-iframe" src="/oxide/" style="width:100%; height:100%; border:none; flex-grow:1; background:transparent;"></iframe>
+                    <iframe id="oxide-iframe" src="about:blank" style="width:100%; height:100%; border:none; flex-grow:1; background:transparent;"></iframe>
                 </div>
             </div>
         </main>
@@ -1269,7 +1269,14 @@
         let secIn = []; let secL = false;
 
         function initSecurity() {
-            if(sessionStorage.getItem('rn_v559_master')) { document.getElementById('security-overlay')?.remove(); document.body.classList.add('unlocked'); startEngine(); return; }
+            const user = JSON.parse(localStorage.getItem('nexus_user') || '{}');
+            if (user.role === 'admin' || sessionStorage.getItem('rn_v559_master')) {
+                sessionStorage.setItem('rn_v559_master', 't');
+                document.getElementById('security-overlay')?.remove();
+                document.body.classList.add('unlocked');
+                startEngine();
+                return;
+            }
             renderSecGrid();
         }
 
@@ -1572,7 +1579,13 @@
                 }
 
                 if (activeTab === 'tab-marketplace') {
-                    const scripts = await Nexus.api('/api/marketplace/scripts');
+                    let resScripts;
+                    try {
+                        resScripts = await Nexus.api('/api/marketplace/scripts');
+                    } catch (err) {
+                        resScripts = [];
+                    }
+                    const scripts = Array.isArray(resScripts) ? resScripts : (resScripts && Array.isArray(resScripts.scripts) ? resScripts.scripts : (resScripts && Array.isArray(resScripts.items) ? resScripts.items : []));
                     const hMrk = JSON.stringify(scripts);
                     if(lastH.mrk !== hMrk) {
                         lastH.mrk = hMrk;
@@ -1584,18 +1597,18 @@
                                 <tr>
                                     <td>
                                         <div style="display:flex; align-items:center; gap:12px;">
-                                            <div style="width:35px; height:35px; border-radius:8px; background:${s.icon_color}22; display:flex; align-items:center; justify-content:center;">
-                                                <i class="fa-solid fa-${s.icon_type || 'cube'}" style="color:${s.icon_color}; font-size:1rem;"></i>
+                                            <div style="width:35px; height:35px; border-radius:8px; background:${s.icon_color || '#3b82f6'}22; display:flex; align-items:center; justify-content:center;">
+                                                <i class="fa-solid fa-${s.icon_type || 'cube'}" style="color:${s.icon_color || '#3b82f6'}; font-size:1rem;"></i>
                                             </div>
                                             <div>
-                                                <div style="font-weight:700; color:white;">${escapeHtml(s.name)}</div>
-                                                <small class="muted">v${escapeHtml(s.version)}</small>
+                                                <div style="font-weight:700; color:white;">${escapeHtml(s.name || 'Script')}</div>
+                                                <small class="muted">v${escapeHtml(s.version || '1.0.0')}</small>
                                             </div>
                                         </div>
                                     </td>
                                     <td><span class="muted">${escapeHtml(s.author_id === 'admin' ? 'Sistema' : 'Vendedor')}</span></td>
-                                    <td><span style="font-weight:900; color:white;">$${s.price}</span></td>
-                                    <td><small class="muted">${new Date(s.created_at).toLocaleDateString()}</small></td>
+                                    <td><span style="font-weight:900; color:white;">$${s.price || '0.00'}</span></td>
+                                    <td><small class="muted">${s.created_at ? new Date(s.created_at).toLocaleDateString() : 'Reciente'}</small></td>
                                     <td>
                                         <button class="btn-tbl purple" ${rnBind("click", (event, element) => { editMarketplaceScript((s.id)) })} title="Editar Producto"><i class="fa-solid fa-pen-to-square"></i></button>
                                         <button class="btn-tbl red" ${rnBind("click", (event, element) => { deleteScriptAdmin((s.id)) })} title="Eliminar Script"><i class="fa-solid fa-trash"></i></button>
@@ -1608,6 +1621,12 @@
 
             } catch(e){
                 console.error('Error cargando datos admin:', e);
+                if (e.status === 401 || e.status === 403 || (e.message && e.message.includes('Requiere Admin'))) {
+                    localStorage.removeItem('nexus_user');
+                    sessionStorage.removeItem('rn_v559_master');
+                    alert('Acceso denegado: Debes iniciar sesión con una cuenta de Administrador.');
+                    window.location.href = '/';
+                }
             }
         }
 
@@ -1718,11 +1737,26 @@
             if (id === 'tab-proxies') { loadAdminProxies(); }
             if (id === 'tab-oxide') {
                 const ifr = document.getElementById('oxide-iframe');
-                if (ifr && (ifr.src === '' || ifr.src.includes(':3000') || ifr.src.includes(window.location.hostname + '/admin'))) {
-                    ifr.src = '/oxide/';
+                if (ifr) {
+                    const token = typeof Nexus !== 'undefined' && Nexus.getToken ? Nexus.getToken() : (localStorage.getItem('nexus_token') || '');
+                    const targetUrl = token ? ('/oxide/?token=' + encodeURIComponent(token)) : '/oxide/';
+                    
+                    Nexus.api('/api/admin/oxide-status').then(d => {
+                        if (d && d.available) {
+                            ifr.removeAttribute('srcdoc');
+                            ifr.src = targetUrl;
+                        } else {
+                            renderLocalOxideFallback(ifr);
+                        }
+                    }).catch(() => renderLocalOxideFallback(ifr));
                 }
             }
             loadData(true);
+        }
+
+        function renderLocalOxideFallback(ifr) {
+            ifr.removeAttribute('src');
+            ifr.srcdoc = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{background:#0a0c12;color:#e4e4e7;height:100vh;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif;text-align:center;padding:20px;box-sizing:border-box;}h3{color:#10b981;margin:0 0 10px 0;font-size:1.4rem;}p{max-width:520px;color:#a1a1aa;font-size:0.9rem;line-height:1.5;margin:6px 0;}code{color:#f59e0b;background:rgba(255,255,255,0.06);padding:4px 8px;border-radius:4px;font-family:monospace;}</style></head><body><h3><i class="fa-solid fa-shield-halved"></i> Panel OxideProxy L7</h3><p>El proxy inverso <strong>OxideProxy L7</strong> no está ejecutándose en este servidor local independiente.</p><p style="font-size:0.82rem; color:#71717a;">En entornos de <strong>Staging</strong> y <strong>Producción</strong> este panel se carga automáticamente.</p><p style="margin-top:16px;">Para probarlo localmente ejecuta en tu terminal:<br><code>docker compose up -d oxide_control_panel</code></p></body></html>';
         }
 
         // Vendors Admin JS
