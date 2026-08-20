@@ -62,19 +62,34 @@ export const partitionIngressRulesByEnv = (ingressRules, activeHostnames, curren
 
     for (const rule of (ingressRules || [])) {
         const host = rule.hostname;
-        if (!host || !host.endsWith('.ragenodes.com')) {
+        if (!host) {
+            validIngress.push(rule);
+            continue;
+        }
+
+        const lowerHost = host.toLowerCase().trim();
+
+        // 🔥 REGLA DE PROTECCIÓN ABSOLUTA DE SISTEMA:
+        // ragenodes.com, staging.ragenodes.com, api.ragenodes.com y dev.ragenodes.com NUNCA se eliminan bajo ninguna condición.
+        if (
+            lowerHost === 'ragenodes.com' ||
+            lowerHost === 'staging.ragenodes.com' ||
+            lowerHost === 'api.ragenodes.com' ||
+            lowerHost === 'dev.ragenodes.com' ||
+            !lowerHost.endsWith('.ragenodes.com')
+        ) {
             validIngress.push(rule);
             continue;
         }
 
         // Si el túnel NO pertenece al entorno actual, se PRESERVA incondicionalmente
-        if (!isHostnameManagedByCurrentEnv(host, currentEnvPrefix)) {
+        if (!isHostnameManagedByCurrentEnv(lowerHost, currentEnvPrefix)) {
             validIngress.push(rule);
             continue;
         }
 
         // Si el túnel pertenece a este entorno, verificamos si está activo en la DB local
-        if (activeHostnames.has(host.toLowerCase())) {
+        if (activeHostnames.has(lowerHost)) {
             validIngress.push(rule);
         } else {
             orphanedHostnames.push(host);
