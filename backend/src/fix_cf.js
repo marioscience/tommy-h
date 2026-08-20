@@ -1,4 +1,3 @@
-import fetch from 'node-fetch';
 import { config } from './config.js';
 
 const CF_API = 'https://api.cloudflare.com/client/v4';
