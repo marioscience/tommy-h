@@ -1205,6 +1205,8 @@ function toggleSidebar() {
             }
         }
 
+        let isStatsHistoryInFlight = false;
+        let isLoadServersInFlight = false;
         let historyChartInstance = null;
         let lastHistoryLoad = 0;
         let currentStatsView = 'live'; // 'live' o 'history'
@@ -1213,12 +1215,14 @@ function toggleSidebar() {
             // Ya no bloqueamos por vista, siempre cargamos si estamos en servers
 
             const now = Date.now();
+            if (isStatsHistoryInFlight) return;
             if (historyChartInstance && (!document.body.contains(historyChartInstance.canvas) || historyChartInstance.canvas.id !== 'mainHistoryChart')) {
                 historyChartInstance.destroy();
                 historyChartInstance = null;
             }
             if (now - lastHistoryLoad < 30000 && historyChartInstance) return;
             lastHistoryLoad = now;
+            isStatsHistoryInFlight = true;
 
             try {
                 const data = await Nexus.api(`/api/servers/${serverId}/stats-history`);
@@ -1319,6 +1323,8 @@ function toggleSidebar() {
                 }
             } catch (e) {
                 console.error("Error al cargar historial:", e);
+            } finally {
+                isStatsHistoryInFlight = false;
             }
         }
 
@@ -1360,7 +1366,8 @@ function toggleSidebar() {
         };
 
         async function loadServers() {
-            if (blenderActionPending) return;
+            if (blenderActionPending || isLoadServersInFlight) return;
+            isLoadServersInFlight = true;
 
             try {
                 const data = await Nexus.api('/api/servers');
@@ -2213,7 +2220,9 @@ function toggleSidebar() {
                 }
             } catch (e) {
                 if (e.status === 401) Nexus.logout();
-                else showToast("Error loadServers: " + e.message, 'danger');
+                else console.warn("Polling loadServers:", e.message);
+            } finally {
+                isLoadServersInFlight = false;
             }
         }
 
@@ -2972,6 +2981,7 @@ function toggleSidebar() {
         }
 
         let isDownloadPollingActive = false;
+        let isDownloadPollingInFlight = false;
         let wasDownloading = false;
 
         function startDownloadPolling() {
@@ -2979,14 +2989,17 @@ function toggleSidebar() {
             isDownloadPollingActive = true;
 
             setInterval(async () => {
-                if (!currentServerId) return;
+                if (!currentServerId || isDownloadPollingInFlight) return;
+                isDownloadPollingInFlight = true;
                 try {
                     const res = await fetch(`/api/files/download-status?serverId=${currentServerId}`);
                     if (res.status === 401) Nexus.logout();
                     const data = await res.json();
                     renderDownloads(data.tasks || []);
-                } catch (e) { }
-            }, 1500);
+                } catch (e) { } finally {
+                    isDownloadPollingInFlight = false;
+                }
+            }, 3000);
         }
 
         function renderDownloads(tasks) {

@@ -13,8 +13,20 @@ use std::convert::Infallible;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr};
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tokio::io::{AsyncRead, AsyncWrite};
+
+static PROXY_HTTP_CLIENT: OnceLock<hyper::Client<hyper::client::HttpConnector>> = OnceLock::new();
+
+fn get_proxy_client() -> &'static hyper::Client<hyper::client::HttpConnector> {
+    PROXY_HTTP_CLIENT.get_or_init(|| {
+        hyper::Client::builder()
+            .pool_idle_timeout(std::time::Duration::from_secs(60))
+            .pool_max_idle_per_host(64)
+            .http1_keep_alive(true)
+            .build_http()
+    })
+}
 
 #[derive(Clone)]
 struct StaticPageSecurity {
@@ -535,7 +547,7 @@ async fn reverse_proxy_request(
                 None
             };
 
-            let client = hyper::Client::new();
+            let client = get_proxy_client();
             match client.request(req).await {
                 Ok(mut res) => {
                     if res.status() == StatusCode::SWITCHING_PROTOCOLS {
