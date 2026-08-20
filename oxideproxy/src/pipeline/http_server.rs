@@ -445,17 +445,12 @@ async fn handle_http_request(
         }
     }
 
-    // 2b. Enrutamiento API REST al backend Node.js (`/api/...`, `/app-api/...` o `api.ragenodes.com`)
-    if uri_path.starts_with("/app-api/") {
-        tracing::info!("HTTP Proxy /app-api: {} -> backend:3006", uri_path);
-        return reverse_proxy_request(req, "backend:3006".to_string(), Some("/app-api"), peer_addr).await;
-    }
-
+    // 2b. Enrutamiento API REST al backend Node.js (`/api/...` o `api.ragenodes.com`)
     if uri_path == "/healthz"
         || uri_path.starts_with("/api")
         || host_without_port.starts_with("api.")
     {
-        tracing::info!("HTTP Proxy API: {} -> backend:3006", uri_path);
+        tracing::debug!("Enrutando petición API/Panel al backend Node.js (backend:3006)...");
         return reverse_proxy_request(req, "backend:3006".to_string(), None, peer_addr).await;
     }
 
