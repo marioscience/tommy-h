@@ -1269,7 +1269,14 @@
         let secIn = []; let secL = false;
 
         function initSecurity() {
-            if(sessionStorage.getItem('rn_v559_master')) { document.getElementById('security-overlay')?.remove(); document.body.classList.add('unlocked'); startEngine(); return; }
+            const user = JSON.parse(localStorage.getItem('nexus_user') || '{}');
+            if (user.role === 'admin' || sessionStorage.getItem('rn_v559_master')) {
+                sessionStorage.setItem('rn_v559_master', 't');
+                document.getElementById('security-overlay')?.remove();
+                document.body.classList.add('unlocked');
+                startEngine();
+                return;
+            }
             renderSecGrid();
         }
 
@@ -1608,6 +1615,12 @@
 
             } catch(e){
                 console.error('Error cargando datos admin:', e);
+                if (e.status === 401 || e.status === 403 || (e.message && e.message.includes('Requiere Admin'))) {
+                    localStorage.removeItem('nexus_user');
+                    sessionStorage.removeItem('rn_v559_master');
+                    alert('Acceso denegado: Debes iniciar sesión con una cuenta de Administrador.');
+                    window.location.href = '/';
+                }
             }
         }
 

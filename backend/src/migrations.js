@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 🗄️ RageNodes Versioned Database Migrations System
  * 
  * Reglas para desarrolladores:
@@ -414,6 +414,29 @@ export const migrations = [
       "ALTER TABLE servers ADD COLUMN IF NOT EXISTS mc_version TEXT NOT NULL DEFAULT 'LATEST'",
       "ALTER TABLE servers ADD COLUMN IF NOT EXISTS mc_type TEXT NOT NULL DEFAULT 'PAPER'",
       'ALTER TABLE servers ADD COLUMN IF NOT EXISTS cpuset TEXT'
+    ]
+  },
+  {
+    id: '202608200002_create_disk_plans_table',
+    description: 'Tabla de expansiones de disco NVMe para clientes',
+    statements: [
+      `CREATE TABLE IF NOT EXISTS disk_plans (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        price DECIMAL(10,2) NOT NULL,
+        gb_amount INTEGER NOT NULL,
+        paypal_plan_id TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        image_url TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`,
+      `INSERT INTO disk_plans (id, name, price, gb_amount, is_active) VALUES
+        ('disk_5gb', 'Pack +5 GB NVMe', 2.99, 5, true),
+        ('disk_10gb', 'Pack +10 GB NVMe', 4.99, 10, true),
+        ('disk_20gb', 'Pack +20 GB NVMe', 8.99, 20, true),
+        ('disk_50gb', 'Pack +50 GB NVMe', 19.99, 50, true)
+       ON CONFLICT (id) DO NOTHING`
     ]
   }
 ];

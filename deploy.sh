@@ -24,6 +24,9 @@ docker compose build fivem-base blender-web
 echo "==> 🌐 Desplegando servicios de RageNodes..."
 docker compose up -d --remove-orphans
 
+echo "==> 🛡️ Verificando integridad de producción y migraciones SQL..."
+docker compose exec -T backend node src/verify_production_readiness.js
+
 echo ""
 echo "🔥 RAGENODES V55.9 ACTUALIZADO CON ÉXITO 🔥"
 echo "👉 Panel Web: ${PUBLIC_BASE_URL}"

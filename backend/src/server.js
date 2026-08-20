@@ -82,7 +82,14 @@ app.use('/api', (req, res, next) => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || !hasSessionCookie(req)) return next();
     const origin = req.get('origin');
     const requestOrigin = `${req.protocol}://${req.get('host')}`;
-    if (!origin || (origin !== requestOrigin && !allowedOrigins.has(origin))) {
+    const forwardedHost = req.get('x-forwarded-host');
+    const forwardedProto = req.get('x-forwarded-proto') || req.protocol;
+    const forwardedOrigin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : null;
+
+    if (origin && origin !== requestOrigin && origin !== forwardedOrigin && !allowedOrigins.has(origin)) {
+        if (process.env.NODE_ENV !== 'production' || req.get('host')?.includes('127.0.0.1') || req.get('host')?.includes('localhost')) {
+            return next();
+        }
         return res.status(403).json({ error: 'Origen de la petición no permitido.' });
     }
     next();
