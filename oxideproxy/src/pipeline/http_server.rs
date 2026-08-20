@@ -448,7 +448,7 @@ async fn handle_http_request(
     // 2b. Enrutamiento API REST al backend Node.js (`/api/...`, `/app-api/...` o `api.ragenodes.com`)
     if uri_path.starts_with("/app-api/") {
         tracing::info!("HTTP Proxy /app-api: {} -> backend:3006", uri_path);
-        return reverse_proxy_request(req, "backend:3006".to_string(), None, peer_addr).await;
+        return reverse_proxy_request(req, "backend:3006".to_string(), Some("/app-api"), peer_addr).await;
     }
 
     if uri_path == "/healthz"
