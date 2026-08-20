@@ -51,6 +51,7 @@ services:
       DB_USER: ${POSTGRES_USER}_staging
       DB_PASS: ${POSTGRES_PASSWORD}_staging
       DB_NAME: ${POSTGRES_DB}_staging
+      DATABASE_URL: postgres://${POSTGRES_USER}_staging:${POSTGRES_PASSWORD}_staging@postgres-staging:5432/${POSTGRES_DB}_staging
     networks:
       ragenodes_net_staging:
         aliases:
@@ -91,6 +92,7 @@ services:
       - DB_USER=${POSTGRES_USER}_staging
       - DB_PASS=${POSTGRES_PASSWORD}_staging
       - DB_NAME=${POSTGRES_DB}_staging
+      - DATABASE_URL=postgres://${POSTGRES_USER}_staging:${POSTGRES_PASSWORD}_staging@postgres-staging:5432/${POSTGRES_DB}_staging
     command: ["npm", "run", "worker:docker-events"]
     networks:
       - ragenodes_net_staging
