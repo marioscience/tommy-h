@@ -5,6 +5,7 @@
   "scripts": {
     "start": "node src/server.js",
     "start:api": "node src/server.js",
+    "db:migrate": "node src/scripts/migrate.js",
     "test": "node --test test/**/*.test.js",
     "worker:backups": "RAGENODES_ROLE=worker-backups node src/worker.js",
     "worker:docker-events": "RAGENODES_ROLE=worker-docker-events node src/worker.js",

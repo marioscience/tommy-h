@@ -83,13 +83,16 @@ git checkout -b feat/my-feature
 cp .env.example .env
 ```
 
-### 3. Install Dependencies & Run Automated Tests
+### 3. Install Dependencies, Migrate Database & Run Tests
 ```bash
 # Install backend dependencies
 cd backend
 npm install
 
-# Run automated test suite (15 unit tests across 7 suites in < 500ms)
+# Run database migrations
+npm run db:migrate
+
+# Run automated test suite (22 unit tests across 9 suites in ~1s)
 npm test
 cd ..
 ```
@@ -260,13 +263,16 @@ git checkout -b feat/mi-caracteristica
 cp .env.example .env
 ```
 
-### 3. Instalar Dependencias y Correr Tests Automatizados
+### 3. Instalar Dependencias, Migrar Base de Datos y Correr Tests
 ```bash
 # En el backend
 cd backend
 npm install
 
-# Ejecutar las 15 pruebas unitarias (ejecución en ~500ms)
+# Ejecutar migraciones de base de datos
+npm run db:migrate
+
+# Ejecutar las 22 pruebas unitarias automatizadas
 npm test
 cd ..
 ```
@@ -361,6 +367,9 @@ GameFactory.register('nuevo_juego', nuevoJuegoService);
 # Ejecutar todas las pruebas unitarias e integración del backend
 npm --prefix backend test
 
+# Ejecutar migraciones de base de datos
+npm --prefix backend run db:migrate
+
 # Ejecutar auditorías de contratos de seguridad
 npm run security:secrets
 npm run security:csp-bindings
@@ -375,6 +384,7 @@ npm run security:routes
 * [ADR-001: Rust OxideProxy](docs/adr/ADR-001-rust-reverse-proxy.md)
 * [ADR-002: OOP Architecture & GameFactory](docs/adr/ADR-002-game-factory-oop-architecture.md)
 * [ADR-003: Cloudflare Tunnel Namespace Isolation](docs/adr/ADR-003-cloudflare-tunnel-namespace-isolation.md)
+* [ADR-004: Versioned Database Migrations](docs/adr/ADR-004-versioned-database-migrations.md)
 * [ADR-005: Structured JSON Logging & Request Correlation](docs/adr/ADR-005-structured-logging-and-request-correlation.md)
 
 ---
