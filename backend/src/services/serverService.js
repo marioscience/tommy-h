@@ -201,8 +201,6 @@ export async function getServersForUser(userId, isAdmin = false) {
   const sql = isAdmin ? 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id ORDER BY servers.created_at DESC' : 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id WHERE servers.owner_id = $1 OR servers.id IN (SELECT server_id FROM server_subusers WHERE user_id = $1) ORDER BY servers.created_at DESC';
   const servers = (await queryCached(sql, isAdmin ? [] : [userId], 3)).rows;
 
-  const containerMap = await Docker.bulkRefreshContainerStates(servers.map(s => s.container_name));
-
   // Lotes (chunks) para no saturar Docker con Promesas concurrentes masivas
   const CHUNK_SIZE = DOCKER_QUERY_CHUNK_SIZE;
   for (let i = 0; i < servers.length; i += CHUNK_SIZE) {
@@ -214,8 +212,10 @@ export async function getServersForUser(userId, isAdmin = false) {
              console.warn(`[ServersList] ARK ${s.name} no tiene credenciales DB; omitiendo autocreación en request de lectura.`);
          }
 
-         const bState = containerMap[`ragenodes-blender-${shortId}`] || { exists: false, running: false };
-         const state = containerMap[s.container_name] || await Docker.resolveContainerState(s.container_name);
+         const [bState, state] = await Promise.all([
+             Docker.resolveContainerState(`ragenodes-blender-${shortId}`),
+             Docker.resolveContainerState(s.container_name),
+         ]);
          const usedDiskBytes = getFolderSizeSnapshot(s.data_path);
 
          s.blender_status = bState.running ? 'running' : 'stopped';
@@ -519,7 +519,7 @@ export async function createServerForUser(userId, payload) {
     };
 
     if (GameFactory.has(template)) {
-      await GameFactory.createContainer(template, containerOpts);
+      await GameFactory.create(template, containerOpts);
       if (template === 'fivem' && tPort) {
         updateTunnelConfig(serverId.slice(0, 8), tPort, 'add').catch(e => console.error(e));
       }

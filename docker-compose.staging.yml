@@ -10,9 +10,7 @@ services:
     volumes:
       - postgres_data_staging:/var/lib/postgresql/data
     networks:
-      ragenodes_net_staging:
-        aliases:
-          - postgres
+      - ragenodes_net_staging
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}_staging -d ${POSTGRES_DB}_staging"]
       interval: 10s
@@ -49,11 +47,8 @@ services:
       DB_USER: ${POSTGRES_USER}_staging
       DB_PASS: ${POSTGRES_PASSWORD}_staging
       DB_NAME: ${POSTGRES_DB}_staging
-      DATABASE_URL: postgres://${POSTGRES_USER}_staging:${POSTGRES_PASSWORD}_staging@postgres-staging:5432/${POSTGRES_DB}_staging
     networks:
-      ragenodes_net_staging:
-        aliases:
-          - backend
+      - ragenodes_net_staging
     depends_on:
       postgres-staging:
         condition: service_healthy

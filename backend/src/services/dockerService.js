@@ -19,7 +19,7 @@ export * from './games/ark.js';
 export * from './games/fivem.js';
 export * from './games/sdtd.js';
 
-import { getDockerForContainer, applyRageNodesBranding, recreateContainer, getNodeConnection, localDocker } from './dockerUtils.js';
+import { getDockerForContainer, applyRageNodesBranding, recreateContainer, getNodeConnection } from './dockerUtils.js';
 import { createMinecraftContainer } from './games/minecraft.js';
 import { createRustContainer } from './games/rust.js';
 import { createPalworldContainer } from './games/palworld.js';
@@ -453,18 +453,3 @@ export {
     createWordPressContainer,
     createDatabaseContainer
 };
-
-export async function bulkRefreshContainerStates(containers = []) {
-    if (!containers || containers.length === 0) return {};
-    try {
-        const list = await localDocker.listContainers({ all: true });
-        const map = {};
-        for (const c of list) {
-            const name = (c.Names || [])[0]?.replace(/^\//, '');
-            if (name) map[name] = { exists: true, status: c.State || 'unknown', running: c.State === 'running' };
-        }
-        return map;
-    } catch {
-        return {};
-    }
-}
