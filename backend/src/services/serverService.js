@@ -198,6 +198,7 @@ async function selectDeploymentNode(plan, requestedRamGb, template, explicitNode
 
 
 export async function getServersForUser(userId, isAdmin = false) {
+  await Docker.bulkRefreshContainerStates();
   const sql = isAdmin ? 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id ORDER BY servers.created_at DESC' : 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id WHERE servers.owner_id = $1 OR servers.id IN (SELECT server_id FROM server_subusers WHERE user_id = $1) ORDER BY servers.created_at DESC';
   const servers = (await queryCached(sql, isAdmin ? [] : [userId], 3)).rows;
 
