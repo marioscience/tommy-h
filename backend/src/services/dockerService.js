@@ -252,26 +252,6 @@ export async function inspectContainer(name, { force = false } = {}) {
     return data;
 }
 
-export async function bulkRefreshContainerStates() {
-    try {
-        const containers = await localDocker.listContainers({ all: true });
-        const now = Date.now();
-        const ttl = CONTAINER_STATE_CACHE_MS || 5000;
-        for (const c of containers) {
-            const isRunning = c.State === 'running';
-            for (let name of c.Names || []) {
-                if (name.startsWith('/')) name = name.slice(1);
-                CONTAINER_INSPECT_CACHE.set(name, {
-                    data: { State: { Running: isRunning } },
-                    expiresAt: now + ttl
-                });
-            }
-        }
-    } catch (e) {
-        console.warn('[Docker] Bulk state refresh failed:', e.message);
-    }
-}
-
 export async function resolveContainerState(name, options = {}) {
     try {
         const data = await inspectContainer(name, options);
