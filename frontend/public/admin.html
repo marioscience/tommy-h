@@ -1731,8 +1731,10 @@
             if (id === 'tab-proxies') { loadAdminProxies(); }
             if (id === 'tab-oxide') {
                 const ifr = document.getElementById('oxide-iframe');
-                if (ifr && (ifr.src === '' || ifr.src.includes(':3000') || ifr.src.includes(window.location.hostname + '/admin'))) {
-                    ifr.src = '/oxide/';
+                if (ifr) {
+                    const token = typeof Nexus !== 'undefined' && Nexus.getToken ? Nexus.getToken() : (localStorage.getItem('nexus_token') || '');
+                    const targetUrl = token ? ('/oxide/?token=' + encodeURIComponent(token)) : '/oxide/';
+                    ifr.src = targetUrl;
                 }
             }
             loadData(true);

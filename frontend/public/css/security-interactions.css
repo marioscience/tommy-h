@@ -1,0 +1,11 @@
+[data-rn-hover="primary"]:hover {
+  color: var(--primary) !important;
+}
+
+[data-rn-hover="white"]:hover {
+  color: white !important;
+}
+
+[data-rn-hover="lift"]:hover {
+  transform: translateY(-10px);
+}
