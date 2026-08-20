@@ -40,12 +40,14 @@ function getHardwareProfile() {
   };
 }
 
-function httpCheck(pathStr, expectedStatuses = [200, 401], timeoutMs = 5000) {
+function httpCheckHost(host, port, pathStr, expectedStatuses = [200, 401], timeoutMs = 5000) {
   return new Promise((resolve) => {
     const startedAt = Date.now();
+    const isApi = pathStr.startsWith('/api/');
+
     const req = http.get({
-      host: '127.0.0.1',
-      port: process.env.PORT || 3006,
+      host,
+      port,
       path: pathStr,
       timeout: timeoutMs
     }, (res) => {
@@ -56,7 +58,7 @@ function httpCheck(pathStr, expectedStatuses = [200, 401], timeoutMs = 5000) {
       res.on('end', () => {
         const passed = expectedStatuses.includes(res.statusCode);
         resolve({
-          name: `Ruta HTTP: ${pathStr}`,
+          name: isApi ? `Ruta API: ${pathStr}` : `Recurso Estático: ${pathStr}`,
           path: pathStr,
           statusCode: res.statusCode,
           passed,
@@ -68,19 +70,19 @@ function httpCheck(pathStr, expectedStatuses = [200, 401], timeoutMs = 5000) {
 
     req.on('error', (err) => {
       resolve({
-        name: `Ruta HTTP: ${pathStr}`,
+        name: isApi ? `Ruta API: ${pathStr}` : `Recurso Estático: ${pathStr}`,
         path: pathStr,
         statusCode: 'ERROR',
         passed: false,
         durationMs: Date.now() - startedAt,
-        details: `Error de conexión: ${err.message}`
+        details: `Error de conexión con ${host}:${port} - ${err.message}`
       });
     });
 
     req.on('timeout', () => {
       req.destroy();
       resolve({
-        name: `Ruta HTTP: ${pathStr}`,
+        name: isApi ? `Ruta API: ${pathStr}` : `Recurso Estático: ${pathStr}`,
         path: pathStr,
         statusCode: 'TIMEOUT',
         passed: false,
@@ -89,6 +91,24 @@ function httpCheck(pathStr, expectedStatuses = [200, 401], timeoutMs = 5000) {
       });
     });
   });
+}
+
+async function httpCheck(pathStr, expectedStatuses = [200, 401], timeoutMs = 5000) {
+  const isApi = pathStr.startsWith('/api/');
+  if (isApi) {
+    return await httpCheckHost('127.0.0.1', process.env.PORT || 3006, pathStr, expectedStatuses, timeoutMs);
+  }
+
+  // 1. Probar contenedor oxide_web en la red Docker de Staging
+  let res = await httpCheckHost('oxide_web', 80, pathStr, expectedStatuses, timeoutMs);
+  if (res.passed) return res;
+
+  // 2. Fallback a 127.0.0.1:80
+  res = await httpCheckHost('127.0.0.1', process.env.FRONTEND_PORT || 80, pathStr, expectedStatuses, timeoutMs);
+  if (res.passed) return res;
+
+  // 3. Fallback a 127.0.0.1:3006
+  return await httpCheckHost('127.0.0.1', process.env.PORT || 3006, pathStr, expectedStatuses, timeoutMs);
 }
 
 async function checkDatabaseIntegrity() {
