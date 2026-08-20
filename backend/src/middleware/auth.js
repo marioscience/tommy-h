@@ -61,17 +61,17 @@ export async function requireAuth(req, res, next) {
   try {
     const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
     
-    const result = await query('SELECT id, token_version FROM users WHERE id = $1', [payload.sub]);
+    // 🔥 MEJORA DE SEGURIDAD Y RENDIMIENTO: Caché de 10s en Redis para validación JWT
+    const result = await queryCached('SELECT id, token_version FROM users WHERE id = $1', [payload.sub], 10);
     
     if (result.rowCount === 0) {
       return res.status(401).json({ error: 'Usuario no encontrado.' });
     }
 
     const user = result.rows[0];
-    const dbVersion = user.token_version ?? 0;
     
-    // Si el payload no coincide con la versión de la DB (contraseña cambiada)
-    if (payload.version !== undefined && payload.version !== dbVersion) {
+    // Si el payload no tiene versión (token antiguo) o no coincide con la DB (contraseña cambiada)
+    if (payload.version === undefined || payload.version !== user.token_version) {
       return res.status(401).json({ error: 'La sesión ha sido invalidada (contraseña cambiada).' });
     }
 
