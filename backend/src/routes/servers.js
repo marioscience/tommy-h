@@ -20,7 +20,15 @@ router.get('/backup-jobs/:jobId', async (req, res) => {
     res.json(job);
 });
 
-router.get('/', async (req, res) => { res.json({ items: await getServersForUser(req.user.sub, req.user.role === 'admin'), publicHost: config.fivemPublicHost }); });
+router.get('/', async (req, res) => {
+  try {
+    const items = await getServersForUser(req.user.sub, req.user.role === 'admin');
+    res.json({ items, publicHost: config.fivemPublicHost });
+  } catch (e) {
+    req.log?.error?.(e, 'Error al listar servidores del usuario');
+    res.status(500).json({ error: e.message || 'Error al obtener servidores' });
+  }
+});
 
 router.post('/', async (req, res) => { try { res.status(201).json({ item: await createServerForUser(req.user.sub, req.body) }); } catch(e) { res.status(400).json({ error: e.message }); } });
 
