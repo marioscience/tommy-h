@@ -67,6 +67,19 @@ export const partitionIngressRulesByEnv = (ingressRules, activeHostnames, curren
             continue;
         }
 
+        const lowerHost = host.toLowerCase();
+        // 🛡️ NUNCA eliminar nombres de dominio principales del sistema o wildcards
+        if (
+            lowerHost === 'ragenodes.com' ||
+            lowerHost === 'staging.ragenodes.com' ||
+            lowerHost === 'api.ragenodes.com' ||
+            lowerHost === 'dev.ragenodes.com' ||
+            lowerHost.startsWith('*')
+        ) {
+            validIngress.push(rule);
+            continue;
+        }
+
         // Si el túnel NO pertenece al entorno actual, se PRESERVA incondicionalmente
         if (!isHostnameManagedByCurrentEnv(host, currentEnvPrefix)) {
             validIngress.push(rule);

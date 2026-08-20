@@ -26,8 +26,8 @@ function getCookie(req, name) {
   return '';
 }
 
-function buildSessionCookie(value, maxAge) {
-  const sameSite = ['Strict', 'Lax', 'None'].includes(config.cookieSameSite) ? config.cookieSameSite : 'Strict';
+function buildSessionCookie(value, maxAge, isSecure = config.cookieSecure) {
+  const sameSite = ['Strict', 'Lax', 'None'].includes(config.cookieSameSite) ? config.cookieSameSite : 'Lax';
   const parts = [
     `${config.sessionCookieName}=${encodeURIComponent(value)}`,
     'HttpOnly',
@@ -35,16 +35,18 @@ function buildSessionCookie(value, maxAge) {
     `SameSite=${sameSite}`,
     `Max-Age=${maxAge}`
   ];
-  if (config.cookieSecure) parts.push('Secure');
+  if (isSecure) parts.push('Secure');
   return parts.join('; ');
 }
 
-export function setSessionCookie(res, token) {
-  res.append('Set-Cookie', buildSessionCookie(token, SESSION_MAX_AGE_SECONDS));
+export function setSessionCookie(res, token, req = null) {
+  const isSecure = req ? (req.protocol === 'https' || req.get('x-forwarded-proto') === 'https') : config.cookieSecure;
+  res.append('Set-Cookie', buildSessionCookie(token, SESSION_MAX_AGE_SECONDS, isSecure));
 }
 
-export function clearSessionCookie(res) {
-  res.append('Set-Cookie', buildSessionCookie('', 0));
+export function clearSessionCookie(res, req = null) {
+  const isSecure = req ? (req.protocol === 'https' || req.get('x-forwarded-proto') === 'https') : config.cookieSecure;
+  res.append('Set-Cookie', buildSessionCookie('', 0, isSecure));
 }
 
 export function hasSessionCookie(req) {
@@ -61,17 +63,17 @@ export async function requireAuth(req, res, next) {
   try {
     const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
     
-    // 🔥 MEJORA DE SEGURIDAD Y RENDIMIENTO: Caché de 10s en Redis para validación JWT
-    const result = await queryCached('SELECT id, token_version FROM users WHERE id = $1', [payload.sub], 10);
+    const result = await query('SELECT id, token_version FROM users WHERE id = $1', [payload.sub]);
     
     if (result.rowCount === 0) {
       return res.status(401).json({ error: 'Usuario no encontrado.' });
     }
 
     const user = result.rows[0];
+    const dbVersion = user.token_version ?? 0;
     
-    // Si el payload no tiene versión (token antiguo) o no coincide con la DB (contraseña cambiada)
-    if (payload.version === undefined || payload.version !== user.token_version) {
+    // Si el payload no coincide con la versión de la DB (contraseña cambiada)
+    if (payload.version !== undefined && payload.version !== dbVersion) {
       return res.status(401).json({ error: 'La sesión ha sido invalidada (contraseña cambiada).' });
     }
 

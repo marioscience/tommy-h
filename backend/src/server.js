@@ -61,6 +61,12 @@ const allowedOrigins = new Set(
 app.use(cors({
     origin(origin, callback) {
         if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+        try {
+            const parsed = new URL(origin);
+            if (parsed.hostname === 'ragenodes.com' || parsed.hostname.endsWith('.ragenodes.com') || parsed.hostname === '192.168.1.106' || parsed.hostname === '192.168.1.134' || parsed.hostname === 'localhost') {
+                return callback(null, true);
+            }
+        } catch {}
         return callback(new Error('Origen CORS no permitido.'));
     },
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
