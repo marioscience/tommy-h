@@ -16,6 +16,7 @@ import os from 'os';
 import net from 'net';
 import dgram from 'dgram';
 import util from 'util';
+import { rustUtil } from '../utils/rustUtil.js';
 
 const repairBackoffCache = new Map();
 const MAX_REPAIRS_PER_HOUR = 3;

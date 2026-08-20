@@ -18,7 +18,7 @@ echo "==> Los servidores FiveM de los clientes NO serán destruidos ni interrump
 echo "==> Los volúmenes de base de datos (Postgres/MariaDB) están protegidos."
 
 echo "==> 🚀 Reconstruyendo imágenes base y servicios del panel..."
-docker compose build --no-cache backend frontend
+docker compose build --no-cache backend
 docker compose build fivem-base blender-web
 
 echo "==> 🌐 Desplegando servicios de RageNodes..."
