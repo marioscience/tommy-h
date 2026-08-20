@@ -120,8 +120,6 @@ fn is_admin_surface(path: &str) -> bool {
         || path == "/admin.html"
         || path.starts_with("/admin/")
         || path.starts_with("/api/admin")
-        || path.starts_with("/oxide")
-        || path.starts_with("/api/oxide")
         || path == "/pma"
         || path.starts_with("/pma/")
 }
@@ -160,7 +158,7 @@ fn is_disallowed_static_path(path: &str) -> bool {
     })
 }
 
-fn apply_browser_security_headers(response: &mut Response<Body>) {
+fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool) {
     let page_security = response.extensions().get::<StaticPageSecurity>().cloned();
     let allow_same_origin_framing = response.extensions().get::<AllowSameOriginFraming>().is_some();
     let allow_pma_framing = response.extensions().get::<AllowPhpMyAdminFraming>().is_some();
@@ -197,15 +195,17 @@ fn apply_browser_security_headers(response: &mut Response<Body>) {
             "camera=(), microphone=(), geolocation=(), accelerometer=(), gyroscope=(), magnetometer=(), usb=(), serial=(), hid=(), browsing-topics=(), clipboard-write=(self), fullscreen=(self), payment=(self \"https://www.paypal.com\")",
         ),
     );
-    let coop = if page_security
-        .as_ref()
-        .is_some_and(|profile| !profile.allows_paypal)
-    {
-        HeaderValue::from_static("same-origin")
-    } else {
-        HeaderValue::from_static("same-origin-allow-popups")
-    };
-    headers.insert(HeaderName::from_static("cross-origin-opener-policy"), coop);
+    if is_https {
+        let coop = if page_security
+            .as_ref()
+            .is_some_and(|profile| !profile.allows_paypal)
+        {
+            HeaderValue::from_static("same-origin")
+        } else {
+            HeaderValue::from_static("same-origin-allow-popups")
+        };
+        headers.insert(HeaderName::from_static("cross-origin-opener-policy"), coop);
+    }
     headers.insert(
         HeaderName::from_static("cross-origin-resource-policy"),
         HeaderValue::from_static("same-origin"),
@@ -256,8 +256,14 @@ pub async fn serve_http_connection<S>(
         let cfg = Arc::clone(&config);
         let tx = ban_tx.clone();
         async move {
+            let is_https = req
+                .headers()
+                .get("x-forwarded-proto")
+                .and_then(|v| v.to_str().ok())
+                == Some("https")
+                || req.headers().contains_key("cf-visitor");
             let mut response = handle_http_request(req, cfg, peer_addr, tx).await?;
-            apply_browser_security_headers(&mut response);
+            apply_browser_security_headers(&mut response, is_https);
             Ok::<_, Infallible>(response)
         }
     });
