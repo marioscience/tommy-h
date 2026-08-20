@@ -57,17 +57,10 @@ window.Nexus = {
       headers['Content-Type'] = 'application/json';
     }
     delete headers.Authorization;
-    let res = await fetch(path, { ...opts, headers, credentials: 'same-origin' });
-    if (res.status === 502 && path.startsWith('/api/')) {
-      const fallbackPath = path.replace('/api/', '/app-api/');
-      const fallbackRes = await fetch(fallbackPath, { ...opts, headers, credentials: 'same-origin' });
-      if (fallbackRes.status !== 502) {
-        res = fallbackRes;
-      }
-    }
+    const res = await fetch(path, { ...opts, headers, credentials: 'same-origin' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      if (res.status === 401 && path !== '/api/auth/logout' && path !== '/app-api/auth/logout') {
+      if (res.status === 401 && path !== '/api/auth/logout') {
         localStorage.removeItem('nexus_user');
         location.href = '/';
       }
@@ -81,10 +74,7 @@ window.Nexus = {
 
   session: async () => {
     try {
-      let res = await fetch('/api/auth/me', { credentials: 'same-origin' });
-      if (res.status === 502) {
-        res = await fetch('/app-api/auth/me', { credentials: 'same-origin' });
-      }
+      const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
       if (!res.ok) return null;
       const user = await res.json();
       localStorage.setItem('nexus_user', JSON.stringify(user));
