@@ -3,7 +3,7 @@ import path from 'path';
 
 const DEFAULT_CONFIG = {
     SERVER_NAME: 'RageNodes Valheim',
-    SERVER_PASS: 'vikingos',
+    SERVER_PASS: '',
     WORLD_NAME: 'RageNodesWorld',
     SERVER_PUBLIC: '1',
     SERVER_ARGS: '-crossplay',

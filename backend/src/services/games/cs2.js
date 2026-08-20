@@ -1,4 +1,4 @@
-import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate , sh } from '../dockerUtils.js';
+import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
 
 export async function createCS2Container(opts) {
@@ -32,7 +32,7 @@ export async function createCS2Container(opts) {
             'SRCDS_GAME_MODE=1',
             'SRCDS_MAXPLAYERS=12',
             'SRCDS_TICKRATE=128', // Para máxima fluidez eSports
-            'SRCDS_RCON_PW=ragenodes_rcon',
+            `SRCDS_RCON_PW=${deriveServicePassword('cs2-rcon', opts.serverId || opts.containerName)}`,
         ],
         ExposedPorts: { '27015/tcp': {}, '27015/udp': {} },
         Tty: true,
@@ -47,7 +47,7 @@ export async function createCS2Container(opts) {
             RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: opts.plan.memoryBytes,
             NanoCpus: opts.plan.nanoCpus, CpuShares: Math.round((opts.plan.nanoCpus / 10**9) * 1024),
-            BlkioWeight: 100,
+            BlkioWeight: config.dockerBlkioWeight,
             ...GAME_SECURITY_CONFIG
         }
     });

@@ -9,7 +9,7 @@ const router = express.Router();
 // 🛠️ Obtener configuración visual de Project Zomboid
 router.get('/config/:id', requireAuth, async (req, res) => {
     try {
-        const s = await ServerService.getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin');
+        const s = await ServerService.getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'files');
         if (!s) return res.status(404).json({ error: 'No encontrado' });
         const config = await ZomboidService.getZomboidConfig(s.data_path);
         res.json(config);
@@ -21,7 +21,7 @@ router.get('/config/:id', requireAuth, async (req, res) => {
 // 💾 Guardar configuración visual de Project Zomboid
 router.post('/config/:id', requireAuth, async (req, res) => {
     try {
-        const s = await ServerService.getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin');
+        const s = await ServerService.getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'files');
         if (!s) return res.status(404).json({ error: 'No encontrado' });
         await ZomboidService.saveZomboidConfig(s.data_path, req.body);
         await logAudit(req, 'update_zomboid_config', { serverId: req.params.id });

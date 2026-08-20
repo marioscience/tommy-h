@@ -11,12 +11,14 @@ let native;
 try {
     native = require(path.resolve(__dirname, './ragenodes_napi.node'));
 } catch (e) {
-    console.error('❌ [RustUtil] No se pudo cargar ragenodes-util.node. ¿Ejecutaste napi build?', e);
+    // Modo de compatibilidad / fallback JS puro para entornos heterogéneos (Windows dev / CI)
+    native = null;
 }
 
 /**
- * 🦀 PUENTE RUST-NODE (N-API Nativo)
- * Proporciona acceso a funciones de altísimo rendimiento nativas.
+ * 🦀 PUENTE RUST-NODE (N-API Nativo con Fallback Resiliente)
+ * Proporciona acceso a funciones de altísimo rendimiento nativas en Rust con
+ * degradación elegante a JavaScript puro cuando el binario nativo no está disponible.
  */
 export const rustUtil = {
     /**
@@ -59,8 +61,38 @@ export const rustUtil = {
 
     async calculateStats(rawStats) {
         try {
-            if (!native) return null;
-            return native.calculateStats(JSON.stringify(rawStats));
+            if (native) {
+                // Docker representa el límite PID ilimitado como UINT64_MAX. Al pasar por
+                // Number de JavaScript se redondea por encima de u64 y rompe el parser Rust.
+                const { pids_stats: _unusedPidsStats, ...statsForRust } = rawStats || {};
+                return native.calculateStats(JSON.stringify(statsForRust));
+            }
+
+            // Fallback en JS Puro (Resiliencia Multi-Plataforma)
+            if (!rawStats) return null;
+            const cpuStats = rawStats.cpu_stats || {};
+            const precpuStats = rawStats.precpu_stats || {};
+            const memStats = rawStats.memory_stats || {};
+
+            let cpuPercent = 0.0;
+            const cpuDelta = (cpuStats.cpu_usage?.total_usage || 0) - (precpuStats.cpu_usage?.total_usage || 0);
+            const systemDelta = (cpuStats.system_cpu_usage || 0) - (precpuStats.system_cpu_usage || 0);
+            const onlineCpus = cpuStats.online_cpus || cpuStats.cpu_usage?.percpu_usage?.length || 1;
+
+            if (systemDelta > 0 && cpuDelta > 0) {
+                cpuPercent = (cpuDelta / systemDelta) * onlineCpus * 100.0;
+            }
+
+            const usedMemory = (memStats.usage || 0) - (memStats.stats?.inactive_file || 0);
+            const limit = memStats.limit || 1;
+            const ramPercent = limit > 0 ? (usedMemory / limit) * 100.0 : 0.0;
+
+            return {
+                cpu: `${cpuPercent.toFixed(2)}%`,
+                ram: `${ramPercent.toFixed(2)}%`,
+                raw_cpu: cpuPercent,
+                raw_ram: ramPercent
+            };
         } catch (err) {
             console.error('❌ [RustUtil] Error en stats:', err.message);
             return null;
