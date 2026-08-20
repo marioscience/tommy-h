@@ -1,3 +1,0 @@
-# Monaco is a vendored, generated bundle. Preserve it byte-for-byte and do not
-# report upstream whitespace conventions as project-source errors.
-frontend/public/vendor/monaco/** -whitespace

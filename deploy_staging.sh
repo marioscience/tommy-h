@@ -9,7 +9,10 @@ if [ -d "/srv/ragenodes-data/templates" ]; then
     rsync -a /srv/ragenodes-data/templates/ /srv/ragenodes-staging-data/templates/
 fi
 
-docker compose -f docker-compose.staging.yml up -d --build --remove-orphans --remove-orphans
+docker compose -f docker-compose.staging.yml up -d --build --remove-orphans
+
+echo "==> 🛡️ Verificando integridad de Staging y migraciones SQL..."
+docker compose -f docker-compose.staging.yml exec -T backend-staging node src/verify_production_readiness.js
 
 echo "✅ Entorno de Staging iniciado."
 echo "Puedes acceder al panel de pruebas localmente en: http://127.0.0.1:3011"
