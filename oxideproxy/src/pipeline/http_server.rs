@@ -23,6 +23,7 @@ fn get_proxy_client() -> &'static hyper::Client<hyper::client::HttpConnector> {
         hyper::Client::builder()
             .pool_idle_timeout(std::time::Duration::from_secs(60))
             .pool_max_idle_per_host(64)
+            .keep_alive(true)
             .build_http()
     })
 }
@@ -264,7 +265,7 @@ pub async fn serve_http_connection<S>(
     if let Err(err) = hyper::server::conn::Http::new()
         .http1_only(true)
         .http1_keep_alive(true)
-        .pipeline_flush(true)
+        .http1_pipeline_flush(true)
         .serve_connection(stream, service)
         .with_upgrades()
         .await
@@ -550,7 +551,7 @@ async fn reverse_proxy_request(
 
             if !is_upgrade {
                 req.headers_mut().remove(hyper::header::CONNECTION);
-                req.headers_mut().remove("keep-alive");
+                req.headers_mut().remove(hyper::header::KEEP_ALIVE);
                 req.headers_mut().remove(hyper::header::PROXY_AUTHENTICATE);
                 req.headers_mut().remove(hyper::header::PROXY_AUTHORIZATION);
                 req.headers_mut().remove(hyper::header::TE);
@@ -590,7 +591,7 @@ async fn reverse_proxy_request(
                         }
                     } else if !is_upgrade {
                         res.headers_mut().remove(hyper::header::CONNECTION);
-                        res.headers_mut().remove("keep-alive");
+                        res.headers_mut().remove(hyper::header::KEEP_ALIVE);
                     }
                     Ok(res)
                 }
