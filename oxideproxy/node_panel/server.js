@@ -203,7 +203,7 @@ app.disable('x-powered-by');
 app.use((req, res, next) => {
     res.set({
         'Cache-Control': 'no-store',
-        'Content-Security-Policy': "default-src 'self'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; style-src-attr 'none'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-src 'none'; manifest-src 'none'; media-src 'none'; worker-src 'none'",
+        'Content-Security-Policy': "default-src 'self'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; style-src-attr 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-src 'none'; manifest-src 'none'; media-src 'none'; worker-src 'none'",
         'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
         'Cross-Origin-Resource-Policy': 'cross-origin',
         'Cross-Origin-Embedder-Policy': 'credentialless',
@@ -248,7 +248,12 @@ const requireAdmin = asyncHandler(async (req, res, next) => {
     const headers = {};
     if (cookie) headers.cookie = cookie;
     if (authHeader) headers.authorization = authHeader;
-    if (tokenHeader) headers['x-auth-token'] = tokenHeader;
+    if (tokenHeader) {
+        headers['x-auth-token'] = tokenHeader;
+        if (!headers.authorization) {
+            headers.authorization = `Bearer ${tokenHeader}`;
+        }
+    }
 
     let authResponse;
     try {
