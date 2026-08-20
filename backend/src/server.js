@@ -61,6 +61,12 @@ const allowedOrigins = new Set(
 app.use(cors({
     origin(origin, callback) {
         if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+        try {
+            const parsed = new URL(origin);
+            if (parsed.hostname === 'ragenodes.com' || parsed.hostname.endsWith('.ragenodes.com') || parsed.hostname === '192.168.1.106' || parsed.hostname === '192.168.1.134' || parsed.hostname === 'localhost') {
+                return callback(null, true);
+            }
+        } catch {}
         return callback(new Error('Origen CORS no permitido.'));
     },
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -82,7 +88,16 @@ app.use(['/api', '/app-api'], (req, res, next) => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || !hasSessionCookie(req)) return next();
     const origin = req.get('origin');
     const requestOrigin = `${req.protocol}://${req.get('host')}`;
-    if (!origin || (origin !== requestOrigin && !allowedOrigins.has(origin))) {
+    let isValidOrigin = origin === requestOrigin || allowedOrigins.has(origin);
+    if (!isValidOrigin && origin) {
+        try {
+            const parsed = new URL(origin);
+            if (parsed.hostname === 'ragenodes.com' || parsed.hostname.endsWith('.ragenodes.com') || parsed.hostname === '192.168.1.106' || parsed.hostname === '192.168.1.134' || parsed.hostname === 'localhost') {
+                isValidOrigin = true;
+            }
+        } catch {}
+    }
+    if (!origin || !isValidOrigin) {
         return res.status(403).json({ error: 'Origen de la petición no permitido.' });
     }
     next();
