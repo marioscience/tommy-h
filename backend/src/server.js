@@ -122,7 +122,7 @@ app.get('/readyz', async (req, res) => {
 });
 
 // 🔒 Rutas de autenticación
-app.use('/api/auth', authRoutes);
+app.use(['/api/auth', '/app-api/auth'], authRoutes);
 const adminLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
     max: 2000, // Aumentado a 2000 porque el panel hace muchas peticiones de actualización
