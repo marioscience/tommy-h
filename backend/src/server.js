@@ -78,7 +78,7 @@ app.use((req, res, next) => {
     next();
 });
 app.use(express.json({ limit: '256kb', strict: true }));
-app.use('/api', (req, res, next) => {
+app.use(['/api', '/app-api'], (req, res, next) => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || !hasSessionCookie(req)) return next();
     const origin = req.get('origin');
     const requestOrigin = `${req.protocol}://${req.get('host')}`;
@@ -154,31 +154,31 @@ const ticketLimiter = rateLimit({
 });
 
 // 🤖 Rutas de la API de Discord
-app.use('/api/discord', serviceApiLimiter, discordRoutes);
+app.use(['/api/discord', '/app-api/discord'], serviceApiLimiter, discordRoutes);
 
 // Resto de rutas de la API
-app.use('/api/admin', adminLimiter, adminRoutes);
-app.use('/api/admin/diagnostics', adminLimiter, adminDiagnosticsRoutes);
-app.use('/api/nodes', nodeInstallerLimiter, installerRoutes);
-app.use('/api/servers', serverRoutes);
-app.use('/api/files', fileRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/payments', paymentsRoutes);
-app.use('/api/marketplace', marketplaceRoutes);
-app.use('/api/tickets', ticketLimiter, ticketRoutes);
-app.use('/api/minecraft', minecraftRoutes); 
-app.use('/api/palworld', palworldRoutes); 
-app.use('/api/rust', rustRoutes); 
-app.use('/api/cs2', cs2Routes); 
-app.use('/api/valheim', valheimRoutes); 
-app.use('/api/minecraft-mods', minecraftModsRoutes);
-app.use('/api/mods', modsRoutes);
-app.use('/api/zomboid', zomboidRoutes); 
-app.use('/api/ark', arkRoutes);
-app.use('/api/sdtd', sdtdRoutes); 
-app.use('/api/rcon', rconRoutes); 
-app.use('/api/cron', cronRoutes);
-app.use('/api/plugins', pluginsRoutes);
+app.use(['/api/admin', '/app-api/admin'], adminLimiter, adminRoutes);
+app.use(['/api/admin/diagnostics', '/app-api/admin/diagnostics'], adminLimiter, adminDiagnosticsRoutes);
+app.use(['/api/nodes', '/app-api/nodes'], nodeInstallerLimiter, installerRoutes);
+app.use(['/api/servers', '/app-api/servers'], serverRoutes);
+app.use(['/api/files', '/app-api/files'], fileRoutes);
+app.use(['/api/notifications', '/app-api/notifications'], notificationRoutes);
+app.use(['/api/payments', '/app-api/payments'], paymentsRoutes);
+app.use(['/api/marketplace', '/app-api/marketplace'], marketplaceRoutes);
+app.use(['/api/tickets', '/app-api/tickets'], ticketLimiter, ticketRoutes);
+app.use(['/api/minecraft', '/app-api/minecraft'], minecraftRoutes); 
+app.use(['/api/palworld', '/app-api/palworld'], palworldRoutes); 
+app.use(['/api/rust', '/app-api/rust'], rustRoutes); 
+app.use(['/api/cs2', '/app-api/cs2'], cs2Routes); 
+app.use(['/api/valheim', '/app-api/valheim'], valheimRoutes); 
+app.use(['/api/minecraft-mods', '/app-api/minecraft-mods'], minecraftModsRoutes);
+app.use(['/api/mods', '/app-api/mods'], modsRoutes);
+app.use(['/api/zomboid', '/app-api/zomboid'], zomboidRoutes); 
+app.use(['/api/ark', '/app-api/ark'], arkRoutes);
+app.use(['/api/sdtd', '/app-api/sdtd'], sdtdRoutes); 
+app.use(['/api/rcon', '/app-api/rcon'], rconRoutes); 
+app.use(['/api/cron', '/app-api/cron'], cronRoutes);
+app.use(['/api/plugins', '/app-api/plugins'], pluginsRoutes);
 
 app.use((error, req, res, _next) => {
     const reqLog = req.log || logger;
