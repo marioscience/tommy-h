@@ -263,7 +263,9 @@ pub async fn serve_http_connection<S>(
     });
 
     if let Err(err) = hyper::server::conn::Http::new()
-        .http1_only(false) // Soporte HTTP/1.1 y HTTP/2
+        .http1_only(true)
+        .http1_keep_alive(true)
+        .http1_pipeline_flush(true)
         .serve_connection(stream, service)
         .with_upgrades()
         .await
@@ -547,6 +549,16 @@ async fn reverse_proxy_request(
                 None
             };
 
+            if !is_upgrade {
+                req.headers_mut().remove(hyper::header::CONNECTION);
+                req.headers_mut().remove(hyper::header::KEEP_ALIVE);
+                req.headers_mut().remove(hyper::header::PROXY_AUTHENTICATE);
+                req.headers_mut().remove(hyper::header::PROXY_AUTHORIZATION);
+                req.headers_mut().remove(hyper::header::TE);
+                req.headers_mut().remove(hyper::header::TRAILER);
+                req.headers_mut().remove(hyper::header::TRANSFER_ENCODING);
+            }
+
             let client = get_proxy_client();
             match client.request(req).await {
                 Ok(mut res) => {
@@ -577,6 +589,9 @@ async fn reverse_proxy_request(
                                 }
                             });
                         }
+                    } else if !is_upgrade {
+                        res.headers_mut().remove(hyper::header::CONNECTION);
+                        res.headers_mut().remove(hyper::header::KEEP_ALIVE);
                     }
                     Ok(res)
                 }
