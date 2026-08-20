@@ -10,9 +10,7 @@ services:
     volumes:
       - postgres_data_staging:/var/lib/postgresql/data
     networks:
-      ragenodes_net_staging:
-        aliases:
-          - postgres
+      - ragenodes_net_staging
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}_staging -d ${POSTGRES_DB}_staging"]
       interval: 10s
@@ -31,9 +29,7 @@ services:
     ports:
       - "127.0.0.1:3316:3306" # Puerto 3316 para no chocar
     networks:
-      ragenodes_net_staging:
-        aliases:
-          - mariadb
+      - ragenodes_net_staging
 
   backend-staging:
     build:
@@ -112,9 +108,7 @@ services:
     image: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
     restart: unless-stopped
     networks:
-      ragenodes_net_staging:
-        aliases:
-          - redis
+      - ragenodes_net_staging
     volumes:
       - redis_data_staging:/data
 
