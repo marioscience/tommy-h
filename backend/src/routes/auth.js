@@ -46,7 +46,7 @@ router.post('/login', authLimiter, async (req, res) => {
   await logAudit(user.id, 'auth.login');
 
   const token = signToken(user);
-  setSessionCookie(res, token);
+  setSessionCookie(res, token, req);
   const response = { user: { id: user.id, username: user.username, email: user.email, role: user.role, is_verified: user.is_verified } };
   if (req.get('X-Auth-Mode') === 'bearer') response.token = token;
   res.json(response);
