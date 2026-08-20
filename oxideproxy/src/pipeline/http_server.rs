@@ -558,9 +558,22 @@ async fn reverse_proxy_request(
                 req.headers_mut().remove(hyper::header::TRANSFER_ENCODING);
             }
 
+            tracing::info!(
+                "HTTP Proxy: {} {} -> http://{}{}",
+                req.method(),
+                path_and_query,
+                target_addr,
+                modified_path
+            );
+
             let client = get_proxy_client();
             match client.request(req).await {
                 Ok(mut res) => {
+                    tracing::info!(
+                        "HTTP Proxy Result: {} -> {}",
+                        path_and_query,
+                        res.status()
+                    );
                     if res.status() == StatusCode::SWITCHING_PROTOCOLS {
                         if let Some(req_up) = req_upgrade {
                             let res_up = hyper::upgrade::on(&mut res);
@@ -595,7 +608,7 @@ async fn reverse_proxy_request(
                     Ok(res)
                 }
                 Err(err) => {
-                    tracing::error!("Error en Reverse Proxy hacia {}: {}", target_addr, err);
+                    tracing::error!("Error en Reverse Proxy hacia {}{}: {:?}", target_addr, modified_path, err);
                     let mut res = Response::new(Body::from("502 Bad Gateway"));
                     *res.status_mut() = StatusCode::BAD_GATEWAY;
                     res.headers_mut().insert(
