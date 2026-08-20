@@ -24,6 +24,7 @@ function isValidPassword(value) {
 // 🟢 LOGIN
 // ==========================================
 router.post('/login', async (req, res) => {
+  console.log('🔑 [LOGIN_BODY]:', req.body);
   const { username, password } = req.body || {};
   const identifier = String(username || '').trim();
   console.log(`🔑 [LOGIN_ATTEMPT] identifier="${identifier}", pwd_len=${password ? password.length : 0}`);
