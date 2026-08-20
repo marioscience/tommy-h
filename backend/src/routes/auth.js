@@ -26,6 +26,7 @@ function isValidPassword(value) {
 router.post('/login', async (req, res) => {
   const { username, password } = req.body || {};
   const identifier = String(username || '').trim();
+  console.log(`🔑 [LOGIN_ATTEMPT] identifier="${identifier}", pwd_len=${password ? password.length : 0}`);
   if (!identifier || typeof password !== 'string' || password.length > 128) {
     return res.status(401).json({ error: 'Credenciales inválidas' });
   }
