@@ -1,4 +1,5 @@
-﻿import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, applyRageNodesBranding, sh } from '../dockerUtils.js';
+import os from 'os';
+import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, applyRageNodesBranding, sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
 
 /**
@@ -57,7 +58,9 @@ export class BaseGameService {
      * Construye la configuración de recursos y seguridad para HostConfig.
      */
     buildHostConfig(opts, portBindings, binds) {
-        const nanoCpus = opts.plan?.nanoCpus || 2 * 10**9;
+        const hostCpuCount = Math.max(1, os.cpus()?.length || 4);
+        const rawNanoCpus = opts.plan?.nanoCpus || 2 * 10**9;
+        const nanoCpus = Math.min(rawNanoCpus, hostCpuCount * 10**9);
         const memoryBytes = opts.plan?.memoryBytes || 4 * 1024 * 1024 * 1024;
 
         return {
