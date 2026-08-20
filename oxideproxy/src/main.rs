@@ -10,21 +10,11 @@ use crate::ingress::start_ingress;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Configuración de telemetría asíncrona no bloqueante (Stdout + Archivo Rotativo)
-    let file_appender = tracing_appender::rolling::daily("config/logs", "oxide_proxy.log");
-    let (non_blocking_file, _guard_file) = tracing_appender::non_blocking(file_appender);
-    let (non_blocking_stdout, _guard_stdout) = tracing_appender::non_blocking(std::io::stdout());
-
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "warn,oxide_proxy=info".into()),
+            std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()),
         ))
-        .with(tracing_subscriber::fmt::layer().with_writer(non_blocking_stdout))
-        .with(
-            tracing_subscriber::fmt::layer()
-                .with_writer(non_blocking_file)
-                .with_ansi(false),
-        )
+        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout))
         .init();
 
     tracing::info!("=== Arrancando OxideProxy (Motor L4/L7 Asíncrono Ultra-Optimizado) ===");
