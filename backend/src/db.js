@@ -105,242 +105,15 @@ async function startDbMaintenance() {
     }, 24 * 60 * 60 * 1000); // Cada 24 horas
 }
 
-export async function initDb() {
-  await query(`
-    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      username TEXT NOT NULL UNIQUE,
-      email TEXT UNIQUE,
-      password_hash TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'client',
-      plan TEXT NOT NULL DEFAULT 'hobby',
-      server_limit INTEGER NOT NULL DEFAULT 1,
-      expires_at TIMESTAMPTZ,
-      is_verified BOOLEAN DEFAULT false,
-      verify_token TEXT,
-      reset_token TEXT,
-      reset_expires TIMESTAMPTZ,
-      extra_disk_gb INTEGER NOT NULL DEFAULT 0,
-      disk_sub_id TEXT,
-      token_version INTEGER DEFAULT 1,
-      discord_id TEXT UNIQUE,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS payments (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      paypal_order_id TEXT UNIQUE NOT NULL,
-      plan_name TEXT NOT NULL,
-      amount DECIMAL(10,2),
-      status TEXT NOT NULL DEFAULT 'COMPLETED',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS invite_keys (
-      id SERIAL PRIMARY KEY, code TEXT NOT NULL UNIQUE, created_by INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      max_uses INTEGER NOT NULL DEFAULT 1, uses INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS servers (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(), owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      name TEXT NOT NULL, slug TEXT NOT NULL, template TEXT NOT NULL, runtime_plan TEXT NOT NULL,
-      mc_version TEXT NOT NULL DEFAULT 'LATEST', mc_type TEXT NOT NULL DEFAULT 'PAPER', cpuset TEXT,
-      status TEXT NOT NULL DEFAULT 'creating', fivem_port INTEGER NOT NULL UNIQUE, txadmin_port INTEGER NOT NULL UNIQUE,
-      blender_port INTEGER UNIQUE, blender_pass TEXT,
-      container_name TEXT NOT NULL UNIQUE, data_path TEXT NOT NULL, license_key_hint TEXT NOT NULL,
-      txadmin_url TEXT NOT NULL, db_name TEXT, db_user TEXT, db_pass TEXT,
-      expires_at TIMESTAMPTZ,
-      backup_time TEXT DEFAULT '04:00',
-      cluster_id TEXT,
-      auto_restart_time TEXT DEFAULT '06:00',
-      auto_restart_enabled BOOLEAN DEFAULT false,
-      backup_before_restart BOOLEAN DEFAULT true,
-      discord_webhook_url TEXT,
-      discord_webhook_events JSONB DEFAULT '["online", "offline", "player_join", "player_leave", "update"]'::jsonb,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    ALTER TABLE servers ADD COLUMN IF NOT EXISTS cluster_id TEXT;
-    ALTER TABLE servers ADD COLUMN IF NOT EXISTS auto_restart_time TEXT DEFAULT '06:00';
-    ALTER TABLE servers ADD COLUMN IF NOT EXISTS auto_restart_enabled BOOLEAN DEFAULT false;
-    ALTER TABLE servers ADD COLUMN IF NOT EXISTS backup_before_restart BOOLEAN DEFAULT true;
-    ALTER TABLE servers ADD COLUMN IF NOT EXISTS discord_webhook_url TEXT;
-    ALTER TABLE servers ADD COLUMN IF NOT EXISTS discord_webhook_events JSONB DEFAULT '["online", "offline", "player_join", "player_leave", "update"]'::jsonb;
-
-    CREATE TABLE IF NOT EXISTS server_subusers (
-      id SERIAL PRIMARY KEY,
-      server_id UUID REFERENCES servers(id) ON DELETE CASCADE,
-      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      permissions JSONB NOT NULL DEFAULT '["restart", "console"]'::jsonb,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE(server_id, user_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS audit_logs (
-      id BIGSERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      action TEXT NOT NULL, details JSONB NOT NULL DEFAULT '{}'::jsonb, 
-      ip_address TEXT, user_agent TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS notifications (
-      id SERIAL PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL,
-      type TEXT NOT NULL DEFAULT 'info', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS backups (
-      id SERIAL PRIMARY KEY,
-      server_id UUID REFERENCES servers(id) ON DELETE CASCADE,
-      filename VARCHAR(255) NOT NULL,
-      size_bytes BIGINT DEFAULT 0,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS bot_knowledge (
-      id SERIAL PRIMARY KEY,
-      patron TEXT NOT NULL,
-      respuesta TEXT NOT NULL,
-      contexto TEXT DEFAULT 'general',
-      peso FLOAT NOT NULL DEFAULT 1.0,
-      veces_usado INTEGER NOT NULL DEFAULT 0,
-      creado_por TEXT NOT NULL DEFAULT 'sistema',
-      activo BOOLEAN NOT NULL DEFAULT true,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS bot_ticket_logs (
-      id BIGSERIAL PRIMARY KEY,
-      discord_user_id TEXT NOT NULL,
-      discord_username TEXT,
-      canal_id TEXT NOT NULL,
-      mensajes JSONB NOT NULL DEFAULT '[]'::jsonb,
-      intenciones_detectadas TEXT[],
-      resuelto_por_ia BOOLEAN DEFAULT false,
-      escalado_a_humano BOOLEAN DEFAULT false,
-      patron_usado_id INTEGER REFERENCES bot_knowledge(id) ON DELETE SET NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      closed_at TIMESTAMPTZ
-    );
-
-    CREATE TABLE IF NOT EXISTS bot_stats (
-      id BIGSERIAL PRIMARY KEY,
-      intencion TEXT NOT NULL DEFAULT 'desconocida',
-      resuelto BOOLEAN NOT NULL DEFAULT false,
-      escalado BOOLEAN NOT NULL DEFAULT false,
-      patron_id INTEGER REFERENCES bot_knowledge(id) ON DELETE SET NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS server_stats_history (
-      id BIGSERIAL PRIMARY KEY,
-      server_id UUID REFERENCES servers(id) ON DELETE CASCADE,
-      cpu FLOAT NOT NULL,
-      ram FLOAT NOT NULL,
-      ram_gb FLOAT NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS marketplace_scripts (
-      id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL,
-      description TEXT,
-      price DECIMAL(10,2) NOT NULL,
-      version TEXT NOT NULL DEFAULT '1.0.0',
-      author_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      category TEXT NOT NULL DEFAULT 'other',
-      icon_type TEXT DEFAULT 'default',
-      icon_color TEXT DEFAULT '#38bdf8',
-      file_path TEXT,
-      image_url TEXT,
-      is_active BOOLEAN DEFAULT true,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS marketplace_licenses (
-      id SERIAL PRIMARY KEY,
-      script_id INTEGER REFERENCES marketplace_scripts(id) ON DELETE CASCADE,
-      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      license_key TEXT UNIQUE NOT NULL,
-      expires_at TIMESTAMPTZ,
-      is_active BOOLEAN DEFAULT true,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS vendor_applications (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      discord_username TEXT NOT NULL,
-      portfolio_url TEXT,
-      experience_summary TEXT,
-      status TEXT NOT NULL DEFAULT 'pending',
-      admin_notes TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS hosting_plans (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      price DECIMAL(10,2) NOT NULL,
-      paypal_plan_id TEXT,
-      image_url TEXT,
-      features JSONB NOT NULL DEFAULT '{}'::jsonb,
-      is_active BOOLEAN DEFAULT true,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-
-    CREATE TABLE IF NOT EXISTS nodes (
-      id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL,
-      ip_address TEXT NOT NULL UNIQUE,
-      api_key TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'active',
-      ram_total_gb INTEGER NOT NULL DEFAULT 0,
-      cpu_cores INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS server_cron_jobs (
-      id SERIAL PRIMARY KEY,
-      server_id UUID REFERENCES servers(id) ON DELETE CASCADE,
-      time_hh_mm TEXT NOT NULL,
-      action TEXT NOT NULL,
-      payload TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
-
-  // Insertar Nodo Maestro si no existe
+export async function seedInitialData() {
+  // 1. Insertar Nodo Maestro si no existe
   await query(`
     INSERT INTO nodes (id, name, ip_address, api_key, status)
     VALUES (0, 'Master Node (Local)', 'localhost', 'internal', 'active')
     ON CONFLICT (id) DO NOTHING;
   `);
-  await runMigrations(query, withTransaction);
 
-// 🚀 OPTIMIZACIÓN: Índices Esenciales
-    const indices = [
-        "CREATE INDEX IF NOT EXISTS idx_servers_owner_id ON servers(owner_id)",
-        "CREATE INDEX IF NOT EXISTS idx_users_discord_id ON users(discord_id)",
-        "CREATE INDEX IF NOT EXISTS idx_stats_history_server_created ON server_stats_history(server_id, created_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_audit_logs_user_created ON audit_logs(user_id, created_at DESC)",
-        "CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id)",
-        "CREATE INDEX IF NOT EXISTS idx_backups_server_id ON backups(server_id)",
-        "CREATE INDEX IF NOT EXISTS idx_server_subusers_user_id ON server_subusers(user_id)"
-    ];
-  
-  for (const idx of indices) {
-      try { await query(idx); } catch (e) {}
-  }
-
-  // Iniciar mantenimiento automático
-  startDbMaintenance();
-
-  // Planes iniciales
+  // 2. Insertar/Actualizar Planes de Hosting por defecto
   await query(`
     INSERT INTO hosting_plans (id, name, price, paypal_plan_id, features) 
     VALUES 
@@ -371,7 +144,7 @@ export async function initDb() {
     DELETE FROM hosting_plans WHERE id = 'plan_platinum';
   `);
 
-  // Usuario admin
+  // 3. Usuario administrador inicial (Bootstrap)
   const adminUser = config.adminUser;
   const adminPass = config.adminPass;
   const existingAdmin = await query("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
@@ -381,10 +154,21 @@ export async function initDb() {
     }
     const hash = await bcrypt.hash(adminPass, 12);
     await query(
-        'INSERT INTO users (username, password_hash, role, plan, server_limit, is_verified) VALUES ($1, $2, $3, $4, $5, true)',
-        [adminUser, hash, 'admin', 'premium', 100]
+      'INSERT INTO users (username, password_hash, role, plan, server_limit, is_verified) VALUES ($1, $2, $3, $4, $5, true)',
+      [adminUser, hash, 'admin', 'premium', 100]
     );
   }
+}
+
+export async function initDb() {
+  // 1. Ejecutar migraciones estructurales de base de datos
+  await runMigrations(query, withTransaction);
+
+  // 2. Sembrar datos esenciales (Seeds)
+  await seedInitialData();
+
+  // 3. Iniciar tareas de mantenimiento
+  startDbMaintenance();
 }
 
 export async function logAudit(userIdOrReq, action, details = {}, ipOverride = null, uaOverride = null) {
