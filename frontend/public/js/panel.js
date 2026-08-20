@@ -946,6 +946,10 @@ function toggleSidebar() {
             } else if (viewId === 'database') {
                 document.getElementById('page-sub').innerText = "Gestión de tablas MySQL";
                 document.getElementById('view-database').classList.remove('hidden');
+                const pmaIframe = document.getElementById('pma-iframe');
+                if (pmaIframe && (pmaIframe.src === 'about:blank' || !pmaIframe.src)) {
+                    pmaIframe.src = '/pma/';
+                }
             } else if (viewId === 'backups') {
                 document.getElementById('page-sub').innerText = "Puntos de restauración de tu servidor";
                 document.getElementById('view-backups').classList.remove('hidden');
