@@ -45,7 +45,7 @@ async function fixStagingCloudflare() {
     }
 
     console.log('\n--- 2. Checking Cloudflare Tunnel Ingress Rules ---');
-    const tunnelRes = await fetch(`${CF_API}/accounts/${accountId}/tunnels/${tunnelId}/configurations`, { headers });
+    const tunnelRes = await fetch(`${CF_API}/accounts/${accountId}/cfd_tunnel/${tunnelId}/configurations`, { headers });
     const tunnelData = await tunnelRes.json();
 
     if (!tunnelData.success) {
@@ -80,7 +80,7 @@ async function fixStagingCloudflare() {
     configData.ingress = ingress;
 
     console.log('Saving updated Cloudflare Tunnel configuration...');
-    const updateRes = await fetch(`${CF_API}/accounts/${accountId}/tunnels/${tunnelId}/configurations`, {
+    const updateRes = await fetch(`${CF_API}/accounts/${accountId}/cfd_tunnel/${tunnelId}/configurations`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({ config: configData })
