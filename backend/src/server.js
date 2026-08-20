@@ -34,7 +34,10 @@ import rconRoutes from './routes/rcon.js'; // 🔌 AÑADIDO: Rutas de RCON y Jug
 
 import cronRoutes from './routes/cron.js'; // 🕒 AÑADIDO: Rutas de Cron Jobs
 
-// 🤖 AÑADIDO: ESCUDO ANTI-CRASHEO SILENCIOSO
+import pluginsRoutes from './routes/plugins.js';
+import { startCronManager } from './services/cronManager.js';
+
+// 🤖 ESCUDO ANTI-CRASHEO SILENCIOSO
 process.on('uncaughtException', (err) => {
     console.error('💥 CRASHEO FATAL (Uncaught Exception):', err);
     process.exit(1);
@@ -81,6 +84,7 @@ app.use('/api', (req, res, next) => {
     }
     next();
 });
+
 // 🩺 Sondas de Observabilidad y Salud Empresarial (Módulo 4: Production Readiness)
 app.get('/healthz', (req, res) => res.status(200).send('OK'));
 
@@ -152,22 +156,16 @@ const ticketLimiter = rateLimit({
     message: { error: 'Has enviado demasiados tickets. Inténtalo más tarde.' }
 });
 
-
 // Aplicamos el limitador estricto SOLAMENTE a las rutas de autenticación
 app.use('/api/auth', authLimiter, authRoutes);
 
-// 🤖 AÑADIDO: Rutas de la API de Discord
+// 🤖 Rutas de la API de Discord
 app.use('/api/discord', serviceApiLimiter, discordRoutes);
 
 // Resto de rutas de la API
 app.use('/api/admin', adminLimiter, adminRoutes);
-
-// 🧪 AÑADIDO: Rutas de diagnóstico avanzado del panel admin
 app.use('/api/admin/diagnostics', adminLimiter, adminDiagnosticsRoutes);
-
-// 🚀 AUTO-LINK NODES (Sin Auth, Protegido por API_KEY)
 app.use('/api/nodes', nodeInstallerLimiter, installerRoutes);
-
 app.use('/api/servers', serverRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/notifications', notificationRoutes);
@@ -185,10 +183,8 @@ app.use('/api/zomboid', zomboidRoutes);
 app.use('/api/ark', arkRoutes);
 app.use('/api/sdtd', sdtdRoutes); 
 app.use('/api/rcon', rconRoutes); 
-app.use('/api/cron', cronRoutes); // 🕒 AÑADIDO: Rutas de Cron Jobs
-
-import pluginsRoutes from './routes/plugins.js'; // 🔌 AÑADIDO: Rutas de Plugins
-app.use('/api/plugins', pluginsRoutes); // 🔌 AÑADIDO: Rutas de Plugins
+app.use('/api/cron', cronRoutes);
+app.use('/api/plugins', pluginsRoutes);
 
 app.use((error, req, res, _next) => {
     if (error?.type === 'entity.too.large') {
@@ -204,25 +200,31 @@ app.use((error, req, res, _next) => {
     return res.status(500).json({ error: 'Error interno del servidor.' });
 });
 
-import { startCronManager } from './services/cronManager.js';
-
 const server = http.createServer(app);
 
-server.listen(config.port, async () => {
-  try {
-    await waitForDb();
-    await initDb();
-    startCronManager(); // 🕒 AÑADIDO: Iniciar gestor de tareas programadas
+async function bootstrap() {
+    try {
+        await waitForDb();
+        await initDb();
+        startCronManager();
 
-    console.log(`---------------------------------------------------`);
-    console.log(`🚀 API RAGENODES escuchando en ${config.port}`);
-    console.log(`🛡️  Rate Limit: Global (1500) | Files (Unlimited) | Auth (15)`);
-    console.log(`⚙️  Modo: Optimizando para subida masiva de recursos.`);
-    console.log(`🤖 API Discord: Lista para conectar con el bot`);
-    console.log(`🧪 Diagnóstico Admin: Disponible en /api/admin/diagnostics/run`);
-    console.log(`🧩 Workers externos: backups, docker-events y stats se ejecutan en servicios separados.`);
-console.log(`---------------------------------------------------`);
-  } catch (error) {
-    console.error("❌ Error durante el inicio del servidor:", error);
-  }
-});
+        server.listen(config.port, () => {
+            console.log(`---------------------------------------------------`);
+            console.log(`🚀 API RAGENODES escuchando en ${config.port}`);
+            console.log(`🛡️  Rate Limit: Global (1500) | Files (Unlimited) | Auth (50)`);
+            console.log(`⚙️  Modo: Optimizando para subida masiva de recursos.`);
+            console.log(`🤖 API Discord: Lista para conectar con el bot`);
+            console.log(`🧪 Diagnóstico Admin: Disponible en /api/admin/diagnostics/run`);
+            console.log(`🧩 Workers externos: backups, docker-events y stats se ejecutan en servicios separados.`);
+            console.log(`---------------------------------------------------`);
+        });
+    } catch (error) {
+        console.error("❌ Error durante el inicio del servidor:", error);
+    }
+}
+
+if (process.env.NODE_ENV !== 'test') {
+    bootstrap();
+}
+
+export { app, server, bootstrap };
