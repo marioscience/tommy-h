@@ -62,6 +62,8 @@ const allowedOrigins = new Set(
 app.use(cors({
     origin(origin, callback) {
         if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+        const isPrivateIpOrigin = /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|127\.0\.0\.1|localhost)(:\d+)?$/.test(origin);
+        if (isPrivateIpOrigin) return callback(null, true);
         return callback(new Error('Origen CORS no permitido.'));
     },
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -82,16 +84,18 @@ app.use(express.json({ limit: '256kb', strict: true }));
 app.use('/api', (req, res, next) => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || !hasSessionCookie(req)) return next();
     const origin = req.get('origin');
-    const requestOrigin = `${req.protocol}://${req.get('host')}`;
+    if (!origin) return next();
+
+    const host = req.get('host');
     const forwardedHost = req.get('x-forwarded-host');
     const forwardedProto = req.get('x-forwarded-proto') || req.protocol;
-    const forwardedOrigin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : null;
 
-    if (origin && origin !== requestOrigin && origin !== forwardedOrigin && !allowedOrigins.has(origin)) {
-        if (process.env.NODE_ENV !== 'production' || req.get('host')?.includes('127.0.0.1') || req.get('host')?.includes('localhost')) {
-            return next();
-        }
-        return res.status(403).json({ error: 'Origen de la petición no permitido.' });
+    const requestOrigin = `${req.protocol}://${host}`;
+    const forwardedOrigin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : null;
+    const isPrivateIpOrigin = /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|127\.0\.0\.1|localhost)(:\d+)?$/.test(origin);
+
+    if (origin !== requestOrigin && origin !== forwardedOrigin && !allowedOrigins.has(origin) && !isPrivateIpOrigin) {
+        return res.status(403).json({ error: 'Origen no permitido para modificaciones de estado.' });
     }
     next();
 });
