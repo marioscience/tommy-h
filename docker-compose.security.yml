@@ -1,0 +1,4 @@
+services:
+  backend:
+    volumes:
+      - ./scripts/security:/app/security-tests:ro

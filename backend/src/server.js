@@ -55,6 +55,10 @@ assertSecureConfig();
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
+app.use((req, res, next) => {
+    res.setHeader('Permissions-Policy', 'accelerometer=(), gyroscope=(), magnetometer=()');
+    next();
+});
 app.use(requestLogger);
 const allowedOrigins = new Set(
     String(config.corsOrigin || '').split(',').map(origin => origin.trim()).filter(Boolean)

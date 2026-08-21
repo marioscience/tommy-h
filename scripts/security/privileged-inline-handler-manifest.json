@@ -1,0 +1,1095 @@
+{
+  "version": 1,
+  "handlers": [
+    {
+      "id": "priv_0001",
+      "event": "click",
+      "source": "closeModal()"
+    },
+    {
+      "id": "priv_0002",
+      "event": "click",
+      "source": "saveNode()"
+    },
+    {
+      "id": "priv_0003",
+      "event": "click",
+      "source": "saveProxy()"
+    },
+    {
+      "id": "priv_0004",
+      "event": "click",
+      "source": "document.getElementById('admin-file-input-modal').click()"
+    },
+    {
+      "id": "priv_0005",
+      "event": "change",
+      "source": "processAdminUploadNative(this.files)"
+    },
+    {
+      "id": "priv_0006",
+      "event": "click",
+      "source": "saveServer()"
+    },
+    {
+      "id": "priv_0007",
+      "event": "click",
+      "source": "saveUser()"
+    },
+    {
+      "id": "priv_0008",
+      "event": "click",
+      "source": "saveNewUser()"
+    },
+    {
+      "id": "priv_0009",
+      "event": "click",
+      "source": "saveNewKey()"
+    },
+    {
+      "id": "priv_0010",
+      "event": "click",
+      "source": "triggerAdminBackup(currentId, this)"
+    },
+    {
+      "id": "priv_0011",
+      "event": "click",
+      "source": "openMigrateModal()"
+    },
+    {
+      "id": "priv_0012",
+      "event": "click",
+      "source": "openServerBackups(currentId)"
+    },
+    {
+      "id": "priv_0013",
+      "event": "click",
+      "source": "executeMigration()"
+    },
+    {
+      "id": "priv_0014",
+      "event": "click",
+      "source": "document.getElementById('term-input').focus()"
+    },
+    {
+      "id": "priv_0015",
+      "event": "keydown",
+      "source": "handleTermKey(event)"
+    },
+    {
+      "id": "priv_0016",
+      "event": "click",
+      "source": "savePlan()"
+    },
+    {
+      "id": "priv_0017",
+      "event": "click",
+      "source": "saveDiskPlan()"
+    },
+    {
+      "id": "priv_0018",
+      "event": "click",
+      "source": "saveScriptEdits()"
+    },
+    {
+      "id": "priv_0019",
+      "event": "click",
+      "source": "switchTab('tab-dashboard', this)"
+    },
+    {
+      "id": "priv_0020",
+      "event": "click",
+      "source": "switchTab('tab-nodes', this)"
+    },
+    {
+      "id": "priv_0021",
+      "event": "click",
+      "source": "switchTab('tab-proxies', this)"
+    },
+    {
+      "id": "priv_0022",
+      "event": "click",
+      "source": "switchTab('tab-users', this)"
+    },
+    {
+      "id": "priv_0023",
+      "event": "click",
+      "source": "switchTab('tab-keys', this)"
+    },
+    {
+      "id": "priv_0024",
+      "event": "click",
+      "source": "switchTab('tab-notifs', this)"
+    },
+    {
+      "id": "priv_0025",
+      "event": "click",
+      "source": "switchTab('tab-audits', this)"
+    },
+    {
+      "id": "priv_0026",
+      "event": "click",
+      "source": "switchTab('tab-evidence', this)"
+    },
+    {
+      "id": "priv_0027",
+      "event": "click",
+      "source": "switchTab('tab-financials', this)"
+    },
+    {
+      "id": "priv_0028",
+      "event": "click",
+      "source": "switchTab('tab-marketplace', this)"
+    },
+    {
+      "id": "priv_0029",
+      "event": "click",
+      "source": "switchTab('tab-vendors', this)"
+    },
+    {
+      "id": "priv_0030",
+      "event": "click",
+      "source": "switchTab('tab-diagnostics', this)"
+    },
+    {
+      "id": "priv_0031",
+      "event": "click",
+      "source": "switchTab('tab-oxide', this)"
+    },
+    {
+      "id": "priv_0032",
+      "event": "click",
+      "source": "Nexus.logout()"
+    },
+    {
+      "id": "priv_0033",
+      "event": "click",
+      "source": "toggleFullscreenOxide()"
+    },
+    {
+      "id": "priv_0034",
+      "event": "change",
+      "source": "pollHost(true)"
+    },
+    {
+      "id": "priv_0035",
+      "event": "keyup",
+      "source": "filterServers()"
+    },
+    {
+      "id": "priv_0036",
+      "event": "click",
+      "source": "openAddNodeModal()"
+    },
+    {
+      "id": "priv_0037",
+      "event": "click",
+      "source": "openProxyModal()"
+    },
+    {
+      "id": "priv_0038",
+      "event": "keyup",
+      "source": "filterUsers()"
+    },
+    {
+      "id": "priv_0039",
+      "event": "click",
+      "source": "createUser()"
+    },
+    {
+      "id": "priv_0040",
+      "event": "click",
+      "source": "createKey()"
+    },
+    {
+      "id": "priv_0041",
+      "event": "click",
+      "source": "createNotification(this)"
+    },
+    {
+      "id": "priv_0042",
+      "event": "change",
+      "source": "renderAudits()"
+    },
+    {
+      "id": "priv_0043",
+      "event": "keyup",
+      "source": "renderAudits()"
+    },
+    {
+      "id": "priv_0044",
+      "event": "click",
+      "source": "clearAuditFilters()"
+    },
+    {
+      "id": "priv_0045",
+      "event": "click",
+      "source": "downloadAudits()"
+    },
+    {
+      "id": "priv_0046",
+      "event": "click",
+      "source": "clearAllAudits()"
+    },
+    {
+      "id": "priv_0047",
+      "event": "click",
+      "source": "loadPlans(); loadDiskPlans();"
+    },
+    {
+      "id": "priv_0048",
+      "event": "click",
+      "source": "syncPayPalPlans()"
+    },
+    {
+      "id": "priv_0049",
+      "event": "click",
+      "source": "openCreatePlanModal()"
+    },
+    {
+      "id": "priv_0050",
+      "event": "click",
+      "source": "openCreateDiskPlanModal()"
+    },
+    {
+      "id": "priv_0051",
+      "event": "click",
+      "source": "openModal('modal-admin-upload')"
+    },
+    {
+      "id": "priv_0052",
+      "event": "click",
+      "source": "document.getElementById('admin-file-input-native').click()"
+    },
+    {
+      "id": "priv_0053",
+      "event": "click",
+      "source": "loadAdminVendors()"
+    },
+    {
+      "id": "priv_0054",
+      "event": "click",
+      "source": "clearEvidenceSearch()"
+    },
+    {
+      "id": "priv_0055",
+      "event": "click",
+      "source": "loadEvidenceSummary(this)"
+    },
+    {
+      "id": "priv_0056",
+      "event": "click",
+      "source": "downloadEvidenceZip()"
+    },
+    {
+      "id": "priv_0057",
+      "event": "click",
+      "source": "loadDiagnosticDefaults(this, true)"
+    },
+    {
+      "id": "priv_0058",
+      "event": "click",
+      "source": "runDiagnostics(this)"
+    },
+    {
+      "id": "priv_0059",
+      "event": "click",
+      "source": "runQuickDiagnostics(this)"
+    },
+    {
+      "id": "priv_0060",
+      "event": "click",
+      "source": "copyDiagnosticsJson()"
+    },
+    {
+      "id": "priv_0061",
+      "event": "click",
+      "source": "downloadDiagnosticsJson()"
+    },
+    {
+      "id": "priv_0062",
+      "event": "click",
+      "source": "window.location.reload()"
+    },
+    {
+      "id": "priv_0063",
+      "event": "click",
+      "source": "toggleSidebar()"
+    },
+    {
+      "id": "priv_0064",
+      "event": "click",
+      "source": "closeActionModal()"
+    },
+    {
+      "id": "priv_0065",
+      "event": "mouseover",
+      "source": "this.style.background='rgba(255,255,255,0.1)';this.style.color='white';"
+    },
+    {
+      "id": "priv_0066",
+      "event": "mouseout",
+      "source": "this.style.background='rgba(255,255,255,0.05)';this.style.color='var(--muted)';"
+    },
+    {
+      "id": "priv_0067",
+      "event": "click",
+      "source": "toggleMenuSection(this)"
+    },
+    {
+      "id": "priv_0068",
+      "event": "click",
+      "source": "switchView('servers', this)"
+    },
+    {
+      "id": "priv_0069",
+      "event": "click",
+      "source": "switchView('marketplace', this)"
+    },
+    {
+      "id": "priv_0070",
+      "event": "click",
+      "source": "switchView('my-licenses', this)"
+    },
+    {
+      "id": "priv_0071",
+      "event": "click",
+      "source": "switchView('vendor-portal', this)"
+    },
+    {
+      "id": "priv_0072",
+      "event": "click",
+      "source": "switchView('editor', this)"
+    },
+    {
+      "id": "priv_0073",
+      "event": "click",
+      "source": "switchView('logs', this)"
+    },
+    {
+      "id": "priv_0074",
+      "event": "click",
+      "source": "switchView('rcon', this)"
+    },
+    {
+      "id": "priv_0075",
+      "event": "click",
+      "source": "switchView('subusers', this)"
+    },
+    {
+      "id": "priv_0076",
+      "event": "click",
+      "source": "switchView('schedules', this)"
+    },
+    {
+      "id": "priv_0077",
+      "event": "click",
+      "source": "switchView('database', this)"
+    },
+    {
+      "id": "priv_0078",
+      "event": "click",
+      "source": "switchView('mc-config', this)"
+    },
+    {
+      "id": "priv_0079",
+      "event": "click",
+      "source": "switchView('mc-mods', this)"
+    },
+    {
+      "id": "priv_0080",
+      "event": "click",
+      "source": "switchView('backups', this)"
+    },
+    {
+      "id": "priv_0081",
+      "event": "click",
+      "source": "switchView('txadmin', this)"
+    },
+    {
+      "id": "priv_0082",
+      "event": "click",
+      "source": "switchView('wpadmin', this)"
+    },
+    {
+      "id": "priv_0083",
+      "event": "click",
+      "source": "window.open('https://retro.ragenodes.com', '_blank')"
+    },
+    {
+      "id": "priv_0084",
+      "event": "click",
+      "source": "switchView('blender', this)"
+    },
+    {
+      "id": "priv_0085",
+      "event": "click",
+      "source": "openAdminUploadModal()"
+    },
+    {
+      "id": "priv_0086",
+      "event": "click",
+      "source": "openAdminVendorsModal()"
+    },
+    {
+      "id": "priv_0087",
+      "event": "click",
+      "source": "switchView('settings', document.getElementById('nav-settings'))"
+    },
+    {
+      "id": "priv_0088",
+      "event": "click",
+      "source": "openPoolModal()"
+    },
+    {
+      "id": "priv_0089",
+      "event": "click",
+      "source": "openDeployModal()"
+    },
+    {
+      "id": "priv_0090",
+      "event": "click",
+      "source": "toggleProfileDropdown(event)"
+    },
+    {
+      "id": "priv_0091",
+      "event": "click",
+      "source": "switchView('billing', document.getElementById('nav-billing'))"
+    },
+    {
+      "id": "priv_0092",
+      "event": "click",
+      "source": "openVendorModal()"
+    },
+    {
+      "id": "priv_0093",
+      "event": "click",
+      "source": "closeModal('modal-vendor')"
+    },
+    {
+      "id": "priv_0094",
+      "event": "click",
+      "source": "submitVendorApplication()"
+    },
+    {
+      "id": "priv_0095",
+      "event": "click",
+      "source": "openUploadScriptModal()"
+    },
+    {
+      "id": "priv_0096",
+      "event": "click",
+      "source": "closeModal('modal-upload-script')"
+    },
+    {
+      "id": "priv_0097",
+      "event": "submit",
+      "source": "event.preventDefault(); submitScriptUpload();"
+    },
+    {
+      "id": "priv_0098",
+      "event": "mouseover",
+      "source": "this.style.borderColor='var(--primary)'; this.style.background='rgba(99,102,241,0.1)';"
+    },
+    {
+      "id": "priv_0099",
+      "event": "mouseout",
+      "source": "this.style.borderColor='rgba(99,102,241,0.4)'; this.style.background='rgba(99,102,241,0.05)';"
+    },
+    {
+      "id": "priv_0100",
+      "event": "change",
+      "source": "document.getElementById('up-file-name-display').innerText = this.files[0] ? this.files[0].name : '';"
+    },
+    {
+      "id": "priv_0101",
+      "event": "click",
+      "source": "closeModal('modal-admin-upload')"
+    },
+    {
+      "id": "priv_0102",
+      "event": "click",
+      "source": "document.getElementById('admin-file-input').click()"
+    },
+    {
+      "id": "priv_0103",
+      "event": "change",
+      "source": "processAdminUpload(this.files)"
+    },
+    {
+      "id": "priv_0104",
+      "event": "click",
+      "source": "closeModal('modal-admin-vendors')"
+    },
+    {
+      "id": "priv_0105",
+      "event": "click",
+      "source": "closeModal('modal-install-script')"
+    },
+    {
+      "id": "priv_0106",
+      "event": "click",
+      "source": "confirmInstallScript()"
+    },
+    {
+      "id": "priv_0107",
+      "event": "click",
+      "source": "resendVerification()"
+    },
+    {
+      "id": "priv_0108",
+      "event": "focus",
+      "source": "this.style.borderColor='var(--primary)'"
+    },
+    {
+      "id": "priv_0109",
+      "event": "blur",
+      "source": "this.style.borderColor='rgba(255,255,255,0.05)'"
+    },
+    {
+      "id": "priv_0110",
+      "event": "click",
+      "source": "saveSettings()"
+    },
+    {
+      "id": "priv_0111",
+      "event": "click",
+      "source": "linkDiscordAccount()"
+    },
+    {
+      "id": "priv_0112",
+      "event": "click",
+      "source": "openTicketModal()"
+    },
+    {
+      "id": "priv_0113",
+      "event": "click",
+      "source": "openPlanChangeModal()"
+    },
+    {
+      "id": "priv_0114",
+      "event": "mouseover",
+      "source": "this.style.background='rgba(255,255,255,0.1)'"
+    },
+    {
+      "id": "priv_0115",
+      "event": "mouseout",
+      "source": "this.style.background='rgba(255,255,255,0.05)'"
+    },
+    {
+      "id": "priv_0116",
+      "event": "keyup",
+      "source": "filterFiles()"
+    },
+    {
+      "id": "priv_0117",
+      "event": "click",
+      "source": "fmUploadFile()"
+    },
+    {
+      "id": "priv_0118",
+      "event": "click",
+      "source": "fmUploadFolder()"
+    },
+    {
+      "id": "priv_0119",
+      "event": "click",
+      "source": "openUrlDownloadModal()"
+    },
+    {
+      "id": "priv_0120",
+      "event": "click",
+      "source": "openCreateModal('file')"
+    },
+    {
+      "id": "priv_0121",
+      "event": "click",
+      "source": "openCreateModal('dir')"
+    },
+    {
+      "id": "priv_0122",
+      "event": "click",
+      "source": "fmDownloadFileFromEditor()"
+    },
+    {
+      "id": "priv_0123",
+      "event": "click",
+      "source": "saveConfig()"
+    },
+    {
+      "id": "priv_0124",
+      "event": "click",
+      "source": "startLogStreaming()"
+    },
+    {
+      "id": "priv_0125",
+      "event": "click",
+      "source": "inviteSubuser()"
+    },
+    {
+      "id": "priv_0126",
+      "event": "keyup",
+      "source": "if(event.key==='Enter') sendRconCommand()"
+    },
+    {
+      "id": "priv_0127",
+      "event": "click",
+      "source": "sendRconCommand()"
+    },
+    {
+      "id": "priv_0128",
+      "event": "click",
+      "source": "loadRconPlayers()"
+    },
+    {
+      "id": "priv_0129",
+      "event": "click",
+      "source": "saveGameConfig()"
+    },
+    {
+      "id": "priv_0130",
+      "event": "click",
+      "source": "document.querySelector('#wpadmin-iframe').requestFullscreen()"
+    },
+    {
+      "id": "priv_0131",
+      "event": "click",
+      "source": "window.open(document.querySelector('#wpadmin-iframe').src, '_blank')"
+    },
+    {
+      "id": "priv_0132",
+      "event": "keyup",
+      "source": "if(event.key==='Enter') triggerModSearch()"
+    },
+    {
+      "id": "priv_0133",
+      "event": "click",
+      "source": "triggerModSearch()"
+    },
+    {
+      "id": "priv_0134",
+      "event": "click",
+      "source": "Nexus.copyToClipboard('mariadb'); showToast('Copiado','success');"
+    },
+    {
+      "id": "priv_0135",
+      "event": "click",
+      "source": "Nexus.copyToClipboard(document.getElementById('db-tab-user').innerText); showToast('Copiado','success');"
+    },
+    {
+      "id": "priv_0136",
+      "event": "click",
+      "source": "Nexus.copyToClipboard(document.getElementById('db-tab-pass').innerText); showToast('Copiado','success');"
+    },
+    {
+      "id": "priv_0137",
+      "event": "click",
+      "source": "document.querySelector('#view-database iframe').requestFullscreen()"
+    },
+    {
+      "id": "priv_0138",
+      "event": "click",
+      "source": "openScheduleModal()"
+    },
+    {
+      "id": "priv_0139",
+      "event": "blur",
+      "source": "this.style.borderColor='rgba(255,255,255,0.1)'"
+    },
+    {
+      "id": "priv_0140",
+      "event": "change",
+      "source": "this.nextElementSibling.style.background = this.checked ? 'var(--primary)' : 'rgba(255,255,255,0.1)'; this.nextElementSibling.style.borderColor = this.checked ? 'var(--primary)' : 'rgba(255,255,255,0.2)'; this.nextElementSibling.querySelector('i').style.opacity = this.checked ? '1' : '0';"
+    },
+    {
+      "id": "priv_0141",
+      "event": "change",
+      "source": "this.nextElementSibling.style.background = this.checked ? 'var(--success)' : 'rgba(255,255,255,0.1)'; this.nextElementSibling.querySelector('div').style.transform = this.checked ? 'translateX(20px)' : 'translateX(0)';"
+    },
+    {
+      "id": "priv_0142",
+      "event": "click",
+      "source": "saveAutoRestartConfig()"
+    },
+    {
+      "id": "priv_0143",
+      "event": "mouseover",
+      "source": "this.style.boxShadow='0 0 25px rgba(99,102,241,0.6)'; this.style.transform='translateY(-2px)'"
+    },
+    {
+      "id": "priv_0144",
+      "event": "mouseout",
+      "source": "this.style.boxShadow='0 0 15px rgba(99,102,241,0.4)'; this.style.transform='translateY(0)'"
+    },
+    {
+      "id": "priv_0145",
+      "event": "click",
+      "source": "closePoolModal()"
+    },
+    {
+      "id": "priv_0146",
+      "event": "click",
+      "source": "closePoolModal(); openDeployModal()"
+    },
+    {
+      "id": "priv_0147",
+      "event": "click",
+      "source": "closeScheduleModal()"
+    },
+    {
+      "id": "priv_0148",
+      "event": "click",
+      "source": "saveSchedule()"
+    },
+    {
+      "id": "priv_0149",
+      "event": "click",
+      "source": "loadClientBackups()"
+    },
+    {
+      "id": "priv_0150",
+      "event": "click",
+      "source": "triggerBackup(event)"
+    },
+    {
+      "id": "priv_0151",
+      "event": "click",
+      "source": "showToast('Guardado', 'success')"
+    },
+    {
+      "id": "priv_0152",
+      "event": "click",
+      "source": "Nexus.copyToClipboard(document.getElementById('modal-blender-pass').innerText); showToast('Copiado','success');"
+    },
+    {
+      "id": "priv_0153",
+      "event": "click",
+      "source": "confirmBlenderAuth()"
+    },
+    {
+      "id": "priv_0154",
+      "event": "click",
+      "source": "closeTicketModal()"
+    },
+    {
+      "id": "priv_0155",
+      "event": "click",
+      "source": "sendTicket()"
+    },
+    {
+      "id": "priv_0156",
+      "event": "change",
+      "source": "document.getElementById('cron-payload-container').style.display = this.value === 'command' ? 'block' : 'none'"
+    },
+    {
+      "id": "priv_0157",
+      "event": "click",
+      "source": "saveCronJob()"
+    },
+    {
+      "id": "priv_0158",
+      "event": "click",
+      "source": "saveArkSettings()"
+    },
+    {
+      "id": "priv_0159",
+      "event": "input",
+      "source": "document.getElementById('ark-val-taming').innerText = 'x' + this.value"
+    },
+    {
+      "id": "priv_0160",
+      "event": "input",
+      "source": "document.getElementById('ark-val-harvest').innerText = 'x' + this.value"
+    },
+    {
+      "id": "priv_0161",
+      "event": "input",
+      "source": "document.getElementById('ark-val-xp').innerText = 'x' + this.value"
+    },
+    {
+      "id": "priv_0162",
+      "event": "click",
+      "source": "sendMatchpadCmd('mp_pause')"
+    },
+    {
+      "id": "priv_0163",
+      "event": "click",
+      "source": "sendMatchpadCmd('mp_unpause')"
+    },
+    {
+      "id": "priv_0164",
+      "event": "click",
+      "source": "sendMatchpadCmd('mp_restartgame 1')"
+    },
+    {
+      "id": "priv_0165",
+      "event": "click",
+      "source": "sendMatchpadCmd('changelevel ' + document.getElementById('cs2-map-input').value)"
+    },
+    {
+      "id": "priv_0166",
+      "event": "click",
+      "source": "togglePasswordVisibility('db-pass', this)"
+    },
+    {
+      "id": "priv_0167",
+      "event": "click",
+      "source": "executeAutoInstall('npm')"
+    },
+    {
+      "id": "priv_0168",
+      "event": "mouseover",
+      "source": "this.style.background='rgba(239, 68, 68, 0.2)'"
+    },
+    {
+      "id": "priv_0169",
+      "event": "mouseout",
+      "source": "this.style.background='rgba(239, 68, 68, 0.1)'"
+    },
+    {
+      "id": "priv_0170",
+      "event": "click",
+      "source": "executeAutoInstall('pip')"
+    },
+    {
+      "id": "priv_0171",
+      "event": "mouseover",
+      "source": "this.style.background='rgba(56, 189, 248, 0.2)'"
+    },
+    {
+      "id": "priv_0172",
+      "event": "mouseout",
+      "source": "this.style.background='rgba(56, 189, 248, 0.1)'"
+    },
+    {
+      "id": "priv_0173",
+      "event": "click",
+      "source": "loadDiscordEnvFile()"
+    },
+    {
+      "id": "priv_0174",
+      "event": "click",
+      "source": "saveDiscordEnvFile()"
+    },
+    {
+      "id": "priv_0175",
+      "event": "click",
+      "source": "openTxAdminPopup()"
+    },
+    {
+      "id": "priv_0176",
+      "event": "mouseover",
+      "source": "this.style.transform='translateY(-2px)'; this.style.boxShadow='0 0 30px rgba(99,102,241,0.6)'"
+    },
+    {
+      "id": "priv_0177",
+      "event": "mouseout",
+      "source": "this.style.transform='translateY(0)'; this.style.boxShadow='0 0 20px rgba(99,102,241,0.4)'"
+    },
+    {
+      "id": "priv_0178",
+      "event": "click",
+      "source": "executeFiveMResource('start')"
+    },
+    {
+      "id": "priv_0179",
+      "event": "click",
+      "source": "executeFiveMResource('stop')"
+    },
+    {
+      "id": "priv_0180",
+      "event": "click",
+      "source": "executeFiveMResource('restart')"
+    },
+    {
+      "id": "priv_0181",
+      "event": "click",
+      "source": "executeFiveMResource('ensure')"
+    },
+    {
+      "id": "priv_0182",
+      "event": "click",
+      "source": "Nexus.copyToClipboard('host.docker.internal'); showToast('Copiado','success');"
+    },
+    {
+      "id": "priv_0183",
+      "event": "click",
+      "source": "Nexus.copyToClipboard(document.getElementById('tx-top-db').innerText); showToast('Copiado','success');"
+    },
+    {
+      "id": "priv_0184",
+      "event": "click",
+      "source": "Nexus.copyToClipboard(document.getElementById('tx-top-user').innerText); showToast('Copiado','success');"
+    },
+    {
+      "id": "priv_0185",
+      "event": "click",
+      "source": "Nexus.copyToClipboard(document.getElementById('tx-top-pass').innerText); showToast('Copiado','success');"
+    },
+    {
+      "id": "priv_0186",
+      "event": "click",
+      "source": "refreshTxAdmin()"
+    },
+    {
+      "id": "priv_0187",
+      "event": "click",
+      "source": "document.getElementById('txadmin-iframe').requestFullscreen()"
+    },
+    {
+      "id": "priv_0188",
+      "event": "click",
+      "source": "hideAuthOverlay()"
+    },
+    {
+      "id": "priv_0189",
+      "event": "click",
+      "source": "Nexus.copyToClipboard(document.getElementById('blender-tab-pass').innerText); showToast('Copiado','success');"
+    },
+    {
+      "id": "priv_0190",
+      "event": "click",
+      "source": "document.getElementById('blender-iframe').requestFullscreen()"
+    },
+    {
+      "id": "priv_0191",
+      "event": "click",
+      "source": "toggleBlender(event, currentServerId, 'stop')"
+    },
+    {
+      "id": "priv_0192",
+      "event": "click",
+      "source": "sendMcCmd('whitelist add ' + document.getElementById('mc-player-name').value)"
+    },
+    {
+      "id": "priv_0193",
+      "event": "click",
+      "source": "sendMcCmd('op ' + document.getElementById('mc-player-name').value)"
+    },
+    {
+      "id": "priv_0194",
+      "event": "click",
+      "source": "sendMcCmd('ban ' + document.getElementById('mc-player-name').value)"
+    },
+    {
+      "id": "priv_0195",
+      "event": "click",
+      "source": "saveMcProperties()"
+    },
+    {
+      "id": "priv_0196",
+      "event": "click",
+      "source": "searchMcPlugins()"
+    },
+    {
+      "id": "priv_0197",
+      "event": "click",
+      "source": "savePalworldSettings()"
+    },
+    {
+      "id": "priv_0198",
+      "event": "input",
+      "source": "document.getElementById('pal-val-exp').innerText = 'x' + this.value"
+    },
+    {
+      "id": "priv_0199",
+      "event": "input",
+      "source": "document.getElementById('pal-val-catch').innerText = 'x' + this.value"
+    },
+    {
+      "id": "priv_0200",
+      "event": "click",
+      "source": "executePalworldBroadcast()"
+    },
+    {
+      "id": "priv_0201",
+      "event": "click",
+      "source": "executeRustWipe('map')"
+    },
+    {
+      "id": "priv_0202",
+      "event": "mouseover",
+      "source": "this.style.background='rgba(239,68,68,0.2)'"
+    },
+    {
+      "id": "priv_0203",
+      "event": "mouseout",
+      "source": "this.style.background='rgba(239,68,68,0.1)'"
+    },
+    {
+      "id": "priv_0204",
+      "event": "click",
+      "source": "executeRustWipe('bp')"
+    },
+    {
+      "id": "priv_0205",
+      "event": "mouseover",
+      "source": "this.style.background='rgba(249,115,22,0.2)'"
+    },
+    {
+      "id": "priv_0206",
+      "event": "mouseout",
+      "source": "this.style.background='rgba(249,115,22,0.1)'"
+    },
+    {
+      "id": "priv_0207",
+      "event": "click",
+      "source": "executeRustWipe('full')"
+    },
+    {
+      "id": "priv_0208",
+      "event": "mouseover",
+      "source": "this.style.background='rgba(185,28,28,0.3)'"
+    },
+    {
+      "id": "priv_0209",
+      "event": "mouseout",
+      "source": "this.style.background='rgba(185,28,28,0.2)'"
+    },
+    {
+      "id": "priv_0210",
+      "event": "click",
+      "source": "saveRustSettings()"
+    },
+    {
+      "id": "priv_0211",
+      "event": "click",
+      "source": "searchRustPlugins()"
+    },
+    {
+      "id": "priv_0212",
+      "event": "click",
+      "source": "sendMatchpadCmd('say [ALERTA] La Luna Roja se aproxima!')"
+    },
+    {
+      "id": "priv_0213",
+      "event": "mouseover",
+      "source": "this.style.boxShadow='0 0 15px rgba(239,68,68,0.5)'"
+    },
+    {
+      "id": "priv_0214",
+      "event": "mouseout",
+      "source": "this.style.boxShadow='none'"
+    },
+    {
+      "id": "priv_0215",
+      "event": "click",
+      "source": "updateValheimAccess('add')"
+    },
+    {
+      "id": "priv_0216",
+      "event": "click",
+      "source": "window.open(document.getElementById('wp-url-display').innerText.replace('http://', 'http://'), '_blank')"
+    },
+    {
+      "id": "priv_0217",
+      "event": "click",
+      "source": "window.open(document.getElementById('wp-url-display').innerText + '/wp-admin', '_blank')"
+    },
+    {
+      "id": "priv_0218",
+      "event": "click",
+      "source": "saveZomboidSettings()"
+    }
+  ]
+}

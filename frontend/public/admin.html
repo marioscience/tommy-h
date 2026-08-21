@@ -1753,11 +1753,10 @@
                 const ifr = document.getElementById('oxide-iframe');
                 if (ifr) {
                     Nexus.api('/api/admin/oxide-status').then(d => {
-                        if (d && d.available) {
-                            const token = d.token || (typeof Nexus !== 'undefined' && Nexus.getToken && Nexus.getToken()) || localStorage.getItem('nexus_token') || sessionStorage.getItem('nexus_token') || localStorage.getItem('token') || '';
-                            const targetUrl = token ? ('/oxide/?token=' + encodeURIComponent(token)) : '/oxide/';
+                        const token = (d && d.token) || (typeof Nexus !== 'undefined' && Nexus.getToken && Nexus.getToken()) || localStorage.getItem('nexus_token') || sessionStorage.getItem('nexus_token') || localStorage.getItem('token') || '';
+                        if (d && d.available && token) {
                             ifr.removeAttribute('srcdoc');
-                            ifr.src = targetUrl;
+                            ifr.src = '/oxide/?token=' + encodeURIComponent(token);
                         } else {
                             renderLocalOxideFallback(ifr);
                         }

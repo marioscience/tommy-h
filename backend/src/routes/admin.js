@@ -21,19 +21,19 @@ const router = express.Router();
 router.use(requireAuth, requireAdmin);
 
 router.get('/oxide-status', async (req, res) => {
-    try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 1200);
-        const response = await fetch('http://oxide_control_panel:3000/healthz', { signal: controller.signal });
-        clearTimeout(timeout);
-        if (response.ok) {
-            const freshToken = signToken(req.user);
-            return res.json({ available: true, token: freshToken });
-        }
-        res.json({ available: false });
-    } catch {
-        res.json({ available: false });
+    const freshToken = signToken(req.user);
+    let available = false;
+    const endpoints = ['http://oxide_control_panel:3000/healthz', 'http://127.0.0.1:3000/healthz'];
+    for (const ep of endpoints) {
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 800);
+            const response = await fetch(ep, { signal: controller.signal });
+            clearTimeout(timeout);
+            if (response.ok) { available = true; break; }
+        } catch {}
     }
+    return res.json({ available, token: freshToken });
 });
 
 router.get('/backup-jobs/:jobId', async (req, res) => {
