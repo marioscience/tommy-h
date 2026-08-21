@@ -1,4 +1,4 @@
-# 📚 RageNodes ULTIMATE | Technical & Operational Blueprint (V55.9.2)
+# 📚 RageNodes ULTIMATE | Technical & Operational Blueprint (V0.0.1)
 
 ## 1. Visión General del Proyecto
 **RageNodes** es una plataforma de orquestación de servidores de juego (enfocada en FiveM) diseñada para ofrecer el máximo rendimiento, aislamiento y facilidad de uso. A diferencia de otros paneles, RageNodes integra un motor nativo en **Rust** para manejar el I/O pesado, garantizando que la interfaz de usuario nunca se bloquee, independientemente de la carga del servidor.
