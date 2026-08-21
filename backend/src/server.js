@@ -129,11 +129,12 @@ app.get('/readyz', async (req, res) => {
     }
 });
 
-// 🔒 Limitador de tasa para rutas de autenticación
+// 🔒 Limitador de tasa para rutas de autenticación (Login/Register)
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
     max: 50, // Limitar a 50 peticiones por IP en 15 mins para endpoints de auth
-    message: { error: 'Demasiados intentos de inicio de sesión o registro, por favor intenta de nuevo en 15 minutos.' }
+    message: { error: 'Demasiados intentos de inicio de sesión o registro, por favor intenta de nuevo en 15 minutos.' },
+    skip: (req) => req.path === '/me' || req.originalUrl.includes('/auth/me')
 });
 
 // 🔒 Limitador de tasa para rutas de administrador

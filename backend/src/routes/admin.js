@@ -20,14 +20,15 @@ const router = express.Router();
 // Protegemos todas las rutas con autenticación y rol admin
 router.use(requireAuth, requireAdmin);
 
-router.get('/oxide-status', async (_req, res) => {
+router.get('/oxide-status', async (req, res) => {
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 1200);
         const response = await fetch('http://oxide_control_panel:3000/healthz', { signal: controller.signal });
         clearTimeout(timeout);
         if (response.ok) {
-            return res.json({ available: true });
+            const freshToken = signToken(req.user);
+            return res.json({ available: true, token: freshToken });
         }
         res.json({ available: false });
     } catch {
