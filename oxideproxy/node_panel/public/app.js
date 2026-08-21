@@ -251,9 +251,13 @@ async function fetchAdvancedMetrics() {
         }
 
     } catch (error) {
-        console.error('Error fetching advanced metrics:', error);
-        document.getElementById('nav-pulse').className = 'pulse-dot offline';
-        document.getElementById('nav-status-text').innerText = 'Desconectado del Motor';
+        if (error.name !== 'AbortError') {
+            console.warn('Reintentando conexión con el motor de métricas...', error.message || error);
+        }
+        const pulse = document.getElementById('nav-pulse');
+        const statusText = document.getElementById('nav-status-text');
+        if (pulse) pulse.className = 'pulse-dot offline';
+        if (statusText) statusText.innerText = 'Reconectando con el Motor...';
     }
 }
 

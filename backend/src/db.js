@@ -1,11 +1,17 @@
 import pg from 'pg';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { config } from './config.js';
 import { runMigrations } from './migrations.js';
 
 import { createClient } from 'redis';
 
-export const pool = new pg.Pool({ connectionString: config.databaseUrl });
+export const pool = new pg.Pool({
+  connectionString: config.databaseUrl,
+  max: parseInt(process.env.PG_POOL_MAX || '25', 10),
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
 export async function query(text, params = []) { return pool.query(text, params); }
 
 export async function withTransaction(callback) {
@@ -55,7 +61,8 @@ export async function queryCached(text, params = [], ttlSeconds = 3) {
   try {
     await ensureRedis();
     if (redisClient.isOpen) {
-      const key = `query:${Buffer.from(text).toString('base64')}:${JSON.stringify(params)}`;
+      const hash = crypto.createHash('md5').update(text + ':' + JSON.stringify(params)).digest('hex');
+      const key = `query:${hash}`;
       const cached = await redisClient.get(key);
       if (cached) {
         return JSON.parse(cached);

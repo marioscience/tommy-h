@@ -895,6 +895,10 @@ export async function deleteServer(id, userId, isAdmin) {
   await query('DELETE FROM servers WHERE id = $1', [s.id]);
   try { await fs.rm(s.data_path, { recursive: true, force: true }); } catch {}
 
+  // 🧹 Limpieza de memoria en mapas locales
+  repairBackoffCache.delete(s.id);
+  blenderActivity.delete(s.id);
+
   return { success: true };
 }
 

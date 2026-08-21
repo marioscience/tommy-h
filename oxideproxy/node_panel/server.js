@@ -7,7 +7,7 @@ const os = require('os');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const CONFIG_PATH = process.env.CONFIG_PATH || '/app/rust_config/oxide_proxy.yml';
+const CONFIG_PATH = process.env.CONFIG_PATH || (fs.existsSync('/app/rust_config/oxide_proxy.yml') ? '/app/rust_config/oxide_proxy.yml' : path.join(__dirname, '../config/oxide_proxy.yml'));
 const PROMETHEUS_URL = process.env.PROMETHEUS_URL || 'http://oxide_prometheus:9090';
 const BACKEND_URL = (process.env.BACKEND_URL || 'http://backend:3006').replace(/\/$/, '');
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || '';
