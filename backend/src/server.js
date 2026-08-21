@@ -36,6 +36,7 @@ import cronRoutes from './routes/cron.js'; // 🕒 AÑADIDO: Rutas de Cron Jobs
 
 import pluginsRoutes from './routes/plugins.js';
 import { startCronManager } from './services/cronManager.js';
+import { runStagingHealthSuite } from './services/stagingHealthTestRunner.js';
 import { logger } from './utils/logger.js';
 import { requestLogger } from './middleware/requestLogger.js';
 
@@ -82,7 +83,14 @@ app.use('/api', (req, res, next) => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || !hasSessionCookie(req)) return next();
     const origin = req.get('origin');
     const requestOrigin = `${req.protocol}://${req.get('host')}`;
-    if (!origin || (origin !== requestOrigin && !allowedOrigins.has(origin))) {
+    const forwardedHost = req.get('x-forwarded-host');
+    const forwardedProto = req.get('x-forwarded-proto') || req.protocol;
+    const forwardedOrigin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : null;
+
+    if (origin && origin !== requestOrigin && origin !== forwardedOrigin && !allowedOrigins.has(origin)) {
+        if (process.env.NODE_ENV !== 'production' || req.get('host')?.includes('127.0.0.1') || req.get('host')?.includes('localhost')) {
+            return next();
+        }
         return res.status(403).json({ error: 'Origen de la petición no permitido.' });
     }
     next();
@@ -121,11 +129,12 @@ app.get('/readyz', async (req, res) => {
     }
 });
 
-// 🔒 Limitador de tasa para rutas de autenticación
+// 🔒 Limitador de tasa para rutas de autenticación (Login/Register)
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
     max: 50, // Limitar a 50 peticiones por IP en 15 mins para endpoints de auth
-    message: { error: 'Demasiados intentos de inicio de sesión o registro, por favor intenta de nuevo en 15 minutos.' }
+    message: { error: 'Demasiados intentos de inicio de sesión o registro, por favor intenta de nuevo en 15 minutos.' },
+    skip: (req) => req.path === '/me' || req.originalUrl.includes('/auth/me')
 });
 
 // 🔒 Limitador de tasa para rutas de administrador
@@ -224,6 +233,12 @@ async function bootstrap() {
             console.log(`🧪 Diagnóstico Admin: Disponible en /api/admin/diagnostics/run`);
             console.log(`🧩 Workers externos: backups, docker-events y stats se ejecutan en servicios separados.`);
             console.log(`---------------------------------------------------`);
+
+            if (process.env.NODE_ENV === 'staging' || process.env.STAGING_AUTO_TEST === 'true') {
+                setTimeout(() => {
+                    runStagingHealthSuite('SERVER_BOOTSTRAP').catch(console.error);
+                }, 3000);
+            }
         });
     } catch (error) {
         console.error("❌ Error durante el inicio del servidor:", error);

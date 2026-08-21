@@ -2,6 +2,33 @@
 // OxideProxy • L7 Control Plane v2.0 • Client Logic
 // ==========================================================================
 
+const urlParams = new URLSearchParams(window.location.search);
+const adminToken = urlParams.get('token') || localStorage.getItem('nexus_token') || sessionStorage.getItem('nexus_token') || localStorage.getItem('token') || '';
+if (adminToken) {
+    sessionStorage.setItem('oxide_token', adminToken);
+}
+const activeToken = adminToken || sessionStorage.getItem('oxide_token') || '';
+
+function getAuthHeaders(extraHeaders = {}) {
+    const headers = { ...extraHeaders };
+    if (activeToken) {
+        headers['Authorization'] = `Bearer ${activeToken}`;
+        headers['x-auth-token'] = activeToken;
+    }
+    return headers;
+}
+
+async function authFetch(urlStr, options = {}) {
+    const opts = { ...options };
+    opts.headers = getAuthHeaders(opts.headers || {});
+    let targetUrl = urlStr;
+    if (activeToken && !urlStr.includes('token=')) {
+        const sep = urlStr.includes('?') ? '&' : '?';
+        targetUrl = `${urlStr}${sep}token=${encodeURIComponent(activeToken)}`;
+    }
+    return await fetch(targetUrl, opts);
+}
+
 let currentConfig = null;
 let chartThroughput = null;
 let chartPps = null;
@@ -157,7 +184,7 @@ function initCharts() {
 
 async function fetchAdvancedMetrics() {
     try {
-        const res = await fetch('/api/oxide/metrics/advanced');
+        const res = await authFetch('/api/oxide/metrics/advanced');
         const data = await res.json();
         
         // Actualizar Tarjetas de Estado Rápidas
@@ -236,7 +263,7 @@ async function fetchAdvancedMetrics() {
 
 async function fetchConfig() {
     try {
-        const res = await fetch('/api/oxide/config');
+        const res = await authFetch('/api/oxide/config');
         currentConfig = await res.json();
         populateConfigUI();
     } catch (error) {
@@ -463,7 +490,7 @@ async function saveConfig() {
     currentConfig.runtime.enable_core_pinning = document.getElementById('core-pinning').checked;
 
     try {
-        const res = await fetch('/api/oxide/config', {
+        const res = await authFetch('/api/oxide/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(currentConfig)
@@ -586,7 +613,7 @@ function closeServerChartModal() {
 async function fetchLiveLogs(force = false) {
     if (consolePaused && !force) return;
     try {
-        const res = await fetch(`/api/oxide/logs?game_id=${currentLogFilter}`);
+        const res = await authFetch(`/api/oxide/logs?game_id=${currentLogFilter}`);
         const data = await res.json();
         if (!data.logs) return;
 
@@ -643,7 +670,7 @@ let currentFirewall = { ebpf_xdp: {}, security: { blacklisted_ips: [] } };
 
 async function fetchFirewallRules() {
     try {
-        const res = await fetch('/api/oxide/firewall');
+        const res = await authFetch('/api/oxide/firewall');
         currentFirewall = await res.json();
         if (!currentFirewall.security.blacklisted_ips) {
             currentFirewall.security.blacklisted_ips = [];
@@ -700,7 +727,7 @@ async function saveFirewallRules() {
     };
 
     try {
-        const res = await fetch('/api/oxide/firewall', {
+        const res = await authFetch('/api/oxide/firewall', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ebpf_xdp, security })

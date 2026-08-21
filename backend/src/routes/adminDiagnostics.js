@@ -7,6 +7,7 @@ import https from 'https';
 import { query } from '../db.js';
 import { config } from '../config.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import { runStagingHealthSuite, getLatestTestResult, generateReportHtml } from '../services/stagingHealthTestRunner.js';
 
 const router = express.Router();
 
@@ -331,18 +332,20 @@ router.get('/defaults', async (_req, res) => {
     const { rows } = await query(`
       SELECT id, name, template, status, fivem_port, txadmin_port, container_name
       FROM servers
-      WHERE template = 'fivem'
-        AND status IN ('running', 'online')
-        AND fivem_port IS NOT NULL
+      WHERE fivem_port IS NOT NULL
       ORDER BY fivem_port ASC
     `);
 
-    const ports = rows
+    let ports = rows
       .map((s) => Number(s.fivem_port))
       .filter((p) => Number.isInteger(p) && p > 0);
 
+    if (ports.length === 0) {
+      ports = [30120];
+    }
+
     res.json({
-      publicHost: config.fivemPublicHost || process.env.FIVEM_PUBLIC_IP || 'localhost',
+      publicHost: config.fivemPublicHost || process.env.FIVEM_PUBLIC_IP || '127.0.0.1',
       ports,
       servers: rows
     });
@@ -487,6 +490,31 @@ router.get('/quick', async (req, res) => {
       error: err.message
     });
   }
+});
+
+// 🚀 RUTAS DE DIAGNÓSTICO ADAPTATIVO Y REPORTES DE DESPLIEGUE (PDF/HTML)
+router.get('/test-suite', async (_req, res) => {
+  let result = getLatestTestResult();
+  if (result.status === 'PENDING') {
+    result = await runStagingHealthSuite('MANUAL_QUERY');
+  }
+  res.json(result);
+});
+
+router.post('/run-suite', async (_req, res) => {
+  const result = await runStagingHealthSuite('MANUAL_TRIGGER');
+  res.json(result);
+});
+
+router.get('/report-pdf', async (_req, res) => {
+  let result = getLatestTestResult();
+  if (result.status === 'PENDING') {
+    result = await runStagingHealthSuite('PDF_REQUEST');
+  }
+  const html = generateReportHtml(result);
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Content-Disposition', `inline; filename="ragenodes_deployment_report_${Date.now()}.html"`);
+  res.send(html);
 });
 
 export default router;

@@ -5,10 +5,10 @@ import { query, queryCached } from '../db.js';
 export function signToken(user) {
   return jwt.sign(
     { 
-      sub: user.id, 
+      sub: user.id || user.sub, 
       username: user.username, 
       role: user.role,
-      version: user.token_version || 0 
+      version: user.token_version !== undefined ? user.token_version : (user.version !== undefined ? user.version : 0)
     }, 
     config.jwtSecret, 
     { expiresIn: '24h' }

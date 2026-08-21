@@ -203,9 +203,9 @@ app.disable('x-powered-by');
 app.use((req, res, next) => {
     res.set({
         'Cache-Control': 'no-store',
-        'Content-Security-Policy': "default-src 'self'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'; object-src 'none'; script-src 'self'; script-src-attr 'none'; style-src 'self'; style-src-attr 'none'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-src 'none'; manifest-src 'none'; media-src 'none'; worker-src 'none'",
-        'Cross-Origin-Opener-Policy': 'same-origin',
-        'Cross-Origin-Resource-Policy': 'same-origin',
+        'Content-Security-Policy': "default-src 'self'; base-uri 'none'; frame-ancestors *; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline' https: http:; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https: http:; style-src-attr 'unsafe-inline'; img-src 'self' data: blob: https: http:; connect-src 'self' https: http:; font-src 'self' https: http: data:; frame-src 'self' https: http:; manifest-src 'none'; media-src 'none'; worker-src 'none'",
+        'Cross-Origin-Resource-Policy': 'cross-origin',
+        'Cross-Origin-Embedder-Policy': 'credentialless',
         'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
         'Referrer-Policy': 'no-referrer',
         'X-Content-Type-Options': 'nosniff',
@@ -239,25 +239,57 @@ function requestOriginAllowed(req) {
     }
 }
 
+const tokenCache = new Map();
+
 const requireAdmin = asyncHandler(async (req, res, next) => {
+    const isJson = req.originalUrl.includes('/api/') || (req.headers.accept && req.headers.accept.includes('json'));
     const cookie = req.get('cookie');
-    if (!cookie) return res.status(401).json({ error: 'Autenticación requerida.' });
+    const authHeader = req.get('authorization');
+    const tokenHeader = req.get('x-auth-token') || req.query.token;
+
+    const cacheKey = tokenHeader || authHeader || cookie || '';
+    if (cacheKey) {
+        const cached = tokenCache.get(cacheKey);
+        if (cached && cached.expiresAt > Date.now()) {
+            req.admin = cached.data;
+            return next();
+        }
+    }
+
+    const headers = {};
+    if (cookie) headers.cookie = cookie;
+    if (authHeader) headers.authorization = authHeader;
+    if (tokenHeader) {
+        headers['x-auth-token'] = tokenHeader;
+        if (!headers.authorization) {
+            headers.authorization = `Bearer ${tokenHeader}`;
+        }
+    }
 
     let authResponse;
     try {
         authResponse = await axios.get(`${BACKEND_URL}/api/auth/me`, {
-            headers: { cookie },
+            headers,
             timeout: 3000,
             validateStatus: () => true
         });
     } catch {
-        return res.status(503).json({ error: 'Servicio de autenticación no disponible.' });
+        if (isJson) return res.status(503).json({ error: 'Servicio de autenticación no disponible.' });
+        return res.status(503).send('<!DOCTYPE html><html><head><meta charset="utf-8"><style>h3{color:#f59e0b;font-family:sans-serif;text-align:center;margin-top:50px;}</style></head><body><h3>Servicio de autenticación no disponible.</h3></body></html>');
     }
 
-    if (authResponse.status === 401) return res.status(401).json({ error: 'Sesión no válida.' });
     if (authResponse.status !== 200 || authResponse.data?.role !== 'admin') {
-        return res.status(403).json({ error: 'Acceso reservado a administradores.' });
+        if (isJson) return res.status(403).json({ error: 'Acceso reservado a Administradores.' });
+        return res.status(403).send('<!DOCTYPE html><html><head><meta charset="utf-8"><style>h3{color:#ef4444;font-family:sans-serif;text-align:center;margin-top:50px;}</style></head><body><h3>Acceso reservado a Administradores.</h3></body></html>');
     }
+
+    if (cacheKey) {
+        tokenCache.set(cacheKey, {
+            data: authResponse.data,
+            expiresAt: Date.now() + 30000
+        });
+    }
+
     req.admin = authResponse.data;
     next();
 });

@@ -1,6 +1,6 @@
 {
   "name": "ragenodes-backend",
-  "version": "55.9.0-ultimate",
+  "version": "0.0.1",
   "type": "module",
   "scripts": {
     "start": "node src/server.js",

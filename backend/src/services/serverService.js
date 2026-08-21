@@ -479,7 +479,8 @@ export async function createServerForUser(userId, payload) {
         await dbConnection.query(`FLUSH PRIVILEGES`);
         await dbConnection.end();
     } catch (e) {
-        throw new Error("No se pudo crear la base de datos MySQL para este servidor.");
+        console.error("❌ Error conectando o creando BD MariaDB:", e);
+        throw new Error(`No se pudo crear la base de datos MySQL para este servidor: ${e.message}`);
     }
   }
 

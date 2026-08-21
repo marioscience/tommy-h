@@ -63,17 +63,22 @@ export class BaseGameService {
         const nanoCpus = Math.min(rawNanoCpus, hostCpuCount * 10**9);
         const memoryBytes = opts.plan?.memoryBytes || 4 * 1024 * 1024 * 1024;
 
-        return {
+        const hostConfig = {
             Binds: binds,
             PortBindings: portBindings.bindings,
             RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: memoryBytes,
             NanoCpus: nanoCpus,
             CpuShares: Math.round((nanoCpus / 10**9) * 1024),
-            BlkioWeight: config.dockerBlkioWeight || 100,
             ExtraHosts: ["host.docker.internal:host-gateway"],
             ...GAME_SECURITY_CONFIG
         };
+
+        if (config.dockerBlkioWeight && Number(config.dockerBlkioWeight) > 0) {
+            hostConfig.BlkioWeight = Number(config.dockerBlkioWeight);
+        }
+
+        return hostConfig;
     }
 
     /**
@@ -104,24 +109,37 @@ export class BaseGameService {
         const ports = this.buildPortBindings(opts);
         const hostConfig = this.buildHostConfig(opts, ports, binds);
 
-        const image = opts.customImage || this.defaultImage;
+        const imageName = opts.customImage || this.defaultImage;
+
+        // 🚀 Verificación e Ingesta Automática de Imagen Docker si no existe en el nodo
+        try {
+            await docker.getImage(imageName).inspect();
+        } catch (inspectErr) {
+            console.log(`[BaseGameService] 📥 Descargando imagen Docker ${imageName} en el nodo ${opts.nodeId || 0}...`);
+            try {
+                const stream = await docker.pull(imageName);
+                await new Promise((resolve, reject) => {
+                    docker.modem.followProgress(stream, (err, res) => err ? reject(err) : resolve(res));
+                });
+            } catch (pullErr) {
+                console.warn(`⚠️ [BaseGameService] No se pudo descargar la imagen ${imageName}: ${pullErr.message}`);
+            }
+        }
 
         const container = await docker.createContainer({
-            Image: image,
             name: opts.containerName,
+            Image: imageName,
             Env: env,
             ExposedPorts: ports.exposed,
-            NetworkingConfig: {
-                EndpointsConfig: {
-                    [config.dockerNetwork]: {}
-                }
-            },
-            HostConfig: hostConfig
+            HostConfig: hostConfig,
+            Labels: {
+                "ragenodes.server_id": String(opts.serverId),
+                "ragenodes.game": String(this.gameId)
+            }
         });
 
         await container.start();
         await this.afterStart(container, opts);
-
         return container;
     }
 }
