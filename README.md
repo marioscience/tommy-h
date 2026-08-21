@@ -31,10 +31,11 @@ Whether deploying a large FiveM roleplay community or a multi-node cluster for R
 ## 🌟 Key Features
 - **🕹️ 1-Click Game Deployment:** Instant orchestration for FiveM (txAdmin), Rust, Minecraft (Paper/Java), CS2, Palworld, ARK: Survival Ascended, and 7 Days to Die.
 - **🤖 Discord Bot Hosting:** Secure, isolated containers for Node.js and Python bots with automated health monitoring.
-- **⚡ OxideProxy (Rust Core):** Hyper-optimized Layer 4/7 reverse proxy with TLS termination, cryptographic CSP nonces, eBPF-ready networking, and DDoS mitigation.
+- **⚡ OxideProxy (Rust Core & L7 Control Plane):** Hyper-optimized Layer 4/7 reverse proxy with TLS termination, cryptographic CSP nonces, eBPF-ready networking, 30s token caching, and DDoS mitigation.
+- **🛡️ Dynamic Private IP CORS & CSRF:** Automated Origin matching for private network IPs (`192.168.x.x`, `10.x.x.x`, `172.16-31.x.x`, `127.0.0.1`, `localhost`) enabling seamless state operations.
 - **🐳 Hardened Docker Architecture:** Automated non-root execution (`1000:1000`), minimal capability allowlist, fail-fast volume validations, and Distroless base images.
-- **📊 Real-Time Telemetry:** Live CPU, memory heap, and I/O metrics streaming over WebSockets.
-- **🩺 Production Observability:** Native `/healthz` and `/readyz` probes validating database connectivity and memory limits for load balancers.
+- **📊 Real-Time Telemetry & iFrame Auth:** Live CPU, memory heap, and I/O metrics streaming over WebSockets, with JWT token auto-propagation (`authFetch`).
+- **🩺 Production & Staging Diagnostics:** Native `/healthz`, `/readyz` probes, and an adaptive hardware test suite (`stagingHealthTestRunner.js`) generating PDF/HTML diagnostic reports.
 
 ---
 
@@ -58,7 +59,7 @@ Whether deploying a large FiveM roleplay community or a multi-node cluster for R
 * **Backend:** Node.js (ESM), Express, PostgreSQL, MariaDB, Redis.
 * **Networking/Proxy:** Rust (`oxideproxy`), TLS termination, dynamic CSP nonces, query caching.
 * **Design Patterns:** *Template Method* (`BaseGameService`), *Factory & Registry* (`GameFactory`), *Observer* (Docker Events), *Strategy* (Backups).
-* **Testing:** Native Node.js test runner (`node:test` and `node:assert/strict`).
+* **Testing:** Native Node.js test runner (`node:test` and `node:assert/strict`), Adaptive Hardware Health Test Suite.
 * **Frontend:** Vanilla JS, Glassmorphism CSS, WebSockets for live metrics.
 
 ---
@@ -111,26 +112,25 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
 
 ---
 
-## 🛡️ GitFlow & Team Branching Protocol
+## 🛡️ GitFlow & Release Management Protocol
 
 To protect production stability and avoid merge conflicts, **all developers must strictly follow this protocol**:
 
 ```mermaid
 flowchart LR
-    DevBranch["💻 Your Working Branch<br/><b>feat/*</b> or <b>fix/*</b> or <b>local-niko</b>"] -->|Push to your branch| RemoteBranch["☁️ origin/your-branch"]
+    DevBranch["💻 Your Working Branch<br/><b>feat/*</b> or <b>fix/*</b>"] -->|Push to your branch| RemoteBranch["☁️ origin/your-branch"]
     RemoteBranch -->|Merge Request| Dev["🔒 origin/dev<br/><i>(Team Integration)</i>"]
     Dev --> Staging["🔒 origin/staging<br/><i>(Pre-Production)</i>"]
     Staging --> Main["🚀 origin/main<br/><i>(Production Real)</i>"]
 ```
 
-### 📋 Collaboration Rules:
+### 📋 Collaboration & Tagging Rules:
 1. **Protected Branches (`dev`, `staging`, `main`):**
    - 🚫 **Direct pushes are strictly prohibited.**
-2. **Workflow:**
-   - Always work on your designated branch (`local-niko`, `feat/feature-name`, `fix/bug-name`).
-   - Push to your remote branch: `git push origin my-branch`.
-   - Open a **Merge Request (MR)** on GitLab targeting **`dev`** for peer review.
-   - Once tested in `dev`, it gets promoted to `staging` and finally merged to `main`.
+2. **Sequential Promotion:**
+   - Develop on your feature branch -> PR to `dev` -> promote to `staging` -> merge to `main`.
+3. **Official Releases:**
+   - Tag releases on `main` using semantic versioning (e.g. `v55.9.1`).
 
 ---
 
@@ -142,13 +142,11 @@ The platform implements an environment-aware namespace system (`CF_TUNNEL_ENV_PR
 * **Staging (`CF_TUNNEL_ENV_PREFIX="staging-"`):** Prefixed hostnames (`staging-tx40120.ragenodes.com`, `staging.ragenodes.com`).
 * **Development (`CF_TUNNEL_ENV_PREFIX="dev-"`):** Local hostnames (`dev-tx40120.ragenodes.com`).
 
-*The cleanup daemon strictly partitions ingress rules and protects foreign environment tunnels.*
-
 ---
 
 ## 🕹️ Adding a New Game (Extending `GameFactory`)
 
-To add support for a new game, simply create an OOP service extending `BaseGameService`:
+To add support for a new game, create an OOP service extending `BaseGameService`:
 
 ```javascript
 import { BaseGameService } from './BaseGameService.js';
@@ -211,10 +209,11 @@ Ya sea para desplegar una comunidad masiva de FiveM o un clúster multi-nodo par
 ## 🌟 Características Principales
 - **🕹️ Despliegue en 1-Clic:** Orquestación instantánea para FiveM (txAdmin), Rust, Minecraft, CS2, Palworld, ARK: Survival Ascended y 7 Days to Die.
 - **🤖 Hosting de Bots de Discord:** Contenedores seguros y aislados para bots en Node.js y Python con monitoreo de salud.
-- **⚡ OxideProxy (Núcleo en Rust):** Proxy inverso L4/L7 hiper-optimizado con terminación TLS, nonces criptográficos CSP y mitigación DDoS.
+- **⚡ OxideProxy (Núcleo en Rust & L7 Control Plane):** Proxy inverso L4/L7 hiper-optimizado con terminación TLS, nonces criptográficos CSP, caché de tokens de 30s y mitigación DDoS.
+- **🛡️ CORS y CSRF Dinámico para IPs Privadas:** Evaluación automática de origen para redes locales (`192.168.x.x`, `10.x.x.x`, `172.16-31.x.x`, `127.0.0.1`, `localhost`) permitiendo modificaciones de estado sin bloqueos.
 - **🐳 Blindaje de Docker:** Ejecución rootless (`1000:1000`), lista de capacidades mínimas, validación fail-fast de volúmenes e imágenes Distroless.
-- **📊 Telemetría en Tiempo Real:** Métricas de CPU, memoria heap e I/O transmitidas por WebSockets.
-- **🩺 Observabilidad de Producción:** Sondas nativas `/healthz` y `/readyz` para validación de bases de datos y memoria por balanceadores de carga.
+- **📊 Telemetría en Tiempo Real e iframe Autenticado:** Métricas de CPU, memoria heap e I/O transmitidas por WebSockets, con auto-propagación de tokens JWT (`authFetch`).
+- **🩺 Diagnóstico Adaptativo de Salud:** Sondas nativas `/healthz`, `/readyz` y runner adaptativo en Staging (`stagingHealthTestRunner.js`) con generación de reportes PDF/HTML.
 
 ---
 
@@ -236,9 +235,9 @@ Ya sea para desplegar una comunidad masiva de FiveM o un clúster multi-nodo par
 
 ## 🛠️ Stack Tecnológico
 * **Backend:** Node.js (ESM), Express, PostgreSQL, MariaDB, Redis.
-* **Capa de Red & Proxy:** Rust (`oxideproxy`), TLS termination, Nonce CSP y caché de consultas.
+* **Capa de Red & Proxy:** Rust (`oxideproxy`), TLS termination, Nonce CSP, caché de consultas y evaluador de seguridad L7.
 * **Patrones de Diseño:** *Template Method* (`BaseGameService`), *Factory & Registry* (`GameFactory`), *Observer* (Docker Events), *Strategy* (Backups).
-* **Testing:** Test runner nativo de Node.js (`node:test` y `node:assert/strict`).
+* **Testing:** Test runner nativo de Node.js (`node:test` y `node:assert/strict`) y suite adaptativa de hardware.
 * **Frontend:** Vanilla JS moderno, CSS Glassmorphism, WebSockets para métricas en vivo.
 
 ---
@@ -297,20 +296,22 @@ Para garantizar la estabilidad y prevenir conflictos o regresiones en los servid
 
 ```mermaid
 flowchart LR
-    DevBranch["💻 Tu Rama de Trabajo<br/><b>feat/*</b> o <b>fix/*</b> o <b>local-niko</b>"] -->|Push a tu rama| RemoteBranch["☁️ origin/tu-rama"]
+    DevBranch["💻 Tu Rama de Trabajo<br/><b>feat/*</b> o <b>fix/*</b>"] -->|Push a tu rama| RemoteBranch["☁️ origin/tu-rama"]
     RemoteBranch -->|Merge Request| Dev["🔒 origin/dev<br/><i>(Integración del equipo)</i>"]
     Dev --> Staging["🔒 origin/staging<br/><i>(Pre-producción)</i>"]
     Staging --> Main["🚀 origin/main<br/><i>(Producción Real)</i>"]
 ```
 
-### 📋 Reglas de Colaboración:
+### 📋 Reglas de Colaboración y Etiquetado:
 1. **Ramas Protegidas (`dev`, `staging`, `main`):**
    - 🚫 **PROHIBIDO hacer push directo** a `dev`, `staging` o `main`.
 2. **Flujo de Trabajo:**
-   - Trabaja siempre en tu rama asignada (ej: `local-niko`, `feat/nombre-feature`, `fix/nombre-bug`).
+   - Trabaja siempre en tu rama asignada (ej: `feat/nombre-feature`, `fix/nombre-bug`).
    - Sube los cambios a tu rama remota: `git push origin mi-rama`.
    - Abre un **Merge Request (MR)** en GitLab hacia la rama **`dev`** para revisión del equipo.
    - Una vez aprobado y probado en `dev`, se promueve a `staging` y posteriormente a `main`.
+3. **Versionado Oficial:**
+   - Cada release oficial en `main` debe ser etiquetado mediante tags semánticos (ej: `v55.9.1`).
 
 ---
 
@@ -321,8 +322,6 @@ El proyecto cuenta con un sistema de aislamiento por prefijos (`CF_TUNNEL_ENV_PR
 * **Producción (`CF_TUNNEL_ENV_PREFIX=""`):** Hostnames limpios (`tx40120.ragenodes.com`, `node1.ragenodes.com`).
 * **Staging (`CF_TUNNEL_ENV_PREFIX="staging-"`):** Hostnames prefijados (`staging-tx40120.ragenodes.com`, `staging.ragenodes.com`).
 * **Desarrollo (`CF_TUNNEL_ENV_PREFIX="dev-"`):** Hostnames locales (`dev-tx40120.ragenodes.com`).
-
-*Los workers de limpieza solo pueden evaluar y eliminar túneles que coincidan con su prefijo exacto.*
 
 ---
 
