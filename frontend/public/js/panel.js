@@ -897,6 +897,20 @@ function toggleSidebar() {
                 else el.classList.add('hidden');
             });
 
+            const gameViews = document.getElementById('game-specific-views');
+            if (gameViews) {
+                const hasVisibleChild = gameViews.querySelector('.view-fullscreen:not(.hidden)');
+                if (!hasVisibleChild) {
+                    gameViews.style.display = 'none';
+                } else {
+                    gameViews.style.display = 'flex';
+                    gameViews.style.flexDirection = 'column';
+                    gameViews.style.flexGrow = '1';
+                    gameViews.style.height = '100%';
+                    gameViews.style.width = '100%';
+                }
+            }
+
             // Actualizar el estado activo en la barra lateral
             const navElement = element || document.getElementById('nav-' + viewId);
             if (navElement && navElement.classList.contains('nav-item')) {

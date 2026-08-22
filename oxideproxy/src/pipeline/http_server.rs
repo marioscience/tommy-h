@@ -120,8 +120,8 @@ fn is_admin_surface(path: &str) -> bool {
         || path == "/admin.html"
         || path.starts_with("/admin/")
         || path.starts_with("/api/admin")
-        || path == "/pma"
-        || path.starts_with("/pma/")
+        
+        
 }
 
 fn forbidden_admin_response() -> Response<Body> {
@@ -165,19 +165,20 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
     let headers = response.headers_mut();
     headers.remove("server");
     headers.remove("x-powered-by");
+    headers.remove("content-security-policy");
     headers.remove("x-content-security-policy");
     headers.remove("x-webkit-csp");
+    headers.remove("x-frame-options");
+    headers.remove("cross-origin-resource-policy");
+    headers.remove("cross-origin-embedder-policy");
+    headers.remove("cross-origin-opener-policy");
     headers.insert(
         HeaderName::from_static("x-content-type-options"),
         HeaderValue::from_static("nosniff"),
     );
     headers.insert(
         HeaderName::from_static("x-frame-options"),
-        if allow_same_origin_framing || allow_pma_framing {
-            HeaderValue::from_static("SAMEORIGIN")
-        } else {
-            HeaderValue::from_static("DENY")
-        },
+        HeaderValue::from_static("SAMEORIGIN"),
     );
     headers.insert(
         HeaderName::from_static("referrer-policy"),
@@ -208,12 +209,9 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
     }
     headers.insert(
         HeaderName::from_static("cross-origin-resource-policy"),
-        HeaderValue::from_static("same-origin"),
+        HeaderValue::from_static("cross-origin"),
     );
-    headers.insert(
-        HeaderName::from_static("cross-origin-embedder-policy"),
-        HeaderValue::from_static("credentialless"),
-    );
+    headers.remove("cross-origin-embedder-policy");
     let csp = if let Some(profile) = page_security.as_ref() {
         let third_party = match (profile.allows_paypal, profile.allows_internal_frames) {
             (true, true) => "img-src 'self' data: blob: https://images.unsplash.com https://placehold.co https://ragenodes.com https://static.wikia.nocookie.net https://umod.org https://www.paypal.com https://www.paypalobjects.com; connect-src 'self' https://www.paypal.com https://www.paypalobjects.com; frame-src 'self' https://*.ragenodes.com https://www.paypal.com;",

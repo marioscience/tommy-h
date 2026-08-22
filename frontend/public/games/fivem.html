@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 <template class="game-module-rcon">
     <div id="rcon-panel-fivem" class="hidden">
         <div style="background: rgba(15, 15, 18, 0.6); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 16px; padding: 40px 30px; text-align: center; margin-top: 20px; position: relative; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
@@ -156,3 +157,184 @@
 </template>
 
 
+=======
+<template class="game-module-rcon">
+    <div id="rcon-panel-fivem" class="hidden">
+        <div style="background: rgba(15, 15, 18, 0.6); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 16px; padding: 40px 30px; text-align: center; margin-top: 20px; position: relative; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+            <div style="position: absolute; top: -50px; left: 50%; transform: translateX(-50%); width: 200px; height: 100px; background: var(--primary); filter: blur(80px); opacity: 0.15; border-radius: 50%;"></div>
+            <div style="display: inline-flex; justify-content: center; align-items: center; width: 80px; height: 80px; border-radius: 50%; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2); margin-bottom: 20px; box-shadow: 0 0 30px rgba(99, 102, 241, 0.2);">
+                <i class="fa-solid fa-shield-halved" style="font-size: 32px; color: var(--primary); text-shadow: 0 0 15px var(--primary);"></i>
+            </div>
+            <h3 style="color: white; font-size: 1.5rem; font-weight: 800; margin-bottom: 15px; letter-spacing: -0.5px;">Administración Avanzada</h3>
+            <p style="color: #94a3b8; font-size: 1.05rem; max-width: 500px; margin: 0 auto 30px; line-height: 1.6;">
+                La gestión de jugadores, comandos y reportes para servidores de <strong style="color:white;">FiveM</strong> se administra de forma nativa a través del panel premium de <strong style="color:white;">txAdmin</strong>.
+            </p>
+            <button class="btn" data-rn-onclick="priv_0175" style="background: var(--primary); color: white; border: none; font-size: 1.05rem; font-weight: 600; padding: 12px 30px; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 0 20px rgba(99,102,241,0.4);" data-rn-onmouseover="priv_0176" data-rn-onmouseout="priv_0177">
+                <i class="fa-solid fa-arrow-up-right-from-square" style="margin-right: 8px;"></i> Abrir txAdmin
+            </button>
+
+            <!-- Resource Control -->
+            <div style="margin-top: 40px; padding-top: 30px; border-top: 1px solid rgba(255,255,255,0.05); text-align: left;">
+                <h4 style="color: white; font-size: 1.1rem; margin-bottom: 15px;"><i class="fa-solid fa-boxes-stacked" style="color: #6366f1; margin-right: 8px;"></i> Control de Recursos en Vivo</h4>
+                <p class="muted" style="font-size: 0.9rem; margin-bottom: 15px;">Inicia, detiene o reinicia recursos sin necesidad de abrir la consola ni txAdmin. <strong style="color: #fbbf24;">(El servidor debe estar encendido)</strong></p>
+                
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <input type="text" id="fivem-resource-name" class="input" style="background: rgba(0,0,0,0.4); flex-grow: 1; min-width: 200px;" placeholder="Ej. qb-core">
+                    
+                    <button class="btn btn-success" data-rn-onclick="priv_0178" style="padding: 10px 20px;">
+                        <i class="fa-solid fa-play"></i> Start
+                    </button>
+                    <button class="btn btn-danger" data-rn-onclick="priv_0179" style="padding: 10px 20px;">
+                        <i class="fa-solid fa-stop"></i> Stop
+                    </button>
+                    <button class="btn btn-warning" data-rn-onclick="priv_0180" style="padding: 10px 20px; color: black;">
+                        <i class="fa-solid fa-rotate-right"></i> Restart
+                    </button>
+                    <button class="btn btn-info" data-rn-onclick="priv_0181" style="padding: 10px 20px; color: black;">
+                        <i class="fa-solid fa-check-double"></i> Ensure
+                    </button>
+                </div>
+            </div>
+
+            <script>
+                async function executeFiveMResource(action) {
+                    const resourceName = document.getElementById('fivem-resource-name').value.trim();
+                    if (!resourceName) return showToast('Escribe el nombre del recurso.', 'error');
+                    
+                    const command = `${action} ${resourceName}`;
+                    try {
+                        const res = await Nexus.api(`/api/servers/${currentServerId}/command`, { method: 'POST', body: JSON.stringify({ command }) });
+                        if (res.error) throw new Error(res.error);
+                        showToast(`Comando '${command}' enviado al servidor.`, 'success');
+                    } catch (e) {
+                        showToast(e.message, 'error');
+                    }
+                }
+            </script>
+
+        </div>
+    </div>
+</template>
+
+
+
+<template class="game-module-views">
+    <style>
+        /* CSS inyectado para forzar altura en navegadores rebeldes */
+        #game-specific-views {
+            height: 100% !important;
+            width: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            flex-grow: 1 !important;
+            min-height: 0 !important;
+        }
+        #view-txadmin, #view-blender {
+            height: 100% !important;
+            min-height: calc(100vh - 180px) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            flex-grow: 1 !important;
+        }
+        #view-txadmin > div, #view-blender > div {
+            height: 100% !important;
+            min-height: calc(100vh - 180px) !important;
+            display: grid !important;
+            grid-template-rows: auto 1fr !important;
+        }
+        #txadmin-iframe-container, #blender-iframe-container {
+            height: 100% !important;
+            min-height: calc(100vh - 240px) !important;
+            flex: 1 1 auto !important;
+            position: relative !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        #txadmin-iframe, #blender-iframe {
+            height: 100% !important;
+            min-height: calc(100vh - 240px) !important;
+            width: 100% !important;
+        }
+        #txadmin-offline-overlay, #txadmin-auth-overlay {
+            position: absolute !important;
+            top: 0 !important; bottom: 0 !important; left: 0 !important; right: 0 !important;
+            height: 100% !important; width: 100% !important;
+            min-height: calc(100vh - 240px) !important;
+        }
+    </style>
+    <div id="view-txadmin" class="hidden view-fullscreen" style="height: 100%; min-height: calc(100vh - 180px);">
+        <div style="display: grid; grid-template-rows: auto 1fr; height: 100%; min-height: calc(100vh - 180px); border-radius: 12px; overflow: hidden; background: #000; border: 1px solid var(--line);">
+            <div style="background: #1a1a1e; padding: 12px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); flex-wrap:wrap; gap:10px; z-index:20;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <i class="fa-solid fa-shield-halved" style="color:var(--primary); font-size:1.2rem;"></i>
+                    <span style="font-weight:600; color:white; font-size:1.05rem;">txAdmin Web</span>
+                </div>
+
+                <div style="display: flex; gap: 15px; align-items: center; flex-wrap:wrap; margin-left:auto;">
+                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">Host: <strong style="color:white">host.docker.internal</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar Host" data-rn-onclick="priv_0182"></i></div>
+                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">DB: <strong style="color:white" id="tx-top-db">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar DB" data-rn-onclick="priv_0183"></i></div>
+                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">User: <strong style="color:white" id="tx-top-user">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar Usuario" data-rn-onclick="priv_0184"></i></div>
+                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">Pass: <strong style="color:var(--warning)" id="tx-top-pass">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar Contraseña" data-rn-onclick="priv_0185"></i></div>
+
+                    <button class="btn-ghost" style="padding:6px 12px; margin-left:15px;" data-rn-onclick="priv_0186" title="Recargar Panel"><i class="fa-solid fa-rotate-right"></i></button>
+                    <button class="btn-ghost" style="padding:6px 12px;" data-rn-onclick="priv_0187" title="Pantalla Completa"><i class="fa-solid fa-expand"></i></button>
+                </div>
+            </div>
+
+            <div id="txadmin-iframe-container" style="position: relative; width: 100%; height: 100%; flex-grow: 1; display: flex; flex-direction: column; min-height: 0;">
+                <div id="txadmin-auth-overlay" style="position:absolute; top:0; left:0; right:0; bottom:0; width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#121214; z-index:15; display:none;">
+                    <i class="fa-solid fa-shield-halved" style="font-size: 3.5rem; color: var(--primary); margin-bottom: 20px; opacity: 0.8;"></i>
+                    <h3 style="color: white; font-size: 1.4rem; margin-bottom: 10px;">Vinculación de txAdmin</h3>
+                    <p class="muted" style="max-width: 450px; text-align: center; margin-bottom: 25px; line-height: 1.5;">Para gestionar tu servidor por primera vez, debes vincular tu cuenta de FiveM (Cfx.re) usando el PIN proporcionado en la consola de tu servidor.</p>
+
+                    <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); padding: 20px 25px; border-radius: 8px; margin-bottom: 25px; text-align: left; width: 100%; max-width: 420px;">
+                        <div style="margin-bottom: 12px; font-size: 0.9rem; color: #e2e8f0;"><strong style="color:var(--info);">1.</strong> Abre la ventana flotante con el botón inferior.</div>
+                        <div style="margin-bottom: 12px; font-size: 0.9rem; color: #e2e8f0;"><strong style="color:var(--info);">2.</strong> Introduce el PIN que aparece en Consola Live.</div>
+                        <div style="font-size: 0.9rem; color: #e2e8f0;"><strong style="color:var(--info);">3.</strong> Inicia sesión en Cfx.re y haz clic en el botón gris de abajo para continuar.</div>
+                    </div>
+
+                    <div style="display:flex; gap:15px;">
+                        <button class="btn-success" style="padding: 12px 20px;" data-rn-onclick="priv_0175"><i class="fa-solid fa-key"></i> Vincular PIN (Popup)</button>
+                        <button class="btn-ghost" style="padding: 12px 20px;" data-rn-onclick="priv_0188"><i class="fa-solid fa-check"></i> Ya lo he vinculado</button>
+                    </div>
+                </div>
+
+                <div id="txadmin-offline-overlay" style="position:absolute; top:0; left:0; right:0; bottom:0; width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#121214; z-index:10;">
+                    <i class="fa-solid fa-power-off" style="font-size: 3rem; color: var(--danger); margin-bottom: 15px;"></i>
+                    <h3 style="color: white; font-size: 1.2rem;">Servidor Apagado</h3>
+                    <p class="muted">Inicia tu servidor para acceder a txAdmin.</p>
+                </div>
+
+                <iframe id="txadmin-iframe" src="" style="width: 100%; height: 100%; flex-grow: 1; border: none; display: block;"></iframe>
+            </div>
+        </div>
+    </div>
+</template>
+
+
+<template class="game-module-views">
+      <div id="view-blender" class="hidden view-fullscreen">
+        <div style="display: grid; grid-template-rows: auto 1fr; height: 100%; border-radius: 12px; overflow: hidden; background: #000; border: 1px solid var(--line);">
+            <div style="background: #1a1a1e; padding: 12px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); flex-wrap:wrap; gap:10px; flex-shrink: 0;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <i class="fa-solid fa-cube" style="color:var(--success); font-size:1.2rem;"></i>
+                    <span style="font-weight:600; color:white; font-size:1.05rem;">Editor 3D</span>
+                </div>
+                <div style="display: flex; gap: 15px; align-items: center; flex-wrap:wrap;">
+                    <div class="mono" style="color:var(--muted)">User: <strong style="color:white" id="blender-tab-user">admin</strong></div>
+                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">Pass: <strong style="color:var(--warning)" id="blender-tab-pass">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:white;" data-rn-onclick="priv_0189"></i></div>
+                    <div style="display:flex; gap:8px; margin-left:auto;">
+                        <button class="btn-ghost" style="padding:6px 12px;" data-rn-onclick="priv_0190"><i class="fa-solid fa-expand"></i> Pantalla Completa</button>
+                        <button class="btn-danger" style="padding:6px 12px; background: rgba(239, 68, 68, 0.15);" data-rn-onclick="priv_0191"><i class="fa-solid fa-power-off"></i> Cerrar Entorno</button>
+                    </div>
+                </div>
+            </div>
+            <div id="blender-iframe-container" style="position: relative; width: 100%; height: 100%; flex-grow: 1; display: flex; flex-direction: column; min-height: 0;">
+                <iframe id="blender-iframe" src="" style="width: 100%; height: 100%; flex-grow: 1; border: none; display: none;"></iframe>
+            </div>
+        </div>
+      </div>
+</template>
+
+
+>>>>>>> Stashed changes
