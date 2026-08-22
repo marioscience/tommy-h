@@ -205,8 +205,8 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
     let csp = if let Some(profile) = page_security.as_ref() {
         let third_party = "img-src 'self' data: blob: https: http:; connect-src 'self' https: http:; frame-src 'self' https: http:;";
         format!(
-            "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self' *; form-action 'self'; script-src 'nonce-{}' 'unsafe-inline' 'self' https: http:; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https: http:; style-src-elem 'self' 'unsafe-inline' 'nonce-{}' https: http:; style-src-attr 'unsafe-inline'; font-src 'self' https: http: data:; {} worker-src 'self' blob:; manifest-src 'self'",
-            profile.nonce, profile.nonce, third_party
+            "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self' *; form-action 'self'; script-src 'nonce-{}' 'unsafe-inline' 'self' https: http:; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https: http:; style-src-elem 'self' 'unsafe-inline' https: http:; style-src-attr 'unsafe-inline'; font-src 'self' https: http: data:; {} worker-src 'self' blob:; manifest-src 'self'",
+            profile.nonce, third_party
         )
     } else if allow_same_origin_framing {
         "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self' *; form-action 'self'; script-src 'self' 'unsafe-inline' https: http:; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https: http:; style-src-elem 'self' 'unsafe-inline' https: http:; style-src-attr 'unsafe-inline'; font-src 'self' https: http: data:; img-src 'self' data: blob: https: http:; connect-src 'self' https: http:; frame-src 'self' https: http:; worker-src 'none'; manifest-src 'none'".to_string()

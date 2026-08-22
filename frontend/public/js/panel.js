@@ -2092,7 +2092,7 @@ function toggleSidebar() {
                         <div class="server-icon">
                             ${hasCustomIcon ? `
                                 <img src="${iconUrl}" class="static-bg" ${rnBind("error", (event, element) => { element.onerror=null; element.style.display='none'; if (element.nextElementSibling) element.nextElementSibling.style.display='none'; const fb = element.parentElement.querySelector('.fallback-icon'); if (fb) fb.style.display='flex'; })}>
-                                <img src="${iconUrl}" class="rotating-core">
+                                <img src="${iconUrl}" class="rotating-core" ${rnBind("error", (event, element) => { element.onerror=null; element.style.display='none'; })}>
                                 <div class="fallback-icon" style="display:none; width:100%; height:100%; align-items:center; justify-content:center;">${fallbackIcon}</div>
                             ` : `
                                 <div class="fallback-icon" style="display:flex; width:100%; height:100%; align-items:center; justify-content:center;">${fallbackIcon}</div>
