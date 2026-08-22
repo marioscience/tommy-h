@@ -1,4 +1,4 @@
-FROM lscr.io/linuxserver/webtop:ubuntu-xfce
+FROM lscr.io/linuxserver/webtop:ubuntu-xfce@sha256:5079531006cfe3777969da37b3f61f8c82e4112a7a67c23b4e1f12e5976804eb
 
 # 1. Instalar Blender Oficial (AVX2/SSE4 optimizado), utilidades básicas y wmctrl
 RUN apt-get update && \

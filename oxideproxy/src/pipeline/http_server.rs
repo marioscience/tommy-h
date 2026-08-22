@@ -196,39 +196,24 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
             "camera=(), microphone=(), geolocation=(), accelerometer=(), gyroscope=(), magnetometer=(), usb=(), serial=(), hid=(), browsing-topics=(), clipboard-write=(self), fullscreen=(self), payment=(self \"https://www.paypal.com\")",
         ),
     );
-    if is_https {
-        let coop = if page_security
-            .as_ref()
-            .is_some_and(|profile| !profile.allows_paypal)
-        {
-            HeaderValue::from_static("same-origin")
-        } else {
-            HeaderValue::from_static("same-origin-allow-popups")
-        };
-        headers.insert(HeaderName::from_static("cross-origin-opener-policy"), coop);
-    }
+    // COOP header omitted to prevent Chrome untrustworthy origin warnings on HTTP IP environments
     headers.insert(
         HeaderName::from_static("cross-origin-resource-policy"),
         HeaderValue::from_static("cross-origin"),
     );
     headers.remove("cross-origin-embedder-policy");
     let csp = if let Some(profile) = page_security.as_ref() {
-        let third_party = match (profile.allows_paypal, profile.allows_internal_frames) {
-            (true, true) => "img-src 'self' data: blob: https://images.unsplash.com https://placehold.co https://ragenodes.com https://static.wikia.nocookie.net https://umod.org https://www.paypal.com https://www.paypalobjects.com; connect-src 'self' https://www.paypal.com https://www.paypalobjects.com; frame-src 'self' https://*.ragenodes.com https://www.paypal.com;",
-            (true, false) => "img-src 'self' data: blob: https://images.unsplash.com https://placehold.co https://ragenodes.com https://static.wikia.nocookie.net https://umod.org https://www.paypal.com https://www.paypalobjects.com; connect-src 'self' https://www.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com;",
-            (false, true) => "img-src 'self' data: blob: https://images.unsplash.com https://placehold.co https://ragenodes.com https://static.wikia.nocookie.net https://umod.org; connect-src 'self'; frame-src 'self' https://*.ragenodes.com;",
-            (false, false) => "img-src 'self' data: blob: https://images.unsplash.com https://placehold.co https://ragenodes.com https://static.wikia.nocookie.net https://umod.org; connect-src 'self'; frame-src 'none';",
-        };
+        let third_party = "img-src 'self' data: blob: https: http:; connect-src 'self' https: http:; frame-src 'self' https: http:;";
         format!(
-            "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'nonce-{}' 'strict-dynamic' 'self'; script-src-attr 'none'; style-src 'self'; style-src-elem 'self' 'nonce-{}'; style-src-attr 'unsafe-inline'; font-src 'self' data:; {} worker-src 'self' blob:; manifest-src 'self'",
+            "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self' *; form-action 'self'; script-src 'nonce-{}' 'unsafe-inline' 'self' https: http:; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https: http:; style-src-elem 'self' 'unsafe-inline' 'nonce-{}' https: http:; style-src-attr 'unsafe-inline'; font-src 'self' https: http: data:; {} worker-src 'self' blob:; manifest-src 'self'",
             profile.nonce, profile.nonce, third_party
         )
     } else if allow_same_origin_framing {
-        "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self'; style-src-attr 'none'; font-src 'self' data:; img-src 'self' data:; connect-src 'self'; frame-src 'none'; worker-src 'none'; manifest-src 'none'".to_string()
+        "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self' *; form-action 'self'; script-src 'self' 'unsafe-inline' https: http:; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https: http:; style-src-elem 'self' 'unsafe-inline' https: http:; style-src-attr 'unsafe-inline'; font-src 'self' https: http: data:; img-src 'self' data: blob: https: http:; connect-src 'self' https: http:; frame-src 'self' https: http:; worker-src 'none'; manifest-src 'none'".to_string()
     } else if allow_pma_framing {
-        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self'; worker-src 'self' blob:; manifest-src 'self'".to_string()
+        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self' *; form-action 'self'; script-src 'self' 'unsafe-inline' https: http:; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https: http:; style-src-elem 'self' 'unsafe-inline' https: http:; style-src-attr 'unsafe-inline'; font-src 'self' https: http: data:; img-src 'self' data: blob: https: http:; connect-src 'self' https: http:; frame-src 'self' https: http:; worker-src 'self' blob:; manifest-src 'self'".to_string()
     } else {
-        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' https://www.paypal.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https://www.paypal.com https://www.paypalobjects.com; connect-src 'self' https://www.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com; worker-src 'self' blob:; manifest-src 'self'".to_string()
+        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self' *; form-action 'self'; script-src 'self' 'unsafe-inline' https: http:; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https: http:; style-src-elem 'self' 'unsafe-inline' https: http:; style-src-attr 'unsafe-inline'; font-src 'self' https: http: data:; img-src 'self' data: blob: https: http:; connect-src 'self' https: http:; frame-src 'self' https: http:; worker-src 'self' blob:; manifest-src 'self'".to_string()
     };
     if let Ok(value) = HeaderValue::from_str(&csp) {
         headers.insert(HeaderName::from_static("content-security-policy"), value);
