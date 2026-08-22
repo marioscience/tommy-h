@@ -23,7 +23,7 @@ let downloadWorkerBusy = false;
 
 export const getSafePath = (base, target) => {
     const resolvedBase = path.resolve(base);
-    const cleanTarget = (target || '').replace(/^/+/, '');
+    const cleanTarget = (target || '').replace(/^\/+/, '');
     const resolvedTarget = path.resolve(resolvedBase, cleanTarget || '.');
 
     if (resolvedTarget !== resolvedBase && !resolvedTarget.startsWith(resolvedBase + path.sep)) {

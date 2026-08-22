@@ -1,6 +1,6 @@
 import { query, logAudit } from '../db.js';
 import { getServerByIdForUser } from './serverService.js';
-import { getGameService } from './games/GameFactory.js';
+import { GameFactory } from './games/GameFactory.js';
 import { blenderActivity } from './serverService.js';
 
 export async function setServerBackupTime(id, userId, time, isAdmin) {
@@ -72,7 +72,7 @@ export async function toggleBlenderForServer(id, userId, isAdmin, action) {
   const s = await getServerByIdForUser(id, userId, isAdmin, 'settings');
   if (!s) throw new Error('Servidor no encontrado o sin permisos');
 
-  const gameSvc = getGameService(s.template);
+  const gameSvc = GameFactory.get(s.template);
   if (!gameSvc || typeof gameSvc.toggleBlender !== 'function') {
     throw new Error('Este servidor no soporta Blender Studio 3D');
   }

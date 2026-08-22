@@ -4,6 +4,7 @@ import * as Docker from './dockerService.js';
 import { getServerByIdForUser } from './serverService.js';
 import { GameFactory } from './games/GameFactory.js';
 import { cleanOrphanedTunnels } from './cloudflareService.js';
+const MAINTENANCE_INTERVAL_MS = Math.max(300000, Number(process.env.MAINTENANCE_INTERVAL_MS || 600000));
 
 export async function controlServer(id, userId, action, isAdmin) {
   const s = await getServerByIdForUser(id, userId, isAdmin);
@@ -382,3 +383,72 @@ export async function repairOneServer(s) {
 // 🚀 GESTIÓN DE SUB-USUARIOS (EQUIPO)
 // ==========================================
 
+
+export async function repairServer(id, userId, isAdmin) {
+  const s = await getServerByIdForUser(id, userId, isAdmin);
+  if (!s) throw new Error("No encontrado");
+
+  if (!isAdmin && s.status === 'suspended') {
+      throw new Error("El servidor está suspendido por falta de pago. No se puede reparar en este estado.");
+  }
+
+  const { rowCount } = await query("UPDATE servers SET status = 'recreating' WHERE id = $1 AND status != 'recreating'", [s.id]);
+  if (rowCount === 0) {
+      console.warn(`⏳ [Repair] Servidor ${s.name} ya está en proceso de recreación/mantenimiento. Omitiendo.`);
+      return { success: false, reason: 'already_recreating' };
+  }
+
+  await logAudit(userId, 'SERVER.REPAIR.START', { serverId: s.id });
+
+  const cachePath = path.join(s.data_path, 'cache');
+  try { await fsPromises.rm(cachePath, { recursive: true, force: true }); } catch {}
+
+  const plan = PLANS[s.runtime_plan] || PLANS.hobby;
+  let realLicenseKey = 'hidden';
+  try {
+      const inspect = await Docker.inspectContainer(s.container_name);
+      const env = inspect.Config.Env || [];
+      const lkEnv = env.find(e => e.startsWith('LICENSE_KEY='));
+      if (lkEnv) realLicenseKey = lkEnv.split('=')[1];
+  } catch (e) {}
+
+  const opts = {
+      containerName: s.container_name, dataPath: s.data_path, fivemPort: s.fivem_port,
+      txadminPort: s.txadmin_port, serverName: s.name, licenseKey: realLicenseKey, plan,
+      gamePort: s.fivem_port, mcVersion: s.mc_version, mcType: s.mc_type,
+      serverId: s.id, dbName: s.db_name, dbUser: s.db_user, dbPass: s.db_pass, nodeId: s.node_id,
+      clusterId: s.cluster_id, cpuset: s.cpuset
+  };
+
+  try {
+      switch (s.template) {
+          case 'minecraft': await Docker.restartMinecraftContainer(opts); break;
+          case 'rust': await Docker.restartRustContainer(opts); break;
+          case 'palworld': await Docker.restartPalworldContainer(opts); break;
+          case 'cs2': await Docker.restartCS2Container(opts); break;
+          case 'valheim': await Docker.restartValheimContainer(opts); break;
+          case 'zomboid': await Docker.restartZomboidContainer(opts); break;
+          case 'ark': await Docker.restartARKContainer(opts); break;
+          case 'sdtd': await Docker.restartSDTDContainer(s.container_name, s.id, s.fivem_port, plan, s.data_path); break;
+          case 'discord': await Docker.restartDiscordBotContainer(opts); break;
+          case 'wordpress': await Docker.restartWordPressContainer(opts); break;
+          case 'database': await Docker.restartDatabaseContainer(opts); break;
+          case 'fivem': await Docker.restartFivemContainer(opts); break;
+          default: throw new Error(`Plantilla desconocida: ${s.template}`);
+      }
+      await query("UPDATE servers SET status = 'running' WHERE id = $1", [s.id]);
+
+      if ((s.template === 'fivem' && s.txadmin_port) || s.template === 'wordpress') {
+          import('./cloudflareService.js').then(({ updateServerTunnelConfig }) => {
+              const port = s.template === 'fivem' ? s.txadmin_port : s.fivem_port;
+              const prefix = s.template === 'fivem' ? 'tx' : 'wp';
+              updateServerTunnelConfig(s.id, port, s.txadmin_url, 'add', 'host.docker.internal', prefix).catch(e => console.error(e));
+          }).catch(e => {});
+      }
+      return { success: true };
+  } catch (err) {
+      await query("UPDATE servers SET status = 'error' WHERE id = $1", [s.id]);
+      await logAudit(userId, 'SERVER.REPAIR.FAILED', { serverId: s.id, error: err.message });
+      throw err;
+  }
+}

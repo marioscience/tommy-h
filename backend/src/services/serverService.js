@@ -59,7 +59,7 @@ function verifyServerPort(ip, port, type) {
 const execFilePromise = util.promisify(execFile);
 
 // 🧠 TRACKER DE ACTIVIDAD PARA ENTORNOS 3D (Auto-apagado por inactividad)
-const blenderActivity = new Map();
+export const blenderActivity = new Map();
 const BLENDER_INACTIVITY_MS = 30 * 60 * 1000; // 30 minutos
 
 // 🔥 PLANES: Importados desde config.js como fuente única de verdad.
