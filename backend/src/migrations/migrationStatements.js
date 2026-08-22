@@ -350,5 +350,19 @@ export const migrations = [
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`
     ]
+  },
+  {
+    id: '202608220001_create_hosting_plans_table',
+    description: 'Tabla de planes de hosting por defecto',
+    statements: [
+      `CREATE TABLE IF NOT EXISTS hosting_plans (
+        id VARCHAR(64) PRIMARY KEY,
+        name VARCHAR(128) NOT NULL,
+        price NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+        paypal_plan_id VARCHAR(128) DEFAULT '',
+        features JSONB DEFAULT '{}',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )`
+    ]
   }
 ];
