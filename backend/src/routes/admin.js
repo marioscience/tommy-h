@@ -1,3 +1,8 @@
+import adminNodesRouter from './adminNodes.js';
+import adminHealthRouter from './adminHealth.js';
+import adminUsersRouter from './adminUsers.js';
+import adminDisputesRouter from './adminDisputes.js';
+import adminVendorsRouter from './adminVendors.js';
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
@@ -19,6 +24,12 @@ const router = express.Router();
 
 // Protegemos todas las rutas con autenticación y rol admin
 router.use(requireAuth, requireAdmin);
+router.use(adminNodesRouter);
+router.use(adminHealthRouter);
+router.use(adminUsersRouter);
+router.use('/disputes', adminDisputesRouter);
+router.use(adminVendorsRouter);
+
 
 router.get('/oxide-status', async (req, res) => {
     const freshToken = signToken(req.user);
@@ -57,13 +68,7 @@ router.get('/overview', async (_req, res) => {
 // ==========================================
 
 
-import adminDisputesRouter from './adminDisputes.js';
 
-router.use('/disputes', adminDisputesRouter);
-
-import adminUsersRouter from './adminUsers.js';
-
-router.use(adminUsersRouter);
 
 router.get('/servers', async (_req, res) => {
   import('../services/serverService.js').then(async ({ getServersForUser }) => {

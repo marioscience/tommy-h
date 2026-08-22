@@ -224,7 +224,7 @@ setInterval(async () => {
                             }
 
                             // 🛡️ CONTROL DE CUOTA DE DISCO EN 3 PASOS
-                            const usedDiskBytes = getFolderSizeSnapshot(s.data_path);
+                            const usedDiskBytes = await getFolderSize(s.data_path);
                             const plan = PLANS[s.runtime_plan] || PLANS.hobby;
                             const maxDisk = (plan.diskBytes || (20 * 1024 ** 3)) + ((s.extra_disk_gb || 0) * 1024 ** 3);
                             const diskPercent = (usedDiskBytes / maxDisk) * 100;

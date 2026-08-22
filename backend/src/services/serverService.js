@@ -125,7 +125,7 @@ export async function getServersForUser(userId, isAdmin = false) {
              Docker.resolveContainerState(`ragenodes-blender-${shortId}`),
              Docker.resolveContainerState(s.container_name),
          ]);
-         const usedDiskBytes = getFolderSizeSnapshot(s.data_path);
+         const usedDiskBytes = await getFolderSize(s.data_path);
 
          s.blender_status = bState.running ? 'running' : 'stopped';
          delete s.blender_pass;
