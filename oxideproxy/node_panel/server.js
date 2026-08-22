@@ -203,7 +203,7 @@ app.disable('x-powered-by');
 app.use((req, res, next) => {
     res.set({
         'Cache-Control': 'no-store',
-        'Content-Security-Policy': "default-src 'self'; base-uri 'none'; frame-ancestors *; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline' https: http:; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https: http:; style-src-attr 'unsafe-inline'; img-src 'self' data: blob: https: http:; connect-src 'self' https: http:; font-src 'self' https: http: data:; frame-src 'self' https: http:; manifest-src 'none'; media-src 'none'; worker-src 'none'",
+        'Content-Security-Policy': "default-src 'self'; base-uri 'none'; frame-ancestors *; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline' https: http:; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https: http:; style-src-attr 'unsafe-inline'; img-src * 'self' data: blob: https: http:; connect-src * 'self' ws: wss: https: http:; connect-src 'self' https: http:; font-src 'self' https: http: data:; frame-src 'self' https: http:; manifest-src 'none'; media-src 'none'; worker-src 'none'",
         'Cross-Origin-Resource-Policy': 'cross-origin',
         'Cross-Origin-Embedder-Policy': 'credentialless',
         'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
