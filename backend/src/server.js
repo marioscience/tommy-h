@@ -2,6 +2,8 @@ import 'dotenv/config'; // 🤖 AÑADIDO: Asegura que el .env se lea antes que c
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
 import { rateLimit } from 'express-rate-limit';
 import { config, assertSecureConfig } from './config.js';
 import { hasSessionCookie } from './middleware/auth.js';
