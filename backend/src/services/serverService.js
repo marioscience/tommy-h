@@ -1,3 +1,4 @@
+import { existsSync } from 'fs';
 import { getFolderSize } from './serverNodeSelection.js';
 import fs from 'fs/promises';
 import path from 'path';
@@ -129,6 +130,12 @@ export async function getServersForUser(userId, isAdmin = false) {
          const usedDiskBytes = await getFolderSize(s.data_path);
 
          s.blender_status = bState.running ? 'running' : 'stopped';
+         let hasIcon = false;
+         if (s.template === 'fivem' && s.db_name && s.data_path) {
+             const iconPath = path.join(s.data_path, 'txData', `${s.db_name}.base`, 'icon.png');
+             hasIcon = existsSync(iconPath);
+         }
+         s.has_icon = hasIcon;
          delete s.blender_pass;
          if (!isAdmin && s.owner_id !== userId) {
              delete s.db_name;
@@ -277,6 +284,12 @@ export async function getServerDetails(id, userId, isAdmin) {
 
   const bState = await Docker.resolveContainerState(`ragenodes-blender-${s.id.slice(0,8)}`);
   s.blender_status = bState.running ? 'running' : 'stopped';
+  let hasIcon = false;
+  if (s.template === 'fivem' && s.db_name && s.data_path) {
+      const iconPath = path.join(s.data_path, 'txData', `${s.db_name}.base`, 'icon.png');
+      hasIcon = existsSync(iconPath);
+  }
+  s.has_icon = hasIcon;
   if (!canViewSecrets) {
       delete s.db_name;
       delete s.db_user;

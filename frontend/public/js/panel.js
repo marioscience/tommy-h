@@ -1775,7 +1775,7 @@ function toggleSidebar() {
                 const diskText = `${maxDisk} GB`;
                 const cpuText = `${maxCores} vCPU`;
 
-                const hasCustomIcon = s.template === 'fivem' && Boolean(s.db_name);
+                const hasCustomIcon = s.template === 'fivem' && Boolean(s.db_name) && Boolean(s.has_icon);
                 const iconUrl = hasCustomIcon ? `/data/${s.id}/txData/${s.db_name}.base/icon.png` : '';
                 let sIconClass = 'fa-solid fa-car';
                 if (s.template === 'minecraft') sIconClass = 'fa-solid fa-cube';
