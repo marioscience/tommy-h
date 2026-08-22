@@ -233,9 +233,24 @@ router.delete('/nodes/:id', async (req, res) => {
 
 router.get('/proxies', async (req, res) => {
     try {
+        await query(`
+            CREATE TABLE IF NOT EXISTS edge_proxies (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                ip_address TEXT NOT NULL,
+                api_port INTEGER NOT NULL DEFAULT 8090,
+                api_key TEXT NOT NULL,
+                is_active BOOLEAN NOT NULL DEFAULT false,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        `);
         const result = await query("SELECT * FROM edge_proxies ORDER BY id ASC");
-        res.json({ items: result.rows });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+        res.json({ items: result.rows, proxies: result.rows });
+    } catch (e) {
+        console.error("Error al obtener edge_proxies:", e);
+        res.json({ items: [], proxies: [] });
+    }
 });
 
 router.post('/proxies', async (req, res) => {

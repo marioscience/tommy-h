@@ -445,6 +445,22 @@ export const migrations = [
     statements: [
       "ALTER TABLE marketplace_scripts ADD COLUMN IF NOT EXISTS game TEXT NOT NULL DEFAULT 'fivem'"
     ]
+  },
+  {
+    id: '202608210002_create_edge_proxies_table',
+    description: 'Tabla de proxies edge administrados',
+    statements: [
+      `CREATE TABLE IF NOT EXISTS edge_proxies (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        ip_address TEXT NOT NULL,
+        api_port INTEGER NOT NULL DEFAULT 8090,
+        api_key TEXT NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`
+    ]
   }
 ];
 
