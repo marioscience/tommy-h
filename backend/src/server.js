@@ -206,6 +206,12 @@ app.use('/api/rcon', rconRoutes);
 app.use('/api/cron', cronRoutes);
 app.use('/api/plugins', pluginsRoutes);
 
+// Servir archivos estáticos del frontend en desarrollo local (panel, login, etc.)
+const frontendPublicDir = path.join(config.projectRoot, 'frontend', 'public');
+if (fs.existsSync(frontendPublicDir)) {
+    app.use(express.static(frontendPublicDir, { extensions: ['html'] }));
+}
+
 app.use((error, req, res, _next) => {
     const reqLog = req.log || logger;
     if (error?.type === 'entity.too.large') {
