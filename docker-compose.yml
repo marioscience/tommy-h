@@ -202,6 +202,8 @@ services:
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
     networks:
       - ragenodes_net
+    ports:
+      - "127.0.0.1:3000:3000"
     volumes:
       - ./oxideproxy/config:/app/rust_config
       - ./frontend/public/vendor:/app/public/vendor:ro

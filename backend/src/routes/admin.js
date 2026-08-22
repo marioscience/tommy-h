@@ -30,11 +30,10 @@ router.use(adminUsersRouter);
 router.use('/disputes', adminDisputesRouter);
 router.use(adminVendorsRouter);
 
-
 router.get('/oxide-status', async (req, res) => {
     const freshToken = signToken(req.user);
     let available = false;
-    const endpoints = ['http://oxide_control_panel:3000/healthz', 'http://127.0.0.1:3000/healthz'];
+    const endpoints = ['http://oxide_control_panel:3000/healthz', 'http://127.0.0.1:3000/healthz', 'http://localhost:3000/healthz'];
     for (const ep of endpoints) {
         try {
             const controller = new AbortController();
@@ -44,7 +43,7 @@ router.get('/oxide-status', async (req, res) => {
             if (response.ok) { available = true; break; }
         } catch {}
     }
-    return res.json({ available, token: freshToken });
+    return res.json({ available, active: available, token: freshToken });
 });
 
 router.get('/backup-jobs/:jobId', async (req, res) => {
