@@ -5,7 +5,7 @@ export const RESEND_API_KEY = process.env.RESEND_API_KEY;
 export const EMAIL_FROM = "RageNodes <info@ragenodes.com>";
 
 // 🔥 EXPORTAMOS LA INSTANCIA PARA QUE tickets.js FUNCIONE
-export const resend = new Resend(RESEND_API_KEY);
+export const resend = new Resend(RESEND_API_KEY || 're_dummy_key_for_dev');
 
 /**
  * 📧 Correo de Bienvenida

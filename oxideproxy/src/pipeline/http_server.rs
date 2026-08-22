@@ -753,7 +753,6 @@ async fn serve_static_file(
         let nonce_attribute = format!(" nonce=\"{}\"", nonce);
         content = html
             .replace("<script", &format!("<script{}", nonce_attribute))
-            .replace("<style", &format!("<style{}", nonce_attribute))
             .into_bytes();
         Some(static_page_security_profile(&canonical_full, nonce))
     } else {
