@@ -12,7 +12,11 @@ const router = express.Router();
 
 // Configuración de Multer para subida de Scripts
 const uploadDir = path.join(config.backupRoot, 'marketplace_uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+try {
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+} catch (e) {
+    console.warn(`[Marketplace] No se pudo crear el directorio ${uploadDir}:`, e.message);
+}
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadDir),
