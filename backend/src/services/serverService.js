@@ -290,51 +290,6 @@ export async function getServerDetails(id, userId, isAdmin) {
   return s;
 }
 
-export async function toggleBlenderForServer(id, userId, isAdmin, action) {
-  const s = await getServerByIdForUser(id, userId, isAdmin, 'files');
-  if (!s) throw new Error("No encontrado");
-  if (s.runtime_plan === 'hobby') throw new Error("El plan Hobby no incluye Editor 3D.");
-
-  if (action === 'start') {
-      blenderActivity.set(id, Date.now());
-  } else if (action === 'stop') {
-      blenderActivity.delete(id);
-  }
-
-  return Docker.toggleBlender({
-      serverId: s.id, dataPath: s.data_path, blenderPort: s.blender_port, blenderPass: s.blender_pass,
-      plan: PLANS[s.runtime_plan] || PLANS.hobby
-  }, action);
-}
-
-export async function renewBlenderHeartbeat(id, userId, isAdmin) {
-    const s = await getServerByIdForUser(id, userId, isAdmin, 'files');
-    if (!s) throw new Error("No encontrado");
-    blenderActivity.set(id, Date.now());
-    return { success: true, timestamp: Date.now() };
-}
-
-// 🛡️ TAREA DE LIMPIEZA AUTOMÁTICA (Cada 5 minutos)
-setInterval(async () => {
-    const now = Date.now();
-    for (const [serverId, lastSeen] of blenderActivity.entries()) {
-        if (now - lastSeen > BLENDER_INACTIVITY_MS) {
-            try {
-                const s = (await query('SELECT * FROM servers WHERE id = $1', [serverId])).rows[0];
-                if (s) {
-                    await Docker.toggleBlender({
-                        serverId: s.id, dataPath: s.data_path, blenderPort: s.blender_port, blenderPass: s.blender_pass
-                    }, 'stop');
-                    blenderActivity.delete(serverId);
-                }
-            } catch (e) {
-                console.error(`❌ Error auto-stop Blender:`, e.message);
-                blenderActivity.delete(serverId);
-            }
-        }
-    }
-}, 5 * 60 * 1000);
-
 export async function getServerLogs(id, userId, isAdmin) {
   const s = await getServerByIdForUser(id, userId, isAdmin, 'console');
   if (!s) throw new Error('Servidor no encontrado o sin permiso de consola.');
@@ -344,14 +299,6 @@ export async function getServerLogs(id, userId, isAdmin) {
 export async function getAllServers() {
   const { rows } = await query('SELECT * FROM servers');
   return rows;
-}
-
-export async function setServerBackupTime(id, userId, time, isAdmin) {
-  const s = await getServerByIdForUser(id, userId, isAdmin, 'files');
-  if (!s) throw new Error('Servidor no encontrado o sin permiso de archivos.');
-  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(time))) throw new Error('Hora de backup inválida.');
-  await query('UPDATE servers SET backup_time = $1 WHERE id = $2', [time, id]);
-  return { success: true };
 }
 
 export async function getServerStatsHistory(id, userId, isAdmin) {
