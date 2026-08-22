@@ -364,5 +364,21 @@ export const migrations = [
         created_at TIMESTAMPTZ DEFAULT NOW()
       )`
     ]
+  },
+  {
+    id: '202608220002_create_server_cron_jobs_table',
+    description: 'Tabla de tareas programadas por servidor (server_cron_jobs)',
+    statements: [
+      `CREATE TABLE IF NOT EXISTS server_cron_jobs (
+        id SERIAL PRIMARY KEY,
+        server_id UUID NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+        time_hh_mm TEXT NOT NULL,
+        action TEXT NOT NULL,
+        payload TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`,
+      'CREATE INDEX IF NOT EXISTS idx_server_cron_jobs_server_id ON server_cron_jobs(server_id)'
+    ]
   }
 ];
