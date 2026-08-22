@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
-import { query, queryCached } from '../db.js';
+import { query } from '../db.js';
 
 export function signToken(user) {
   return jwt.sign(
@@ -26,7 +26,7 @@ function getCookie(req, name) {
   return '';
 }
 
-function buildSessionCookie(value, maxAge, isSecure = true) {
+function buildSessionCookie(value, maxAge, isSecure = false) {
   const sameSite = ['Strict', 'Lax', 'None'].includes(config.cookieSameSite) ? config.cookieSameSite : 'Lax';
   const parts = [
     `${config.sessionCookieName}=${encodeURIComponent(value)}`,
@@ -40,12 +40,14 @@ function buildSessionCookie(value, maxAge, isSecure = true) {
 }
 
 export function setSessionCookie(res, token, req) {
-  const isSecure = req ? (req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https') : true;
+  const isHttps = req ? (req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https') : false;
+  const isSecure = config.cookieSecure && isHttps;
   res.append('Set-Cookie', buildSessionCookie(token, SESSION_MAX_AGE_SECONDS, isSecure));
 }
 
 export function clearSessionCookie(res, req) {
-  const isSecure = req ? (req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https') : true;
+  const isHttps = req ? (req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https') : false;
+  const isSecure = config.cookieSecure && isHttps;
   res.append('Set-Cookie', buildSessionCookie('', 0, isSecure));
 }
 
@@ -73,14 +75,14 @@ export async function requireAuth(req, res, next) {
     const tokenVersion = Number(payload.version || 0);
     
     if (tokenVersion !== dbVersion) {
-      return res.status(401).json({ error: 'La sesión ha sido invalidada (contraseña cambiada).' });
+      return res.status(401).json({ error: 'La sesión ha sido invalidada.' });
     }
 
     req.user = payload;
     req.authSource = cookieToken ? 'cookie' : 'bearer';
     next();
   } catch (e) { 
-    if (cookieToken) clearSessionCookie(res);
+    if (cookieToken) clearSessionCookie(res, req);
     res.status(401).json({ error: 'Token inválido o expirado.' }); 
   }
 }

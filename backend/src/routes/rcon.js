@@ -17,7 +17,7 @@ async function checkRconPermission(req, res, next) {
         if (!s) return res.status(404).json({ error: 'Servidor no encontrado.' });
 
         if (s.owner_id !== req.user.sub && req.user.role !== 'admin') {
-            const suRes = await query("SELECT permissions FROM server_subusers WHERE server_id = $1 AND user_id = $2", [req.params.id, req.user.sub]);
+            const suRes = await query("SELECT permissions FROM subusers WHERE server_id = $1 AND user_id = $2", [req.params.id, req.user.sub]);
             if (suRes.rowCount === 0) return res.status(403).json({ error: "Acceso denegado al servidor." });
             const perms = suRes.rows[0].permissions || [];
             

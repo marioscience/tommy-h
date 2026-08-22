@@ -3015,7 +3015,7 @@ function toggleSidebar() {
                 if (!currentServerId || isDownloadPollingInFlight) return;
                 isDownloadPollingInFlight = true;
                 try {
-                    const res = await fetch(`/api/files/download-status?serverId=${currentServerId}`);
+                    const res = await fetch(`/api/files/download-status?serverId=${currentServerId}`, { credentials: 'same-origin' });
                     if (res.status === 401) Nexus.logout();
                     const data = await res.json();
                     renderDownloads(data.tasks || []);

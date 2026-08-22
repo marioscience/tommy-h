@@ -2273,7 +2273,7 @@
           if (errorDiv) errorDiv.style.display = 'none';
 
           try {
-              const res = await fetch('/api/auth/login', {
+              const res = await fetch('/api/auth/login', { credentials: 'same-origin',
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -2360,7 +2360,7 @@
 
           try {
 
-              const res = await fetch('/api/auth/forgot-password', {
+              const res = await fetch('/api/auth/forgot-password', { credentials: 'same-origin',
 
                   method: 'POST',
 
@@ -2482,7 +2482,7 @@
 
           try {
 
-              const res = await fetch('/api/auth/register', {
+              const res = await fetch('/api/auth/register', { credentials: 'same-origin',
 
                   method: 'POST',
 
@@ -2974,7 +2974,7 @@
 
           try {
 
-              const res = await fetch('/api/auth/reset-password', {
+              const res = await fetch('/api/auth/reset-password', { credentials: 'same-origin',
 
                   method: 'POST',
 

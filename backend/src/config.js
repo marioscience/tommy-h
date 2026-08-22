@@ -13,7 +13,7 @@ export const config = {
   adminPass: process.env.ADMIN_BOOTSTRAP_PASS,
   corsOrigin: process.env.CORS_ORIGIN || process.env.PUBLIC_BASE_URL || 'http://localhost:8088',
   sessionCookieName: process.env.SESSION_COOKIE_NAME || 'rn_session',
-  cookieSecure: process.env.COOKIE_SECURE !== 'false',
+  cookieSecure: process.env.COOKIE_SECURE === 'true' || (process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE !== 'false'),
   cookieSameSite: process.env.COOKIE_SAMESITE || 'Lax',
 
   // 🤖 CONFIGURACIÓN DEL BOT DE DISCORD — Sin fallback inseguro: falla en arranque si no está configurada
