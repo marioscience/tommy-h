@@ -1180,7 +1180,7 @@
                   return;
               }
 
-              localStorage.setItem('nexus_user', JSON.stringify(data.user));
+              localStorage.setItem('nexus_user', JSON.stringify(data.user)); if (data.token) localStorage.setItem('nexus_token', data.token);
               window.location.href = data.user.role === 'admin' ? '/admin' : '/panel';
           } catch (e) {
               if (errorDiv) {

@@ -41,8 +41,7 @@ router.post('/login', async (req, res) => {
 
   const token = signToken(user);
   setSessionCookie(res, token, req);
-  const response = { user: { id: user.id, username: user.username, email: user.email, role: user.role, is_verified: user.is_verified } };
-  if (req.get('X-Auth-Mode') === 'bearer') response.token = token;
+  const response = { token, user: { id: user.id, username: user.username, email: user.email, role: user.role, is_verified: user.is_verified } };
   res.json(response);
 });
 
