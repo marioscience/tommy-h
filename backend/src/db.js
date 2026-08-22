@@ -202,7 +202,11 @@ export async function logAudit(userIdOrReq, action, details = {}, ipOverride = n
     finalUserId = parseInt(userId);
   }
 
-  await query('INSERT INTO audit_logs (user_id, action, details, ip_address, user_agent) VALUES ($1, $2, $3, $4, $5)', 
-    [finalUserId, action, JSON.stringify(details), ip, ua]
-  );
+  try {
+    await query('INSERT INTO audit_logs (user_id, action, details, ip_address, user_agent) VALUES ($1, $2, $3, $4, $5)', 
+      [finalUserId, action, JSON.stringify(details), ip, ua]
+    );
+  } catch (e) {
+    console.warn('[AuditLog] Warning logging audit event:', e.message);
+  }
 }

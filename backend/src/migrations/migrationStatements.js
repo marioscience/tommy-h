@@ -361,6 +361,7 @@ export const migrations = [
         price NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
         paypal_plan_id VARCHAR(128) DEFAULT '',
         features JSONB DEFAULT '{}',
+        is_active BOOLEAN NOT NULL DEFAULT true,
         created_at TIMESTAMPTZ DEFAULT NOW()
       )`
     ]
@@ -379,6 +380,20 @@ export const migrations = [
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`,
       'CREATE INDEX IF NOT EXISTS idx_server_cron_jobs_server_id ON server_cron_jobs(server_id)'
+    ]
+  },
+  {
+    id: '202608220003_audit_logs_user_agent_column',
+    description: 'Añadir columna user_agent a la tabla audit_logs',
+    statements: [
+      'ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent TEXT'
+    ]
+  },
+  {
+    id: '202608220004_hosting_plans_is_active_column',
+    description: 'Añadir columna is_active a la tabla hosting_plans',
+    statements: [
+      'ALTER TABLE hosting_plans ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true'
     ]
   }
 ];
