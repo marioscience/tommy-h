@@ -209,9 +209,21 @@ app.use('/api/cron', cronRoutes);
 app.use('/api/plugins', pluginsRoutes);
 
 // Servir archivos estáticos del frontend en desarrollo local (panel, login, etc.)
-const frontendPublicDir = path.join(config.projectRoot, 'frontend', 'public');
+let frontendPublicDir = path.join(config.projectRoot, 'frontend', 'public');
+if (!fs.existsSync(frontendPublicDir)) {
+    frontendPublicDir = path.resolve(config.projectRoot, '..', 'frontend', 'public');
+}
 if (fs.existsSync(frontendPublicDir)) {
+    console.log(`📂 [Frontend Static] Serviendo archivos estáticos desde: ${frontendPublicDir}`);
     app.use(express.static(frontendPublicDir, { extensions: ['html'] }));
+    app.get('/', (_req, res) => {
+        const indexPath = path.join(frontendPublicDir, 'index.html');
+        if (fs.existsSync(indexPath)) {
+            res.sendFile(indexPath);
+        } else {
+            res.redirect('/panel');
+        }
+    });
 }
 
 app.use((error, req, res, _next) => {
