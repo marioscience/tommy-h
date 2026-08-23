@@ -72,9 +72,9 @@ services:
     init: true
     env_file: [ .env ]
     ports:
-      - "127.0.0.1:3006:3006"
-      - "127.0.0.1:3000:3006"
-      - "127.0.0.1:80:3006"
+      - "3006:3006"
+      - "3000:3006"
+      - "80:3006"
     networks:
       - ragenodes_net
     depends_on:
