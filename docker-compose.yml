@@ -266,11 +266,8 @@ services:
   tunnel:
     image: cloudflare/cloudflared@sha256:0aa26e284f05e6c77ae375b8c9c11d9eb6a448fb7bcd8d40f31cb6176189eb38
     restart: unless-stopped
-    command: tunnel --protocol http2 --no-autoupdate run --token ${CF_TUNNEL_TOKEN:-}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - ragenodes_net
+    network_mode: host
+    command: tunnel --protocol http2 --no-autoupdate run --token ${TUNNEL_TOKEN:-${CF_TUNNEL_TOKEN:-}}
 
   redis:
     image: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
