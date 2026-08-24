@@ -65,9 +65,11 @@ app.use(requestLogger);
 const allowedOrigins = new Set(
     String(config.corsOrigin || '').split(',').map(origin => origin.trim()).filter(Boolean)
 );
+const isRagenodesDomain = (orig) => /^https?:\/\/(.+\.)?ragenodes\.com(:\d+)?$/.test(orig);
+
 app.use(cors({
     origin(origin, callback) {
-        if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+        if (!origin || allowedOrigins.has(origin) || isRagenodesDomain(origin)) return callback(null, true);
         const isPrivateIpOrigin = /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|127\.0\.0\.1|localhost)(:\d+)?$/.test(origin);
         if (isPrivateIpOrigin) return callback(null, true);
         return callback(new Error('Origen CORS no permitido.'));
@@ -100,7 +102,7 @@ app.use('/api', (req, res, next) => {
     const forwardedOrigin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : null;
     const isPrivateIpOrigin = /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|127\.0\.0\.1|localhost)(:\d+)?$/.test(origin);
 
-    if (origin !== requestOrigin && origin !== forwardedOrigin && !allowedOrigins.has(origin) && !isPrivateIpOrigin) {
+    if (origin !== requestOrigin && origin !== forwardedOrigin && !allowedOrigins.has(origin) && !isPrivateIpOrigin && !isRagenodesDomain(origin)) {
         return res.status(403).json({ error: 'Origen no permitido para modificaciones de estado.' });
     }
     next();
