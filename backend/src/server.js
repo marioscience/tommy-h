@@ -90,7 +90,7 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: '256kb', strict: true }));
 app.use('/api', (req, res, next) => {
-    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || !hasSessionCookie(req)) return next();
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || !hasSessionCookie(req) || req.path.startsWith('/auth/login') || req.path.startsWith('/auth/register')) return next();
     const origin = req.get('origin');
     if (!origin) return next();
 
@@ -102,7 +102,10 @@ app.use('/api', (req, res, next) => {
     const forwardedOrigin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : null;
     const isPrivateIpOrigin = /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|127\.0\.0\.1|localhost)(:\d+)?$/.test(origin);
 
-    if (origin !== requestOrigin && origin !== forwardedOrigin && !allowedOrigins.has(origin) && !isPrivateIpOrigin && !isRagenodesDomain(origin)) {
+    const stripScheme = (url) => String(url || '').replace(/^https?:\/\//i, '');
+    const originHost = stripScheme(origin);
+
+    if (originHost !== stripScheme(requestOrigin) && originHost !== stripScheme(forwardedOrigin) && !allowedOrigins.has(origin) && !isPrivateIpOrigin && !isRagenodesDomain(origin)) {
         return res.status(403).json({ error: 'Origen no permitido para modificaciones de estado.' });
     }
     next();
