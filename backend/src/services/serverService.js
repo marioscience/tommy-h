@@ -18,10 +18,10 @@ import net from 'net';
 import dgram from 'dgram';
 import util from 'util';
 
-const repairBackoffCache = new Map();
+export const repairBackoffCache = new Map();
 const MAX_REPAIRS_PER_HOUR = 3;
 
-function shouldRepairWithBackoff(serverId) {
+export function shouldRepairWithBackoff(serverId) {
     const now = Date.now();
     const records = repairBackoffCache.get(serverId) || [];
     const recentRecords = records.filter(t => now - t < 3600000);
@@ -33,7 +33,7 @@ function shouldRepairWithBackoff(serverId) {
     return true;
 }
 
-function verifyServerPort(ip, port, type) {
+export function verifyServerPort(ip, port, type) {
     return new Promise((resolve) => {
         const timeout = 3000;
         let resolved = false;

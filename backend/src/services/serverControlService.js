@@ -1,10 +1,22 @@
+import fs from 'fs/promises';
+import path from 'path';
 import { query, logAudit } from '../db.js';
 import { config, PLAN_LIMITS } from '../config.js';
 import * as Docker from './dockerService.js';
-import { getServerByIdForUser } from './serverService.js';
+import {
+  blenderActivity,
+  getServerByIdForUser,
+  getServerDetails,
+  repairBackoffCache,
+  shouldRepairWithBackoff,
+  verifyServerPort
+} from './serverService.js';
+import { checkSystemLoad } from './serverCreationService.js';
+import { getFolderSize } from './serverNodeSelection.js';
 import { GameFactory } from './games/GameFactory.js';
 import { getPublicEndpointUrl } from './publicEndpointService.js';
 const MAINTENANCE_INTERVAL_MS = Math.max(300000, Number(process.env.MAINTENANCE_INTERVAL_MS || 600000));
+const MAINTENANCE_CHUNK_SIZE = Math.max(1, Number(process.env.MAINTENANCE_CHUNK_SIZE || 3));
 
 export async function controlServer(id, userId, action, isAdmin) {
   const s = await getServerByIdForUser(id, userId, isAdmin);
@@ -61,7 +73,7 @@ export async function controlServer(id, userId, action, isAdmin) {
       }
 
       checkSystemLoad();
-      const basePlan = PLANS[s.runtime_plan] || PLANS.hobby;
+      const basePlan = PLAN_LIMITS[s.runtime_plan] || PLAN_LIMITS.hobby;
       const plan = s.allocated_ram_gb > 0 ? { ...basePlan, memoryBytes: s.allocated_ram_gb * 1024 * 1024 * 1024 } : basePlan;
       let realLicenseKey = 'hidden';
       try {
@@ -217,7 +229,7 @@ setInterval(async () => {
 
                             // 🛡️ CONTROL DE CUOTA DE DISCO EN 3 PASOS
                             const usedDiskBytes = await getFolderSize(s.data_path);
-                            const plan = PLANS[s.runtime_plan] || PLANS.hobby;
+                            const plan = PLAN_LIMITS[s.runtime_plan] || PLAN_LIMITS.hobby;
                             const maxDisk = (plan.diskBytes || (20 * 1024 ** 3)) + ((s.extra_disk_gb || 0) * 1024 ** 3);
                             const diskPercent = (usedDiskBytes / maxDisk) * 100;
 
@@ -302,7 +314,7 @@ export async function repairOneServer(s) {
         return;
     }
 
-    const basePlan = PLANS[s.runtime_plan] || PLANS.hobby;
+    const basePlan = PLAN_LIMITS[s.runtime_plan] || PLAN_LIMITS.hobby;
     const plan = s.allocated_ram_gb > 0 ? { ...basePlan, memoryBytes: s.allocated_ram_gb * 1024 * 1024 * 1024 } : basePlan;
     const opts = {
         containerName: s.container_name, dataPath: s.data_path, fivemPort: s.fivem_port,
@@ -379,9 +391,9 @@ export async function repairServer(id, userId, isAdmin) {
   await logAudit(userId, 'SERVER.REPAIR.START', { serverId: s.id });
 
   const cachePath = path.join(s.data_path, 'cache');
-  try { await fsPromises.rm(cachePath, { recursive: true, force: true }); } catch {}
+  try { await fs.rm(cachePath, { recursive: true, force: true }); } catch {}
 
-  const plan = PLANS[s.runtime_plan] || PLANS.hobby;
+  const plan = PLAN_LIMITS[s.runtime_plan] || PLAN_LIMITS.hobby;
   let realLicenseKey = 'hidden';
   try {
       const inspect = await Docker.inspectContainer(s.container_name);

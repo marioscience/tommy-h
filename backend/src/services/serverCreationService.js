@@ -20,7 +20,7 @@ import {
 
 const userCreationLocks = new Map();
 
-function checkSystemLoad() {
+export function checkSystemLoad() {
   const load = os.loadavg()[0];
   const cpuCount = Math.max(1, os.cpus()?.length || 1);
   const maxLoad = Number(process.env.SYSTEM_LOAD_LIMIT || cpuCount * 4);
