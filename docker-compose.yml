@@ -236,6 +236,7 @@ services:
       - ragenodes_net
     ports:
       - "80:80"
+      - "443:80"
       - "8088:8088"
     volumes:
       - ./oxideproxy/config:/app/config
