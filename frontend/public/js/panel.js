@@ -189,12 +189,58 @@ function toggleSidebar() {
             loadServers();
         }
 
+        function getDeploymentMinimumRam(plan, game) {
+            const planMinimums = {
+                community_starter: 4,
+                community_pro: 4,
+                community_network: 4,
+                partner: 2,
+                platinum: 2,
+                premium: 2,
+                standard: 2,
+                hobby: 2
+            };
+            const gameMinimums = {
+                rust: 4,
+                palworld: 8,
+                zomboid: 4,
+                ark: 16,
+                sdtd: 4,
+                minecraft: 2,
+                cs2: 2,
+                valheim: 2,
+                fivem: 1,
+                wordpress: 2,
+                discordbot: 1,
+                database: 1
+            };
+            return Math.max(planMinimums[plan] || 1, gameMinimums[game] || 1);
+        }
+
         function openDeployModal(savedName = '', savedGame = 'fivem') {
-            const planConfig = { hobby: { ram: 4 }, standard: { ram: 8 }, premium: { ram: 16 }, elite: { ram: 32 }, platinum: { ram: 32 }, partner: { ram: 32 }, plan_platinum: { ram: 32 } };
-            const uPlan = (user && user.plan) ? user.plan.toLowerCase() : 'hobby';
+            const planConfig = {
+                hobby: { ram: 4 }, standard: { ram: 8 }, premium: { ram: 16 },
+                platinum: { ram: 32 }, partner: { ram: 32 }, ultimate: { ram: 128 },
+                community_starter: { ram: 8 }, community_pro: { ram: 16 }, community_network: { ram: 32 }
+            };
+            const rawPlan = (user && user.plan) ? user.plan.trim().toLowerCase().replace(/[\s-]+/g, '_') : 'hobby';
+            const uPlan = rawPlan === 'elite' || rawPlan === 'plan_platinum' ? 'platinum' : rawPlan;
             const maxPlanRam = (planConfig[uPlan] || planConfig['hobby']).ram;
-            const usedRam = (globalServersList || []).reduce((acc, s) => acc + (Number(s.allocated_ram_gb) || 0), 0);
-            const remainingRam = Math.max(2, maxPlanRam - usedRam); // Minimum 2 just to render the slider properly
+            const usedRam = (globalServersList || []).reduce((acc, server) => {
+                const allocated = Number(server.allocated_ram_gb);
+                if (Number.isFinite(allocated) && allocated > 0) return acc + allocated;
+                const rawServerPlan = String(server.runtime_plan || uPlan).trim().toLowerCase().replace(/[\s-]+/g, '_');
+                const serverPlan = rawServerPlan === 'elite' || rawServerPlan === 'plan_platinum' ? 'platinum' : rawServerPlan;
+                return acc + (planConfig[serverPlan] || planConfig.hobby).ram;
+            }, 0);
+            const remainingRam = Math.max(0, maxPlanRam - usedRam);
+            const initialMinimumRam = getDeploymentMinimumRam(uPlan, savedGame);
+            if (remainingRam < initialMinimumRam) {
+                showToast(`No queda RAM disponible en la bolsa de tu plan (${usedRam}/${maxPlanRam} GB).`, 'warning');
+                return;
+            }
+            window._deployRemainingRam = remainingRam;
+            window._deployPlan = uPlan;
 
               const gamesList = [
                   { id: 'fivem', name: 'FiveM', desc: 'GTA V Roleplay', icon: 'fa-car', color: 'var(--primary)', bg: '/assets/bg_fivem.webp' },
@@ -259,13 +305,13 @@ function toggleSidebar() {
                       <div style="margin-bottom: 20px; background: rgba(0,0,0,0.2); border: 1px solid var(--line); border-radius: 12px; padding: 16px;">
                           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                               <label class="form-label" style="margin:0; font-size: 0.85rem; color: var(--muted);"><i class="fa-solid fa-memory" style="color: #38bdf8; margin-right: 6px;"></i> RAM Asignada</label>
-                              <span id="ram-slider-val" style="font-size: 1.1rem; font-weight: 800; color: #38bdf8; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); padding: 4px 12px; border-radius: 20px;">2 GB</span>
+                              <span id="ram-slider-val" style="font-size: 1.1rem; font-weight: 800; color: #38bdf8; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); padding: 4px 12px; border-radius: 20px;">${initialMinimumRam} GB</span>
                           </div>
-                          <input type="range" id="modal-deploy-ram" min="2" max="${remainingRam}" value="2" step="1" style="
+                          <input type="range" id="modal-deploy-ram" min="${initialMinimumRam}" max="${remainingRam}" value="${initialMinimumRam}" step="1" style="
                               width: 100%; accent-color: #38bdf8; cursor: pointer; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px;
                           " ${rnBind("input", (event, element) => { document.getElementById('ram-slider-val').innerText = element.value + ' GB' })}>
                           <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.7rem; color: var(--muted);">
-                              <span>Mín. 2 GB (Recomendado)</span>
+                              <span id="ram-slider-min">Mín. ${initialMinimumRam} GB</span>
                               <span>Máx. Disponible: ${remainingRam} GB</span>
                           </div>
                       </div>
@@ -446,15 +492,17 @@ function toggleSidebar() {
         }
 
         function selectGame(game) {
-            const plan = (user && user.plan) ? user.plan.toLowerCase() : 'hobby';
+            const rawPlan = (user && user.plan) ? user.plan.trim().toLowerCase().replace(/[\s-]+/g, '_') : 'hobby';
+            const plan = rawPlan === 'elite' || rawPlan === 'plan_platinum' ? 'platinum' : rawPlan;
             const access = {
                 hobby: ['minecraft', 'fivem'],
                 standard: ['minecraft', 'fivem', 'rust', 'cs2', 'valheim', 'zomboid', 'sdtd'],
                 premium: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd'],
-                elite: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd'],
                 platinum: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd'],
-                plan_platinum: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd'],
                 partner: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd'],
+                community_starter: ['minecraft', 'fivem', 'rust', 'cs2', 'valheim', 'zomboid', 'sdtd', 'discordbot', 'wordpress', 'database'],
+                community_pro: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'sdtd', 'discordbot', 'wordpress', 'database'],
+                community_network: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd', 'discordbot', 'wordpress', 'database'],
                 ultimate: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd', 'wordpress', 'discordbot', 'database']
             };
 
@@ -462,6 +510,21 @@ function toggleSidebar() {
             if (!isAllowed) {
                 showToast(`Tu plan ${plan.toUpperCase()} no incluye servidores de ${game.toUpperCase()}. ¡Mejora tu plan para desbloquearlo!`, 'warning');
                 return;
+            }
+
+            const minimumRam = getDeploymentMinimumRam(plan, game);
+            if (Number(window._deployRemainingRam || 0) < minimumRam) {
+                showToast(`${game.toUpperCase()} requiere al menos ${minimumRam} GB y tu bolsa no tiene suficiente RAM libre.`, 'warning');
+                return;
+            }
+            const ramSlider = document.getElementById('modal-deploy-ram');
+            if (ramSlider) {
+                ramSlider.min = String(minimumRam);
+                if (Number(ramSlider.value) < minimumRam) ramSlider.value = String(minimumRam);
+                const ramValue = document.getElementById('ram-slider-val');
+                if (ramValue) ramValue.innerText = `${ramSlider.value} GB`;
+                const ramMinimum = document.getElementById('ram-slider-min');
+                if (ramMinimum) ramMinimum.innerText = `Mín. ${minimumRam} GB`;
             }
 
             if (game === 'minecraft' && window._selectedGame !== 'minecraft') {
@@ -1847,7 +1910,13 @@ function toggleSidebar() {
                     standard: { ram: 8, disk: 80, slots: 1 },
                     premium: { ram: 16, disk: 150, slots: 2 },
                     platinum: { ram: 32, disk: 300, slots: 4 },
-                    partner: { ram: 32, disk: 300, slots: 10 }
+                    elite: { ram: 32, disk: 300, slots: 4 },
+                    plan_platinum: { ram: 32, disk: 300, slots: 4 },
+                    partner: { ram: 32, disk: 250, slots: 10 },
+                    community_starter: { ram: 8, disk: 50, slots: 2 },
+                    community_pro: { ram: 16, disk: 100, slots: 4 },
+                    community_network: { ram: 32, disk: 250, slots: 8 },
+                    ultimate: { ram: 128, disk: 1000, slots: 999 }
                 };
                 const pLimits = planLimitMap[planName] || planLimitMap.hobby;
                 const maxSlots = pLimits.slots;

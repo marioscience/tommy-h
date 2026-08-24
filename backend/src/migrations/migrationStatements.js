@@ -395,5 +395,20 @@ export const migrations = [
     statements: [
       'ALTER TABLE hosting_plans ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true'
     ]
+  },
+  {
+    id: '202608240001_server_resource_allocation_and_node_ports',
+    description: 'Persistir RAM asignada y permitir reutilizar puertos de forma segura entre nodos',
+    statements: [
+      'ALTER TABLE servers ADD COLUMN IF NOT EXISTS allocated_ram_gb INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE servers DROP CONSTRAINT IF EXISTS servers_fivem_port_key',
+      'ALTER TABLE servers DROP CONSTRAINT IF EXISTS servers_txadmin_port_key',
+      'ALTER TABLE servers DROP CONSTRAINT IF EXISTS servers_blender_port_key',
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_servers_node_fivem_port ON servers (COALESCE(node_id, 0), fivem_port)',
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_servers_node_txadmin_port ON servers (COALESCE(node_id, 0), txadmin_port)',
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_servers_node_blender_port ON servers (COALESCE(node_id, 0), blender_port) WHERE blender_port IS NOT NULL',
+      'ALTER TABLE servers DROP CONSTRAINT IF EXISTS servers_allocated_ram_gb_positive',
+      'ALTER TABLE servers ADD CONSTRAINT servers_allocated_ram_gb_positive CHECK (allocated_ram_gb >= 0)'
+    ]
   }
 ];

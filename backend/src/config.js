@@ -83,6 +83,7 @@ export const config = {
   zomboidPortStart: Number(process.env.ZOMBOID_PORT_START || 16200),
   arkPortStart: Number(process.env.ARK_PORT_START || 7700),
   sdtdPortStart: Number(process.env.SDTD_PORT_START || 26900),
+  appPortStart: Number(process.env.APP_PORT_START || 8000),
 
   // Límites y Seguridad
   serverLimitPerUser: Number(process.env.SERVER_LIMIT_PER_USER || 1),
@@ -224,17 +225,48 @@ export const PLAN_LIMITS = {
     nanoCpus: 32 * 10**9,                  // 32.0 Cores
     storageLimit: '1000G',                 // 1000GB NVMe
     diskBytes: 1000 * 1024 * 1024 * 1024,
-    allowedTemplates: ['minecraft', 'fivem', 'rust', 'cs2', 'valheim', 'zomboid', 'sdtd', 'palworld', 'ark', 'wordpress', 'discord_bot', 'blender'],
+    allowedTemplates: ['minecraft', 'fivem', 'rust', 'cs2', 'valheim', 'zomboid', 'sdtd', 'palworld', 'ark', 'wordpress', 'discordbot', 'database', 'blender'],
     backups: { maxManual: 50, autoIntervalHours: 6, retentionDays: 30 }
   },
   // 🤝 Plan Partner: El plan más alto para colaboradores y partners
   partner: {
     maxSlots: 10,
+    minRamGb: 2,
     memoryBytes: 32 * 1024 * 1024 * 1024, // 32GB RAM
     nanoCpus: 8 * 10**9,                  // 8.0 Cores
     storageLimit: '250G',                 // 250GB NVMe
     diskBytes: 250 * 1024 * 1024 * 1024,
     allowedTemplates: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd'],
+    backups: { maxManual: 10, autoIntervalHours: 6, retentionDays: 14 }
+  },
+  community_starter: {
+    maxSlots: 2,
+    minRamGb: 4,
+    memoryBytes: 8 * 1024 * 1024 * 1024,
+    nanoCpus: 4 * 10**9,
+    storageLimit: '50G',
+    diskBytes: 50 * 1024 * 1024 * 1024,
+    allowedTemplates: ['minecraft', 'fivem', 'rust', 'cs2', 'valheim', 'zomboid', 'sdtd', 'discordbot', 'wordpress', 'database'],
+    backups: { maxManual: 3, autoIntervalHours: 24, retentionDays: 3 }
+  },
+  community_pro: {
+    maxSlots: 4,
+    minRamGb: 4,
+    memoryBytes: 16 * 1024 * 1024 * 1024,
+    nanoCpus: 6 * 10**9,
+    storageLimit: '100G',
+    diskBytes: 100 * 1024 * 1024 * 1024,
+    allowedTemplates: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'sdtd', 'discordbot', 'wordpress', 'database'],
+    backups: { maxManual: 5, autoIntervalHours: 12, retentionDays: 7 }
+  },
+  community_network: {
+    maxSlots: 8,
+    minRamGb: 4,
+    memoryBytes: 32 * 1024 * 1024 * 1024,
+    nanoCpus: 8 * 10**9,
+    storageLimit: '250G',
+    diskBytes: 250 * 1024 * 1024 * 1024,
+    allowedTemplates: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd', 'discordbot', 'wordpress', 'database'],
     backups: { maxManual: 10, autoIntervalHours: 6, retentionDays: 14 }
   },
   // 🎮 PLANES DE SERVIDORES DEDICADOS MONOJUEGO
