@@ -236,6 +236,8 @@ services:
       - "80:80"
       - "443:80"
       - "8088:8088"
+    environment:
+      - STAGING_MODE=${STAGING_MODE:-false}
     volumes:
       - ./oxideproxy/config:/app/config
       - ./frontend/public:/var/www/frontend:ro
