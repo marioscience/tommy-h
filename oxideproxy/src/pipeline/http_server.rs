@@ -269,33 +269,7 @@ async fn handle_http_request(
         .to_ascii_lowercase();
     let host_without_port = host.split(':').next().unwrap_or("");
 
-    let raw_uri_path = req.uri().path();
-    let uri_path_string = normalize_uri_path(raw_uri_path);
-    let uri_path = uri_path_string.as_str();
-
-    tracing::debug!(
-        "Petición HTTP L7: Host: '{}', Path: '{}' (Raw: '{}')",
-        host,
-        uri_path,
-        raw_uri_path
-    );
-
-    let forwarded_request = req.headers().contains_key("cf-connecting-ip")
-        || req.headers().contains_key("x-forwarded-for")
-        || req.headers().contains_key("forwarded");
-    if is_admin_surface(uri_path) && (!is_private_admin_peer(peer_addr.ip()) || forwarded_request) {
-        tracing::warn!(
-            "Bloqueado acceso no local a superficie administrativa: Peer='{}', Host='{}', Path='{}'",
-            peer_addr.ip(), host, uri_path
-        );
-        return Ok(forbidden_admin_response());
-    }
-
-    if uri_path == "/pma/doc" || uri_path.starts_with("/pma/doc/") {
-        return Ok(not_found_response());
-    }
-
-    // Enrutamiento Transparente para Staging (`staging.ragenodes.com` -> `192.168.1.106:80`)
+    // Enrutamiento Transparente Absoluto para Staging (`staging.ragenodes.com` -> `192.168.1.106:80`)
     if host_without_port.starts_with("staging.") || host_without_port == "staging.ragenodes.com" {
         tracing::info!(
             "Petición Staging detectada (Host: '{}'). Redirigiendo transparente a 192.168.1.106:80...",
