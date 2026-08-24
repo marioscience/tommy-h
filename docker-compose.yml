@@ -89,8 +89,6 @@ services:
       - ./fivem-base:/app/fivem-base
       - ./certs:/opt/ragenodes-ultimate/certs:ro
       - query_cache_data:/app/config-gateway/static
-    ports:
-      - "127.0.0.1:${HOST_BIND_BACKEND_PORT:-3010}:3006"
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3006/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 30s
