@@ -295,6 +295,15 @@ async fn handle_http_request(
         return Ok(not_found_response());
     }
 
+    // Enrutamiento Transparente para Staging (`staging.ragenodes.com` -> `192.168.1.106:80`)
+    if host_without_port.starts_with("staging.") || host_without_port == "staging.ragenodes.com" {
+        tracing::info!(
+            "Petición Staging detectada (Host: '{}'). Redirigiendo transparente a 192.168.1.106:80...",
+            host_without_port
+        );
+        return reverse_proxy_request(req, "192.168.1.106:80".to_string(), None, peer_addr).await;
+    }
+
     // 1. Enrutamiento Virtual Host & SNI para Servidores de Juego (ej. tx40121.node1.ragenodes.com)
     if host_without_port.ends_with(".node1.ragenodes.com") {
         if let Some(port_str) = host_without_port
