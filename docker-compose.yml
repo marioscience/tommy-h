@@ -72,9 +72,7 @@ services:
     init: true
     env_file: [ .env ]
     ports:
-      - "3006:3006"
-      - "3000:3006"
-      - "80:3006"
+      - "127.0.0.1:3006:3006"
     networks:
       - ragenodes_net
     depends_on:
@@ -237,8 +235,8 @@ services:
     networks:
       - ragenodes_net
     ports:
-      - "${PROXY_BIND_IP:-127.0.0.1}:80:80"
-      - "${PROXY_BIND_IP:-127.0.0.1}:8088:8088"
+      - "80:80"
+      - "8088:8088"
     volumes:
       - ./oxideproxy/config:/app/config
       - ./frontend/public:/var/www/frontend:ro
