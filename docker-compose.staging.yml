@@ -43,7 +43,8 @@ services:
       CONTAINER_PREFIX: ragenodes-staging-
       DOCKER_NETWORK: ragenodes_net_staging
       PORT_BASE_OFFSET: 10000
-      CF_TUNNEL_ENV_PREFIX: staging-
+      PUBLIC_ENDPOINT_HOST: ${PUBLIC_ENDPOINT_HOST:-staging.ragenodes.com}
+      PUBLIC_ENDPOINT_SCHEME: ${PUBLIC_ENDPOINT_SCHEME:-https}
       INSTANCE_DATA_ROOT: /srv/ragenodes-staging-data
       MARIADB_HOST: mariadb
       DB_HOST: postgres-staging
@@ -85,7 +86,8 @@ services:
       - CONTAINER_PREFIX=ragenodes-staging-
       - DOCKER_NETWORK=ragenodes_net_staging
       - PORT_BASE_OFFSET=10000
-      - CF_TUNNEL_ENV_PREFIX=staging-
+      - PUBLIC_ENDPOINT_HOST=${PUBLIC_ENDPOINT_HOST:-staging.ragenodes.com}
+      - PUBLIC_ENDPOINT_SCHEME=${PUBLIC_ENDPOINT_SCHEME:-https}
       - INSTANCE_DATA_ROOT=/srv/ragenodes-staging-data
       - DB_HOST=postgres-staging
       - DB_USER=${POSTGRES_USER}_staging
@@ -159,8 +161,8 @@ services:
           - oxide_web
           - ragenodes-ultimate-oxide_web-1
     ports:
-      - "80:80"
-      - "443:443"
+      - "${PROXY_BIND_IP:-127.0.0.1}:80:80"
+      - "${PROXY_BIND_IP:-127.0.0.1}:${HOST_BIND_FRONTEND_PORT:-8088}:8088"
     volumes:
       - ./oxideproxy/config:/app/config
       - ./frontend/public:/var/www/frontend:ro
@@ -173,15 +175,6 @@ services:
         condition: service_started
       oxide_control_panel:
         condition: service_healthy
-
-  tunnel:
-    image: cloudflare/cloudflared@sha256:0aa26e284f05e6c77ae375b8c9c11d9eb6a448fb7bcd8d40f31cb6176189eb38
-    restart: unless-stopped
-    command: tunnel --protocol http2 --no-autoupdate run --token ${CF_TUNNEL_TOKEN:-}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - ragenodes_net_staging
 
 networks:
   ragenodes_net_staging:

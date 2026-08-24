@@ -5,18 +5,24 @@ WORKDIR /usr/src/oxide_proxy
 
 # Optimizamos la caché de capas copiando primero solo los manifiestos
 COPY Cargo.toml Cargo.lock ./
-RUN mkdir -p src/bin && echo "fn main() {}" > src/main.rs && echo "fn main() {}" > src/bin/cert_gen.rs \
-    && cargo build --release --locked \
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
+    mkdir -p src/bin && echo "fn main() {}" > src/main.rs && echo "fn main() {}" > src/bin/cert_gen.rs \
+    && CARGO_NET_RETRY=10 CARGO_HTTP_TIMEOUT=120 CARGO_HTTP_MULTIPLEXING=false cargo build --release --locked \
     && rm -rf src
 
 # Copiamos el código fuente real y configuraciones
 COPY . .
 
 # Generamos los certificados de prueba durante la compilación auxiliar
-RUN cargo run --release --locked --bin cert_gen
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
+    CARGO_NET_RETRY=10 CARGO_HTTP_TIMEOUT=120 CARGO_HTTP_MULTIPLEXING=false cargo run --release --locked --bin cert_gen
 
 # Compilamos el binario principal de producción en modo release
-RUN touch src/main.rs && cargo build --release --locked
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
+    touch src/main.rs && CARGO_NET_RETRY=10 CARGO_HTTP_TIMEOUT=120 CARGO_HTTP_MULTIPLEXING=false cargo build --release --locked
 
 # Preparamos los puntos de montaje que Docker necesita antes de aplicar el
 # sistema de archivos de solo lectura de la imagen final.

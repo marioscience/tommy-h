@@ -24,7 +24,7 @@
 ## 🚀 Overview
 **RageNodes Ultimate** is an all-in-one, enterprise-grade game server and application orchestration platform. Built with an Object-Oriented **Node.js** backend architecture, an ultra-fast low-latency reverse proxy written in **Rust (`OxideProxy`)**, and hardened **Docker** container isolation.
 
-Whether deploying a large FiveM roleplay community or a multi-node cluster for Rust and Minecraft, RageNodes provides full hardware orchestration with automated zero-trust security and dynamic Cloudflare integration.
+Whether deploying a large FiveM roleplay community or a multi-node cluster for Rust and Minecraft, RageNodes provides full hardware orchestration with automated zero-trust security and direct public endpoints managed by OxideProxy.
 
 ---
 
@@ -80,8 +80,10 @@ cd ragenodesultimate
 # 2. Switch/create your working branch (following GitFlow rules)
 git checkout -b feat/my-feature
 
-# 3. Configure local environment variables
-cp .env.example .env
+# 3. Configure the Linux local-development environment
+cp .env.local.example .env
+mkdir -p "$HOME/.local/share/ragenodes-ultimate/data/templates" \
+  "$HOME/.local/share/ragenodes-ultimate/backups"
 ```
 
 ### 3. Install Dependencies, Migrate Database & Run Tests
@@ -93,21 +95,21 @@ npm install
 # Run database migrations
 npm run db:migrate
 
-# Run automated test suite (22 unit tests across 9 suites in ~1s)
+# Run automated test suite (23 unit tests across 7 suites in ~1s)
 npm test
 cd ..
 ```
 
 ### 4. Start the Local Docker Stack
 ```bash
-# Starts local stack with optional Cloudflare tunnel profile
+# Starts the local stack with direct host access
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
 ```
 
 ### 5. Local Access URLs
 * **Web Dashboard:** [http://localhost:8088](http://localhost:8088)
-* **Backend API:** [http://localhost:3011](http://localhost:3011)
-* **Live Readiness Probe:** [http://localhost:3011/readyz](http://localhost:3011/readyz)
+* **Backend API:** [http://localhost:3010](http://localhost:3010)
+* **Live Readiness Probe:** [http://localhost:3010/readyz](http://localhost:3010/readyz)
 * **phpMyAdmin:** [http://localhost:8089](http://localhost:8089)
 
 ---
@@ -134,13 +136,9 @@ flowchart LR
 
 ---
 
-## ☁️ Cloudflare Tunnel Namespace Isolation
+## 🌐 Direct Public Endpoints
 
-The platform implements an environment-aware namespace system (`CF_TUNNEL_ENV_PREFIX`) ensuring development and staging workers **never interfere with or delete production tunnels**:
-
-* **Production (`CF_TUNNEL_ENV_PREFIX=""`):** Standard hostnames (`tx40120.ragenodes.com`, `node1.ragenodes.com`).
-* **Staging (`CF_TUNNEL_ENV_PREFIX="staging-"`):** Prefixed hostnames (`staging-tx40120.ragenodes.com`, `staging.ragenodes.com`).
-* **Development (`CF_TUNNEL_ENV_PREFIX="dev-"`):** Local hostnames (`dev-tx40120.ragenodes.com`).
+The platform exposes OxideProxy and game ports directly, without a tunnel provider. Configure `PROXY_BIND_IP`, `PUBLIC_ENDPOINT_HOST`, and `PUBLIC_ENDPOINT_SCHEME` for each environment. txAdmin URLs are generated from the public host and assigned port, while DNS and TLS remain infrastructure responsibilities outside the application.
 
 ---
 
@@ -202,7 +200,7 @@ npm run security:routes
 ## 🚀 Visión General
 **RageNodes Ultimate** es una plataforma integral y empresarial para la orquestación y administración de servidores de juegos y aplicaciones. Está construida sobre una arquitectura orientada a objetos en **Node.js**, un proxy inverso de ultra-baja latencia en **Rust (`OxideProxy`)**, y aislamiento estricto de contenedores en **Docker**.
 
-Ya sea para desplegar una comunidad masiva de FiveM o un clúster multi-nodo para Rust y Minecraft, RageNodes proporciona control total del hardware con seguridad *zero-trust* y automatización dinámica en Cloudflare.
+Ya sea para desplegar una comunidad masiva de FiveM o un clúster multi-nodo para Rust y Minecraft, RageNodes proporciona control total del hardware con seguridad *zero-trust* y endpoints públicos directos administrados por OxideProxy.
 
 ---
 
@@ -258,8 +256,10 @@ cd ragenodesultimate
 # 2. Crear tu rama de trabajo (según las reglas de GitFlow)
 git checkout -b feat/mi-caracteristica
 
-# 3. Configurar variables de entorno locales
-cp .env.example .env
+# 3. Configurar el entorno de desarrollo local en Linux
+cp .env.local.example .env
+mkdir -p "$HOME/.local/share/ragenodes-ultimate/data/templates" \
+  "$HOME/.local/share/ragenodes-ultimate/backups"
 ```
 
 ### 3. Instalar Dependencias, Migrar Base de Datos y Correr Tests
@@ -278,14 +278,14 @@ cd ..
 
 ### 4. Levantar el Stack Completo en Local
 ```bash
-# Levanta el stack local con el túnel Cloudflare en modo opcional
+# Levanta el stack local con acceso directo desde el host
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
 ```
 
 ### 5. Acceso al Panel en Local
 * **Panel de Control Web:** [http://localhost:8088](http://localhost:8088)
-* **API Backend:** [http://localhost:3011](http://localhost:3011)
-* **Sonda de Salud en Vivo:** [http://localhost:3011/readyz](http://localhost:3011/readyz)
+* **API Backend:** [http://localhost:3010](http://localhost:3010)
+* **Sonda de Salud en Vivo:** [http://localhost:3010/readyz](http://localhost:3010/readyz)
 * **phpMyAdmin:** [http://localhost:8089](http://localhost:8089)
 
 ---
@@ -315,13 +315,9 @@ flowchart LR
 
 ---
 
-## ☁️ Aislamiento de Túneles Cloudflare (*Namespace Isolation*)
+## 🌐 Endpoints Públicos Directos
 
-El proyecto cuenta con un sistema de aislamiento por prefijos (`CF_TUNNEL_ENV_PREFIX`) para que el desarrollo local y de staging **jamás interfiera ni borre túneles de Producción**:
-
-* **Producción (`CF_TUNNEL_ENV_PREFIX=""`):** Hostnames limpios (`tx40120.ragenodes.com`, `node1.ragenodes.com`).
-* **Staging (`CF_TUNNEL_ENV_PREFIX="staging-"`):** Hostnames prefijados (`staging-tx40120.ragenodes.com`, `staging.ragenodes.com`).
-* **Desarrollo (`CF_TUNNEL_ENV_PREFIX="dev-"`):** Hostnames locales (`dev-tx40120.ragenodes.com`).
+La plataforma expone OxideProxy y los puertos de juego directamente, sin depender de un proveedor de túneles. Cada entorno configura `PROXY_BIND_IP`, `PUBLIC_ENDPOINT_HOST` y `PUBLIC_ENDPOINT_SCHEME`. Las URLs de txAdmin se construyen con el host público y el puerto asignado; DNS y TLS quedan a cargo de la infraestructura externa a la aplicación.
 
 ---
 
@@ -382,7 +378,7 @@ npm run security:routes
 * [System Architecture & UML Diagrams / Arquitectura del Sistema](docs/ARCHITECTURE.md)
 * [ADR-001: Rust OxideProxy](docs/adr/ADR-001-rust-reverse-proxy.md)
 * [ADR-002: OOP Architecture & GameFactory](docs/adr/ADR-002-game-factory-oop-architecture.md)
-* [ADR-003: Cloudflare Tunnel Namespace Isolation](docs/adr/ADR-003-cloudflare-tunnel-namespace-isolation.md)
+* [ADR-003: Direct Public Endpoints](docs/adr/ADR-003-direct-public-endpoints.md)
 * [ADR-004: Versioned Database Migrations](docs/adr/ADR-004-versioned-database-migrations.md)
 * [ADR-005: Structured JSON Logging & Request Correlation](docs/adr/ADR-005-structured-logging-and-request-correlation.md)
 

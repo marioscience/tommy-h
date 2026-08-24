@@ -65,7 +65,19 @@ export const rustUtil = {
                 // Docker representa el límite PID ilimitado como UINT64_MAX. Al pasar por
                 // Number de JavaScript se redondea por encima de u64 y rompe el parser Rust.
                 const { pids_stats: _unusedPidsStats, ...statsForRust } = rawStats || {};
-                return native.calculateStats(JSON.stringify(statsForRust));
+                const result = native.calculateStats(JSON.stringify(statsForRust));
+                const rawCpu = Number.parseFloat(result?.cpu) || 0;
+                const rawRam = Number.parseFloat(result?.ram) || 0;
+
+                // Mantener el mismo contrato que el fallback JS independientemente de si
+                // el módulo nativo está disponible en la plataforma actual.
+                return {
+                    ...result,
+                    cpu: `${rawCpu.toFixed(2)}%`,
+                    ram: `${rawRam.toFixed(2)}%`,
+                    raw_cpu: rawCpu,
+                    raw_ram: rawRam
+                };
             }
 
             // Fallback en JS Puro (Resiliencia Multi-Plataforma)

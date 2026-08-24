@@ -1,5 +1,1 @@
-services:
-  # Local development does not require the public Cloudflare tunnel. Enable it
-  # explicitly with --profile cloudflare when a local tunnel token is available.
-  tunnel:
-    profiles: ["cloudflare"]
+services: {}

@@ -7,7 +7,6 @@ import crypto from 'crypto';
 import { query, logAudit } from '../db.js';
 import { config, PLAN_LIMITS, generateSecurePassword } from '../config.js';
 import * as Docker from './dockerService.js';
-import { updateServerTunnelConfig } from './cloudflareService.js';
 import { GameFactory } from './games/GameFactory.js';
 import { getNextAvailablePort, selectDeploymentNode } from './serverNodeSelection.js';
 

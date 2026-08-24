@@ -6,6 +6,7 @@ node_modules/
 # Local environment and secrets
 .env.*
 !.env.example
+!.env.local.example
 *.pem
 *.key
 *.crt
@@ -20,6 +21,7 @@ __pycache__/
 *.py[cod]
 
 # Runtime data and generated artifacts
+data/
 backups/
 certs/
 backend/uploads/

@@ -4,7 +4,6 @@ import { assertSecureConfig } from './config.js';
 import { patchExistingContainers } from './services/dockerService.js';
 import { startAutoBackups } from './services/backupScheduler.js';
 import { startStatsCollector } from './services/statsCollector.js';
-import { startDdnsService } from './services/ddnsService.js';
 import { startQueryWarmer } from './services/queryCache.js';
 import { startBillingScheduler } from './services/billingScheduler.js';
 import { startDockerEventsListener } from './services/dockerEventsService.js';
@@ -33,7 +32,6 @@ async function boot() {
     case 'worker-docker-events':
       patchExistingContainers();
       startDockerEventsListener();
-      startDdnsService();
       startQueryWarmer();
       break;
     case 'worker-stats':

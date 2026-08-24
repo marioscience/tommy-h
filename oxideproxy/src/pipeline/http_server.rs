@@ -23,7 +23,6 @@ fn get_proxy_client() -> &'static hyper::Client<hyper::client::HttpConnector> {
         hyper::Client::builder()
             .pool_idle_timeout(std::time::Duration::from_secs(60))
             .pool_max_idle_per_host(64)
-            .keep_alive(true)
             .build_http()
     })
 }
@@ -178,7 +177,11 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
     );
     headers.insert(
         HeaderName::from_static("x-frame-options"),
-        HeaderValue::from_static("SAMEORIGIN"),
+        if allow_same_origin_framing || allow_pma_framing {
+            HeaderValue::from_static("SAMEORIGIN")
+        } else {
+            HeaderValue::from_static("DENY")
+        },
     );
     headers.insert(
         HeaderName::from_static("referrer-policy"),
@@ -196,24 +199,47 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
             "camera=(), microphone=(), geolocation=(), accelerometer=(), gyroscope=(), magnetometer=(), usb=(), serial=(), hid=(), browsing-topics=(), clipboard-write=(self), fullscreen=(self), payment=(self \"https://www.paypal.com\")",
         ),
     );
-    // COOP header omitted to prevent Chrome untrustworthy origin warnings on HTTP IP environments
+    if is_https {
+        let coop = if page_security
+            .as_ref()
+            .is_some_and(|profile| profile.allows_paypal)
+        {
+            HeaderValue::from_static("same-origin-allow-popups")
+        } else {
+            HeaderValue::from_static("same-origin")
+        };
+        headers.insert(HeaderName::from_static("cross-origin-opener-policy"), coop);
+    }
     headers.insert(
         HeaderName::from_static("cross-origin-resource-policy"),
-        HeaderValue::from_static("cross-origin"),
+        HeaderValue::from_static("same-origin"),
     );
-    headers.remove("cross-origin-embedder-policy");
+    if page_security
+        .as_ref()
+        .is_some_and(|profile| profile.cross_origin_isolated)
+    {
+        headers.insert(
+            HeaderName::from_static("cross-origin-embedder-policy"),
+            HeaderValue::from_static("credentialless"),
+        );
+    }
     let csp = if let Some(profile) = page_security.as_ref() {
-        let third_party = "img-src * 'self' data: blob: https: http:; connect-src * 'self' ws: wss: https: http:; frame-src 'self' https: http:;";
+        let third_party = match (profile.allows_paypal, profile.allows_internal_frames) {
+            (true, true) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://www.paypal.com https://www.paypalobjects.com; frame-src 'self' https://*.ragenodes.com https://www.paypal.com;",
+            (true, false) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://www.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com;",
+            (false, true) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss:; frame-src 'self' https://*.ragenodes.com;",
+            (false, false) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss:; frame-src 'none';",
+        };
         format!(
-            "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self' *; form-action 'self'; script-src 'nonce-{}' 'unsafe-inline' 'self' https: http:; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https: http:; style-src-elem 'self' 'unsafe-inline' https: http:; style-src-attr 'unsafe-inline'; font-src 'self' https: http: data:; {} worker-src 'self' blob:; manifest-src 'self'",
-            profile.nonce, third_party
+            "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'nonce-{}' 'strict-dynamic' 'self' https://www.paypal.com; script-src-attr 'none'; style-src 'self'; style-src-elem 'self' 'nonce-{}'; style-src-attr 'unsafe-inline'; font-src 'self' data:; {} worker-src 'self' blob:; manifest-src 'self'",
+            profile.nonce, profile.nonce, third_party
         )
     } else if allow_same_origin_framing {
-        "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self' *; form-action 'self'; script-src 'self' 'unsafe-inline' https: http:; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https: http:; style-src-elem 'self' 'unsafe-inline' https: http:; style-src-attr 'unsafe-inline'; font-src 'self' https: http: data:; img-src * 'self' data: blob: https: http:; connect-src * 'self' ws: wss: https: http:; frame-src 'self' https: http:; worker-src 'none'; manifest-src 'none'".to_string()
+        "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self'; style-src-attr 'none'; font-src 'self' data:; img-src 'self' data:; connect-src 'self'; frame-src 'none'; worker-src 'none'; manifest-src 'none'".to_string()
     } else if allow_pma_framing {
-        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self' *; form-action 'self'; script-src 'self' 'unsafe-inline' https: http:; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https: http:; style-src-elem 'self' 'unsafe-inline' https: http:; style-src-attr 'unsafe-inline'; font-src 'self' https: http: data:; img-src * 'self' data: blob: https: http:; connect-src * 'self' ws: wss: https: http:; frame-src 'self' https: http:; worker-src 'self' blob:; manifest-src 'self'".to_string()
+        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline'; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline'; style-src-attr 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self'; worker-src 'self' blob:; manifest-src 'self'".to_string()
     } else {
-        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self' *; form-action 'self'; script-src 'self' 'unsafe-inline' https: http:; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https: http:; style-src-elem 'self' 'unsafe-inline' https: http:; style-src-attr 'unsafe-inline'; font-src 'self' https: http: data:; img-src * 'self' data: blob: https: http:; connect-src * 'self' ws: wss: https: http:; frame-src 'self' https: http:; worker-src 'self' blob:; manifest-src 'self'".to_string()
+        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self'; style-src-attr 'none'; font-src 'self' data:; img-src 'self' data:; connect-src 'self'; frame-src 'none'; worker-src 'none'; manifest-src 'none'".to_string()
     };
     if let Ok(value) = HeaderValue::from_str(&csp) {
         headers.insert(HeaderName::from_static("content-security-policy"), value);
@@ -236,8 +262,7 @@ pub async fn serve_http_connection<S>(
                 .headers()
                 .get("x-forwarded-proto")
                 .and_then(|v| v.to_str().ok())
-                == Some("https")
-                || req.headers().contains_key("cf-visitor");
+                == Some("https");
             let mut response = handle_http_request(req, cfg, peer_addr, tx).await?;
             apply_browser_security_headers(&mut response, is_https);
             Ok::<_, Infallible>(response)
@@ -267,21 +292,54 @@ async fn handle_http_request(
         .unwrap_or("")
         .trim_end_matches('.')
         .to_ascii_lowercase();
+    let host_without_port = host.split(':').next().unwrap_or("");
+
+    let raw_uri_path = req.uri().path();
+    let uri_path_string = normalize_uri_path(raw_uri_path);
+    let uri_path = uri_path_string.as_str();
+
     let is_staging_vps = std::env::var("STAGING_MODE").unwrap_or_default() == "true";
 
-    // Enrutamiento Transparente Absoluto para Staging (`staging.ragenodes.com`)
-    if host_without_port.starts_with("staging.") || host_without_port == "staging.ragenodes.com" {
-        let staging_target = if is_staging_vps {
-            "backend:3006".to_string()
-        } else {
-            "192.168.1.106:80".to_string()
-        };
-        tracing::info!(
-            "Petición Staging detectada (Host: '{}'). Redirigiendo transparente a {}...",
-            host_without_port,
-            staging_target
+    // Una instalación de producción puede reenviar el dominio de staging si
+    // configura explícitamente el destino. En staging y desarrollo se sirve
+    // la aplicación local y nunca se depende de una IP privada codificada.
+    if !is_staging_vps && host_without_port == "staging.ragenodes.com" {
+        if let Ok(staging_target) = std::env::var("STAGING_UPSTREAM") {
+            let staging_target = staging_target.trim();
+            if !staging_target.is_empty() {
+                tracing::info!(
+                    "Petición Staging detectada. Redirigiendo a destino configurado..."
+                );
+                return reverse_proxy_request(
+                    req,
+                    staging_target.to_string(),
+                    None,
+                    peer_addr,
+                )
+                .await;
+            }
+        }
+    }
+
+    tracing::debug!(
+        "Petición HTTP L7: Host: '{}', Path: '{}' (Raw: '{}')",
+        host,
+        uri_path,
+        raw_uri_path
+    );
+
+    let forwarded_request = req.headers().contains_key("x-forwarded-for")
+        || req.headers().contains_key("forwarded");
+    if is_admin_surface(uri_path) && (!is_private_admin_peer(peer_addr.ip()) || forwarded_request) {
+        tracing::warn!(
+            "Bloqueado acceso no local a superficie administrativa: Peer='{}', Host='{}', Path='{}'",
+            peer_addr.ip(), host, uri_path
         );
-        return reverse_proxy_request(req, staging_target, None, peer_addr).await;
+        return Ok(forbidden_admin_response());
+    }
+
+    if uri_path == "/pma/doc" || uri_path.starts_with("/pma/doc/") {
+        return Ok(not_found_response());
     }
 
     // 1. Enrutamiento Virtual Host & SNI para Servidores de Juego (ej. tx40121.node1.ragenodes.com)
@@ -438,18 +496,6 @@ async fn handle_http_request(
         return Ok(response);
     }
 
-    // 2d. Enrutamiento Oxide Control Panel L7 (`/oxide/...`)
-    if uri_path.starts_with("/oxide") {
-        tracing::debug!("Enrutando petición Oxide L7 al contenedor oxide_control_panel:3000...");
-        return reverse_proxy_request(
-            req,
-            "oxide_control_panel:3000".to_string(),
-            Some("/oxide"),
-            peer_addr,
-        )
-        .await;
-    }
-
     // 3. Servidor de Archivos Estáticos Blindado (Frontend Web)
     serve_static_file(req, "/var/www/frontend", peer_addr, ban_tx).await
 }
@@ -490,16 +536,7 @@ async fn reverse_proxy_request(
         }
     }
 
-    let mut real_ip = peer_addr.ip();
-    if is_private_admin_peer(peer_addr.ip()) {
-        if let Some(cf_ip) = req.headers().get("cf-connecting-ip") {
-            if let Ok(cf_ip_str) = cf_ip.to_str() {
-                if let Ok(parsed_ip) = cf_ip_str.trim().parse::<IpAddr>() {
-                    real_ip = parsed_ip;
-                }
-            }
-        }
-    }
+    let real_ip = peer_addr.ip();
 
     if let Ok(val) = real_ip.to_string().parse::<hyper::header::HeaderValue>() {
         req.headers_mut().insert("x-forwarded-for", val.clone());
@@ -742,6 +779,7 @@ async fn serve_static_file(
         let nonce_attribute = format!(" nonce=\"{}\"", nonce);
         content = html
             .replace("<script", &format!("<script{}", nonce_attribute))
+            .replace("<style", &format!("<style{}", nonce_attribute))
             .into_bytes();
         Some(static_page_security_profile(&canonical_full, nonce))
     } else {

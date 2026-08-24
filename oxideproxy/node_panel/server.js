@@ -275,12 +275,23 @@ const requireAdmin = asyncHandler(async (req, res, next) => {
         });
     } catch {
         if (isJson) return res.status(503).json({ error: 'Servicio de autenticación no disponible.' });
-        return res.status(503).send('<!DOCTYPE html><html><head><meta charset="utf-8"><style>h3{color:#f59e0b;font-family:sans-serif;text-align:center;margin-top:50px;}</style></head><body><h3>Servicio de autenticación no disponible.</h3></body></html>');
+        return res.status(503).send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Servicio no disponible</title></head><body><h1>Servicio de autenticación no disponible.</h1></body></html>');
     }
 
-    if (authResponse.status !== 200 || authResponse.data?.role !== 'admin') {
+    if (authResponse.status === 401) {
+        if (isJson) return res.status(401).json({ error: 'Autenticación requerida.' });
+        return res.status(401).send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Autenticación requerida</title></head><body><h1>Autenticación requerida.</h1></body></html>');
+    }
+
+    if (authResponse.status !== 200) {
+        const status = authResponse.status === 403 ? 403 : 503;
+        if (isJson) return res.status(status).json({ error: 'No se pudo validar la sesión administrativa.' });
+        return res.status(status).send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sesión no validada</title></head><body><h1>No se pudo validar la sesión administrativa.</h1></body></html>');
+    }
+
+    if (authResponse.data?.role !== 'admin') {
         if (isJson) return res.status(403).json({ error: 'Acceso reservado a Administradores.' });
-        return res.status(403).send('<!DOCTYPE html><html><head><meta charset="utf-8"><style>h3{color:#ef4444;font-family:sans-serif;text-align:center;margin-top:50px;}</style></head><body><h3>Acceso reservado a Administradores.</h3></body></html>');
+        return res.status(403).send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Acceso denegado</title></head><body><h1>Acceso reservado a Administradores.</h1></body></html>');
     }
 
     if (cacheKey) {

@@ -25,6 +25,19 @@ security_contracts:
   - npm run security:csp-bindings
   - npm run security:inline-code
 
+backend_tests:
+  stage: test
+  image: node:24-bookworm
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-backend-npm"
+    paths:
+    - backend/.npm-cache/
+  before_script:
+  - cd backend
+  - npm ci --ignore-scripts --cache .npm-cache
+  script:
+  - node --test test/*.test.js
+
 secret_detection:
   stage: secret-detection
 include:

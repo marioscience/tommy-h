@@ -1,6 +1,6 @@
 import { BaseGameService } from './BaseGameService.js';
 import { GameFactory } from './GameFactory.js';
-import { getRagenodesTunnelHostname } from '../cloudflareService.js';
+import { getPublicEndpointUrl } from '../publicEndpointService.js';
 import { config } from '../../config.js';
 
 /**
@@ -17,7 +17,7 @@ export class FiveMService extends BaseGameService {
 
     buildEnvironment(opts) {
         const txHostUrl = opts.txadminPort
-            ? `https://${getRagenodesTunnelHostname(opts.containerName || 'srv', opts.txadminPort, '', 'tx')}/`
+            ? getPublicEndpointUrl(opts.txadminPort)
             : null;
 
         return [

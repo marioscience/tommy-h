@@ -3,7 +3,7 @@ import { config, PLAN_LIMITS } from '../config.js';
 import * as Docker from './dockerService.js';
 import { getServerByIdForUser } from './serverService.js';
 import { GameFactory } from './games/GameFactory.js';
-import { cleanOrphanedTunnels } from './cloudflareService.js';
+import { getPublicEndpointUrl } from './publicEndpointService.js';
 const MAINTENANCE_INTERVAL_MS = Math.max(300000, Number(process.env.MAINTENANCE_INTERVAL_MS || 600000));
 
 export async function controlServer(id, userId, action, isAdmin) {
@@ -95,13 +95,6 @@ export async function controlServer(id, userId, action, isAdmin) {
               default: await Docker.restartFivemContainer(opts); break;
           }
 
-          if ((s.template === 'fivem' && s.txadmin_port) || s.template === 'wordpress') {
-              import('./cloudflareService.js').then(({ updateServerTunnelConfig }) => {
-                  const port = s.template === 'fivem' ? s.txadmin_port : s.fivem_port;
-                  const prefix = s.template === 'fivem' ? 'tx' : 'wp';
-                  updateServerTunnelConfig(s.id, port, s.txadmin_url, 'add', 'host.docker.internal', prefix).catch(e => console.error(e));
-              }).catch(e => {});
-          }
       } finally {
           await query("UPDATE servers SET status = 'running' WHERE id = $1", [s.id]);
       }
@@ -120,7 +113,6 @@ export async function deleteServer(id, userId, isAdmin) {
 
   await Docker.removeContainer(s.container_name);
   await Docker.removeContainer(`ragenodes-blender-${s.id.slice(0,8)}`);
-  try { updateTunnelConfig(s.id.slice(0, 8), null, 'remove').catch(e => console.error(`Cloudflare remove error: ${e.message}`)); } catch (e) {}
   await query('DELETE FROM servers WHERE id = $1', [s.id]);
   try { await fs.rm(s.data_path, { recursive: true, force: true }); } catch {}
 
@@ -137,7 +129,7 @@ setInterval(async () => {
         console.log("🛠️ [Mantenimiento] Iniciando escaneo de salud de servidores...");
 
         // 🛡️ Auto-curado de infraestructura crítica
-        const coreContainers = ['oxide_web', 'tunnel', 'wg-easy', 'oxide_control_panel'];
+        const coreContainers = ['oxide_web', 'wg-easy', 'oxide_control_panel'];
         for (const core of coreContainers) {
             try {
                 const coreState = await Docker.resolveContainerState(core);
@@ -279,15 +271,11 @@ setInterval(async () => {
                         }
                     }
 
-                    // 🚀 AUTOMATIZACIÓN CLOUDFLARE (Solo para FiveM)
+                    // Mantiene la URL publica directa de txAdmin sincronizada.
                     if (s.template === 'fivem' && s.txadmin_port) {
-                        const tunnelUrl = `https://${getRagenodesTunnelHostname(s.id, s.txadmin_port, '', 'tx')}`;
-                        const activeTunnelUrl = s.txadmin_url || tunnelUrl;
-                        if (/^https:\/\/(?:[a-z0-9-_]+\.)?ragenodes\.com\/?$/i.test(activeTunnelUrl)) {
-                            // Sync is handled by createServer and deleteServer, no need to blindly sync every 60s
-                        }
-                        if (s.txadmin_url !== tunnelUrl) {
-                            await query('UPDATE servers SET txadmin_url = $1 WHERE id = $2', [tunnelUrl, s.id]);
+                        const publicUrl = getPublicEndpointUrl(s.txadmin_port, { path: '' });
+                        if (s.txadmin_url !== publicUrl) {
+                            await query('UPDATE servers SET txadmin_url = $1 WHERE id = $2', [publicUrl, s.id]);
                         }
                     }
                 } catch (e) {
@@ -300,9 +288,6 @@ setInterval(async () => {
                 await new Promise(r => setTimeout(r, 500));
             }
         }
-
-        console.log("☁️ [Mantenimiento] Iniciando limpieza de túneles huérfanos en Cloudflare...");
-        await cleanOrphanedTunnels();
     } catch (e) {
         console.error("❌ Mantenimiento Error:", e.message);
     }
@@ -366,13 +351,6 @@ export async function repairOneServer(s) {
 
         await query("UPDATE servers SET status = 'running' WHERE id = $1", [s.id]);
 
-        if ((s.template === 'fivem' && s.txadmin_port) || s.template === 'wordpress') {
-            import('./cloudflareService.js').then(({ updateServerTunnelConfig }) => {
-                const port = s.template === 'fivem' ? s.txadmin_port : s.fivem_port;
-                const prefix = s.template === 'fivem' ? 'tx' : 'wp';
-                updateServerTunnelConfig(s.id, port, s.txadmin_url, 'add', 'host.docker.internal', prefix).catch(e => console.error(e));
-            }).catch(e => {});
-        }
     } catch (e) {
         console.error(`❌ Error en mantenimiento de ${s.name}:`, e.message);
         await query("UPDATE servers SET status = 'error' WHERE id = $1", [s.id]);
@@ -438,13 +416,6 @@ export async function repairServer(id, userId, isAdmin) {
       }
       await query("UPDATE servers SET status = 'running' WHERE id = $1", [s.id]);
 
-      if ((s.template === 'fivem' && s.txadmin_port) || s.template === 'wordpress') {
-          import('./cloudflareService.js').then(({ updateServerTunnelConfig }) => {
-              const port = s.template === 'fivem' ? s.txadmin_port : s.fivem_port;
-              const prefix = s.template === 'fivem' ? 'tx' : 'wp';
-              updateServerTunnelConfig(s.id, port, s.txadmin_url, 'add', 'host.docker.internal', prefix).catch(e => console.error(e));
-          }).catch(e => {});
-      }
       return { success: true };
   } catch (err) {
       await query("UPDATE servers SET status = 'error' WHERE id = $1", [s.id]);

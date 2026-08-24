@@ -2808,7 +2808,7 @@ function toggleSidebar() {
 
         async function processUpload(files) {
             let sCount = 0; let fCount = 0;
-            const CHUNK_SIZE = 80 * 1024 * 1024; // 80 MB (Aprovechando el límite de 100MB de Cloudflare)
+            const CHUNK_SIZE = 80 * 1024 * 1024; // 80 MB por bloque para limitar memoria y reintentos.
 
             document.getElementById('fm-sidebar-list').innerHTML = `<div class="muted" style="padding:15px; text-align:center;"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><br><br><span id="upload-progress-text">Preparando subida...</span></div>`;
             const progressText = document.getElementById('upload-progress-text');

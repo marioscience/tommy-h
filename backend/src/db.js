@@ -159,15 +159,15 @@ export async function seedInitialData() {
   `);
 
   // 3. Usuario administrador inicial (Bootstrap)
-  const adminUser = config.adminUser || 'admin';
-  const adminPass = config.adminPass || '[REMOVED_PASSWORD]';
-  const existingAdmin = await query("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
-  if (!existingAdmin.rowCount) {
-    const hash = await bcrypt.hash(adminPass, 12);
-    await query(
-      'INSERT INTO users (username, password_hash, role, plan, server_limit, is_verified) VALUES ($1, $2, $3, $4, $5, true)',
-      [adminUser, hash, 'admin', 'premium', 100]
-    );
+  if (config.adminUser && config.adminPass) {
+    const existingAdmin = await query("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
+    if (!existingAdmin.rowCount) {
+      const hash = await bcrypt.hash(config.adminPass, 12);
+      await query(
+        'INSERT INTO users (username, password_hash, role, plan, server_limit, is_verified) VALUES ($1, $2, $3, $4, $5, true)',
+        [config.adminUser, hash, 'admin', 'premium', 100]
+      );
+    }
   }
 }
 

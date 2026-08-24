@@ -7,8 +7,12 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: Number(process.env.PORT || 3006),
   publicBaseUrl: process.env.PUBLIC_BASE_URL || 'http://localhost:8088',
-  databaseUrl: process.env.DATABASE_URL || 'postgresql://ragenodes:8c3f1a7d9e2b6c4f0a5d8b1e7c3f9a2@localhost:5432/ragenodes',
-  jwtSecret: process.env.JWT_SECRET || 'dev_jwt_secret_key_32_characters_long_ragenodes_dev',
+  databaseUrl: process.env.DATABASE_URL || (
+    process.env.NODE_ENV === 'production' ? '' : 'postgresql://ragenodes:local-only-postgres-password@localhost:5432/ragenodes'
+  ),
+  jwtSecret: process.env.JWT_SECRET || (
+    process.env.NODE_ENV === 'production' ? '' : 'dev_jwt_secret_key_32_characters_long_ragenodes_dev'
+  ),
   adminUser: process.env.ADMIN_BOOTSTRAP_USER,
   adminPass: process.env.ADMIN_BOOTSTRAP_PASS,
   corsOrigin: process.env.CORS_ORIGIN || process.env.PUBLIC_BASE_URL || 'http://localhost:8088',
@@ -17,8 +21,12 @@ export const config = {
   cookieSameSite: process.env.COOKIE_SAMESITE || 'Lax',
 
   // 🤖 CONFIGURACIÓN DEL BOT DE DISCORD — Sin fallback inseguro: falla en arranque si no está configurada
-  apiKey: process.env.API_KEY || 'dev_api_key_24_chars_min_len_ragenodes',
-  centralDbPass: process.env.CENTRAL_DB_PASS || 'dev_central_db_pass_16chars',
+  apiKey: process.env.API_KEY || (
+    process.env.NODE_ENV === 'production' ? '' : 'dev_api_key_24_chars_min_len_ragenodes'
+  ),
+  centralDbPass: process.env.CENTRAL_DB_PASS || (
+    process.env.NODE_ENV === 'production' ? '' : 'dev_central_db_pass_16chars'
+  ),
   paypalWebhooksEnabled: process.env.PAYPAL_WEBHOOKS_ENABLED !== 'false',
   paypalClient: process.env.PAYPAL_CLIENT,
   paypalSecret: process.env.PAYPAL_SECRET,
@@ -59,6 +67,11 @@ export const config = {
     process.env.NODE_ENV === 'staging' ? 'staging.ragenodes.com' :
     process.env.NODE_ENV === 'production' ? 'node1.ragenodes.com' : 'localhost'
   ),
+  publicEndpointHost: process.env.PUBLIC_ENDPOINT_HOST || process.env.FIVEM_PUBLIC_HOST || (
+    process.env.NODE_ENV === 'staging' ? 'staging.ragenodes.com' :
+    process.env.NODE_ENV === 'production' ? 'node1.ragenodes.com' : 'localhost'
+  ),
+  publicEndpointScheme: String(process.env.PUBLIC_ENDPOINT_SCHEME || 'http').toLowerCase(),
   fivemPortStart: Number(process.env.FIVEM_PORT_START || 30100),
   txAdminPortStart: Number(process.env.TXADMIN_PORT_START || 40100),
   blenderPortStart: Number(process.env.BLENDER_PORT_START || 50100),
@@ -73,18 +86,7 @@ export const config = {
 
   // Límites y Seguridad
   serverLimitPerUser: Number(process.env.SERVER_LIMIT_PER_USER || 1),
-  centralDbPass: process.env.CENTRAL_DB_PASS,
 
-  // ☁️ CLOUDFLARE AUTOMATION & NAMESPACE ISOLATION
-  cfAccountId: process.env.CF_ACCOUNT_ID,
-  cfZoneId: process.env.CF_ZONE_ID,
-  cfTunnelId: process.env.CF_TUNNEL_ID,
-  cfApiToken: process.env.CF_API_TOKEN,
-  cfEmail: process.env.CF_EMAIL,
-  cfDdnsDomain: process.env.CF_DDNS_DOMAIN,
-  cfTunnelEnvPrefix: process.env.CF_TUNNEL_ENV_PREFIX !== undefined
-    ? String(process.env.CF_TUNNEL_ENV_PREFIX).trim()
-    : (process.env.NODE_ENV === 'staging' ? 'staging-' : (process.env.NODE_ENV === 'production' ? '' : 'dev-')),
   allowLocalAdmin: process.env.ALLOW_LOCAL_ADMIN === 'true'
 };
 
@@ -112,6 +114,9 @@ export function assertSecureConfig() {
   if (!Number.isInteger(config.dockerBlkioWeight)
       || (config.dockerBlkioWeight !== 0 && (config.dockerBlkioWeight < 10 || config.dockerBlkioWeight > 1000))) {
     errors.push('DOCKER_BLKIO_WEIGHT debe ser 0 (deshabilitado) o un entero entre 10 y 1000.');
+  }
+  if (!['http', 'https'].includes(config.publicEndpointScheme)) {
+    errors.push('PUBLIC_ENDPOINT_SCHEME debe ser http o https.');
   }
 
   if (Boolean(config.paypalClient) !== Boolean(config.paypalSecret)) {

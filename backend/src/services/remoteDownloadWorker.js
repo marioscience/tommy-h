@@ -23,7 +23,9 @@ let downloadWorkerBusy = false;
 
 export const getSafePath = (base, target) => {
     const resolvedBase = path.resolve(base);
-    const cleanTarget = (target || '').replace(/^\/+/, '');
+    // Tratar ambos separadores como rutas para que un payload con barras de
+    // Windows no pueda eludir la validación cuando el backend corre en Linux.
+    const cleanTarget = String(target || '').replace(/\\/g, '/').replace(/^\/+/, '');
     const resolvedTarget = path.resolve(resolvedBase, cleanTarget || '.');
 
     if (resolvedTarget !== resolvedBase && !resolvedTarget.startsWith(resolvedBase + path.sep)) {
