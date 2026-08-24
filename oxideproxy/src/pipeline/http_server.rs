@@ -269,6 +269,10 @@ async fn handle_http_request(
         .to_ascii_lowercase();
     let host_without_port = host.split(':').next().unwrap_or("");
 
+    let raw_uri_path = req.uri().path();
+    let uri_path_string = normalize_uri_path(raw_uri_path);
+    let uri_path = uri_path_string.as_str();
+
     // Enrutamiento Transparente Absoluto para Staging (`staging.ragenodes.com` -> `192.168.1.106:80`)
     if host_without_port.starts_with("staging.") || host_without_port == "staging.ragenodes.com" {
         tracing::info!(
