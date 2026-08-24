@@ -41,11 +41,13 @@ export async function createServerForUser(userId, payload) {
     }
 
     const planConfig = PLANS[assignedPlan] || PLANS.hobby;
+    const planMaxSlots = planConfig?.maxSlots || 1;
+    const effectiveServerLimit = Math.max(serverLimit, planMaxSlots);
 
     const countResult = await query('SELECT COUNT(*) FROM servers WHERE owner_id = $1', [userId]);
     const currentCount = parseInt(countResult.rows[0].count, 10);
-    if (currentCount >= serverLimit) {
-      throw new Error(`Limite alcanzado: tu plan solo permite ${serverLimit} servidor(es).`);
+    if (currentCount >= effectiveServerLimit) {
+      throw new Error(`Limite alcanzado: tu plan (${assignedPlan.toUpperCase()}) solo permite ${effectiveServerLimit} servidor(es).`);
     }
 
     const { name, template = 'fivem', licenseKeyHint = 'SIN_LICENCIA', explicitNodeId = null, cpuset = null } = payload;
