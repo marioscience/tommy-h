@@ -1,16 +1,18 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -u
 
-# Revisa oxide_web
+PROJECT_DIR="/opt/ragenodes-ultimate"
+LOG_FILE="$PROJECT_DIR/scripts/autoheal_proxy.log"
+
+# Mantiene disponible el proxy web directo. El túnel Cloudflare ya no forma
+# parte de la arquitectura y no debe recrearse ni reiniciarse.
 if [ "$(docker container inspect -f '{{.State.Running}}' ragenodes-ultimate-oxide_web-1 2>/dev/null)" != "true" ]; then
-    echo "$(date): oxide_web is down, restarting..." >> /opt/ragenodes-ultimate/scripts/autoheal_proxy.log
-    docker start ragenodes-ultimate-oxide_web-1
+    printf '%s: oxide_web is down, recreating...\n' "$(date --iso-8601=seconds)" >> "$LOG_FILE"
+    cd "$PROJECT_DIR" || exit 1
+    docker compose up -d --no-deps oxide_web >> "$LOG_FILE" 2>&1
 fi
 
-# Revisa tunnel
-if [ "$(docker container inspect -f '{{.State.Running}}' ragenodes-ultimate-tunnel-1 2>/dev/null)" != "true" ]; then
-    echo "$(date): tunnel is down, restarting..." >> /opt/ragenodes-ultimate/scripts/autoheal_proxy.log
-    docker start ragenodes-ultimate-tunnel-1
+# Limpieza automática de logs: elimina únicamente logs con más de 30 días.
+if [ -d /opt/ragenodes_logs_globales ]; then
+    find /opt/ragenodes_logs_globales/ -type f -name "*.log*" -mtime +30 -delete
 fi
-
-# Limpieza automatica de logs (Autocurado) - Borra archivos mayores a 30 dias
-find /opt/ragenodes_logs_globales/ -type f -name "*.log*" -mtime +30 -exec rm -f {} \;
