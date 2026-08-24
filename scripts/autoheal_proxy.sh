@@ -11,8 +11,3 @@ if [ "$(docker container inspect -f '{{.State.Running}}' ragenodes-ultimate-oxid
     cd "$PROJECT_DIR" || exit 1
     docker compose up -d --no-deps oxide_web >> "$LOG_FILE" 2>&1
 fi
-
-# Limpieza automática de logs: elimina únicamente logs con más de 30 días.
-if [ -d /opt/ragenodes_logs_globales ]; then
-    find /opt/ragenodes_logs_globales/ -type f -name "*.log*" -mtime +30 -delete
-fi
