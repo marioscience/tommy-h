@@ -495,10 +495,27 @@ impl AccessGate {
     }
 
     fn valid_origin(&self, req: &Request<Body>) -> bool {
-        req.headers()
+        let Some(origin) = req
+            .headers()
             .get(ORIGIN)
             .and_then(|value| value.to_str().ok())
-            .is_some_and(|origin| origin == format!("https://{}", self.domain))
+        else {
+            return false;
+        };
+        let Ok(origin) = url::Url::parse(origin) else {
+            return false;
+        };
+
+        origin.scheme() == "https"
+            && origin
+                .host_str()
+                .is_some_and(|host| host.eq_ignore_ascii_case(&self.domain))
+            && origin.port_or_known_default() == Some(443)
+            && origin.username().is_empty()
+            && origin.password().is_none()
+            && origin.path() == "/"
+            && origin.query().is_none()
+            && origin.fragment().is_none()
     }
 }
 
@@ -685,6 +702,25 @@ mod tests {
             Some("dev@example.com".to_string())
         );
         assert_eq!(normalize_email("invalid"), None);
+    }
+
+    #[test]
+    fn origin_validation_accepts_only_canonical_https_origin() {
+        let gate = test_gate();
+        let request = |origin: Option<&str>| {
+            let mut builder = Request::builder().uri(REQUEST_PATH);
+            if let Some(origin) = origin {
+                builder = builder.header(ORIGIN, origin);
+            }
+            builder.body(Body::empty()).unwrap()
+        };
+
+        assert!(gate.valid_origin(&request(Some("https://ragenodes.dev"))));
+        assert!(gate.valid_origin(&request(Some("https://ragenodes.dev:443"))));
+        assert!(!gate.valid_origin(&request(Some("http://ragenodes.dev"))));
+        assert!(!gate.valid_origin(&request(Some("https://ragenodes.dev:444"))));
+        assert!(!gate.valid_origin(&request(Some("https://evil.example"))));
+        assert!(!gate.valid_origin(&request(None)));
     }
 
     #[test]
