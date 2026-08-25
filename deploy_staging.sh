@@ -39,6 +39,20 @@ wait_for_service() {
   return 1
 }
 
+wait_for_http() {
+  local url="$1" timeout_seconds="$2" elapsed=0
+  while [ "$elapsed" -lt "$timeout_seconds" ]; do
+    if curl --fail --silent --show-error --max-time 5 "$url" >/dev/null 2>&1; then
+      echo "   OK $url"
+      return 0
+    fi
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+  echo "ERROR: $url no respondio correctamente en ${timeout_seconds}s" >&2
+  return 1
+}
+
 docker compose -f docker-compose.staging.yml config --quiet
 RUNTIME_DOCKER_NETWORK=ragenodes_net_staging bash ./scripts/ensure_base_images.sh
 docker compose -f docker-compose.staging.yml build "${APP_SERVICES[@]}"
@@ -47,8 +61,8 @@ docker compose -f docker-compose.staging.yml up -d --no-deps "${APP_SERVICES[@]}
 wait_for_service backend-staging 90
 wait_for_service oxide_control_panel 60
 wait_for_service oxide_web_staging 60
-curl --fail --silent --show-error --max-time 10 http://127.0.0.1:3011/healthz >/dev/null
-curl --fail --silent --show-error --max-time 10 http://127.0.0.1:3011/readyz >/dev/null
+wait_for_http http://127.0.0.1:3011/healthz 90
+wait_for_http http://127.0.0.1:3011/readyz 90
 docker compose -f docker-compose.staging.yml exec -T backend-staging node src/verify_production_readiness.js
 
 echo "Staging actualizado y verificado."
