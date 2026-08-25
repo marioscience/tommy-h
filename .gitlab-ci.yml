@@ -41,6 +41,7 @@ security_contracts:
   - npm run security:csp-bindings
   - npm run security:inline-code
   - npm run security:blender-viewport
+  - npm run security:panel-render
   - npm run security:deployment
   - bash scripts/security/env_loader_contract.sh
 

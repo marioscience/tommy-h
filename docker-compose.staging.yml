@@ -45,7 +45,7 @@ services:
     environment:
       CONTAINER_PREFIX: ragenodes-staging-
       DOCKER_NETWORK: ragenodes_net_staging
-      PORT_BASE_OFFSET: 10000
+      PORT_BASE_OFFSET: ${STAGING_PORT_BASE_OFFSET:-1000}
       FIVEM_PUBLIC_HOST: ${STAGING_GAME_PUBLIC_HOST:-node1.ragenodes.dev}
       PUBLIC_ENDPOINT_HOST: ${STAGING_PUBLIC_ENDPOINT_HOST:-ragenodes.dev}
       PUBLIC_ENDPOINT_SCHEME: ${PUBLIC_ENDPOINT_SCHEME:-https}
@@ -98,7 +98,7 @@ services:
       - RAGENODES_ROLE=worker-docker-events
       - CONTAINER_PREFIX=ragenodes-staging-
       - DOCKER_NETWORK=ragenodes_net_staging
-      - PORT_BASE_OFFSET=10000
+      - PORT_BASE_OFFSET=${STAGING_PORT_BASE_OFFSET:-1000}
       - FIVEM_PUBLIC_HOST=${STAGING_GAME_PUBLIC_HOST:-node1.ragenodes.dev}
       - PUBLIC_ENDPOINT_HOST=${STAGING_PUBLIC_ENDPOINT_HOST:-ragenodes.dev}
       - PUBLIC_ENDPOINT_SCHEME=${PUBLIC_ENDPOINT_SCHEME:-https}
