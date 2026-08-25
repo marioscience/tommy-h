@@ -111,7 +111,7 @@ export async function selectDeploymentNode(plan, requestedRamGb, template, expli
   return bestNode;
 }
 
-export async function getNextAvailablePort(startPort, range = 1, targetNodeId = 0) {
+export async function getNextAvailablePort(startPort, range = 1, targetNodeId = 0, excludedPorts = []) {
   const firstPort = Number(startPort) + Number(config.portBaseOffset || 0);
   const blockSize = Number(range);
   if (!Number.isInteger(firstPort) || firstPort < 1 || firstPort > 65535) {
@@ -123,7 +123,9 @@ export async function getNextAvailablePort(startPort, range = 1, targetNodeId = 
 
   const maxScan = Math.max(blockSize, Number(process.env.PORT_SCAN_LIMIT || 5000));
   const lastPort = Math.min(65535, firstPort + maxScan);
-  const usedPorts = new Set();
+  const usedPorts = new Set(
+    Array.from(excludedPorts || [], value => Number(value)).filter(Number.isInteger)
+  );
   const { rows } = await query(`
     SELECT fivem_port AS port FROM servers WHERE fivem_port IS NOT NULL AND COALESCE(node_id, 0) = $1
     UNION
