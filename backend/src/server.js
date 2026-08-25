@@ -65,13 +65,22 @@ app.use(requestLogger);
 const allowedOrigins = new Set(
     String(config.corsOrigin || '').split(',').map(origin => origin.trim()).filter(Boolean)
 );
-const isRagenodesDomain = (orig) => /^https?:\/\/(.+\.)?ragenodes\.com(:\d+)?$/.test(orig);
+const isTrustedDomainOrigin = (origin) => {
+    try {
+        const parsed = new URL(origin);
+        if (config.nodeEnv === 'production' && parsed.protocol !== 'https:') return false;
+        const hostname = parsed.hostname.toLowerCase();
+        return config.trustedBaseDomains.some(domain => hostname === domain || hostname.endsWith(`.${domain}`));
+    } catch {
+        return false;
+    }
+};
+const isPrivateIpOrigin = (origin) => config.nodeEnv !== 'production'
+    && /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|127\.0\.0\.1|localhost)(:\d+)?$/.test(origin);
 
 app.use(cors({
     origin(origin, callback) {
-        if (!origin || allowedOrigins.has(origin) || isRagenodesDomain(origin)) return callback(null, true);
-        const isPrivateIpOrigin = /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|127\.0\.0\.1|localhost)(:\d+)?$/.test(origin);
-        if (isPrivateIpOrigin) return callback(null, true);
+        if (!origin || allowedOrigins.has(origin) || isTrustedDomainOrigin(origin) || isPrivateIpOrigin(origin)) return callback(null, true);
         return callback(new Error('Origen CORS no permitido.'));
     },
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -80,7 +89,8 @@ app.use(cors({
 }));
 app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'SAMEORIGIN'); res.setHeader('Content-Security-Policy', "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self' *; form-action 'self'; script-src 'self' 'unsafe-inline' https: http:; script-src-elem 'self' 'unsafe-inline' https: http:; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https: http:; style-src-elem 'self' 'unsafe-inline' https: http:; style-src-attr 'unsafe-inline'; font-src 'self' https: http: data:; img-src * 'self' data: blob: https: http:; connect-src * 'self' ws: wss: https: http:; frame-src 'self' https: http:; worker-src 'self' blob:; manifest-src 'self'");
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'");
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     if (process.env.NODE_ENV === 'production') {
@@ -92,7 +102,7 @@ app.use(express.json({ limit: '256kb', strict: true }));
 app.use('/api', (req, res, next) => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || !hasSessionCookie(req) || req.path.startsWith('/auth/login') || req.path.startsWith('/auth/register')) return next();
     const origin = req.get('origin');
-    if (!origin) return next();
+    if (!origin) return res.status(403).json({ error: 'Origin obligatorio para modificaciones autenticadas por cookie.' });
 
     const host = req.get('host');
     const forwardedHost = req.get('x-forwarded-host');
@@ -100,12 +110,10 @@ app.use('/api', (req, res, next) => {
 
     const requestOrigin = `${req.protocol}://${host}`;
     const forwardedOrigin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : null;
-    const isPrivateIpOrigin = /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|127\.0\.0\.1|localhost)(:\d+)?$/.test(origin);
-
     const stripScheme = (url) => String(url || '').replace(/^https?:\/\//i, '');
     const originHost = stripScheme(origin);
 
-    if (originHost !== stripScheme(requestOrigin) && originHost !== stripScheme(forwardedOrigin) && !allowedOrigins.has(origin) && !isPrivateIpOrigin && !isRagenodesDomain(origin)) {
+    if (originHost !== stripScheme(requestOrigin) && originHost !== stripScheme(forwardedOrigin) && !allowedOrigins.has(origin) && !isPrivateIpOrigin(origin) && !isTrustedDomainOrigin(origin)) {
         return res.status(403).json({ error: 'Origen no permitido para modificaciones de estado.' });
     }
     next();

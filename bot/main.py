@@ -19,7 +19,10 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger("RageNodesBot")
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
-API_KEY       = os.getenv("API_KEY", "")
+NODE_ENV      = os.getenv("NODE_ENV", "development").lower()
+API_KEY       = os.getenv("DISCORD_API_KEY", "")
+if not API_KEY and NODE_ENV != "production":
+    API_KEY = os.getenv("API_KEY", "")
 API_URL_BASE  = os.getenv("API_URL_BASE", "http://172.17.0.1:3010/api/discord")
 TICKET_CATEGORY_NAME = "TICKETS RAGENODES"
 USUARIO_ROLE_NAME    = "👥 Usuario"
@@ -400,16 +403,11 @@ async def on_command_error(ctx, error):
 async def my_command_error(ctx, error):
     print(f"⚠️ COMANDO ERROR: {error}", flush=True)
 
-@bot.listen("on_interaction")
-async def debug_interaction(interaction: discord.Interaction):
-    print(f"================ INTERACCION RECIBIDA: {interaction.type} | DATA: {interaction.data} ================", flush=True)
-    try:
-        await interaction.channel.send(f"⚠️ DEBUG: Interacción recibida! custom_id: {interaction.data.get('custom_id')}")
-    except Exception as e:
-        print(f"Error sending debug: {e}")
-
 if __name__ == "__main__":
-    if not DISCORD_TOKEN:
-        print("❌ DISCORD_TOKEN no está configurado en el .env")
-    else:
-        bot.run(DISCORD_TOKEN)
+    missing = [name for name, value in (
+        ("DISCORD_TOKEN", DISCORD_TOKEN),
+        ("DISCORD_API_KEY", API_KEY),
+    ) if not value]
+    if missing:
+        raise SystemExit(f"❌ Faltan variables obligatorias: {', '.join(missing)}")
+    bot.run(DISCORD_TOKEN)

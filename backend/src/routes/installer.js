@@ -43,8 +43,8 @@ router.post('/auto-register', async (req, res) => {
     try {
         const providedKey = req.headers['x-api-key'];
         
-        if (!providedKey || !secretsEqual(providedKey, config.apiKey)) {
-            return res.status(401).json({ error: "No autorizado. API_KEY inválida." });
+        if (!providedKey || !secretsEqual(providedKey, config.nodeEnrollmentApiKey)) {
+            return res.status(401).json({ error: "No autorizado. Clave de enrolamiento inválida." });
         }
 
         const { ip_address, ca_pem, cert_pem, key_pem } = req.body;

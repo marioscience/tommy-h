@@ -7,6 +7,7 @@ const extensions = new Set(['.html', '.js', '.mjs']);
 const excludedNames = new Set(['panel_backup.html']);
 const executableAttribute = /(?:^|\s)on[a-z]+\s*=/gi;
 const dynamicCode = /\beval\s*\(|new\s+Function\s*\(|set(?:Timeout|Interval)\s*\(\s*['"]|javascript:/gi;
+const emptyIframeSource = /<iframe\b[^>]*\bsrc\s*=\s*['"]\s*['"]/gi;
 
 async function filesUnder(directory) {
   const result = [];
@@ -29,6 +30,12 @@ for (const file of files) {
   executableAttribute.lastIndex = 0;
   assert.equal(dynamicCode.test(source), false, `${file} contains dynamic code execution`);
   dynamicCode.lastIndex = 0;
+  assert.equal(
+    emptyIframeSource.test(source),
+    false,
+    `${file} contains an iframe with an empty src that would frame the current page`
+  );
+  emptyIframeSource.lastIndex = 0;
 }
 
 console.log(`Inline-code contract passed for ${files.length} frontend files.`);

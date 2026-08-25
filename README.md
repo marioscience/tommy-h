@@ -187,6 +187,7 @@ npm --prefix backend test
 npm run security:secrets
 npm run security:csp-bindings
 npm run security:inline-code
+npm run security:deployment
 npm run security:routes
 ```
 
@@ -208,7 +209,7 @@ Ya sea para desplegar una comunidad masiva de FiveM o un clúster multi-nodo par
 - **🕹️ Despliegue en 1-Clic:** Orquestación instantánea para FiveM (txAdmin), Rust, Minecraft, CS2, Palworld, ARK: Survival Ascended y 7 Days to Die.
 - **🤖 Hosting de Bots de Discord:** Contenedores seguros y aislados para bots en Node.js y Python con monitoreo de salud.
 - **⚡ OxideProxy (Núcleo en Rust & L7 Control Plane):** Proxy inverso L4/L7 hiper-optimizado con terminación TLS, nonces criptográficos CSP, caché de tokens de 30s y mitigación DDoS.
-- **🛡️ CORS y CSRF Dinámico para IPs Privadas:** Evaluación automática de origen para redes locales (`192.168.x.x`, `10.x.x.x`, `172.16-31.x.x`, `127.0.0.1`, `localhost`) permitiendo modificaciones de estado sin bloqueos.
+- **🛡️ CORS y CSRF por entorno:** Producción sólo acepta HTTPS y dominios configurados; los orígenes privados se permiten exclusivamente durante desarrollo local.
 - **🐳 Blindaje de Docker:** Ejecución rootless (`1000:1000`), lista de capacidades mínimas, validación fail-fast de volúmenes e imágenes Distroless.
 - **📊 Telemetría en Tiempo Real e iframe Autenticado:** Métricas de CPU, memoria heap e I/O transmitidas por WebSockets, con auto-propagación de tokens JWT (`authFetch`).
 - **🩺 Diagnóstico Adaptativo de Salud:** Sondas nativas `/healthz`, `/readyz` y runner adaptativo en Staging (`stagingHealthTestRunner.js`) con generación de reportes PDF/HTML.
@@ -369,6 +370,7 @@ npm --prefix backend run db:migrate
 npm run security:secrets
 npm run security:csp-bindings
 npm run security:inline-code
+npm run security:deployment
 npm run security:routes
 ```
 
@@ -381,6 +383,7 @@ npm run security:routes
 * [ADR-003: Direct Public Endpoints](docs/adr/ADR-003-direct-public-endpoints.md)
 * [ADR-004: Versioned Database Migrations](docs/adr/ADR-004-versioned-database-migrations.md)
 * [ADR-005: Structured JSON Logging & Request Correlation](docs/adr/ADR-005-structured-logging-and-request-correlation.md)
+* [Production Readiness Checklist / Lista de preparación](docs/production-readiness-checklist.md)
 
 ---
 

@@ -19,7 +19,10 @@ type HmacSha256 = Hmac<Sha256>;
 const ACCESS_PATH: &str = "/__access";
 const REQUEST_PATH: &str = "/__access/request";
 const VERIFY_PATH: &str = "/__access/verify";
-const SESSION_COOKIE: &str = "__Host-rn_staging_access";
+// La sesión debe compartirse entre el dominio canónico y sus subdominios.
+// El prefijo __Host- prohíbe el atributo Domain y el navegador descartaría
+// la cookie; __Secure- mantiene la exigencia de HTTPS y permite compartirla.
+const SESSION_COOKIE: &str = "__Secure-rn_staging_access";
 const OTP_TTL_SECS: u64 = 10 * 60;
 const SESSION_TTL_SECS: u64 = 24 * 60 * 60;
 const UNKNOWN_WINDOW: Duration = Duration::from_secs(60 * 60);
@@ -159,8 +162,11 @@ impl AccessGate {
     ) -> GateOutcome {
         self.cleanup_expired_state();
         let host = normalized_request_host(&req);
+        let gated_subdomain = host
+            .strip_suffix(&format!(".{}", self.domain))
+            .is_some_and(|label| !label.is_empty() && !label.contains('.'));
 
-        if host != self.domain {
+        if host != self.domain && !gated_subdomain {
             if self.shared_edge {
                 return GateOutcome::Allow(req);
             }
@@ -187,7 +193,24 @@ impl AccessGate {
         }
 
         if self.has_valid_session(&req) {
+            if matches!(req.uri().path(), ACCESS_PATH | REQUEST_PATH | VERIFY_PATH) {
+                return GateOutcome::Respond(redirect_response(&format!(
+                    "https://panel.{}/panel",
+                    self.domain
+                )));
+            }
             return GateOutcome::Allow(req);
+        }
+
+        // Los paneles dinámicos de staging comparten la cookie del dominio
+        // principal. Si todavía no existe una sesión, la autenticación siempre
+        // se realiza en el host canónico para conservar una validación Origin
+        // estricta y evitar formularios válidos en subdominios arbitrarios.
+        if gated_subdomain {
+            return GateOutcome::Respond(redirect_response(&format!(
+                "https://{}{}",
+                self.domain, ACCESS_PATH
+            )));
         }
 
         let path = req.uri().path().to_string();
@@ -378,9 +401,10 @@ impl AccessGate {
     fn authorized_response(&self, email: &str) -> Response<Body> {
         let token = self.create_session_token(email);
         let cookie = format!(
-            "{SESSION_COOKIE}={token}; Path=/; Max-Age={SESSION_TTL_SECS}; Secure; HttpOnly; SameSite=Strict"
+            "{SESSION_COOKIE}={token}; Domain={}; Path=/; Max-Age={SESSION_TTL_SECS}; Secure; HttpOnly; SameSite=Strict",
+            self.domain
         );
-        let mut response = redirect_response("/");
+        let mut response = redirect_response(&format!("https://panel.{}/panel", self.domain));
         if let Ok(value) = HeaderValue::from_str(&cookie) {
             response.headers_mut().insert(SET_COOKIE, value);
         }
@@ -735,6 +759,30 @@ mod tests {
     }
 
     #[test]
+    fn authorized_session_is_secure_shared_and_redirects_to_panel() {
+        let gate = test_gate();
+        let response = gate.authorized_response("dev@example.com");
+        let cookie = response
+            .headers()
+            .get(SET_COOKIE)
+            .and_then(|value| value.to_str().ok())
+            .expect("la respuesta autorizada debe establecer una cookie");
+
+        assert!(cookie.starts_with("__Secure-rn_staging_access="));
+        assert!(cookie.contains("Domain=ragenodes.dev"));
+        assert!(cookie.contains("Secure"));
+        assert!(cookie.contains("HttpOnly"));
+        assert!(cookie.contains("SameSite=Strict"));
+        assert_eq!(
+            response
+                .headers()
+                .get(LOCATION)
+                .and_then(|value| value.to_str().ok()),
+            Some("https://panel.ragenodes.dev/panel")
+        );
+    }
+
+    #[test]
     fn unknown_attempts_reset_and_reach_three() {
         let gate = test_gate();
         let ip: IpAddr = "203.0.113.5".parse().unwrap();
@@ -758,5 +806,56 @@ mod tests {
             gate.enforce(request, peer_addr, ban_tx, true).await,
             GateOutcome::Allow(_)
         ));
+    }
+
+    #[tokio::test]
+    async fn valid_session_never_forwards_internal_access_routes() {
+        let mut gate = test_gate();
+        gate.shared_edge = true;
+        let token = gate.create_session_token("dev@example.com");
+        let request = Request::builder()
+            .method(Method::POST)
+            .uri(VERIFY_PATH)
+            .header(HOST, "ragenodes.dev")
+            .header(COOKIE, format!("{SESSION_COOKIE}={token}"))
+            .body(Body::empty())
+            .unwrap();
+        let (ban_tx, _ban_rx) = tokio::sync::mpsc::channel(1);
+        let peer_addr: SocketAddr = "192.0.2.10:443".parse().unwrap();
+
+        let GateOutcome::Respond(response) = gate.enforce(request, peer_addr, ban_tx, true).await
+        else {
+            panic!("las rutas internas de acceso no deben alcanzar staging");
+        };
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            response
+                .headers()
+                .get(LOCATION)
+                .and_then(|value| value.to_str().ok()),
+            Some("https://panel.ragenodes.dev/panel")
+        );
+    }
+
+    #[tokio::test]
+    async fn shared_edge_redirects_unauthenticated_staging_subdomains_to_the_gate() {
+        let mut gate = test_gate();
+        gate.shared_edge = true;
+        let request = Request::builder()
+            .uri("https://tx40120.ragenodes.dev/")
+            .body(Body::empty())
+            .unwrap();
+        let (ban_tx, _ban_rx) = tokio::sync::mpsc::channel(1);
+        let peer_addr: SocketAddr = "192.0.2.10:443".parse().unwrap();
+
+        let GateOutcome::Respond(response) = gate.enforce(request, peer_addr, ban_tx, true).await
+        else {
+            panic!("el subdominio de staging no debe quedar público");
+        };
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            response.headers().get(LOCATION).and_then(|value| value.to_str().ok()),
+            Some("https://ragenodes.dev/__access")
+        );
     }
 }
