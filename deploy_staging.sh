@@ -40,7 +40,7 @@ wait_for_service() {
 }
 
 docker compose -f docker-compose.staging.yml config --quiet
-bash ./scripts/ensure_base_images.sh
+RUNTIME_DOCKER_NETWORK=ragenodes_net_staging bash ./scripts/ensure_base_images.sh
 docker compose -f docker-compose.staging.yml build "${APP_SERVICES[@]}"
 docker compose -f docker-compose.staging.yml up -d --no-deps "${APP_SERVICES[@]}"
 
