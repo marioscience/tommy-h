@@ -19,7 +19,10 @@ type HmacSha256 = Hmac<Sha256>;
 const ACCESS_PATH: &str = "/__access";
 const REQUEST_PATH: &str = "/__access/request";
 const VERIFY_PATH: &str = "/__access/verify";
-const SESSION_COOKIE: &str = "__Host-rn_staging_access";
+// La sesión debe compartirse entre el dominio canónico y sus subdominios.
+// El prefijo __Host- prohíbe el atributo Domain y el navegador descartaría
+// la cookie; __Secure- mantiene la exigencia de HTTPS y permite compartirla.
+const SESSION_COOKIE: &str = "__Secure-rn_staging_access";
 const OTP_TTL_SECS: u64 = 10 * 60;
 const SESSION_TTL_SECS: u64 = 24 * 60 * 60;
 const UNKNOWN_WINDOW: Duration = Duration::from_secs(60 * 60);
@@ -395,7 +398,10 @@ impl AccessGate {
             "{SESSION_COOKIE}={token}; Domain={}; Path=/; Max-Age={SESSION_TTL_SECS}; Secure; HttpOnly; SameSite=Strict",
             self.domain
         );
-        let mut response = redirect_response("/");
+        let mut response = redirect_response(&format!(
+            "https://panel.{}/panel",
+            self.domain
+        ));
         if let Ok(value) = HeaderValue::from_str(&cookie) {
             response.headers_mut().insert(SET_COOKIE, value);
         }
@@ -747,6 +753,30 @@ mod tests {
         let last = tampered.len() - 1;
         tampered[last] = if tampered[last] == b'A' { b'B' } else { b'A' };
         assert!(!gate.verify_session_token(std::str::from_utf8(&tampered).unwrap()));
+    }
+
+    #[test]
+    fn authorized_session_is_secure_shared_and_redirects_to_panel() {
+        let gate = test_gate();
+        let response = gate.authorized_response("dev@example.com");
+        let cookie = response
+            .headers()
+            .get(SET_COOKIE)
+            .and_then(|value| value.to_str().ok())
+            .expect("la respuesta autorizada debe establecer una cookie");
+
+        assert!(cookie.starts_with("__Secure-rn_staging_access="));
+        assert!(cookie.contains("Domain=ragenodes.dev"));
+        assert!(cookie.contains("Secure"));
+        assert!(cookie.contains("HttpOnly"));
+        assert!(cookie.contains("SameSite=Strict"));
+        assert_eq!(
+            response
+                .headers()
+                .get(LOCATION)
+                .and_then(|value| value.to_str().ok()),
+            Some("https://panel.ragenodes.dev/panel")
+        );
     }
 
     #[test]
