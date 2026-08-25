@@ -7,6 +7,7 @@ Para actualizar un `.env` de desarrollo antiguo sin reutilizar la clave global, 
 ## Una vez por host
 
 - Ejecutar Docker en modo rootless para el usuario de RageNodes.
+- Delegar `cpu`, `cpuset`, `io`, `memory` y `pids` a su administrador de usuario con `sudo bash scripts/security/install_rootless_delegation.sh <APP_UID>` y reiniciar el host. Sin esos controladores Docker rechazará `NanoCpus` y no podrá aplicar los límites de los planes.
 - Definir `DOCKER_SOCKET=/run/user/<uid>/docker.sock` y mantener `ALLOW_ROOTFUL_DOCKER_SOCKET=false`.
 - Configurar `APP_UID`, `APP_GID` y `DOCKER_GID` con los propietarios reales del socket y de los datos.
 - Entregar `INSTANCE_DATA_ROOT` y `BACKUP_ROOT` al usuario de la aplicación, nunca a UID 0 dentro del contenedor.
