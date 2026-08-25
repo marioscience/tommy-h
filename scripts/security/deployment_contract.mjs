@@ -49,8 +49,10 @@ assert(!files['scripts/security/production_preflight.sh'].includes('source "$ENV
 assert(files['scripts/load_env.sh'].includes("line=\"${line%$'\\r'}\""), 'dotenv loader accepts Windows line endings');
 assert(files['scripts/ensure_base_images.sh'].includes('${FIVEM_BASE_IMAGE:?'), 'base-image preflight requires the configured FiveM image tag');
 assert(files['scripts/ensure_base_images.sh'].includes('${BLENDER_BASE_IMAGE:?'), 'base-image preflight requires the configured Blender image tag');
-assert(files['scripts/ensure_base_images.sh'].includes('docker build --tag "$image" "$context"'), 'base-image preflight builds the exact configured tags');
-assert(files['scripts/ensure_base_images.sh'].includes('docker image inspect "$image"'), 'base-image preflight verifies every resulting image');
+assert(files['scripts/ensure_base_images.sh'].includes('${DOCKER_SOCKET:?'), 'base-image preflight requires the hardened runtime socket');
+assert(files['scripts/ensure_base_images.sh'].includes('RUNTIME_DOCKER_HOST="unix://$DOCKER_SOCKET"'), 'base-image preflight targets the runtime daemon explicitly');
+assert(files['scripts/ensure_base_images.sh'].includes('docker --host "$RUNTIME_DOCKER_HOST" build --tag "$image" "$context"'), 'base-image preflight builds the exact configured tags in the runtime daemon');
+assert(files['scripts/ensure_base_images.sh'].includes('docker --host "$RUNTIME_DOCKER_HOST" image inspect "$image"'), 'base-image preflight verifies every resulting image in the runtime daemon');
 for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
   const deploy = files[deployFile];
   assert(deploy.includes('bash ./scripts/ensure_base_images.sh'), `${deployFile} prepares game images before application services`);
