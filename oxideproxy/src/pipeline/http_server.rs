@@ -43,6 +43,163 @@ struct AllowSameOriginFraming;
 #[derive(Clone)]
 struct AllowPhpMyAdminFraming;
 
+#[derive(Clone)]
+struct AllowRageNodesPanelFraming;
+
+fn env_port(name: &str, default: u16) -> u16 {
+    std::env::var(name)
+        .ok()
+        .and_then(|value| value.parse::<u16>().ok())
+        .unwrap_or(default)
+}
+
+fn dynamic_web_domains() -> Vec<String> {
+    std::env::var("OXIDE_DYNAMIC_WEB_DOMAINS")
+        .unwrap_or_else(|_| "ragenodes.com,node1.ragenodes.com,ragenodes.dev".to_string())
+        .split(',')
+        .map(|domain| domain.trim().trim_end_matches('.').to_ascii_lowercase())
+        .filter(|domain| {
+            !domain.is_empty()
+                && domain.len() <= 253
+                && domain.split('.').all(|label| {
+                    !label.is_empty()
+                        && label.len() <= 63
+                        && !label.starts_with('-')
+                        && !label.ends_with('-')
+                        && label
+                            .chars()
+                            .all(|character| character.is_ascii_alphanumeric() || character == '-')
+                })
+        })
+        .collect()
+}
+
+fn dynamic_proxy_port_for_domains(
+    host: &str,
+    prefix: &str,
+    start: u16,
+    end: u16,
+    domains: &[String],
+) -> Option<u16> {
+    if start > end {
+        return None;
+    }
+
+    domains.iter().find_map(|domain| {
+        let suffix = format!(".{domain}");
+        host.strip_prefix(prefix)
+            .and_then(|value| value.strip_suffix(&suffix))
+            .and_then(|value| value.parse::<u16>().ok())
+            .filter(|port| (start..=end).contains(port))
+    })
+}
+
+fn dynamic_proxy_port(host: &str, prefix: &str, start: u16, end: u16) -> Option<u16> {
+    dynamic_proxy_port_for_domains(host, prefix, start, end, &dynamic_web_domains())
+}
+
+fn prepare_public_proxy_request(req: &mut Request<Body>, host: &str, is_https: bool) {
+    if let Ok(value) = HeaderValue::from_str(if is_https { "https" } else { "http" }) {
+        req.headers_mut().insert("x-forwarded-proto", value);
+    }
+    if let Ok(value) = HeaderValue::from_str(host) {
+        req.headers_mut().insert("x-forwarded-host", value);
+    }
+}
+
+fn valid_backend_host(host: &str) -> bool {
+    !host.is_empty()
+        && host.len() <= 253
+        && host.split('.').all(|label| {
+            !label.is_empty()
+                && label.len() <= 63
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label
+                    .chars()
+                    .all(|character| character.is_ascii_alphanumeric() || character == '-')
+        })
+}
+
+fn dynamic_backend_addr(request_host: &str, port: u16) -> String {
+    let staging_domain = std::env::var("STAGING_DYNAMIC_DOMAIN")
+        .unwrap_or_else(|_| "ragenodes.dev".to_string())
+        .trim()
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    let staging_backend = std::env::var("OXIDE_DYNAMIC_STAGING_BACKEND_HOST")
+        .ok()
+        .filter(|value| valid_backend_host(value.trim()))
+        .or_else(|| {
+            std::env::var("STAGING_UPSTREAM").ok().and_then(|value| {
+                let host = value.trim().split(':').next().unwrap_or_default();
+                valid_backend_host(host).then(|| host.to_string())
+            })
+        })
+        .unwrap_or_default();
+    let is_staging_endpoint = request_host.ends_with(&format!(".{staging_domain}"));
+    let configured = if is_staging_endpoint && valid_backend_host(staging_backend.trim()) {
+        staging_backend
+    } else {
+        std::env::var("OXIDE_DYNAMIC_BACKEND_HOST")
+            .unwrap_or_else(|_| "host.docker.internal".to_string())
+    };
+    let host = configured.trim().trim_end_matches('.');
+    let safe_host = if valid_backend_host(host) {
+        host
+    } else {
+        "host.docker.internal"
+    };
+    format!("{safe_host}:{port}")
+}
+
+fn frame_ancestors_policy() -> String {
+    let configured = std::env::var("OXIDE_FRAME_ANCESTORS").unwrap_or_else(|_| {
+        "https://ragenodes.com https://www.ragenodes.com https://staging.ragenodes.com https://ragenodes.dev"
+            .to_string()
+    });
+    let origins: Vec<String> = configured
+        .split_whitespace()
+        .filter_map(|origin| {
+            let parsed = url::Url::parse(origin).ok()?;
+            if parsed.scheme() != "https"
+                || parsed.host_str().is_none()
+                || parsed.username() != ""
+                || parsed.password().is_some()
+                || parsed.path() != "/"
+                || parsed.query().is_some()
+                || parsed.fragment().is_some()
+            {
+                return None;
+            }
+            Some(origin.trim_end_matches('/').to_string())
+        })
+        .collect();
+
+    if origins.is_empty() {
+        "'none'".to_string()
+    } else {
+        origins.join(" ")
+    }
+}
+
+fn csp_with_frame_ancestors(existing: Option<&str>, ancestors: &str) -> String {
+    let mut directives: Vec<String> = existing
+        .unwrap_or_default()
+        .split(';')
+        .map(str::trim)
+        .filter(|directive| {
+            !directive.is_empty()
+                && !directive
+                    .to_ascii_lowercase()
+                    .starts_with("frame-ancestors")
+        })
+        .map(str::to_string)
+        .collect();
+    directives.push(format!("frame-ancestors {ancestors}"));
+    directives.join("; ")
+}
+
 fn static_page_security_profile(path: &Path, nonce: String) -> StaticPageSecurity {
     let file_name = path
         .file_name()
@@ -121,8 +278,6 @@ fn is_admin_surface(path: &str) -> bool {
         || path == "/admin.html"
         || path.starts_with("/admin/")
         || path.starts_with("/api/admin")
-        
-        
 }
 
 fn forbidden_admin_response() -> Response<Body> {
@@ -161,13 +316,29 @@ fn is_disallowed_static_path(path: &str) -> bool {
 
 fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool) {
     let page_security = response.extensions().get::<StaticPageSecurity>().cloned();
-    let allow_same_origin_framing = response.extensions().get::<AllowSameOriginFraming>().is_some();
-    let allow_pma_framing = response.extensions().get::<AllowPhpMyAdminFraming>().is_some();
+    let allow_same_origin_framing = response
+        .extensions()
+        .get::<AllowSameOriginFraming>()
+        .is_some();
+    let allow_pma_framing = response
+        .extensions()
+        .get::<AllowPhpMyAdminFraming>()
+        .is_some();
+    let allow_panel_framing = response
+        .extensions()
+        .get::<AllowRageNodesPanelFraming>()
+        .is_some();
     let access_gate_page = response.extensions().get::<AccessGatePage>().is_some();
     let headers = response.headers_mut();
+    let upstream_csp = headers
+        .get("content-security-policy")
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string);
     headers.remove("server");
     headers.remove("x-powered-by");
-    headers.remove("content-security-policy");
+    if !allow_panel_framing {
+        headers.remove("content-security-policy");
+    }
     headers.remove("x-content-security-policy");
     headers.remove("x-webkit-csp");
     headers.remove("x-frame-options");
@@ -178,17 +349,23 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
         HeaderName::from_static("x-content-type-options"),
         HeaderValue::from_static("nosniff"),
     );
-    headers.insert(
-        HeaderName::from_static("x-frame-options"),
-        if allow_same_origin_framing || allow_pma_framing {
-            HeaderValue::from_static("SAMEORIGIN")
-        } else {
-            HeaderValue::from_static("DENY")
-        },
-    );
+    if !allow_panel_framing {
+        headers.insert(
+            HeaderName::from_static("x-frame-options"),
+            if allow_same_origin_framing || allow_pma_framing {
+                HeaderValue::from_static("SAMEORIGIN")
+            } else {
+                HeaderValue::from_static("DENY")
+            },
+        );
+    }
     headers.insert(
         HeaderName::from_static("referrer-policy"),
-        HeaderValue::from_static("no-referrer"),
+        if access_gate_page {
+            HeaderValue::from_static("same-origin")
+        } else {
+            HeaderValue::from_static("no-referrer")
+        },
     );
     // Los navegadores solo aceptan HSTS sobre HTTPS, por lo que esta cabecera
     // es inocua en desarrollo HTTP y queda preparada para producción TLS.
@@ -202,7 +379,7 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
             "camera=(), microphone=(), geolocation=(), accelerometer=(), gyroscope=(), magnetometer=(), usb=(), serial=(), hid=(), browsing-topics=(), clipboard-write=(self), fullscreen=(self), payment=(self \"https://www.paypal.com\")",
         ),
     );
-    if is_https {
+    if is_https && !allow_panel_framing {
         let coop = if page_security
             .as_ref()
             .is_some_and(|profile| profile.allows_paypal)
@@ -215,7 +392,11 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
     }
     headers.insert(
         HeaderName::from_static("cross-origin-resource-policy"),
-        HeaderValue::from_static("same-origin"),
+        if allow_panel_framing {
+            HeaderValue::from_static("cross-origin")
+        } else {
+            HeaderValue::from_static("same-origin")
+        },
     );
     if page_security
         .as_ref()
@@ -226,13 +407,15 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
             HeaderValue::from_static("credentialless"),
         );
     }
-    let csp = if access_gate_page {
+    let csp = if allow_panel_framing {
+        csp_with_frame_ancestors(upstream_csp.as_deref(), &frame_ancestors_policy())
+    } else if access_gate_page {
         "default-src 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; style-src 'unsafe-inline'".to_string()
     } else if let Some(profile) = page_security.as_ref() {
         let third_party = match (profile.allows_paypal, profile.allows_internal_frames) {
-            (true, true) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://www.paypal.com https://www.paypalobjects.com; frame-src 'self' https://*.ragenodes.com https://www.paypal.com;",
+            (true, true) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://www.paypal.com https://www.paypalobjects.com; frame-src 'self' https://*.ragenodes.com https://*.ragenodes.dev https://www.paypal.com;",
             (true, false) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://www.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com;",
-            (false, true) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss:; frame-src 'self' https://*.ragenodes.com;",
+            (false, true) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss:; frame-src 'self' https://*.ragenodes.com https://*.ragenodes.dev;",
             (false, false) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss:; frame-src 'none';",
         };
         format!(
@@ -314,16 +497,9 @@ async fn handle_http_request(
         if let Ok(staging_target) = std::env::var("STAGING_UPSTREAM") {
             let staging_target = staging_target.trim();
             if !staging_target.is_empty() {
-                tracing::info!(
-                    "Petición Staging detectada. Redirigiendo a destino configurado..."
-                );
-                return reverse_proxy_request(
-                    req,
-                    staging_target.to_string(),
-                    None,
-                    peer_addr,
-                )
-                .await;
+                tracing::info!("Petición Staging detectada. Redirigiendo a destino configurado...");
+                return reverse_proxy_request(req, staging_target.to_string(), None, peer_addr)
+                    .await;
             }
         }
     }
@@ -335,8 +511,8 @@ async fn handle_http_request(
         raw_uri_path
     );
 
-    let forwarded_request = req.headers().contains_key("x-forwarded-for")
-        || req.headers().contains_key("forwarded");
+    let forwarded_request =
+        req.headers().contains_key("x-forwarded-for") || req.headers().contains_key("forwarded");
     if is_admin_surface(uri_path) && (!is_private_admin_peer(peer_addr.ip()) || forwarded_request) {
         tracing::warn!(
             "Bloqueado acceso no local a superficie administrativa: Peer='{}', Host='{}', Path='{}'",
@@ -349,34 +525,46 @@ async fn handle_http_request(
         return Ok(not_found_response());
     }
 
-    // 1. Enrutamiento Virtual Host & SNI para Servidores de Juego (ej. tx40121.node1.ragenodes.com)
-    if host_without_port.ends_with(".node1.ragenodes.com") {
-        if let Some(port_str) = host_without_port
-            .strip_prefix("tx")
-            .and_then(|s| s.strip_suffix(".node1.ragenodes.com"))
-        {
-            if let Ok(port) = port_str.parse::<u16>() {
-                tracing::debug!(
-                    "Virtual Host coincide con FiveM txAdmin (puerto {}). Reenviando al backend...",
-                    port
-                );
-                return reverse_proxy_request(req, format!("127.0.0.1:{}", port), None, peer_addr)
-                    .await;
-            }
-        }
-        if let Some(port_str) = host_without_port
-            .strip_prefix("blender")
-            .and_then(|s| s.strip_suffix(".node1.ragenodes.com"))
-        {
-            if let Ok(port) = port_str.parse::<u16>() {
-                tracing::debug!(
-                    "Virtual Host coincide con Blender Web (puerto {}). Reenviando al backend...",
-                    port
-                );
-                return reverse_proxy_request(req, format!("127.0.0.1:{}", port), None, peer_addr)
-                    .await;
-            }
-        }
+    // 1. Enrutamiento virtual sin túneles por nombres deterministas. El dominio
+    // y los rangos se restringen por configuración para impedir que OxideProxy
+    // pueda utilizarse como proxy abierto hacia cualquier puerto del host.
+    let txadmin_start = env_port("OXIDE_TXADMIN_PORT_START", 40100);
+    let txadmin_end = env_port("OXIDE_TXADMIN_PORT_END", 49999);
+    if let Some(port) = dynamic_proxy_port(host_without_port, "tx", txadmin_start, txadmin_end) {
+        tracing::debug!(
+            "Virtual Host coincide con FiveM txAdmin (puerto {}). Reenviando al backend...",
+            port
+        );
+        prepare_public_proxy_request(&mut req, host_without_port, is_https);
+        let mut response = reverse_proxy_request(
+            req,
+            dynamic_backend_addr(host_without_port, port),
+            None,
+            peer_addr,
+        )
+        .await?;
+        response.extensions_mut().insert(AllowRageNodesPanelFraming);
+        return Ok(response);
+    }
+
+    let blender_start = env_port("OXIDE_BLENDER_PORT_START", 50100);
+    let blender_end = env_port("OXIDE_BLENDER_PORT_END", 59999);
+    if let Some(port) = dynamic_proxy_port(host_without_port, "blender", blender_start, blender_end)
+    {
+        tracing::debug!(
+            "Virtual Host coincide con Blender Web (puerto {}). Reenviando al backend...",
+            port
+        );
+        prepare_public_proxy_request(&mut req, host_without_port, is_https);
+        let mut response = reverse_proxy_request(
+            req,
+            dynamic_backend_addr(host_without_port, port),
+            None,
+            peer_addr,
+        )
+        .await?;
+        response.extensions_mut().insert(AllowRageNodesPanelFraming);
+        return Ok(response);
     }
 
     // 1b. txAdmin por subdominio estable del servidor (ej. s3a5ee6de.ragenodes.com).
@@ -399,13 +587,16 @@ async fn handle_http_request(
                     short_id,
                     txadmin_port
                 );
-                return reverse_proxy_request(
+                prepare_public_proxy_request(&mut req, host_without_port, is_https);
+                let mut response = reverse_proxy_request(
                     req,
-                    format!("127.0.0.1:{}", txadmin_port),
+                    dynamic_backend_addr(host_without_port, txadmin_port),
                     None,
                     peer_addr,
                 )
-                .await;
+                .await?;
+                response.extensions_mut().insert(AllowRageNodesPanelFraming);
+                return Ok(response);
             }
         }
     }
@@ -492,13 +683,9 @@ async fn handle_http_request(
     // 2c. Enrutamiento phpMyAdmin (`/pma/...`)
     if uri_path.starts_with("/pma") {
         tracing::debug!("Enrutando petición phpMyAdmin al contenedor phpmyadmin:80...");
-        let mut response = reverse_proxy_request(
-            req,
-            "phpmyadmin:80".to_string(),
-            Some("/pma"),
-            peer_addr,
-        )
-        .await?;
+        let mut response =
+            reverse_proxy_request(req, "phpmyadmin:80".to_string(), Some("/pma"), peer_addr)
+                .await?;
         response.extensions_mut().insert(AllowPhpMyAdminFraming);
         return Ok(response);
     }
@@ -831,4 +1018,44 @@ async fn serve_static_file(
 
     *res.body_mut() = Body::from(content);
     Ok(res)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{csp_with_frame_ancestors, dynamic_proxy_port_for_domains};
+
+    #[test]
+    fn dynamic_hosts_only_resolve_inside_the_allowed_range_and_domain() {
+        let domains = vec!["ragenodes.dev".to_string()];
+        assert_eq!(
+            dynamic_proxy_port_for_domains("tx40120.ragenodes.dev", "tx", 40100, 49999, &domains,),
+            Some(40120)
+        );
+        assert_eq!(
+            dynamic_proxy_port_for_domains("tx22.ragenodes.dev", "tx", 40100, 49999, &domains,),
+            None
+        );
+        assert_eq!(
+            dynamic_proxy_port_for_domains(
+                "tx40120.attacker.example",
+                "tx",
+                40100,
+                49999,
+                &domains,
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn frame_ancestors_is_replaced_without_weakening_other_directives() {
+        let result = csp_with_frame_ancestors(
+            Some("default-src 'self'; frame-ancestors 'self'; object-src 'none'"),
+            "https://ragenodes.dev",
+        );
+        assert!(result.contains("default-src 'self'"));
+        assert!(result.contains("object-src 'none'"));
+        assert!(result.contains("frame-ancestors https://ragenodes.dev"));
+        assert!(!result.contains("frame-ancestors 'self'"));
+    }
 }

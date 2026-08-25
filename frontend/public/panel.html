@@ -328,8 +328,29 @@
       .input:disabled { opacity: 0.4; cursor: not-allowed; border-color: transparent; }
       .form-label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
 
-      #blender-iframe-container { position: relative; width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; }
-      #blender-iframe { width: 100%; height: 100%; border: none; display: block; flex: 1; }
+      #txadmin-iframe-container, #blender-iframe-container {
+          position: relative !important;
+          width: 100% !important;
+          height: 100% !important;
+          min-height: calc(100vh - 200px) !important;
+          flex: 1 1 auto !important;
+          display: flex !important;
+          flex-direction: column !important;
+      }
+      #txadmin-iframe, #blender-iframe {
+          width: 100% !important;
+          height: 100% !important;
+          min-height: calc(100vh - 200px) !important;
+          border: none;
+          flex: 1;
+      }
+      #txadmin-offline-overlay {
+          position: absolute !important;
+          inset: 0 !important;
+          width: 100% !important;
+          height: 100% !important;
+          min-height: calc(100vh - 200px) !important;
+      }
 
       .table { width: 100%; border-collapse: collapse; }
       .table th { text-align: left; padding: 12px; color: var(--muted); font-size: 0.65rem; text-transform: uppercase; border-bottom: 1px solid var(--line); letter-spacing: 1px; }

@@ -72,6 +72,8 @@ export const config = {
     process.env.NODE_ENV === 'production' ? 'node1.ragenodes.com' : 'localhost'
   ),
   publicEndpointScheme: String(process.env.PUBLIC_ENDPOINT_SCHEME || 'http').toLowerCase(),
+  publicEndpointMode: String(process.env.PUBLIC_ENDPOINT_MODE || 'port').toLowerCase(),
+  publicEndpointPrefix: String(process.env.PUBLIC_ENDPOINT_PREFIX || 'tx').toLowerCase(),
   fivemPortStart: Number(process.env.FIVEM_PORT_START || 30100),
   txAdminPortStart: Number(process.env.TXADMIN_PORT_START || 40100),
   blenderPortStart: Number(process.env.BLENDER_PORT_START || 50100),
@@ -118,6 +120,12 @@ export function assertSecureConfig() {
   }
   if (!['http', 'https'].includes(config.publicEndpointScheme)) {
     errors.push('PUBLIC_ENDPOINT_SCHEME debe ser http o https.');
+  }
+  if (!['port', 'subdomain'].includes(config.publicEndpointMode)) {
+    errors.push('PUBLIC_ENDPOINT_MODE debe ser port o subdomain.');
+  }
+  if (!/^[a-z][a-z0-9-]{0,15}$/.test(config.publicEndpointPrefix)) {
+    errors.push('PUBLIC_ENDPOINT_PREFIX debe ser una etiqueta DNS corta y valida.');
   }
 
   if (Boolean(config.paypalClient) !== Boolean(config.paypalSecret)) {

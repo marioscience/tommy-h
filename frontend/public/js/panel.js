@@ -841,10 +841,21 @@ function toggleSidebar() {
             return url.endsWith('/') ? url : `${url}/`;
         }
 
+        function buildDynamicEndpointUrl(prefix, port) {
+            const hostname = window.location.hostname.toLowerCase();
+            if (isPrivatePanelHost(hostname)) {
+                return `${window.location.protocol}//${hostname}:${port}`;
+            }
+            const domain = hostname === 'ragenodes.dev' || hostname.endsWith('.ragenodes.dev')
+                ? 'ragenodes.dev'
+                : 'ragenodes.com';
+            return `https://${prefix}${port}.${domain}`;
+        }
+
         function buildTxAdminTargets(server) {
             let publicUrl = server.txadmin_url;
             if (!publicUrl || publicUrl.includes('//s')) {
-                publicUrl = `https://tx${server.txadmin_port}.ragenodes.com`;
+                publicUrl = buildDynamicEndpointUrl('tx', server.txadmin_port);
             }
             publicUrl = ensureTrailingSlash(publicUrl);
             return {
@@ -1242,7 +1253,7 @@ function toggleSidebar() {
             if (currentServer) {
                 publicTarget = currentServer.txadmin_url;
                 if (!publicTarget || publicTarget.includes('//s')) {
-                    publicTarget = `https://tx${currentServer.txadmin_port}.ragenodes.com`;
+                    publicTarget = buildDynamicEndpointUrl('tx', currentServer.txadmin_port);
                 }
                 publicTarget = ensureTrailingSlash(publicTarget);
             }

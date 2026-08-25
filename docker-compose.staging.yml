@@ -43,8 +43,10 @@ services:
       CONTAINER_PREFIX: ragenodes-staging-
       DOCKER_NETWORK: ragenodes_net_staging
       PORT_BASE_OFFSET: 10000
-      PUBLIC_ENDPOINT_HOST: ${PUBLIC_ENDPOINT_HOST:-staging.ragenodes.com}
+      PUBLIC_ENDPOINT_HOST: ${STAGING_PUBLIC_ENDPOINT_HOST:-ragenodes.dev}
       PUBLIC_ENDPOINT_SCHEME: ${PUBLIC_ENDPOINT_SCHEME:-https}
+      PUBLIC_ENDPOINT_MODE: ${PUBLIC_ENDPOINT_MODE:-subdomain}
+      PUBLIC_ENDPOINT_PREFIX: ${PUBLIC_ENDPOINT_PREFIX:-tx}
       INSTANCE_DATA_ROOT: /srv/ragenodes-staging-data
       MARIADB_HOST: mariadb
       DB_HOST: postgres-staging
@@ -86,8 +88,10 @@ services:
       - CONTAINER_PREFIX=ragenodes-staging-
       - DOCKER_NETWORK=ragenodes_net_staging
       - PORT_BASE_OFFSET=10000
-      - PUBLIC_ENDPOINT_HOST=${PUBLIC_ENDPOINT_HOST:-staging.ragenodes.com}
+      - PUBLIC_ENDPOINT_HOST=${STAGING_PUBLIC_ENDPOINT_HOST:-ragenodes.dev}
       - PUBLIC_ENDPOINT_SCHEME=${PUBLIC_ENDPOINT_SCHEME:-https}
+      - PUBLIC_ENDPOINT_MODE=${PUBLIC_ENDPOINT_MODE:-subdomain}
+      - PUBLIC_ENDPOINT_PREFIX=${PUBLIC_ENDPOINT_PREFIX:-tx}
       - INSTANCE_DATA_ROOT=/srv/ragenodes-staging-data
       - DB_HOST=postgres-staging
       - DB_USER=${POSTGRES_USER}_staging
@@ -164,6 +168,8 @@ services:
       - "${PROXY_BIND_IP:-127.0.0.1}:80:80"
       - "${PROXY_BIND_IP:-127.0.0.1}:443:8443"
       - "${PROXY_BIND_IP:-127.0.0.1}:${HOST_BIND_FRONTEND_PORT:-8088}:8088"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./oxideproxy/config:/app/config
       - oxide_acme_data_staging:/app/acme
@@ -180,6 +186,13 @@ services:
       - OXIDE_ACME_EMAIL=${OXIDE_ACME_EMAIL:-}
       - OXIDE_ACME_PRODUCTION=${OXIDE_ACME_PRODUCTION:-false}
       - OXIDE_ACME_CACHE_DIR=/app/acme
+      - OXIDE_DYNAMIC_WEB_DOMAINS=${OXIDE_DYNAMIC_WEB_DOMAINS:-ragenodes.dev,ragenodes.com,node1.ragenodes.com}
+      - OXIDE_DYNAMIC_BACKEND_HOST=${OXIDE_DYNAMIC_BACKEND_HOST:-host.docker.internal}
+      - OXIDE_TXADMIN_PORT_START=${OXIDE_TXADMIN_PORT_START:-40100}
+      - OXIDE_TXADMIN_PORT_END=${OXIDE_TXADMIN_PORT_END:-59999}
+      - OXIDE_BLENDER_PORT_START=${OXIDE_BLENDER_PORT_START:-50100}
+      - OXIDE_BLENDER_PORT_END=${OXIDE_BLENDER_PORT_END:-59999}
+      - OXIDE_FRAME_ANCESTORS=${OXIDE_FRAME_ANCESTORS:-https://ragenodes.com https://www.ragenodes.com https://staging.ragenodes.com https://ragenodes.dev}
       - ACCESS_GATE_ENABLED=${ACCESS_GATE_ENABLED:-false}
       - ACCESS_GATE_DOMAIN=${ACCESS_GATE_DOMAIN:-}
       - ACCESS_GATE_SHARED_EDGE=${ACCESS_GATE_SHARED_EDGE:-false}

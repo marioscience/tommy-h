@@ -159,8 +159,11 @@ impl AccessGate {
     ) -> GateOutcome {
         self.cleanup_expired_state();
         let host = normalized_request_host(&req);
+        let gated_subdomain = host
+            .strip_suffix(&format!(".{}", self.domain))
+            .is_some_and(|label| !label.is_empty() && !label.contains('.'));
 
-        if host != self.domain {
+        if host != self.domain && !gated_subdomain {
             if self.shared_edge {
                 return GateOutcome::Allow(req);
             }
@@ -188,6 +191,17 @@ impl AccessGate {
 
         if self.has_valid_session(&req) {
             return GateOutcome::Allow(req);
+        }
+
+        // Los paneles dinámicos de staging comparten la cookie del dominio
+        // principal. Si todavía no existe una sesión, la autenticación siempre
+        // se realiza en el host canónico para conservar una validación Origin
+        // estricta y evitar formularios válidos en subdominios arbitrarios.
+        if gated_subdomain {
+            return GateOutcome::Respond(redirect_response(&format!(
+                "https://{}{}",
+                self.domain, ACCESS_PATH
+            )));
         }
 
         let path = req.uri().path().to_string();
@@ -378,7 +392,8 @@ impl AccessGate {
     fn authorized_response(&self, email: &str) -> Response<Body> {
         let token = self.create_session_token(email);
         let cookie = format!(
-            "{SESSION_COOKIE}={token}; Path=/; Max-Age={SESSION_TTL_SECS}; Secure; HttpOnly; SameSite=Strict"
+            "{SESSION_COOKIE}={token}; Domain={}; Path=/; Max-Age={SESSION_TTL_SECS}; Secure; HttpOnly; SameSite=Strict",
+            self.domain
         );
         let mut response = redirect_response("/");
         if let Ok(value) = HeaderValue::from_str(&cookie) {
@@ -758,5 +773,27 @@ mod tests {
             gate.enforce(request, peer_addr, ban_tx, true).await,
             GateOutcome::Allow(_)
         ));
+    }
+
+    #[tokio::test]
+    async fn shared_edge_redirects_unauthenticated_staging_subdomains_to_the_gate() {
+        let mut gate = test_gate();
+        gate.shared_edge = true;
+        let request = Request::builder()
+            .uri("https://tx40120.ragenodes.dev/")
+            .body(Body::empty())
+            .unwrap();
+        let (ban_tx, _ban_rx) = tokio::sync::mpsc::channel(1);
+        let peer_addr: SocketAddr = "192.0.2.10:443".parse().unwrap();
+
+        let GateOutcome::Respond(response) = gate.enforce(request, peer_addr, ban_tx, true).await
+        else {
+            panic!("el subdominio de staging no debe quedar público");
+        };
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            response.headers().get(LOCATION).and_then(|value| value.to_str().ok()),
+            Some("https://ragenodes.dev/__access")
+        );
     }
 }

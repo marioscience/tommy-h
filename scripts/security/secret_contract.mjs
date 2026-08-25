@@ -24,7 +24,7 @@ const secretPatterns = [
   /\bsk_live_[A-Za-z0-9]{20,}\b/
 ];
 const assignment = /\b(?:PAYPAL_SECRET|DISCORD_TOKEN|JWT_SECRET|SESSION_SECRET|DATABASE_PASSWORD|POSTGRES_PASSWORD|MYSQL_ROOT_PASSWORD|OXIDE_ADMIN_PASSWORD)[ \t]*[:=][ \t]*['"]?([^\s,'"}\]]{12,})/gi;
-const placeholder = /\$\{|process\.env|change|example|replace|generate|placeholder|dummy|development|local[-_]?only/i;
+const placeholder = /\$\{|process\.env|(?:std::)?env::var|required_env|change|example|replace|generate|placeholder|dummy|development|local[-_]?only/i;
 
 for (const file of candidates) {
   const normalized = file.replaceAll('\\', '/');
