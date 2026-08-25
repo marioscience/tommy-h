@@ -64,6 +64,20 @@ wait_for_service() {
   return 1
 }
 
+wait_for_http() {
+  local url="$1" timeout_seconds="$2" elapsed=0
+  while [ "$elapsed" -lt "$timeout_seconds" ]; do
+    if curl --fail --silent --show-error --max-time 5 "$url" >/dev/null 2>&1; then
+      echo "   OK $url"
+      return 0
+    fi
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+  echo "ERROR: $url no respondio correctamente en ${timeout_seconds}s" >&2
+  return 1
+}
+
 echo "==> 🛡️ MODO SAFE UPDATE ACTIVADO..."
 echo "==> Los servidores FiveM de los clientes NO serán destruidos ni interrumpidos."
 echo "==> Los volúmenes de base de datos (Postgres/MariaDB) están protegidos."
@@ -84,8 +98,8 @@ echo "==> 🩺 Esperando servicios críticos..."
 wait_for_service backend 90
 wait_for_service oxide_control_panel 60
 wait_for_service oxide_web 60
-curl --fail --silent --show-error --max-time 10 http://127.0.0.1:3010/healthz >/dev/null
-curl --fail --silent --show-error --max-time 10 http://127.0.0.1:3010/readyz >/dev/null
+wait_for_http http://127.0.0.1:3010/healthz 90
+wait_for_http http://127.0.0.1:3010/readyz 90
 
 echo "==> 🛡️ Verificando integridad de producción y migraciones SQL..."
 "${COMPOSE[@]}" exec -T backend node src/verify_production_readiness.js
