@@ -136,6 +136,11 @@ services:
     restart: unless-stopped
     networks:
       - ragenodes_net_staging
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     volumes:
       - redis_data_staging:/data
 
@@ -217,6 +222,7 @@ services:
       - ACCESS_GATE_SHARED_EDGE=${ACCESS_GATE_SHARED_EDGE:-false}
       - ACCESS_GATE_ALLOWED_EMAILS=${ACCESS_GATE_ALLOWED_EMAILS:-}
       - ACCESS_GATE_SESSION_SECRET=${ACCESS_GATE_SESSION_SECRET:-}
+      - ACCESS_GATE_REDIS_URL=${ACCESS_GATE_REDIS_URL:-redis://redis-staging:6379/0}
       - ACCESS_GATE_FROM_EMAIL=${ACCESS_GATE_FROM_EMAIL:-RageNodes Access <info@ragenodes.com>}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - OXIDE_RUNTIME_BLACKLIST_PATH=/app/runtime/runtime-blacklist.txt
@@ -224,6 +230,8 @@ services:
       backend-staging:
         condition: service_started
       oxide_control_panel:
+        condition: service_healthy
+      redis-staging:
         condition: service_healthy
     read_only: true
     tmpfs:

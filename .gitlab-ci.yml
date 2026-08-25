@@ -80,6 +80,9 @@ dependency_audit:
 oxide_tests:
   stage: test
   image: rust:bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97
+  services:
+  - name: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
+    alias: redis
   tags:
   - ragenodes-rust
   cache:
@@ -91,6 +94,7 @@ oxide_tests:
     - oxideproxy/target/
   variables:
     CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
+    ACCESS_GATE_TEST_REDIS_URL: redis://redis:6379/15
   script:
   - cargo test --manifest-path oxideproxy/Cargo.toml --locked
 

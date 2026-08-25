@@ -297,6 +297,7 @@ services:
       - ACCESS_GATE_SHARED_EDGE=${ACCESS_GATE_SHARED_EDGE:-false}
       - ACCESS_GATE_ALLOWED_EMAILS=${ACCESS_GATE_ALLOWED_EMAILS:-}
       - ACCESS_GATE_SESSION_SECRET=${ACCESS_GATE_SESSION_SECRET:-}
+      - ACCESS_GATE_REDIS_URL=${ACCESS_GATE_REDIS_URL:-redis://redis:6379/0}
       - ACCESS_GATE_FROM_EMAIL=${ACCESS_GATE_FROM_EMAIL:-RageNodes Access <info@ragenodes.com>}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - OXIDE_RUNTIME_BLACKLIST_PATH=/app/runtime/runtime-blacklist.txt
@@ -312,6 +313,8 @@ services:
       backend:
         condition: service_healthy
       oxide_control_panel:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     read_only: true
     tmpfs:
