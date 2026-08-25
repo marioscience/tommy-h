@@ -848,7 +848,7 @@ function toggleSidebar() {
             }
             const domain = hostname === 'ragenodes.dev' || hostname.endsWith('.ragenodes.dev')
                 ? 'ragenodes.dev'
-                : 'ragenodes.com';
+                : 'ragenodes.app';
             return `https://${prefix}${port}.${domain}`;
         }
 
@@ -860,7 +860,7 @@ function toggleSidebar() {
                 try {
                     const candidate = new URL(server.txadmin_url);
                     const expectedHosts = new Set([
-                        `tx${server.txadmin_port}.ragenodes.com`,
+                        `tx${server.txadmin_port}.ragenodes.app`,
                         `tx${server.txadmin_port}.ragenodes.dev`
                     ]);
                     if (candidate.protocol === 'https:' &&

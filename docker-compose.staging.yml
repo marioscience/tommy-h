@@ -54,6 +54,7 @@ services:
       DB_PASS: ${POSTGRES_PASSWORD}_staging
       DB_NAME: ${POSTGRES_DB}_staging
       DATABASE_URL: postgres://${POSTGRES_USER}_staging:${POSTGRES_PASSWORD}_staging@postgres-staging:5432/${POSTGRES_DB}_staging
+      REDIS_URL: redis://redis-staging:6379
     networks:
       ragenodes_net_staging:
         aliases:
@@ -97,6 +98,8 @@ services:
       - DB_USER=${POSTGRES_USER}_staging
       - DB_PASS=${POSTGRES_PASSWORD}_staging
       - DB_NAME=${POSTGRES_DB}_staging
+      - DATABASE_URL=postgres://${POSTGRES_USER}_staging:${POSTGRES_PASSWORD}_staging@postgres-staging:5432/${POSTGRES_DB}_staging
+      - REDIS_URL=redis://redis-staging:6379
     command: ["npm", "run", "worker:docker-events"]
     networks:
       - ragenodes_net_staging
@@ -180,19 +183,19 @@ services:
     environment:
       - UPSTREAM_API=http://backend-staging:3006
       - STAGING_MODE=true
-      - STAGING_DOMAIN=${STAGING_DOMAIN:-ragenodes.dev}
+      - STAGING_DOMAINS=${STAGING_DOMAINS:-ragenodes.dev,panel.ragenodes.dev}
       - OXIDE_ACME_ENABLED=${OXIDE_ACME_ENABLED:-false}
       - OXIDE_ACME_DOMAINS=${OXIDE_ACME_DOMAINS:-}
       - OXIDE_ACME_EMAIL=${OXIDE_ACME_EMAIL:-}
       - OXIDE_ACME_PRODUCTION=${OXIDE_ACME_PRODUCTION:-false}
       - OXIDE_ACME_CACHE_DIR=/app/acme
-      - OXIDE_DYNAMIC_WEB_DOMAINS=${OXIDE_DYNAMIC_WEB_DOMAINS:-ragenodes.dev,ragenodes.com,node1.ragenodes.com}
+      - OXIDE_DYNAMIC_WEB_DOMAINS=${OXIDE_DYNAMIC_WEB_DOMAINS:-ragenodes.dev,ragenodes.app,ragenodes.com,node1.ragenodes.com}
       - OXIDE_DYNAMIC_BACKEND_HOST=${OXIDE_DYNAMIC_BACKEND_HOST:-host.docker.internal}
       - OXIDE_TXADMIN_PORT_START=${OXIDE_TXADMIN_PORT_START:-40100}
       - OXIDE_TXADMIN_PORT_END=${OXIDE_TXADMIN_PORT_END:-59999}
       - OXIDE_BLENDER_PORT_START=${OXIDE_BLENDER_PORT_START:-50100}
       - OXIDE_BLENDER_PORT_END=${OXIDE_BLENDER_PORT_END:-59999}
-      - OXIDE_FRAME_ANCESTORS=${OXIDE_FRAME_ANCESTORS:-https://ragenodes.com https://www.ragenodes.com https://staging.ragenodes.com https://ragenodes.dev}
+      - OXIDE_FRAME_ANCESTORS=${OXIDE_FRAME_ANCESTORS:-https://ragenodes.com https://www.ragenodes.com https://panel.ragenodes.app https://ragenodes.dev https://panel.ragenodes.dev https://staging.ragenodes.com}
       - ACCESS_GATE_ENABLED=${ACCESS_GATE_ENABLED:-false}
       - ACCESS_GATE_DOMAIN=${ACCESS_GATE_DOMAIN:-}
       - ACCESS_GATE_SHARED_EDGE=${ACCESS_GATE_SHARED_EDGE:-false}

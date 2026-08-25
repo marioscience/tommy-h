@@ -55,7 +55,9 @@ fn env_port(name: &str, default: u16) -> u16 {
 
 fn dynamic_web_domains() -> Vec<String> {
     std::env::var("OXIDE_DYNAMIC_WEB_DOMAINS")
-        .unwrap_or_else(|_| "ragenodes.com,node1.ragenodes.com,ragenodes.dev".to_string())
+        .unwrap_or_else(|_| {
+            "ragenodes.app,ragenodes.dev,ragenodes.com,node1.ragenodes.com".to_string()
+        })
         .split(',')
         .map(|domain| domain.trim().trim_end_matches('.').to_ascii_lowercase())
         .filter(|domain| {
@@ -155,8 +157,7 @@ fn dynamic_backend_addr(request_host: &str, port: u16) -> String {
 
 fn frame_ancestors_policy() -> String {
     let configured = std::env::var("OXIDE_FRAME_ANCESTORS").unwrap_or_else(|_| {
-        "https://ragenodes.com https://www.ragenodes.com https://staging.ragenodes.com https://ragenodes.dev"
-            .to_string()
+        "https://ragenodes.com https://www.ragenodes.com https://panel.ragenodes.app https://ragenodes.dev https://panel.ragenodes.dev https://staging.ragenodes.com".to_string()
     });
     let origins: Vec<String> = configured
         .split_whitespace()
@@ -413,9 +414,9 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
         "default-src 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; style-src 'unsafe-inline'".to_string()
     } else if let Some(profile) = page_security.as_ref() {
         let third_party = match (profile.allows_paypal, profile.allows_internal_frames) {
-            (true, true) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://www.paypal.com https://www.paypalobjects.com; frame-src 'self' https://*.ragenodes.com https://*.ragenodes.dev https://www.paypal.com;",
+            (true, true) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://www.paypal.com https://www.paypalobjects.com; frame-src 'self' https://*.ragenodes.app https://*.ragenodes.dev https://*.ragenodes.com https://www.paypal.com;",
             (true, false) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://www.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com;",
-            (false, true) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss:; frame-src 'self' https://*.ragenodes.com https://*.ragenodes.dev;",
+            (false, true) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss:; frame-src 'self' https://*.ragenodes.app https://*.ragenodes.dev https://*.ragenodes.com;",
             (false, false) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss:; frame-src 'none';",
         };
         format!(
@@ -489,11 +490,14 @@ async fn handle_http_request(
     // Una instalación de producción puede reenviar el dominio de staging si
     // configura explícitamente el destino. En staging y desarrollo se sirve
     // la aplicación local y nunca se depende de una IP privada codificada.
-    let staging_domain = std::env::var("STAGING_DOMAIN")
-        .unwrap_or_else(|_| "staging.ragenodes.com".to_string())
-        .trim_end_matches('.')
-        .to_ascii_lowercase();
-    if !is_staging_vps && host_without_port == staging_domain {
+    let staging_domains = std::env::var("STAGING_DOMAINS")
+        .or_else(|_| std::env::var("STAGING_DOMAIN"))
+        .unwrap_or_else(|_| "ragenodes.dev,panel.ragenodes.dev".to_string())
+        .split(',')
+        .map(|domain| domain.trim().trim_end_matches('.').to_ascii_lowercase())
+        .filter(|domain| !domain.is_empty())
+        .collect::<Vec<_>>();
+    if !is_staging_vps && staging_domains.iter().any(|domain| domain == host_without_port) {
         if let Ok(staging_target) = std::env::var("STAGING_UPSTREAM") {
             let staging_target = staging_target.trim();
             if !staging_target.is_empty() {
@@ -1026,7 +1030,11 @@ mod tests {
 
     #[test]
     fn dynamic_hosts_only_resolve_inside_the_allowed_range_and_domain() {
-        let domains = vec!["ragenodes.dev".to_string()];
+        let domains = vec!["ragenodes.app".to_string(), "ragenodes.dev".to_string()];
+        assert_eq!(
+            dynamic_proxy_port_for_domains("tx40120.ragenodes.app", "tx", 40100, 49999, &domains,),
+            Some(40120)
+        );
         assert_eq!(
             dynamic_proxy_port_for_domains("tx40120.ragenodes.dev", "tx", 40100, 49999, &domains,),
             Some(40120)
