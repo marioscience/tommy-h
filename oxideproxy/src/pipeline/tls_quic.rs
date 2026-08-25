@@ -1,41 +1,34 @@
-use rustc_hash::FxHashMap;
+use futures_util::StreamExt;
 use rustls::crypto::ring::sign::any_supported_type;
 use rustls::pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer};
-use rustls::server::{ClientHello, ResolvesServerCert};
 use rustls::ServerConfig;
+use rustls_acme::caches::DirCache;
+use rustls_acme::{is_tls_alpn_challenge, AcmeConfig};
+use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
-use tokio_rustls::{server::TlsStream, TlsAcceptor};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use tokio_rustls::{server::TlsStream, LazyConfigAcceptor};
 
-#[derive(Debug)]
-pub struct DynamicCertResolver {
-    default_cert: Arc<rustls::sign::CertifiedKey>,
-    // Mapa futuro para almacenar certificados por SNI (ej. "cliente1.ragenodes.com" -> cert)
-    sni_map: FxHashMap<String, Arc<rustls::sign::CertifiedKey>>,
+pub struct TlsRuntime {
+    default_config: Arc<ServerConfig>,
+    challenge_config: Option<Arc<ServerConfig>>,
+    allowed_sni: Option<HashSet<String>>,
 }
 
-impl ResolvesServerCert for DynamicCertResolver {
-    fn resolve(&self, client_hello: ClientHello<'_>) -> Option<Arc<rustls::sign::CertifiedKey>> {
-        if let Some(sni) = client_hello.server_name() {
-            if let Some(cert) = self.sni_map.get(sni) {
-                tracing::debug!("Certificado SNI resuelto dinámicamente para: {}", sni);
-                return Some(Arc::clone(cert));
-            }
-            tracing::debug!(
-                "SNI no encontrado en mapa ({}). Usando certificado por defecto.",
-                sni
-            );
+impl TlsRuntime {
+    pub async fn initialize(
+        cert_path: &Path,
+        key_path: &Path,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        if env_flag("OXIDE_ACME_ENABLED") {
+            return Self::initialize_acme().await;
         }
-        Some(Arc::clone(&self.default_cert))
+
+        Self::initialize_static(cert_path, key_path)
     }
-}
 
-pub struct TlsTerminator {
-    acceptor: TlsAcceptor,
-}
-
-impl TlsTerminator {
-    pub fn new(
+    fn initialize_static(
         cert_path: &Path,
         key_path: &Path,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
@@ -51,28 +44,170 @@ impl TlsTerminator {
             .map_err(|_| "Tipo de llave privada no soportada por rustls")?;
         let certified_key = rustls::sign::CertifiedKey::new(cert_chain, signing_key);
 
-        let resolver = Arc::new(DynamicCertResolver {
-            default_cert: Arc::new(certified_key),
-            sni_map: FxHashMap::default(), // Preparado para llenarse dinámicamente en el futuro
-        });
-
-        let mut config = ServerConfig::builder()
+        let mut config = ServerConfig::builder_with_provider(Arc::new(
+            rustls::crypto::ring::default_provider(),
+        ))
+            .with_safe_default_protocol_versions()?
             .with_no_client_auth()
-            .with_cert_resolver(resolver);
+            .with_cert_resolver(Arc::new(StaticCertResolver {
+                certified_key: Arc::new(certified_key),
+            }));
 
         config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
         Ok(Self {
-            acceptor: TlsAcceptor::from(Arc::new(config)),
+            default_config: Arc::new(config),
+            challenge_config: None,
+            allowed_sni: None,
         })
     }
 
-    pub async fn accept<IO>(&self, stream: IO) -> Result<TlsStream<IO>, std::io::Error>
-    where
-        IO: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
-    {
-        self.acceptor.accept(stream).await
+    async fn initialize_acme() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        let domains = required_env("OXIDE_ACME_DOMAINS")?
+            .split(',')
+            .map(|domain| domain.trim().trim_end_matches('.').to_ascii_lowercase())
+            .filter(|domain| !domain.is_empty())
+            .collect::<Vec<_>>();
+        if domains.is_empty() || domains.iter().any(|domain| !valid_dns_name(domain)) {
+            return Err("OXIDE_ACME_DOMAINS contiene un nombre DNS no válido".into());
+        }
+
+        let email = required_env("OXIDE_ACME_EMAIL")?;
+        if !email.contains('@') || email.contains(char::is_whitespace) {
+            return Err("OXIDE_ACME_EMAIL no es válido".into());
+        }
+
+        let cache_dir = std::env::var("OXIDE_ACME_CACHE_DIR")
+            .unwrap_or_else(|_| "/app/acme".to_string());
+        std::fs::create_dir_all(&cache_dir)?;
+        let production = env_flag("OXIDE_ACME_PRODUCTION");
+
+        let mut state = AcmeConfig::new(domains.clone())
+            .contact_push(format!("mailto:{email}"))
+            .cache(DirCache::new(cache_dir))
+            .directory_lets_encrypt(production)
+            .state();
+
+        let challenge_config = state.challenge_rustls_config();
+        let mut default_config = ServerConfig::builder_with_provider(Arc::new(
+            rustls::crypto::ring::default_provider(),
+        ))
+            .with_safe_default_protocol_versions()?
+            .with_no_client_auth()
+            .with_cert_resolver(state.resolver());
+        default_config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+
+        tokio::spawn(async move {
+            while let Some(event) = state.next().await {
+                match event {
+                    Ok(ok) => tracing::info!("ACME: {:?}", ok),
+                    Err(err) => tracing::error!("ACME: {:?}", err),
+                }
+            }
+            tracing::error!("ACME: el gestor de certificados terminó inesperadamente");
+        });
+
+        tracing::info!(
+            "TLS ACME habilitado para {} usando el directorio de Let's Encrypt {}",
+            domains.join(", "),
+            if production { "producción" } else { "staging" }
+        );
+
+        Ok(Self {
+            default_config: Arc::new(default_config),
+            challenge_config: Some(challenge_config),
+            allowed_sni: Some(domains.into_iter().collect()),
+        })
     }
+
+    pub async fn accept<IO>(
+        &self,
+        stream: IO,
+    ) -> Result<Option<TlsStream<IO>>, Box<dyn std::error::Error + Send + Sync>>
+    where
+        IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    {
+        let handshake = LazyConfigAcceptor::new(Default::default(), stream).await?;
+        let is_challenge = self.challenge_config.is_some()
+            && is_tls_alpn_challenge(&handshake.client_hello());
+
+        if !is_challenge {
+            if let Some(allowed_sni) = &self.allowed_sni {
+                let requested_sni = handshake
+                    .client_hello()
+                    .server_name()
+                    .map(|value| value.trim_end_matches('.').to_ascii_lowercase());
+                if requested_sni
+                    .as_ref()
+                    .is_none_or(|domain| !allowed_sni.contains(domain))
+                {
+                    return Err("SNI no autorizado para este OxideProxy".into());
+                }
+            }
+        }
+
+        if is_challenge {
+            tracing::info!("ACME: solicitud TLS-ALPN-01 recibida");
+            let mut tls = handshake
+                .into_stream(Arc::clone(
+                    self.challenge_config
+                        .as_ref()
+                        .expect("challenge config comprobada"),
+                ))
+                .await?;
+            tls.shutdown().await?;
+            return Ok(None);
+        }
+
+        Ok(Some(
+            handshake
+                .into_stream(Arc::clone(&self.default_config))
+                .await?,
+        ))
+    }
+}
+
+#[derive(Debug)]
+struct StaticCertResolver {
+    certified_key: Arc<rustls::sign::CertifiedKey>,
+}
+
+impl rustls::server::ResolvesServerCert for StaticCertResolver {
+    fn resolve(
+        &self,
+        _client_hello: rustls::server::ClientHello<'_>,
+    ) -> Option<Arc<rustls::sign::CertifiedKey>> {
+        Some(Arc::clone(&self.certified_key))
+    }
+}
+
+fn env_flag(name: &str) -> bool {
+    std::env::var(name)
+        .map(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
+        .unwrap_or(false)
+}
+
+fn required_env(name: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let value = std::env::var(name).unwrap_or_default().trim().to_string();
+    if value.is_empty() {
+        Err(format!("{name} es obligatorio cuando OXIDE_ACME_ENABLED=true").into())
+    } else {
+        Ok(value)
+    }
+}
+
+fn valid_dns_name(domain: &str) -> bool {
+    domain.len() <= 253
+        && domain.contains('.')
+        && domain.split('.').all(|label| {
+            !label.is_empty()
+                && label.len() <= 63
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+        })
 }
 
 pub struct QuicTerminator;

@@ -1,5 +1,6 @@
 use crate::config::ProxyConfig;
 use crate::ebpf_xdp::XdpFilter;
+use crate::pipeline::tls_quic::TlsRuntime;
 use crate::pipeline::{process_tcp_stream, process_udp_packet_inline};
 use bytes::BytesMut;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -11,6 +12,11 @@ pub async fn start_ingress(
     config: ProxyConfig,
     worker_threads: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let tls_runtime = Arc::new(
+        TlsRuntime::initialize(&config.tls.cert_path, &config.tls.key_path)
+            .await
+            .map_err(|err| format!("No se pudo inicializar TLS: {err}"))?,
+    );
     let config_arc = Arc::new(config);
     let tcp_addr = config_arc.ingress.tcp_listen_addr;
     let udp_addr = config_arc.ingress.udp_listen_addr;
@@ -29,7 +35,7 @@ pub async fn start_ingress(
         tracing::info!("[Fail2Ban] Consumidor MPSC asíncrono iniciado para baneos L7->L4.");
         while let Some(ip) = ban_rx.recv().await {
             if let Ok(xdp_read) = consumer_xdp_arc.read() {
-                xdp_read.blacklist.insert(ip);
+                xdp_read.block_ip(ip);
                 tracing::warn!(
                     "[eBPF/XDP] IP {} bloqueada permanentemente (Fail2Ban L7).",
                     ip
@@ -53,6 +59,7 @@ pub async fn start_ingress(
     let tcp_config = Arc::clone(&config_arc);
     let tcp_xdp = Arc::clone(&xdp_arc);
     let tcp_ban_tx = ban_tx.clone();
+    let tcp_tls_runtime = Arc::clone(&tls_runtime);
     let tcp_handle = tokio::spawn(async move {
         tracing::info!(
             "Ingress TCP Principal escuchando en {} con SO_REUSEPORT",
@@ -73,6 +80,7 @@ pub async fn start_ingress(
                         tracing::debug!("Conexion TCP aceptada de {}", peer_addr);
                         let cfg = Arc::clone(&tcp_config);
                         let ban_sender = tcp_ban_tx.clone();
+                        let tls = Arc::clone(&tcp_tls_runtime);
                         tokio::spawn(async move {
                             let mut buffer = BytesMut::with_capacity(initial_buf_size);
                             match tokio::io::AsyncReadExt::read_buf(&mut stream, &mut buffer).await
@@ -81,8 +89,10 @@ pub async fn start_ingress(
                                     tracing::debug!("Conexion cerrada por el cliente {}", peer_addr)
                                 }
                                 Ok(_) => {
-                                    process_tcp_stream(stream, buffer, cfg, None, false, ban_sender)
-                                        .await
+                                    process_tcp_stream(
+                                        stream, buffer, cfg, None, false, ban_sender, tls,
+                                    )
+                                    .await
                                 }
                                 Err(e) => tracing::error!("Error leyendo de {}: {}", peer_addr, e),
                             }
@@ -107,6 +117,7 @@ pub async fn start_ingress(
         let http_config = Arc::clone(&config_arc);
         let http_xdp = Arc::clone(&xdp_arc);
         let http_ban_tx = ban_tx.clone();
+        let http_tls_runtime = Arc::clone(&tls_runtime);
         let http_handle = tokio::spawn(async move {
             tracing::info!(
                 "Ingress TCP HTTP Principal escuchando en {} con SO_REUSEPORT",
@@ -127,6 +138,7 @@ pub async fn start_ingress(
                             tracing::debug!("Conexion HTTP TCP aceptada de {}", peer_addr);
                             let cfg = Arc::clone(&http_config);
                             let ban_sender = http_ban_tx.clone();
+                            let tls = Arc::clone(&http_tls_runtime);
                             tokio::spawn(async move {
                                 let mut buffer = BytesMut::with_capacity(initial_buf_size);
                                 match tokio::io::AsyncReadExt::read_buf(&mut stream, &mut buffer)
@@ -138,7 +150,7 @@ pub async fn start_ingress(
                                     ),
                                     Ok(_) => {
                                         process_tcp_stream(
-                                            stream, buffer, cfg, None, true, ban_sender,
+                                            stream, buffer, cfg, None, true, ban_sender, tls,
                                         )
                                         .await
                                     }
@@ -238,6 +250,7 @@ pub async fn start_ingress(
             let tcp_cfg = Arc::clone(&config_arc);
             let tcp_xdp = Arc::clone(&xdp_arc);
             let tcp_ban_tx = ban_tx.clone();
+            let dedicated_tls_runtime = Arc::clone(&tls_runtime);
             let r_name = route_name.clone();
             let backend = backend_addr.clone();
             let h = tokio::spawn(async move {
@@ -262,6 +275,7 @@ pub async fn start_ingress(
                                 let cfg = Arc::clone(&tcp_cfg);
                                 let backend_for_conn = backend.clone();
                                 let ban_sender = tcp_ban_tx.clone();
+                                let tls = Arc::clone(&dedicated_tls_runtime);
                                 tokio::spawn(async move {
                                     let mut buffer = BytesMut::with_capacity(initial_buf_size);
                                     match tokio::io::AsyncReadExt::read_buf(
@@ -279,6 +293,7 @@ pub async fn start_ingress(
                                                 Some(backend_for_conn),
                                                 false,
                                                 ban_sender,
+                                                tls,
                                             )
                                             .await
                                         }

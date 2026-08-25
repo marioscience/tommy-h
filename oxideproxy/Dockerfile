@@ -17,7 +17,8 @@ COPY . .
 # Generamos los certificados de prueba durante la compilación auxiliar
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
-    CARGO_NET_RETRY=10 CARGO_HTTP_TIMEOUT=120 CARGO_HTTP_MULTIPLEXING=false cargo run --release --locked --bin cert_gen
+    touch src/bin/cert_gen.rs \
+    && CARGO_NET_RETRY=10 CARGO_HTTP_TIMEOUT=120 CARGO_HTTP_MULTIPLEXING=false cargo run --release --locked --bin cert_gen
 
 # Compilamos el binario principal de producción en modo release
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \

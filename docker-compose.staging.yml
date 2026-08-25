@@ -162,14 +162,32 @@ services:
           - ragenodes-ultimate-oxide_web-1
     ports:
       - "${PROXY_BIND_IP:-127.0.0.1}:80:80"
+      - "${PROXY_BIND_IP:-127.0.0.1}:443:8443"
       - "${PROXY_BIND_IP:-127.0.0.1}:${HOST_BIND_FRONTEND_PORT:-8088}:8088"
     volumes:
       - ./oxideproxy/config:/app/config
+      - oxide_acme_data_staging:/app/acme
+      - oxide_runtime_data_staging:/app/runtime
       - ./frontend/public:/var/www/frontend:ro
       - /srv/ragenodes-staging-data:/var/www/frontend/data:ro
       - /srv/ragenodes-staging-data/templates:/var/www/frontend/data/templates:ro
     environment:
       - UPSTREAM_API=http://backend-staging:3006
+      - STAGING_MODE=true
+      - STAGING_DOMAIN=${STAGING_DOMAIN:-ragenodes.dev}
+      - OXIDE_ACME_ENABLED=${OXIDE_ACME_ENABLED:-false}
+      - OXIDE_ACME_DOMAINS=${OXIDE_ACME_DOMAINS:-}
+      - OXIDE_ACME_EMAIL=${OXIDE_ACME_EMAIL:-}
+      - OXIDE_ACME_PRODUCTION=${OXIDE_ACME_PRODUCTION:-false}
+      - OXIDE_ACME_CACHE_DIR=/app/acme
+      - ACCESS_GATE_ENABLED=${ACCESS_GATE_ENABLED:-false}
+      - ACCESS_GATE_DOMAIN=${ACCESS_GATE_DOMAIN:-}
+      - ACCESS_GATE_SHARED_EDGE=${ACCESS_GATE_SHARED_EDGE:-false}
+      - ACCESS_GATE_ALLOWED_EMAILS=${ACCESS_GATE_ALLOWED_EMAILS:-}
+      - ACCESS_GATE_SESSION_SECRET=${ACCESS_GATE_SESSION_SECRET:-}
+      - ACCESS_GATE_FROM_EMAIL=${ACCESS_GATE_FROM_EMAIL:-RageNodes Access <info@ragenodes.com>}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - OXIDE_RUNTIME_BLACKLIST_PATH=/app/runtime/runtime-blacklist.txt
     depends_on:
       backend-staging:
         condition: service_started
@@ -184,3 +202,5 @@ volumes:
   postgres_data_staging:
   mariadb_data_staging:
   redis_data_staging:
+  oxide_acme_data_staging:
+  oxide_runtime_data_staging:

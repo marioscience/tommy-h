@@ -11,6 +11,8 @@ volumes:
   grafana_data:
   prometheus_data:
   oxide_config:
+  oxide_acme_data:
+  oxide_runtime_data:
 
 services:
   oxide_proxy:
@@ -56,8 +58,27 @@ services:
       - "${PROXY_BIND_IP:-127.0.0.1}:50127:30127/udp"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    environment:
+      - STAGING_MODE=${STAGING_MODE:-false}
+      - STAGING_UPSTREAM=${STAGING_UPSTREAM:-}
+      - STAGING_DOMAIN=${STAGING_DOMAIN:-staging.ragenodes.com}
+      - OXIDE_ACME_ENABLED=${OXIDE_ACME_ENABLED:-false}
+      - OXIDE_ACME_DOMAINS=${OXIDE_ACME_DOMAINS:-}
+      - OXIDE_ACME_EMAIL=${OXIDE_ACME_EMAIL:-}
+      - OXIDE_ACME_PRODUCTION=${OXIDE_ACME_PRODUCTION:-false}
+      - OXIDE_ACME_CACHE_DIR=/app/acme
+      - ACCESS_GATE_ENABLED=${ACCESS_GATE_ENABLED:-false}
+      - ACCESS_GATE_DOMAIN=${ACCESS_GATE_DOMAIN:-}
+      - ACCESS_GATE_SHARED_EDGE=${ACCESS_GATE_SHARED_EDGE:-false}
+      - ACCESS_GATE_ALLOWED_EMAILS=${ACCESS_GATE_ALLOWED_EMAILS:-}
+      - ACCESS_GATE_SESSION_SECRET=${ACCESS_GATE_SESSION_SECRET:-}
+      - ACCESS_GATE_FROM_EMAIL=${ACCESS_GATE_FROM_EMAIL:-RageNodes Access <info@ragenodes.com>}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - OXIDE_RUNTIME_BLACKLIST_PATH=/app/runtime/runtime-blacklist.txt
     volumes:
       - oxide_config:/app/config
+      - oxide_acme_data:/app/acme
+      - oxide_runtime_data:/app/runtime
       - ../frontend/public:/var/www/frontend:ro
     restart: unless-stopped
 

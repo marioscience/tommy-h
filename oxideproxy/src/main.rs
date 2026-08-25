@@ -1,3 +1,4 @@
+pub mod access_gate;
 pub mod config;
 pub mod ebpf_xdp;
 pub mod egress;
@@ -28,6 +29,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     tracing::info!("=== Arrancando OxideProxy (Motor L4/L7 Asíncrono Ultra-Optimizado) ===");
+
+    access_gate::initialize()?;
 
     let config = ProxyConfig::load_or_default("config/oxide_proxy.yml");
 

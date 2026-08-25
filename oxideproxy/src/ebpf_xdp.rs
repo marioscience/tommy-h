@@ -8,7 +8,9 @@ use crate::config::ProxyConfig;
 use dashmap::{DashMap, DashSet};
 use rustc_hash::FxHasher;
 use std::hash::BuildHasherDefault;
+use std::io::Write;
 use std::net::IpAddr;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 pub struct XdpFilter {
@@ -19,6 +21,7 @@ pub struct XdpFilter {
     pub max_pps: u32,
     pub ddos_mode: String,
     pub rate_limit_conns: u32,
+    runtime_blacklist_path: PathBuf,
 }
 
 impl XdpFilter {
@@ -27,7 +30,7 @@ impl XdpFilter {
             "[eBPF/XDP] Inicializando motor de mitigación DDoS y Firewall en memoria para interfaz: {}",
             interface_name
         );
-        Self {
+        let filter = Self {
             interface_name: interface_name.to_string(),
             is_attached: false,
             blacklist: DashSet::default(),
@@ -35,7 +38,12 @@ impl XdpFilter {
             max_pps: 25000,
             ddos_mode: "STRICT_GAMING".to_string(),
             rate_limit_conns: 150,
-        }
+            runtime_blacklist_path: std::env::var("OXIDE_RUNTIME_BLACKLIST_PATH")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| PathBuf::from("config/runtime-blacklist.txt")),
+        };
+        filter.load_runtime_blacklist();
+        filter
     }
 
     pub fn attach(&mut self) -> Result<(), String> {
@@ -101,19 +109,54 @@ impl XdpFilter {
         true
     }
 
+    pub fn block_ip(&self, ip: IpAddr) {
+        if !self.blacklist.insert(ip) {
+            return;
+        }
+        if let Some(parent) = self.runtime_blacklist_path.parent() {
+            if let Err(error) = std::fs::create_dir_all(parent) {
+                tracing::error!("No se pudo crear el directorio de la lista negra: {}", error);
+                return;
+            }
+        }
+        match std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.runtime_blacklist_path)
+        {
+            Ok(mut file) => {
+                if let Err(error) = writeln!(file, "{}", ip) {
+                    tracing::error!("No se pudo persistir la IP bloqueada {}: {}", ip, error);
+                }
+            }
+            Err(error) => {
+                tracing::error!("No se pudo abrir la lista negra persistente: {}", error)
+            }
+        }
+    }
+
+    fn load_runtime_blacklist(&self) {
+        let Ok(content) = std::fs::read_to_string(&self.runtime_blacklist_path) else {
+            return;
+        };
+        for line in content.lines().map(str::trim).filter(|line| !line.is_empty()) {
+            if let Ok(ip) = line.parse::<IpAddr>() {
+                self.blacklist.insert(ip);
+            }
+        }
+    }
+
     pub fn reload_from_config(&mut self, config_path: &str) {
         let config = ProxyConfig::load_or_default(config_path);
         if let Some(tuning) = config.advanced_tuning {
             if let Some(sec) = tuning.security {
                 self.rate_limit_conns = sec.rate_limit_conns_per_ip;
                 if let Some(ips) = sec.blacklisted_ips {
-                    let new_bl = DashSet::default();
                     for ip_str in ips {
                         if let Ok(ip_addr) = ip_str.parse::<IpAddr>() {
-                            new_bl.insert(ip_addr);
+                            self.blacklist.insert(ip_addr);
                         }
                     }
-                    self.blacklist = new_bl;
                 }
             }
             if let Some(ebpf) = tuning.ebpf_xdp {

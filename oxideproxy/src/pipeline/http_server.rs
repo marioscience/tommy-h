@@ -1,10 +1,12 @@
+use crate::access_gate::{
+    current as access_gate, normalized_request_host, AccessGatePage, GateOutcome,
+};
 use crate::config::ProxyConfig;
 use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine as _};
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use http::header::{
     HeaderName, HeaderValue, ACCEPT_ENCODING, CACHE_CONTROL, CONTENT_ENCODING, CONTENT_TYPE, ETAG,
-    HOST,
 };
 use http::{Request, Response, StatusCode};
 use hyper::{service::service_fn, Body};
@@ -161,6 +163,7 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
     let page_security = response.extensions().get::<StaticPageSecurity>().cloned();
     let allow_same_origin_framing = response.extensions().get::<AllowSameOriginFraming>().is_some();
     let allow_pma_framing = response.extensions().get::<AllowPhpMyAdminFraming>().is_some();
+    let access_gate_page = response.extensions().get::<AccessGatePage>().is_some();
     let headers = response.headers_mut();
     headers.remove("server");
     headers.remove("x-powered-by");
@@ -223,7 +226,9 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
             HeaderValue::from_static("credentialless"),
         );
     }
-    let csp = if let Some(profile) = page_security.as_ref() {
+    let csp = if access_gate_page {
+        "default-src 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; style-src 'unsafe-inline'".to_string()
+    } else if let Some(profile) = page_security.as_ref() {
         let third_party = match (profile.allows_paypal, profile.allows_internal_frames) {
             (true, true) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://www.paypal.com https://www.paypalobjects.com; frame-src 'self' https://*.ragenodes.com https://www.paypal.com;",
             (true, false) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://www.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com;",
@@ -251,6 +256,7 @@ pub async fn serve_http_connection<S>(
     config: Arc<ProxyConfig>,
     peer_addr: SocketAddr,
     ban_tx: tokio::sync::mpsc::Sender<std::net::IpAddr>,
+    is_https: bool,
 ) where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
@@ -258,12 +264,7 @@ pub async fn serve_http_connection<S>(
         let cfg = Arc::clone(&config);
         let tx = ban_tx.clone();
         async move {
-            let is_https = req
-                .headers()
-                .get("x-forwarded-proto")
-                .and_then(|v| v.to_str().ok())
-                == Some("https");
-            let mut response = handle_http_request(req, cfg, peer_addr, tx).await?;
+            let mut response = handle_http_request(req, cfg, peer_addr, tx, is_https).await?;
             apply_browser_security_headers(&mut response, is_https);
             Ok::<_, Infallible>(response)
         }
@@ -280,19 +281,21 @@ pub async fn serve_http_connection<S>(
 }
 
 async fn handle_http_request(
-    req: Request<Body>,
+    mut req: Request<Body>,
     config: Arc<ProxyConfig>,
     peer_addr: SocketAddr,
     ban_tx: tokio::sync::mpsc::Sender<std::net::IpAddr>,
+    is_https: bool,
 ) -> Result<Response<Body>, Infallible> {
-    let host = req
-        .headers()
-        .get(HOST)
-        .and_then(|h| h.to_str().ok())
-        .unwrap_or("")
-        .trim_end_matches('.')
-        .to_ascii_lowercase();
-    let host_without_port = host.split(':').next().unwrap_or("");
+    if let Some(gate) = access_gate() {
+        match gate.enforce(req, peer_addr, ban_tx.clone(), is_https).await {
+            GateOutcome::Allow(request) => req = request,
+            GateOutcome::Respond(response) => return Ok(response),
+        }
+    }
+
+    let host = normalized_request_host(&req);
+    let host_without_port = host.as_str();
 
     let raw_uri_path = req.uri().path();
     let uri_path_string = normalize_uri_path(raw_uri_path);
@@ -303,7 +306,11 @@ async fn handle_http_request(
     // Una instalación de producción puede reenviar el dominio de staging si
     // configura explícitamente el destino. En staging y desarrollo se sirve
     // la aplicación local y nunca se depende de una IP privada codificada.
-    if !is_staging_vps && host_without_port == "staging.ragenodes.com" {
+    let staging_domain = std::env::var("STAGING_DOMAIN")
+        .unwrap_or_else(|_| "staging.ragenodes.com".to_string())
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    if !is_staging_vps && host_without_port == staging_domain {
         if let Ok(staging_target) = std::env::var("STAGING_UPSTREAM") {
             let staging_target = staging_target.trim();
             if !staging_target.is_empty() {

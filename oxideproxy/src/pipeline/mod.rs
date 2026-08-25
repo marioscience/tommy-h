@@ -6,7 +6,7 @@ use crate::config::ProxyConfig;
 use crate::egress::{forward_tcp, forward_udp};
 use crate::pipeline::http_server::serve_http_connection;
 use crate::pipeline::l4_inspector::parse_game_packet;
-use crate::pipeline::tls_quic::{QuicTerminator, TlsTerminator};
+use crate::pipeline::tls_quic::{QuicTerminator, TlsRuntime};
 use bytes::{Bytes, BytesMut};
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -68,6 +68,7 @@ pub async fn process_tcp_stream(
     specific_backend: Option<String>,
     is_http_ingress: bool,
     ban_tx: tokio::sync::mpsc::Sender<std::net::IpAddr>,
+    tls_runtime: Arc<TlsRuntime>,
 ) {
     let peer_addr = stream
         .peer_addr()
@@ -99,6 +100,31 @@ pub async fn process_tcp_stream(
         return;
     }
 
+    if !buffer.is_empty() && buffer[0] == 0x16 {
+        tracing::debug!(
+            "Flujo TCP identificado como TLS ClientHello. Evaluando terminacion TLS..."
+        );
+        let rewind_stream = RewindStream {
+            stream,
+            buffer: Some(buffer.freeze()),
+        };
+        match tls_runtime.accept(rewind_stream).await {
+            Ok(Some(tls_stream)) => {
+                tracing::debug!("Handshake TLS exitoso. Sirviendo conexion web L7 segura...");
+                let tls_rewind = RewindStream {
+                    stream: tls_stream,
+                    buffer: None,
+                };
+                serve_http_connection(tls_rewind, config, peer_addr, ban_tx.clone(), true).await;
+            }
+            Ok(None) => {
+                tracing::debug!("Validación ACME TLS-ALPN-01 atendida correctamente");
+            }
+            Err(e) => tracing::error!("Fallo en handshake TLS: {}", e),
+        }
+        return;
+    }
+
     if !is_http_ingress {
         tracing::debug!("Flujo TCP sin cabecera Oxide. Evaluando enrutamiento de juegos en crudo (FiveM/Comercial)...");
         for route in &config.routing.game_servers {
@@ -118,48 +144,12 @@ pub async fn process_tcp_stream(
         }
     }
 
-    if !buffer.is_empty() && buffer[0] == 0x16 {
-        tracing::debug!(
-            "Flujo TCP identificado como TLS ClientHello. Evaluando terminacion TLS..."
-        );
-        match TlsTerminator::new(&config.tls.cert_path, &config.tls.key_path) {
-            Ok(terminator) => {
-                let rewind_stream = RewindStream {
-                    stream,
-                    buffer: Some(buffer.freeze()),
-                };
-                match terminator.accept(rewind_stream).await {
-                    Ok(tls_stream) => {
-                        tracing::debug!(
-                            "Handshake TLS exitoso. Sirviendo conexion web L7 segura..."
-                        );
-                        let tls_rewind = RewindStream {
-                            stream: tls_stream,
-                            buffer: None,
-                        };
-                        serve_http_connection(tls_rewind, config, peer_addr, ban_tx.clone()).await;
-                    }
-                    Err(e) => tracing::error!("Fallo en handshake TLS: {}", e),
-                }
-            }
-            Err(e) => {
-                tracing::error!("Error inicializando terminador TLS: {}. Reenviando al servidor HTTP L7 en crudo...", e);
-                drop(e);
-                let rewind_stream = RewindStream {
-                    stream,
-                    buffer: Some(buffer.freeze()),
-                };
-                serve_http_connection(rewind_stream, config, peer_addr, ban_tx.clone()).await;
-            }
-        }
-    } else {
-        tracing::debug!("Flujo TCP identificado como HTTP en crudo. Sirviendo conexion web L7...");
-        let rewind_stream = RewindStream {
-            stream,
-            buffer: Some(buffer.freeze()),
-        };
-        serve_http_connection(rewind_stream, config, peer_addr, ban_tx).await;
-    }
+    tracing::debug!("Flujo TCP identificado como HTTP en crudo. Sirviendo conexion web L7...");
+    let rewind_stream = RewindStream {
+        stream,
+        buffer: Some(buffer.freeze()),
+    };
+    serve_http_connection(rewind_stream, config, peer_addr, ban_tx, false).await;
 }
 
 pub async fn process_udp_packet_inline(
