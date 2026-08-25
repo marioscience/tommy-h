@@ -12,7 +12,9 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Configuración de telemetría asíncrona no bloqueante (Stdout + Archivo Rotativo)
-    let file_appender = tracing_appender::rolling::daily("config/logs", "oxide_proxy.log");
+    let log_dir = std::env::var("OXIDE_LOG_DIR").unwrap_or_else(|_| "/app/runtime/logs".into());
+    std::fs::create_dir_all(&log_dir)?;
+    let file_appender = tracing_appender::rolling::daily(log_dir, "oxide_proxy.log");
     let (non_blocking_file, _guard_file) = tracing_appender::non_blocking(file_appender);
     let (non_blocking_stdout, _guard_stdout) = tracing_appender::non_blocking(std::io::stdout());
 

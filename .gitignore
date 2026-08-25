@@ -13,6 +13,7 @@ node_modules/
 *.p12
 *.pickle
 credentials*.json
+config/rclone/rclone.conf
 
 # Dependencies
 venv/

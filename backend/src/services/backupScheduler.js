@@ -1,7 +1,8 @@
 import cron from 'node-cron';
 import { backupQueue } from './backupQueue.js';
 import * as serverService from './serverService.js';
-import { syncBackupsToGDrive } from './backupService.js';
+import { syncBackupsToRemote } from './backupService.js';
+import { config } from '../config.js';
 
 const PLAN_BACKUP_INTERVAL_HOURS = {
     standard: 24,
@@ -28,14 +29,18 @@ export function startAutoBackups() {
     }
 
     
-    // Ejecutar RClone Sync a Google Drive una vez cada hora (evita Race Conditions)
-    cron.schedule('15 * * * *', async () => {
-        try {
-            await syncBackupsToGDrive();
-        } catch (err) {
-            console.error('[Scheduler] Error en Sync de Backups:', err);
-        }
-    });
+    if (config.backupRemoteEnabled) {
+        // La sincronizacion remota es opcional y se serializa en el worker de backups.
+        cron.schedule('15 * * * *', async () => {
+            try {
+                await syncBackupsToRemote();
+            } catch (err) {
+                console.error('[Scheduler] Error en Sync de Backups:', err);
+            }
+        });
+    } else {
+        console.log('[Scheduler] Sincronizacion remota deshabilitada; los backups locales siguen activos.');
+    }
 
     cron.schedule('* * * * *', async () => {
         const now = new Date();

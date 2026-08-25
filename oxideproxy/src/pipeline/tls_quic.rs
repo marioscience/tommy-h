@@ -5,7 +5,7 @@ use rustls::ServerConfig;
 use rustls_acme::caches::DirCache;
 use rustls_acme::{is_tls_alpn_challenge, AcmeConfig};
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio_rustls::{server::TlsStream, LazyConfigAcceptor};
@@ -25,7 +25,18 @@ impl TlsRuntime {
             return Self::initialize_acme().await;
         }
 
-        Self::initialize_static(cert_path, key_path)
+        let runtime_cert_path = std::env::var("OXIDE_TLS_CERT_PATH")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| cert_path.to_path_buf());
+        let runtime_key_path = std::env::var("OXIDE_TLS_KEY_PATH")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| key_path.to_path_buf());
+
+        Self::initialize_static(&runtime_cert_path, &runtime_key_path)
     }
 
     fn initialize_static(

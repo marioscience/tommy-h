@@ -88,7 +88,7 @@ try {
   serverId = server.rows[0].id;
 
   await query(
-    `INSERT INTO server_subusers (server_id, user_id, permissions) VALUES ($1, $2, $3)`,
+    `INSERT INTO subusers (server_id, user_id, permissions) VALUES ($1, $2, $3)`,
     [serverId, users.member.id, JSON.stringify(['restart', 'console'])]
   );
 

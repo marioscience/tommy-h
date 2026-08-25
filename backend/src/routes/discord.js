@@ -20,7 +20,7 @@ const motorServidores = new Docker({ socketPath: config.dockerSocket });
 const verifyApiKey = (req, res, next) => {
     const apiKey = req.headers['x-api-key'];
     const received = crypto.createHash('sha256').update(String(apiKey || '')).digest();
-    const expected = crypto.createHash('sha256').update(String(config.apiKey || '')).digest();
+    const expected = crypto.createHash('sha256').update(String(config.discordApiKey || '')).digest();
     if (!apiKey || !crypto.timingSafeEqual(received, expected)) {
         console.warn(`⚠️ Intento de acceso bloqueado a la API del bot desde IP: ${req.ip}`);
         return res.status(401).json({ error: 'Acceso denegado. API Key inválida.' });
