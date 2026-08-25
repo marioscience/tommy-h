@@ -2,6 +2,8 @@
 
 El despliegue se detiene de forma preventiva si el host no cumple los controles de `scripts/security/production_preflight.sh`.
 
+Para actualizar un `.env` de desarrollo antiguo sin reutilizar la clave global, ejecutar `bash scripts/migrate_local_env.sh`. El script genera credenciales locales separadas y no imprime sus valores.
+
 ## Una vez por host
 
 - Ejecutar Docker en modo rootless para el usuario de RageNodes.
