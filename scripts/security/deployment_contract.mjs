@@ -7,6 +7,10 @@ const files = Object.fromEntries(await Promise.all([
   'backend/Dockerfile',
   'oxideproxy/Dockerfile',
   '.env.example',
+  'deploy.sh',
+  'deploy_staging.sh',
+  'scripts/ensure_base_images.sh',
+  'scripts/load_env.sh',
   'scripts/security/production_preflight.sh'
 ].map(async (file) => [file, await fs.readFile(file, 'utf8')])));
 
@@ -40,6 +44,18 @@ assert(files['.env.example'].includes('FRONTEND_BIND_IP=127.0.0.1'), 'auxiliary 
 assert(files['.env.example'].includes('DISCORD_API_KEY=') && files['.env.example'].includes('NODE_ENROLLMENT_API_KEY='), 'Discord and node enrollment use separate credentials');
 assert(files['scripts/security/production_preflight.sh'].includes('rootless'), 'production preflight enforces rootless Docker');
 assert(files['scripts/security/production_preflight.sh'].includes('sport = :111'), 'production preflight rejects an unexpected RPC portmapper');
+assert(files['scripts/security/production_preflight.sh'].includes('load_env_file "$ENV_FILE"'), 'production preflight loads dotenv without executing it as shell code');
+assert(!files['scripts/security/production_preflight.sh'].includes('source "$ENV_FILE"'), 'production preflight never sources dotenv content directly');
+assert(files['scripts/load_env.sh'].includes("line=\"${line%$'\\r'}\""), 'dotenv loader accepts Windows line endings');
+assert(files['scripts/ensure_base_images.sh'].includes('${FIVEM_BASE_IMAGE:?'), 'base-image preflight requires the configured FiveM image tag');
+assert(files['scripts/ensure_base_images.sh'].includes('${BLENDER_BASE_IMAGE:?'), 'base-image preflight requires the configured Blender image tag');
+assert(files['scripts/ensure_base_images.sh'].includes('docker build --tag "$image" "$context"'), 'base-image preflight builds the exact configured tags');
+assert(files['scripts/ensure_base_images.sh'].includes('docker image inspect "$image"'), 'base-image preflight verifies every resulting image');
+for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
+  const deploy = files[deployFile];
+  assert(deploy.includes('bash ./scripts/ensure_base_images.sh'), `${deployFile} prepares game images before application services`);
+  assert(deploy.indexOf('bash ./scripts/ensure_base_images.sh') < deploy.indexOf('build "${APP_SERVICES[@]}"'), `${deployFile} cannot publish a backend before its game images exist`);
+}
 
 if (failures) {
   console.error(`Deployment security contract failed: ${failures} finding(s).`);

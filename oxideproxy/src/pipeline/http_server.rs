@@ -47,6 +47,9 @@ struct AllowPhpMyAdminFraming;
 struct AllowRageNodesPanelFraming;
 
 #[derive(Clone)]
+struct AllowBlenderApp;
+
+#[derive(Clone)]
 struct TrustedStagingUpstream;
 
 fn env_port(name: &str, default: u16) -> u16 {
@@ -202,6 +205,18 @@ fn csp_with_frame_ancestors(existing: Option<&str>, ancestors: &str) -> String {
         .collect();
     directives.push(format!("frame-ancestors {ancestors}"));
     directives.join("; ")
+}
+
+fn blender_app_csp(ancestors: &str) -> String {
+    format!(
+        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors {ancestors}; form-action 'self'; \
+         script-src 'self' blob:; script-src-attr 'none'; \
+         style-src 'self' 'unsafe-inline'; style-src-attr 'unsafe-inline'; \
+         font-src 'self' data:; img-src 'self' data: blob:; \
+         connect-src 'self' data: blob: ws: wss:; frame-src 'self' blob:; \
+         worker-src 'self' blob:; child-src 'self' blob:; media-src 'self' data: blob:; \
+         manifest-src 'self'"
+    )
 }
 
 fn trusted_upstream_csp(existing: Option<&str>) -> Option<String> {
@@ -378,6 +393,7 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
         .extensions()
         .get::<AllowRageNodesPanelFraming>()
         .is_some();
+    let allow_blender_app = response.extensions().get::<AllowBlenderApp>().is_some();
     let trusted_staging_upstream = response
         .extensions()
         .get::<TrustedStagingUpstream>()
@@ -466,6 +482,13 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
     }
     let csp = if let Some(policy) = trusted_staging_csp {
         policy
+    } else if allow_blender_app {
+        let ancestors = if allow_panel_framing {
+            frame_ancestors_policy()
+        } else {
+            "'self'".to_string()
+        };
+        blender_app_csp(&ancestors)
     } else if allow_panel_framing {
         csp_with_frame_ancestors(upstream_csp.as_deref(), &frame_ancestors_policy())
     } else if access_gate_page {
@@ -628,6 +651,7 @@ async fn handle_http_request(
         )
         .await?;
         response.extensions_mut().insert(AllowRageNodesPanelFraming);
+        response.extensions_mut().insert(AllowBlenderApp);
         return Ok(response);
     }
 
@@ -732,6 +756,7 @@ async fn handle_http_request(
                 );
                 let mut response = reverse_proxy_request(req, target_addr, None, peer_addr).await?;
                 response.extensions_mut().insert(AllowSameOriginFraming);
+                response.extensions_mut().insert(AllowBlenderApp);
                 return Ok(response);
             }
         }
@@ -1089,8 +1114,9 @@ async fn serve_static_file(
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_browser_security_headers, csp_with_frame_ancestors,
-        dynamic_proxy_port_for_domains, trusted_upstream_csp, TrustedStagingUpstream,
+        apply_browser_security_headers, blender_app_csp, csp_with_frame_ancestors,
+        dynamic_proxy_port_for_domains, trusted_upstream_csp, AllowBlenderApp,
+        AllowRageNodesPanelFraming, AllowSameOriginFraming, TrustedStagingUpstream,
     };
     use http::{Response, StatusCode};
     use hyper::Body;
@@ -1193,6 +1219,58 @@ mod tests {
             .and_then(|value| value.to_str().ok())
             .unwrap_or_default();
         assert!(!policy.contains("script-src 'unsafe-inline'"));
+        assert!(policy.contains("object-src 'none'"));
+    }
+
+    #[test]
+    fn blender_csp_allows_only_the_runtime_features_required_by_the_web_app() {
+        let policy = blender_app_csp("'self'");
+
+        assert!(policy.contains("frame-ancestors 'self'"));
+        assert!(policy.contains("script-src 'self' blob:"));
+        assert!(!policy.contains("script-src 'self' 'unsafe-inline'"));
+        assert!(!policy.contains("'unsafe-eval'"));
+        assert!(policy.contains("style-src 'self' 'unsafe-inline'"));
+        assert!(policy.contains("connect-src 'self' data: blob: ws: wss:"));
+        assert!(policy.contains("worker-src 'self' blob:"));
+        assert!(policy.contains("manifest-src 'self'"));
+        assert!(policy.contains("object-src 'none'"));
+    }
+
+    #[test]
+    fn blender_path_keeps_same_origin_framing_and_uses_scoped_runtime_csp() {
+        let mut response = Response::new(Body::empty());
+        response.extensions_mut().insert(AllowSameOriginFraming);
+        response.extensions_mut().insert(AllowBlenderApp);
+
+        apply_browser_security_headers(&mut response, true);
+
+        let policy = response
+            .headers()
+            .get("content-security-policy")
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default();
+        assert_eq!(response.headers().get("x-frame-options").unwrap(), "SAMEORIGIN");
+        assert!(policy.contains("frame-ancestors 'self'"));
+        assert!(policy.contains("script-src 'self' blob:"));
+    }
+
+    #[test]
+    fn blender_virtual_host_can_be_embedded_only_by_configured_ragenodes_panels() {
+        let mut response = Response::new(Body::empty());
+        response.extensions_mut().insert(AllowRageNodesPanelFraming);
+        response.extensions_mut().insert(AllowBlenderApp);
+
+        apply_browser_security_headers(&mut response, true);
+
+        let policy = response
+            .headers()
+            .get("content-security-policy")
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default();
+        assert!(response.headers().get("x-frame-options").is_none());
+        assert!(policy.contains("frame-ancestors https://"));
+        assert!(!policy.contains("frame-ancestors *"));
         assert!(policy.contains("object-src 'none'"));
     }
 }
