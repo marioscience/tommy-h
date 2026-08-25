@@ -618,7 +618,7 @@ function toggleSidebar() {
                 await Nexus.api('/api/servers', { method: 'POST', body: JSON.stringify(body) });
                 showToast('¡Servidor creado con éxito!', 'success');
                 lastDataHash = "";
-                loadServers();
+                await switchView('servers', document.getElementById('nav-servers'));
             } catch (e) {
                 showToast("Error al desplegar: " + (e.message || "Contacta a soporte."), 'danger');
                 btn.innerHTML = '<i class="fa-solid fa-plus"></i> Desplegar';
@@ -1014,7 +1014,9 @@ function toggleSidebar() {
 
             if (viewId === 'servers') {
                 document.getElementById('page-sub').innerText = "Gestiona tu instancia y recursos";
-                document.getElementById('view-servers').classList.remove('hidden'); lastDataHash = ""; loadServers();
+                document.getElementById('view-servers').classList.remove('hidden');
+                lastDataHash = "";
+                return loadServers();
             } else if (viewId === 'marketplace') {
                 document.getElementById('page-sub').innerText = "Adquiere scripts exclusivos protegidos por Vault™";
                 document.getElementById('view-marketplace').classList.remove('hidden');
