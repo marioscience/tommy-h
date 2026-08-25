@@ -71,7 +71,7 @@ pub struct AccessGate {
     resend_api_key: String,
     from_email: String,
     http_client: reqwest::Client,
-    otp_by_email: DashMap<String, OtpChallenge>,
+    otp_redis: redis::Client,
     unknown_by_ip: DashMap<IpAddr, AttemptWindow>,
     invalid_code_by_ip: DashMap<IpAddr, AttemptWindow>,
     last_send_by_email: DashMap<String, Instant>,
@@ -121,6 +121,7 @@ impl AccessGate {
         }
 
         let resend_api_key = required_env("RESEND_API_KEY")?;
+        let otp_redis = redis::Client::open(required_env("ACCESS_GATE_REDIS_URL")?)?;
         let shared_edge = env_flag("ACCESS_GATE_SHARED_EDGE");
         let from_email = std::env::var("ACCESS_GATE_FROM_EMAIL")
             .unwrap_or_else(|_| "RageNodes Access <info@ragenodes.com>".to_string());
@@ -145,7 +146,7 @@ impl AccessGate {
             resend_api_key,
             from_email,
             http_client,
-            otp_by_email: DashMap::new(),
+            otp_redis,
             unknown_by_ip: DashMap::new(),
             invalid_code_by_ip: DashMap::new(),
             last_send_by_email: DashMap::new(),
@@ -289,20 +290,33 @@ impl AccessGate {
         let code = generate_code();
         let expires_at = unix_now().saturating_add(OTP_TTL_SECS);
         let digest = self.otp_digest(&email, &code, expires_at);
+        let challenge = OtpChallenge { digest, expires_at };
+
+        if let Err(error) = self.store_otp_challenge(&email, &challenge).await {
+            tracing::error!(
+                "No se pudo guardar el desafío OTP en el almacén compartido: {}",
+                error
+            );
+            return access_page(
+                Some("El servicio de acceso no está disponible temporalmente."),
+                false,
+                None,
+            );
+        }
 
         match self.send_code(&email, &code).await {
             Ok(()) => {
-                self.otp_by_email.insert(
-                    email.clone(),
-                    OtpChallenge {
-                        digest,
-                        expires_at,
-                    },
-                );
-                self.last_send_by_email.insert(email.clone(), Instant::now());
+                self.last_send_by_email
+                    .insert(email.clone(), Instant::now());
             }
             Err(error) => {
                 tracing::error!("Resend no pudo entregar el código de acceso: {}", error);
+                if let Err(delete_error) = self.delete_otp_challenge(&email).await {
+                    tracing::warn!(
+                        "No se pudo retirar un desafío OTP cuya entrega falló: {}",
+                        delete_error
+                    );
+                }
             }
         }
 
@@ -338,29 +352,47 @@ impl AccessGate {
                 let _ = ban_tx.send(ip).await;
                 return text_response(StatusCode::FORBIDDEN, "Acceso bloqueado");
             }
-            return access_page(
-                Some("Código inválido o caducado."),
-                true,
-                Some(&email),
-            );
+            return access_page(Some("Código inválido o caducado."), true, Some(&email));
         }
 
         let now = unix_now();
         let mut valid = false;
-        if let Some(challenge) = self.otp_by_email.get(&email) {
+        let challenge = match self.load_otp_challenge(&email).await {
+            Ok(challenge) => challenge,
+            Err(error) => {
+                tracing::error!("No se pudo consultar el desafío OTP compartido: {}", error);
+                return access_page(
+                    Some("El servicio de acceso no está disponible temporalmente."),
+                    true,
+                    Some(&email),
+                );
+            }
+        };
+        if let Some(challenge) = challenge.as_ref() {
             if challenge.expires_at >= now && code.len() == 6 {
                 let mut mac = HmacSha256::new_from_slice(&self.session_secret)
                     .expect("HMAC admite secretos de cualquier tamaño");
-                mac.update(
-                    format!("otp|{}|{}|{}", email, code, challenge.expires_at).as_bytes(),
-                );
+                mac.update(format!("otp|{}|{}|{}", email, code, challenge.expires_at).as_bytes());
                 valid = mac.verify_slice(&challenge.digest).is_ok();
             }
         }
 
         if valid {
-            self.otp_by_email.remove(&email);
-            return self.authorized_response(&email);
+            match self
+                .consume_otp_challenge(&email, challenge.as_ref().expect("desafío presente"))
+                .await
+            {
+                Ok(true) => return self.authorized_response(&email),
+                Ok(false) => {}
+                Err(error) => {
+                    tracing::error!("No se pudo consumir el desafío OTP compartido: {}", error);
+                    return access_page(
+                        Some("El servicio de acceso no está disponible temporalmente."),
+                        true,
+                        Some(&email),
+                    );
+                }
+            }
         }
 
         if self.record_invalid_code(ip) >= 5 {
@@ -368,11 +400,7 @@ impl AccessGate {
             return text_response(StatusCode::FORBIDDEN, "Acceso bloqueado");
         }
 
-        access_page(
-            Some("Código inválido o caducado."),
-            true,
-            Some(&email),
-        )
+        access_page(Some("Código inválido o caducado."), true, Some(&email))
     }
 
     async fn send_code(&self, email: &str, code: &str) -> Result<(), String> {
@@ -412,7 +440,10 @@ impl AccessGate {
     }
 
     fn has_valid_session(&self, req: &Request<Body>) -> bool {
-        let Some(cookie_header) = req.headers().get(COOKIE).and_then(|value| value.to_str().ok())
+        let Some(cookie_header) = req
+            .headers()
+            .get(COOKIE)
+            .and_then(|value| value.to_str().ok())
         else {
             return false;
         };
@@ -482,6 +513,69 @@ impl AccessGate {
         self.sign(value.as_bytes())
     }
 
+    fn otp_storage_key(&self, email: &str) -> String {
+        let email_hash = Sha256::digest(email.as_bytes());
+        format!(
+            "ragenodes:access:{}:otp:{}",
+            self.domain,
+            URL_SAFE_NO_PAD.encode(email_hash)
+        )
+    }
+
+    async fn store_otp_challenge(
+        &self,
+        email: &str,
+        challenge: &OtpChallenge,
+    ) -> Result<(), redis::RedisError> {
+        let mut connection = self.otp_redis.get_multiplexed_async_connection().await?;
+        let value = encode_otp_challenge(challenge);
+        let _: () = redis::cmd("SET")
+            .arg(self.otp_storage_key(email))
+            .arg(value)
+            .arg("EX")
+            .arg(OTP_TTL_SECS)
+            .query_async(&mut connection)
+            .await?;
+        Ok(())
+    }
+
+    async fn load_otp_challenge(
+        &self,
+        email: &str,
+    ) -> Result<Option<OtpChallenge>, redis::RedisError> {
+        let mut connection = self.otp_redis.get_multiplexed_async_connection().await?;
+        let value: Option<String> = redis::cmd("GET")
+            .arg(self.otp_storage_key(email))
+            .query_async(&mut connection)
+            .await?;
+        Ok(value.and_then(|value| decode_otp_challenge(&value)))
+    }
+
+    async fn consume_otp_challenge(
+        &self,
+        email: &str,
+        challenge: &OtpChallenge,
+    ) -> Result<bool, redis::RedisError> {
+        let mut connection = self.otp_redis.get_multiplexed_async_connection().await?;
+        let deleted: i32 = redis::Script::new(
+            "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end",
+        )
+        .key(self.otp_storage_key(email))
+        .arg(encode_otp_challenge(challenge))
+        .invoke_async(&mut connection)
+        .await?;
+        Ok(deleted == 1)
+    }
+
+    async fn delete_otp_challenge(&self, email: &str) -> Result<(), redis::RedisError> {
+        let mut connection = self.otp_redis.get_multiplexed_async_connection().await?;
+        let _: i32 = redis::cmd("DEL")
+            .arg(self.otp_storage_key(email))
+            .query_async(&mut connection)
+            .await?;
+        Ok(())
+    }
+
     fn sign(&self, value: &[u8]) -> Vec<u8> {
         let mut mac = HmacSha256::new_from_slice(&self.session_secret)
             .expect("HMAC admite secretos de cualquier tamaño");
@@ -508,8 +602,6 @@ impl AccessGate {
         {
             return;
         }
-        self.otp_by_email
-            .retain(|_, challenge| challenge.expires_at >= now);
         self.unknown_by_ip
             .retain(|_, window| window.started_at.elapsed() <= UNKNOWN_WINDOW);
         self.invalid_code_by_ip
@@ -544,17 +636,33 @@ impl AccessGate {
 }
 
 fn record_attempt(windows: &DashMap<IpAddr, AttemptWindow>, ip: IpAddr) -> u8 {
-        let now = Instant::now();
-        let mut entry = windows.entry(ip).or_insert(AttemptWindow {
-            started_at: now,
-            attempts: 0,
-        });
-        if now.duration_since(entry.started_at) > UNKNOWN_WINDOW {
-            entry.started_at = now;
-            entry.attempts = 0;
-        }
-        entry.attempts = entry.attempts.saturating_add(1);
-        entry.attempts
+    let now = Instant::now();
+    let mut entry = windows.entry(ip).or_insert(AttemptWindow {
+        started_at: now,
+        attempts: 0,
+    });
+    if now.duration_since(entry.started_at) > UNKNOWN_WINDOW {
+        entry.started_at = now;
+        entry.attempts = 0;
+    }
+    entry.attempts = entry.attempts.saturating_add(1);
+    entry.attempts
+}
+
+fn encode_otp_challenge(challenge: &OtpChallenge) -> String {
+    format!(
+        "{}:{}",
+        challenge.expires_at,
+        URL_SAFE_NO_PAD.encode(&challenge.digest)
+    )
+}
+
+fn decode_otp_challenge(value: &str) -> Option<OtpChallenge> {
+    let (expires_at, digest) = value.split_once(':')?;
+    Some(OtpChallenge {
+        expires_at: expires_at.parse().ok()?,
+        digest: URL_SAFE_NO_PAD.decode(digest).ok()?,
+    })
 }
 
 async fn read_form(req: Request<Body>) -> Result<HashMap<String, String>, Response<Body>> {
@@ -685,7 +793,12 @@ fn unix_now() -> u64 {
 
 fn env_flag(name: &str) -> bool {
     std::env::var(name)
-        .map(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes"
+            )
+        })
         .unwrap_or(false)
 }
 
@@ -711,12 +824,74 @@ mod tests {
             resend_api_key: "unused".to_string(),
             from_email: "unused@example.com".to_string(),
             http_client: reqwest::Client::new(),
-            otp_by_email: DashMap::new(),
+            otp_redis: redis::Client::open("redis://127.0.0.1/").unwrap(),
             unknown_by_ip: DashMap::new(),
             invalid_code_by_ip: DashMap::new(),
             last_send_by_email: DashMap::new(),
             last_cleanup_at: AtomicU64::new(unix_now()),
         }
+    }
+
+    #[test]
+    fn otp_challenge_round_trip_preserves_digest_and_expiry() {
+        let challenge = OtpChallenge {
+            digest: vec![0, 1, 2, 253, 254, 255],
+            expires_at: 1_777_777_777,
+        };
+        let decoded = decode_otp_challenge(&encode_otp_challenge(&challenge)).unwrap();
+        assert_eq!(decoded.digest, challenge.digest);
+        assert_eq!(decoded.expires_at, challenge.expires_at);
+    }
+
+    #[test]
+    fn otp_storage_key_does_not_expose_email_address() {
+        let gate = test_gate();
+        let key = gate.otp_storage_key("dev@example.com");
+        assert!(key.starts_with("ragenodes:access:ragenodes.dev:otp:"));
+        assert!(!key.contains("dev@example.com"));
+    }
+
+    #[tokio::test]
+    async fn shared_otp_survives_gate_recreation_and_is_consumed_once() {
+        let Ok(redis_url) = std::env::var("ACCESS_GATE_TEST_REDIS_URL") else {
+            return;
+        };
+        let mut first_gate = test_gate();
+        first_gate.otp_redis = redis::Client::open(redis_url.clone()).unwrap();
+        let email = "otp-persistence-probe@example.com";
+        let challenge = OtpChallenge {
+            digest: vec![11, 22, 33, 44],
+            expires_at: unix_now() + OTP_TTL_SECS,
+        };
+
+        first_gate.delete_otp_challenge(email).await.unwrap();
+        first_gate
+            .store_otp_challenge(email, &challenge)
+            .await
+            .unwrap();
+
+        let mut recreated_gate = test_gate();
+        recreated_gate.otp_redis = redis::Client::open(redis_url).unwrap();
+        let loaded = recreated_gate
+            .load_otp_challenge(email)
+            .await
+            .unwrap()
+            .expect("el desafío debe sobrevivir a la recreación del proxy");
+        assert_eq!(loaded.digest, challenge.digest);
+        assert_eq!(loaded.expires_at, challenge.expires_at);
+        assert!(recreated_gate
+            .consume_otp_challenge(email, &loaded)
+            .await
+            .unwrap());
+        assert!(!recreated_gate
+            .consume_otp_challenge(email, &loaded)
+            .await
+            .unwrap());
+        assert!(recreated_gate
+            .load_otp_challenge(email)
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[test]
@@ -854,7 +1029,10 @@ mod tests {
         };
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert_eq!(
-            response.headers().get(LOCATION).and_then(|value| value.to_str().ok()),
+            response
+                .headers()
+                .get(LOCATION)
+                .and_then(|value| value.to_str().ok()),
             Some("https://ragenodes.dev/__access")
         );
     }

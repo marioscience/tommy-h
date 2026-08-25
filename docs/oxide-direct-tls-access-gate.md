@@ -46,6 +46,7 @@ ACCESS_GATE_ENABLED=true
 ACCESS_GATE_DOMAIN=ragenodes.dev
 ACCESS_GATE_ALLOWED_EMAILS=dev1@example.com,dev2@example.com
 ACCESS_GATE_SESSION_SECRET=[INSERT_SECRET_HERE]
+ACCESS_GATE_REDIS_URL=redis://redis:6379/0
 ACCESS_GATE_FROM_EMAIL="RageNodes Access <info@ragenodes.com>"
 RESEND_API_KEY=establecer-en-el-entorno-privado
 ```
@@ -65,6 +66,8 @@ No alternar repetidamente entre staging y producción para evitar límites de em
 - Solo acepta el dominio configurado y rechaza otros valores de SNI o `Host`.
 - No revela si un correo pertenece a la lista autorizada.
 - Envía mediante Resend un código numérico de un solo uso que caduca en 10 minutos.
+- El desafío OTP se conserva en Redis y sobrevive a reinicios o cambios de instancia del proxy.
+- La validación consume el desafío de forma atómica, por lo que un código aceptado no puede reutilizarse.
 - La sesión se guarda en una cookie `Secure`, `HttpOnly`, `SameSite=Strict` y dura 24 horas.
 - Tres intentos con correos no autorizados bloquean la IP de origen observada directamente por OxideProxy.
 - Cinco códigos incorrectos bloquean igualmente la IP.
