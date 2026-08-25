@@ -19,6 +19,10 @@ APP_SERVICES=(
   oxide_web_staging
 )
 
+STATE_SERVICES=(
+  redis-staging
+)
+
 wait_for_service() {
   local service="$1" timeout_seconds="$2" elapsed=0 container_id status
   container_id="$(docker compose -f docker-compose.staging.yml ps -q "$service")"
@@ -54,6 +58,8 @@ wait_for_http() {
 }
 
 docker compose -f docker-compose.staging.yml config --quiet
+docker compose -f docker-compose.staging.yml up -d "${STATE_SERVICES[@]}"
+wait_for_service redis-staging 60
 RUNTIME_DOCKER_NETWORK=ragenodes_net_staging bash ./scripts/ensure_base_images.sh
 docker compose -f docker-compose.staging.yml build "${APP_SERVICES[@]}"
 docker compose -f docker-compose.staging.yml up -d --no-deps "${APP_SERVICES[@]}"
