@@ -1,0 +1,19 @@
+services:
+  runner:
+    image: gitlab/gitlab-runner:alpine-v19.2.1@sha256:36cd70bf530d10c9f796653421a9ddafed0975cb165bf698c1d40d7291b650c5
+    container_name: ragenodes-gitlab-runner
+    restart: unless-stopped
+    cpus: "1.0"
+    mem_limit: 512m
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - runner-config:/etc/gitlab-runner
+      - runner-cache:/cache
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  runner-config:
+    name: ragenodes-gitlab-runner-config
+  runner-cache:
+    name: ragenodes-gitlab-runner-cache

@@ -1071,10 +1071,7 @@ function toggleSidebar() {
                     if (currentServerId && !isBlenderIframeLoaded && !savedBlenderUrl) {
                         openBlender(currentServerId);
                     } else if (savedBlenderUrl) {
-                        const iframe = document.getElementById('blender-iframe');
-                        iframe.style.display = 'block';
-                        if (iframe.src !== savedBlenderUrl) iframe.src = savedBlenderUrl;
-                        isBlenderIframeLoaded = true;
+                        void loadBlenderFrame(savedBlenderUrl);
                         // 🚀 Asegurar que se carguen las credenciales
                         openBlender(currentServerId);
                     }
@@ -2397,6 +2394,77 @@ function toggleSidebar() {
         }
 
         let blenderPendingUrl = "";
+        let blenderResizeFrame = 0;
+
+        function resizeBlenderFrame() {
+            const container = document.getElementById('blender-iframe-container');
+            const iframe = document.getElementById('blender-iframe');
+            if (!container || !iframe || activeView !== 'blender') return 0;
+
+            const visualViewport = window.visualViewport;
+            const viewportBottom = (visualViewport?.offsetTop || 0) + (visualViewport?.height || window.innerHeight);
+            const main = container.closest('.main');
+            const mainStyle = main ? window.getComputedStyle(main) : null;
+            const mainBottom = main
+                ? main.getBoundingClientRect().bottom - (parseFloat(mainStyle?.paddingBottom || '0') || 0)
+                : viewportBottom;
+            const containerTop = container.getBoundingClientRect().top;
+            const availableHeight = Math.max(320, Math.floor(Math.min(viewportBottom, mainBottom) - containerTop));
+
+            container.style.setProperty('height', `${availableHeight}px`, 'important');
+            iframe.style.setProperty('height', `${availableHeight}px`, 'important');
+
+            try {
+                iframe.contentWindow?.dispatchEvent(new Event('resize'));
+            } catch (_) {
+                // El proxy puede volver el documento temporalmente cross-origin durante la carga.
+            }
+            return availableHeight;
+        }
+
+        function scheduleBlenderResize() {
+            if (blenderResizeFrame) cancelAnimationFrame(blenderResizeFrame);
+            blenderResizeFrame = requestAnimationFrame(() => {
+                blenderResizeFrame = 0;
+                resizeBlenderFrame();
+            });
+        }
+
+        function waitForBlenderLayout() {
+            return new Promise(resolve => {
+                requestAnimationFrame(() => requestAnimationFrame(resolve));
+            });
+        }
+
+        async function loadBlenderFrame(url) {
+            const iframe = document.getElementById('blender-iframe');
+            if (!iframe || !url) return;
+
+            const absoluteUrl = new URL(url, window.location.origin);
+            if (absoluteUrl.origin !== window.location.origin || !absoluteUrl.pathname.startsWith('/blender/')) {
+                console.warn('URL de Blender rechazada por no pertenecer al proxy local.');
+                return;
+            }
+
+            iframe.style.display = 'block';
+            await waitForBlenderLayout();
+            resizeBlenderFrame();
+
+            if (iframe.src !== absoluteUrl.href) {
+                iframe.addEventListener('load', () => {
+                    scheduleBlenderResize();
+                    setTimeout(scheduleBlenderResize, 250);
+                    setTimeout(scheduleBlenderResize, 1000);
+                }, { once: true });
+                iframe.src = absoluteUrl.href;
+            } else {
+                scheduleBlenderResize();
+            }
+            isBlenderIframeLoaded = true;
+        }
+
+        window.addEventListener('resize', scheduleBlenderResize, { passive: true });
+        window.visualViewport?.addEventListener('resize', scheduleBlenderResize, { passive: true });
 
         async function openBlender(id) {
             try {
@@ -2419,13 +2487,10 @@ function toggleSidebar() {
 
         function confirmBlenderAuth() {
             document.getElementById('blender-auth-modal').classList.add('hidden');
-            const iframe = document.getElementById('blender-iframe');
-            iframe.style.display = 'block';
-            iframe.src = blenderPendingUrl;
-            isBlenderIframeLoaded = true;
             if (currentServerId) {
                 sessionStorage.setItem('blenderUrl_' + currentServerId, blenderPendingUrl);
             }
+            void loadBlenderFrame(blenderPendingUrl);
         }
 
         let srvActionPending = false;
