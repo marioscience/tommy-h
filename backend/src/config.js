@@ -16,13 +16,18 @@ export const config = {
   adminUser: process.env.ADMIN_BOOTSTRAP_USER,
   adminPass: process.env.ADMIN_BOOTSTRAP_PASS,
   corsOrigin: process.env.CORS_ORIGIN || process.env.PUBLIC_BASE_URL || 'http://localhost:8088',
+  trustedBaseDomains: String(process.env.TRUSTED_BASE_DOMAINS || 'ragenodes.com,ragenodes.app,ragenodes.dev')
+    .split(',').map(value => value.trim().toLowerCase()).filter(Boolean),
   sessionCookieName: process.env.SESSION_COOKIE_NAME || 'rn_session',
   cookieSecure: process.env.COOKIE_SECURE === 'true' || (process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE !== 'false'),
   cookieSameSite: process.env.COOKIE_SAMESITE || 'Lax',
 
   // 🤖 CONFIGURACIÓN DEL BOT DE DISCORD — Sin fallback inseguro: falla en arranque si no está configurada
-  apiKey: process.env.API_KEY || (
-    process.env.NODE_ENV === 'production' ? '' : 'dev_api_key_24_chars_min_len_ragenodes'
+  discordApiKey: process.env.DISCORD_API_KEY || (
+    process.env.NODE_ENV === 'production' ? '' : (process.env.API_KEY || 'dev_discord_api_key_24_chars_ragenodes')
+  ),
+  nodeEnrollmentApiKey: process.env.NODE_ENROLLMENT_API_KEY || (
+    process.env.NODE_ENV === 'production' ? '' : (process.env.API_KEY || 'dev_node_enrollment_key_24_chars')
   ),
   centralDbPass: process.env.CENTRAL_DB_PASS || (
     process.env.NODE_ENV === 'production' ? '' : 'dev_central_db_pass_16chars'
@@ -46,6 +51,10 @@ export const config = {
 
   // 📦 BACKUPS
   backupRoot: process.env.BACKUP_ROOT || '/srv/ragenodes-backups',
+  backupRemoteEnabled: process.env.BACKUP_REMOTE_ENABLED === 'true',
+  backupRemoteName: process.env.BACKUP_REMOTE_NAME || 'gdrive',
+  backupRemotePath: process.env.BACKUP_REMOTE_PATH || 'ragenodes_backups',
+  rcloneConfigPath: process.env.RCLONE_CONFIG_PATH || '/app/config/rclone/rclone.conf',
 
   // Imágenes base
   fivemBaseImage: process.env.FIVEM_BASE_IMAGE || 'ragenodes-fivem-base:1.0.0-local',
@@ -99,7 +108,8 @@ export function assertSecureConfig() {
   const required = [
     ['DATABASE_URL', config.databaseUrl, 12],
     ['JWT_SECRET', config.jwtSecret, 32],
-    ['API_KEY', config.apiKey, 24],
+    ['DISCORD_API_KEY', config.discordApiKey, 24],
+    ['NODE_ENROLLMENT_API_KEY', config.nodeEnrollmentApiKey, 24],
     ['CENTRAL_DB_PASS', config.centralDbPass, 16]
   ];
 
@@ -114,6 +124,9 @@ export function assertSecureConfig() {
   if ((config.adminUser && !config.adminPass) || (!config.adminUser && config.adminPass)) {
     errors.push('ADMIN_BOOTSTRAP_USER y ADMIN_BOOTSTRAP_PASS deben definirse juntos.');
   }
+  if (config.nodeEnv === 'production' && config.discordApiKey === config.nodeEnrollmentApiKey) {
+    errors.push('DISCORD_API_KEY y NODE_ENROLLMENT_API_KEY deben ser secretos diferentes.');
+  }
   if (!Number.isInteger(config.dockerBlkioWeight)
       || (config.dockerBlkioWeight !== 0 && (config.dockerBlkioWeight < 10 || config.dockerBlkioWeight > 1000))) {
     errors.push('DOCKER_BLKIO_WEIGHT debe ser 0 (deshabilitado) o un entero entre 10 y 1000.');
@@ -126,6 +139,10 @@ export function assertSecureConfig() {
   }
   if (!/^[a-z][a-z0-9-]{0,15}$/.test(config.publicEndpointPrefix)) {
     errors.push('PUBLIC_ENDPOINT_PREFIX debe ser una etiqueta DNS corta y valida.');
+  }
+  if (config.trustedBaseDomains.length === 0
+      || config.trustedBaseDomains.some(domain => !/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(domain))) {
+    errors.push('TRUSTED_BASE_DOMAINS debe contener dominios base validos separados por comas.');
   }
 
   if (Boolean(config.paypalClient) !== Boolean(config.paypalSecret)) {

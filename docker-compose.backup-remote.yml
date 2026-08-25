@@ -1,0 +1,5 @@
+services:
+  worker-backups:
+    build:
+      context: ./backend
+      target: backup-remote

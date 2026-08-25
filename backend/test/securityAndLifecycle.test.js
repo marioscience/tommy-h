@@ -51,6 +51,8 @@ describe('🛡️ Security & Path Traversal Defensive Tests', () => {
             DATABASE_URL: '',
             JWT_SECRET: '',
             API_KEY: '',
+            DISCORD_API_KEY: '',
+            NODE_ENROLLMENT_API_KEY: '',
             CENTRAL_DB_PASS: '',
             ADMIN_BOOTSTRAP_USER: '',
             ADMIN_BOOTSTRAP_PASS: '',
@@ -74,8 +76,38 @@ describe('🛡️ Security & Path Traversal Defensive Tests', () => {
         const output = `${result.stdout}\n${result.stderr}`;
 
         assert.notEqual(result.status, 0);
-        for (const name of ['DATABASE_URL', 'JWT_SECRET', 'API_KEY', 'CENTRAL_DB_PASS']) {
+        for (const name of ['DATABASE_URL', 'JWT_SECRET', 'DISCORD_API_KEY', 'NODE_ENROLLMENT_API_KEY', 'CENTRAL_DB_PASS']) {
             assert.match(output, new RegExp(name));
         }
+    });
+
+    it('debería exigir claves diferentes para Discord y enrolamiento de nodos', () => {
+        const sharedKey = 'shared_key_that_must_not_be_reused_123456';
+        const environment = {
+            ...process.env,
+            NODE_ENV: 'production',
+            DATABASE_URL: 'postgres://user:password@postgres:5432/ragenodes',
+            JWT_SECRET: 'local-only-test-jwt-secret-at-least-32-characters',
+            DISCORD_API_KEY: sharedKey,
+            NODE_ENROLLMENT_API_KEY: sharedKey,
+            CENTRAL_DB_PASS: 'production_mariadb_password',
+            ADMIN_BOOTSTRAP_USER: '',
+            ADMIN_BOOTSTRAP_PASS: '',
+            COOKIE_SECURE: 'true',
+            PUBLIC_BASE_URL: 'https://ragenodes.com',
+            CORS_ORIGIN: 'https://ragenodes.com',
+            DOCKER_SOCKET: '/run/user/1000/docker.sock',
+            ALLOW_ROOTFUL_DOCKER_SOCKET: 'false',
+            ALLOW_INSECURE_DOCKER_NODES: 'false',
+            PAYPAL_WEBHOOKS_ENABLED: 'false'
+        };
+        const result = spawnSync(
+            process.execPath,
+            ['--input-type=module', '--eval', "import('./src/config.js').then(({ assertSecureConfig }) => assertSecureConfig())"],
+            { cwd: process.cwd(), env: environment, encoding: 'utf8' }
+        );
+
+        assert.notEqual(result.status, 0);
+        assert.match(`${result.stdout}\n${result.stderr}`, /deben ser secretos diferentes/);
     });
 });

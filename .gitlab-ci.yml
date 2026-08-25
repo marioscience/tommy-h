@@ -10,6 +10,7 @@ stages:
 - secret-detection
 variables:
   SECRET_DETECTION_ENABLED: 'true'
+  AST_ENABLE_MR_PIPELINES: 'true'
 
 security_contracts:
   stage: test
@@ -24,6 +25,7 @@ security_contracts:
   - npm run security:secrets
   - npm run security:csp-bindings
   - npm run security:inline-code
+  - npm run security:deployment
 
 backend_tests:
   stage: test
@@ -36,9 +38,47 @@ backend_tests:
   - cd backend
   - npm ci --ignore-scripts --cache .npm-cache
   script:
-  - node --test test/*.test.js
+  - npm test
+
+dependency_audit:
+  stage: test
+  image: node:24-bookworm
+  before_script:
+  - npm ci --ignore-scripts --cache .npm-cache
+  - cd backend && npm ci --ignore-scripts --cache .npm-cache && cd ..
+  script:
+  - npm audit --omit=dev --audit-level=high
+  - cd backend && npm audit --omit=dev --audit-level=high
+
+oxide_tests:
+  stage: test
+  image: rust:bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-cargo"
+    paths:
+    - .cargo/
+    - oxideproxy/target/
+  variables:
+    CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
+  script:
+  - cargo test --manifest-path oxideproxy/Cargo.toml --locked
+
+compose_validation:
+  stage: test
+  image: docker:27.5.1-cli
+  before_script:
+  - cp .env.example .env
+  - export LEGO_EMAIL=ci@example.invalid
+  script:
+  - docker compose -f docker-compose.yml config --quiet
+  - docker compose -f docker-compose.staging.yml config --quiet
+  - docker compose -f docker-compose.yml -f docker-compose.security.yml config --quiet
+  - docker compose -f docker-compose.yml -f docker-compose.backup-remote.yml config --quiet
+  - docker compose -f docker-compose.yml -f docker-compose.powerdns.yml --profile dns-authority --profile dns-certificate config --quiet
 
 secret_detection:
   stage: secret-detection
 include:
 - template: Security/Secret-Detection.gitlab-ci.yml
+- template: Jobs/SAST.gitlab-ci.yml
+- template: Jobs/Dependency-Scanning.v2.gitlab-ci.yml

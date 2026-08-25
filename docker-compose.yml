@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
     restart: unless-stopped
-    env_file: [ .env ]
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -25,7 +25,7 @@ services:
     image: mariadb@sha256:de61fed4a40d3842f3ee09944ba52792156cfd9adf489b2cc670fc6ded28df8d
     command: ["--log-bin", "--expire-logs-days=7"]
     restart: unless-stopped
-    env_file: [ .env ]
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       MYSQL_ROOT_PASSWORD: ${CENTRAL_DB_PASS}
     volumes:
@@ -70,7 +70,10 @@ services:
       context: ./backend
     restart: unless-stopped
     init: true
-    env_file: [ .env ]
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    group_add:
+      - "${DOCKER_GID:-1000}"
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       PUBLIC_ENDPOINT_HOST: ${PUBLIC_ENDPOINT_HOST:-ragenodes.app}
       PUBLIC_ENDPOINT_SCHEME: ${PUBLIC_ENDPOINT_SCHEME:-https}
@@ -89,10 +92,9 @@ services:
       - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
       - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}:${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}
       - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
-      - ./backend/src:/app/src
-      - ./rclone.conf:/root/.config/rclone/rclone.conf:ro
+      - ./backend/src:/app/src:ro
       - ./fivem-base:/app/fivem-base
-      - ./certs:/opt/ragenodes-ultimate/certs:ro
+      - ./certs:/opt/ragenodes-ultimate/certs
       - query_cache_data:/app/config-gateway/static
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3006/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
@@ -103,7 +105,10 @@ services:
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
-    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=512m
+    pids_limit: 256
     cpu_shares: 2048
 
   worker-backups:
@@ -111,10 +116,13 @@ services:
       context: ./backend
     restart: unless-stopped
     init: true
-    env_file: [ .env ]
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    group_add:
+      - "${DOCKER_GID:-1000}"
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       - RAGENODES_ROLE=worker-backups
-    command: ["npm", "run", "worker:backups"]
+    command: ["node", "src/worker.js"]
     networks:
       - ragenodes_net
     depends_on:
@@ -127,14 +135,17 @@ services:
       - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}:${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}
       - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}/templates:${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}/templates:ro
       - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
-      - ./backend/src:/app/src
-      - ./rclone.conf:/root/.config/rclone/rclone.conf:ro
+      - ./backend/src:/app/src:ro
+      - ./config/rclone:/app/config/rclone:ro
       - ./fivem-base:/app/fivem-base
       - ./certs:/opt/ragenodes-ultimate/certs:ro
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
-    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=512m
+    pids_limit: 128
     cpu_shares: 1024
 
   worker-docker-events:
@@ -142,14 +153,17 @@ services:
       context: ./backend
     restart: unless-stopped
     init: true
-    env_file: [ .env ]
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    group_add:
+      - "${DOCKER_GID:-1000}"
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       - RAGENODES_ROLE=worker-docker-events
       - PUBLIC_ENDPOINT_HOST=${PUBLIC_ENDPOINT_HOST:-ragenodes.app}
       - PUBLIC_ENDPOINT_SCHEME=${PUBLIC_ENDPOINT_SCHEME:-https}
       - PUBLIC_ENDPOINT_MODE=${PUBLIC_ENDPOINT_MODE:-subdomain}
       - PUBLIC_ENDPOINT_PREFIX=${PUBLIC_ENDPOINT_PREFIX:-tx}
-    command: ["npm", "run", "worker:docker-events"]
+    command: ["node", "src/worker.js"]
     networks:
       - ragenodes_net
     depends_on:
@@ -160,14 +174,16 @@ services:
       - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}:${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}
       - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}/templates:${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}/templates:ro
       - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
-      - ./backend/src:/app/src
-      - ./rclone.conf:/root/.config/rclone/rclone.conf:ro
+      - ./backend/src:/app/src:ro
       - ./fivem-base:/app/fivem-base
       - ./certs:/opt/ragenodes-ultimate/certs:ro
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
-    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m
+    pids_limit: 128
     cpu_shares: 1024
 
   worker-stats:
@@ -175,14 +191,17 @@ services:
       context: ./backend
     restart: unless-stopped
     init: true
-    env_file: [ .env ]
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    group_add:
+      - "${DOCKER_GID:-1000}"
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       - RAGENODES_ROLE=worker-stats
       - PUBLIC_ENDPOINT_HOST=${PUBLIC_ENDPOINT_HOST:-ragenodes.app}
       - PUBLIC_ENDPOINT_SCHEME=${PUBLIC_ENDPOINT_SCHEME:-https}
       - PUBLIC_ENDPOINT_MODE=${PUBLIC_ENDPOINT_MODE:-subdomain}
       - PUBLIC_ENDPOINT_PREFIX=${PUBLIC_ENDPOINT_PREFIX:-tx}
-    command: ["npm", "run", "worker:stats"]
+    command: ["node", "src/worker.js"]
     networks:
       - ragenodes_net
     depends_on:
@@ -193,14 +212,16 @@ services:
       - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}:${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}
       - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}/templates:${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}/templates:ro
       - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
-      - ./backend/src:/app/src
-      - ./rclone.conf:/root/.config/rclone/rclone.conf:ro
+      - ./backend/src:/app/src:ro
       - ./certs:/opt/ragenodes-ultimate/certs:ro
       - query_cache_data:/app/config-gateway/static
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
-    cap_add: [DAC_OVERRIDE]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m
+    pids_limit: 128
     cpu_shares: 768
 
   oxide_control_panel:
@@ -209,6 +230,7 @@ services:
     image: ragenodes/oxide-control-panel:1.0.0-local
     restart: unless-stopped
     init: true
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
     environment:
       BACKEND_URL: http://backend:3006
       CONFIG_PATH: /app/rust_config/oxide_proxy.yml
@@ -243,12 +265,13 @@ services:
       context: ./oxideproxy
     image: ragenodes/oxideproxy:1.0.0-local
     restart: unless-stopped
+    user: "65532:65532"
     networks:
       - ragenodes_net
     ports:
       - "${PROXY_BIND_IP:-127.0.0.1}:80:80"
       - "${PROXY_BIND_IP:-127.0.0.1}:443:8443"
-      - "${PROXY_BIND_IP:-127.0.0.1}:${HOST_BIND_FRONTEND_PORT:-8088}:8088"
+      - "${FRONTEND_BIND_IP:-127.0.0.1}:${HOST_BIND_FRONTEND_PORT:-8088}:8088"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
@@ -278,7 +301,7 @@ services:
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - OXIDE_RUNTIME_BLACKLIST_PATH=/app/runtime/runtime-blacklist.txt
     volumes:
-      - ./oxideproxy/config:/app/config
+      - ./oxideproxy/config:/app/config:ro
       - oxide_acme_data:/app/acme
       - oxide_runtime_data:/app/runtime
       - ./frontend/public:/var/www/frontend:ro
@@ -290,12 +313,23 @@ services:
         condition: service_healthy
       oxide_control_panel:
         condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
     cpu_shares: 2048
 
   bot:
     build:
       context: ./bot
       dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       - API_URL_BASE=http://backend:3006/api/discord
     depends_on:
@@ -303,6 +337,13 @@ services:
         condition: service_healthy
     networks:
       - ragenodes_net
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
 
   redis:
     image: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2

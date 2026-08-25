@@ -19,7 +19,8 @@ read -p "Usuario SSH [root]: " TARGET_USER
 TARGET_USER=${TARGET_USER:-root}
 
 read -p "URL del Maestro (ej: https://panel.ragenodes.com o http://MI_IP): " MASTER_URL
-read -p "API KEY Global del Maestro: " MASTER_API_KEY
+read -r -s -p "Clave de enrolamiento del nodo: " MASTER_API_KEY
+printf '\n'
 
 if [ -z "$TARGET_IP" ] || [ -z "$MASTER_URL" ] || [ -z "$MASTER_API_KEY" ]; then
     echo -e "${RED}Error: IP, URL y API KEY son obligatorios.${NC}"

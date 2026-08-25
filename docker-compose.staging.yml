@@ -2,7 +2,7 @@ services:
   postgres-staging:
     image: postgres@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
     restart: unless-stopped
-    env_file: [ .env ]
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       POSTGRES_DB: ${POSTGRES_DB}_staging
       POSTGRES_USER: ${POSTGRES_USER}_staging
@@ -21,7 +21,7 @@ services:
   mariadb-staging:
     image: mariadb@sha256:de61fed4a40d3842f3ee09944ba52792156cfd9adf489b2cc670fc6ded28df8d
     restart: unless-stopped
-    env_file: [ .env ]
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       MYSQL_ROOT_PASSWORD: ${CENTRAL_DB_PASS}
     volumes:
@@ -38,7 +38,10 @@ services:
       context: ./backend
     restart: unless-stopped
     init: true
-    env_file: [ .env ]
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    group_add:
+      - "${DOCKER_GID:-1000}"
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       CONTAINER_PREFIX: ragenodes-staging-
       DOCKER_NETWORK: ragenodes_net_staging
@@ -69,22 +72,28 @@ services:
       - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
       - /srv/ragenodes-staging-data:/srv/ragenodes-staging-data
       - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
-      - ./backend/src:/app/src
+      - ./backend/src:/app/src:ro
       - ./fivem-base:/app/fivem-base
-      - ./certs:/opt/ragenodes-ultimate/certs:ro
+      - ./certs:/opt/ragenodes-ultimate/certs
     ports:
       - "127.0.0.1:3011:3006" # Puerto 3011 para el panel de Staging
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
-    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=512m
+    pids_limit: 256
 
   worker-docker-events-staging:
     build:
       context: ./backend
     restart: unless-stopped
     init: true
-    env_file: [ .env ]
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    group_add:
+      - "${DOCKER_GID:-1000}"
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       - RAGENODES_ROLE=worker-docker-events
       - CONTAINER_PREFIX=ragenodes-staging-
@@ -102,7 +111,7 @@ services:
       - DB_NAME=${POSTGRES_DB}_staging
       - DATABASE_URL=postgres://${POSTGRES_USER}_staging:${POSTGRES_PASSWORD}_staging@postgres-staging:5432/${POSTGRES_DB}_staging
       - REDIS_URL=redis://redis-staging:6379
-    command: ["npm", "run", "worker:docker-events"]
+    command: ["node", "src/worker.js"]
     networks:
       - ragenodes_net_staging
     depends_on:
@@ -113,11 +122,14 @@ services:
       - /srv/ragenodes-staging-data:/srv/ragenodes-staging-data
       - /srv/ragenodes-staging-data/templates:/srv/ragenodes-staging-data/templates:ro
       - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
-      - ./backend/src:/app/src
+      - ./backend/src:/app/src:ro
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
-    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m
+    pids_limit: 128
 
   redis-staging:
     image: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
@@ -133,6 +145,7 @@ services:
     image: ragenodes/oxide-control-panel:1.0.0-local
     restart: unless-stopped
     init: true
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
     environment:
       BACKEND_URL: http://backend-staging:3006
       CONFIG_PATH: /app/rust_config/oxide_proxy.yml
@@ -164,6 +177,7 @@ services:
       context: ./oxideproxy
     image: ragenodes/oxideproxy:1.0.0-local
     restart: unless-stopped
+    user: "65532:65532"
     networks:
       ragenodes_net_staging:
         aliases:
@@ -172,11 +186,11 @@ services:
     ports:
       - "${PROXY_BIND_IP:-127.0.0.1}:80:80"
       - "${PROXY_BIND_IP:-127.0.0.1}:443:8443"
-      - "${PROXY_BIND_IP:-127.0.0.1}:${HOST_BIND_FRONTEND_PORT:-8088}:8088"
+      - "${FRONTEND_BIND_IP:-127.0.0.1}:${HOST_BIND_FRONTEND_PORT:-8088}:8088"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./oxideproxy/config:/app/config
+      - ./oxideproxy/config:/app/config:ro
       - oxide_acme_data_staging:/app/acme
       - oxide_runtime_data_staging:/app/runtime
       - ./frontend/public:/var/www/frontend:ro
@@ -211,6 +225,14 @@ services:
         condition: service_started
       oxide_control_panel:
         condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
 
 networks:
   ragenodes_net_staging:

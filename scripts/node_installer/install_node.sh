@@ -28,7 +28,8 @@ if [ -z "$MASTER_URL" ]; then
     read -p "URL del Servidor Maestro (ej: https://panel.ragenodes.com): " MASTER_URL
 fi
 if [ -z "$MASTER_API_KEY" ]; then
-    read -p "API_KEY Global del Servidor Maestro: " MASTER_API_KEY
+    read -r -s -p "Clave de enrolamiento del Servidor Maestro: " MASTER_API_KEY
+    printf '\n'
 fi
 
 # 1. Instalar dependencias necesarias

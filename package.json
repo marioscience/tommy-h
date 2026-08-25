@@ -8,6 +8,7 @@
     "security:csp-bindings": "node scripts/security/csp_binding_fixture.mjs",
     "security:inline-code": "node scripts/security/inline_code_contract.mjs",
     "security:secrets": "node scripts/security/secret_contract.mjs",
+    "security:deployment": "node scripts/security/deployment_contract.mjs",
     "security:migrate-dynamic-handlers": "node scripts/security/migrate_dynamic_template_handlers.mjs",
     "security:migrate-privileged-handlers": "node scripts/security/migrate_privileged_handlers.mjs",
     "security:migrate-public-handlers": "node scripts/security/migrate_public_handlers.mjs"

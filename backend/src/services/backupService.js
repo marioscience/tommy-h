@@ -4,8 +4,8 @@ import fs from 'fs/promises';
 import { createReadStream } from 'fs';
 import { config } from '../config.js';
 import { getServerByIdForUser, controlServer } from './serverService.js';
-import { rustUtil } from '../utils/rustUtil.js';
 import { logAudit, query } from '../db.js';
+import { hasManagedDatabase } from './backupPolicy.js';
 
 const MAX_ERROR_LOG_BYTES = 1024 * 1024;
 
@@ -60,6 +60,26 @@ function assertSafeDbName(dbName) {
     }
 }
 
+function assertSafeDataPath(dataPath) {
+    const root = path.resolve(config.instanceDataRoot);
+    const target = path.resolve(String(dataPath || ''));
+    if (!target.startsWith(`${root}${path.sep}`) || target.length < root.length + 2) {
+        throw new Error('Ruta de datos invalida.');
+    }
+    return target;
+}
+
+async function createArchive(sourceDirectory, destination) {
+    const partialPath = `${destination}.partial-${process.pid}-${Date.now()}`;
+    try {
+        await runProcess('tar', ['--zstd', '-cf', partialPath, '-C', sourceDirectory, '.']);
+        await fs.rename(partialPath, destination);
+    } catch (error) {
+        await fs.unlink(partialPath).catch(() => {});
+        throw error;
+    }
+}
+
 function getBackupPathForServer(serverId, filename) {
     const shortId = serverId.slice(0, 8);
     const safeFilename = path.basename(filename || '');
@@ -78,33 +98,42 @@ function getBackupPathForServer(serverId, filename) {
     return { safeFilename, backupPath };
 }
 
-async function emptyDirectory(dir) {
-    const root = path.resolve(config.instanceDataRoot);
-    const target = path.resolve(dir);
-
-    if (!target.startsWith(`${root}${path.sep}`) || target.length < root.length + 2) {
-        throw new Error('Ruta de datos invalida. Abortando limpieza.');
+export async function syncBackupsToRemote() {
+    if (!config.backupRemoteEnabled) {
+        return { success: true, skipped: true, reason: 'disabled' };
     }
 
-    await fs.mkdir(target, { recursive: true });
-    const entries = await fs.readdir(target, { withFileTypes: true });
-    await Promise.all(entries.map((entry) => fs.rm(path.join(target, entry.name), { recursive: true, force: true })));
+    const remoteName = String(config.backupRemoteName || '').trim();
+    const remotePath = String(config.backupRemotePath || '').replace(/^\/+|\/+$/g, '');
+    if (!/^[a-zA-Z0-9_-]+$/.test(remoteName) || !remotePath) {
+        throw new Error('Configuracion de backup remoto invalida.');
+    }
+
+    const configStat = await fs.stat(config.rcloneConfigPath).catch(() => null);
+    if (!configStat?.isFile()) {
+        throw new Error(`RClone no esta configurado: falta un archivo regular en ${config.rcloneConfigPath}.`);
+    }
+
+    console.log(`[BackupRemote] Sincronizando backups con ${remoteName}:${remotePath}...`);
+    await runProcess('rclone', [
+        '--config', config.rcloneConfigPath,
+        'sync',
+        config.backupRoot,
+        `${remoteName}:${remotePath}`
+    ]);
+    console.log('[BackupRemote] Sincronizacion completada.');
+    return { success: true, skipped: false };
 }
 
-export async function syncBackupsToGDrive() {
-    try {
-        console.log('☁️ [GDrive] Iniciando sincronizacion de backups...');
-        await runProcess('rclone', ['sync', config.backupRoot, 'gdrive:ragenodes_backups']);
-        console.log('✅ [GDrive] Sincronizacion completada con exito.');
-    } catch (e) {
-        console.error('❌ [GDrive] Error en sincronizacion:', e.message);
-    }
-}
+// Compatibilidad con integraciones antiguas; la implementacion ya no depende de Google Drive.
+export const syncBackupsToGDrive = syncBackupsToRemote;
 
 export async function createFullBackup(id, userId, isAdmin, customName = null) {
     const s = await getServerByIdForUser(id, userId, isAdmin, 'files');
     if (!s) throw new Error('Servidor no encontrado');
-    assertSafeDbName(s.db_name);
+    s.data_path = assertSafeDataPath(s.data_path);
+    const includesDatabase = hasManagedDatabase(s);
+    if (includesDatabase) assertSafeDbName(s.db_name);
 
     await fs.mkdir(config.backupRoot, { recursive: true });
 
@@ -116,16 +145,17 @@ export async function createFullBackup(id, userId, isAdmin, customName = null) {
     const dbDumpFile = path.join(s.data_path, 'database_dump.sql');
 
     try {
-        await runProcess('mariadb-dump', [
-            '--skip-ssl',
-            '-h', 'mariadb',
-            '-u', 'root',
-            `--result-file=${dbDumpFile}`,
-            s.db_name
-        ], { env: mysqlEnv() });
+        if (includesDatabase) {
+            await runProcess('mariadb-dump', [
+                '--skip-ssl',
+                '-h', process.env.MARIADB_HOST || 'mariadb',
+                '-u', 'root',
+                `--result-file=${dbDumpFile}`,
+                s.db_name
+            ], { env: mysqlEnv() });
+        }
 
-        const compressResult = await rustUtil.zstd(s.data_path, backupFilePath);
-        if (!compressResult.success) throw new Error(compressResult.error);
+        await createArchive(s.data_path, backupFilePath);
 
         await fs.unlink(dbDumpFile).catch(() => {});
 
@@ -161,7 +191,8 @@ export async function createFullBackup(id, userId, isAdmin, customName = null) {
         return { success: true, file: backupFileName, message: 'Backup completado' };
     } catch (err) {
         console.error('Error critico en backup:', err);
-        fs.unlink(dbDumpFile).catch(() => {});
+        await fs.unlink(dbDumpFile).catch(() => {});
+        await fs.unlink(backupFilePath).catch(() => {});
         throw new Error('Fallo al generar la copia de seguridad.');
     }
 }
@@ -202,6 +233,7 @@ async function enforceBackupRetentionPolicy(serverId, maxRetain = 5, isAuto = fa
 export async function listServerBackups(id, userId, isAdmin) {
     const s = await getServerByIdForUser(id, userId, isAdmin, 'files');
     if (!s) throw new Error('Servidor no encontrado');
+    s.data_path = assertSafeDataPath(s.data_path);
 
     const shortId = s.id.slice(0, 8);
     try {
@@ -227,46 +259,111 @@ export async function listServerBackups(id, userId, isAdmin) {
 export async function restoreBackup(id, filename, userId, isAdmin) {
     const s = await getServerByIdForUser(id, userId, isAdmin, 'files');
     if (!s) throw new Error('Servidor no encontrado');
-    assertSafeDbName(s.db_name);
+    s.data_path = assertSafeDataPath(s.data_path);
+    const includesDatabase = hasManagedDatabase(s);
+    if (includesDatabase) assertSafeDbName(s.db_name);
 
     const { safeFilename, backupPath } = getBackupPathForServer(s.id, filename);
     const dbDumpFile = path.join(s.data_path, 'database_dump.sql');
+    const restoreNonce = `${process.pid}-${Date.now()}`;
+    const restorePath = `${s.data_path}.restore-${restoreNonce}`;
+    const previousPath = `${s.data_path}.previous-${restoreNonce}`;
+    const rollbackDbDump = path.join(config.backupRoot, `.restore-db-${s.id}-${restoreNonce}.sql`);
+    let originalMoved = false;
+    let filesSwapped = false;
+    let rollbackDatabaseAvailable = false;
 
     await controlServer(s.id, userId, 'stop', isAdmin);
 
     try {
-        await emptyDirectory(s.data_path);
+        await fs.mkdir(restorePath, { recursive: true });
 
         if (safeFilename.endsWith('.zst')) {
-            await runProcess('tar', ['--use-compress-program=unzstd', '-xf', backupPath, '-C', s.data_path]);
+            await runProcess('tar', ['--zstd', '-xf', backupPath, '-C', restorePath]);
         } else {
-            await runProcess('tar', ['-xzf', backupPath, '-C', s.data_path]);
+            await runProcess('tar', ['-xzf', backupPath, '-C', restorePath]);
         }
 
-        try {
-            await fs.access(dbDumpFile);
+        if (includesDatabase) {
+            await runProcess('mariadb-dump', [
+                '--skip-ssl',
+                '-h', process.env.MARIADB_HOST || 'mariadb',
+                '-u', 'root',
+                `--result-file=${rollbackDbDump}`,
+                s.db_name
+            ], { env: mysqlEnv() });
+            rollbackDatabaseAvailable = true;
+        }
+
+        await fs.rename(s.data_path, previousPath);
+        originalMoved = true;
+        await fs.rename(restorePath, s.data_path);
+        filesSwapped = true;
+
+        if (includesDatabase) {
+          try {
+            await fs.access(path.join(s.data_path, 'database_dump.sql'));
             await runProcess('mariadb', [
                 '--skip-ssl',
-                '-h', 'mariadb',
+                '-h', process.env.MARIADB_HOST || 'mariadb',
                 '-u', 'root',
                 '-e', `DROP DATABASE IF EXISTS \`${s.db_name}\`; CREATE DATABASE \`${s.db_name}\`;`
             ], { env: mysqlEnv() });
             await runProcess('mariadb', [
                 '--skip-ssl',
-                '-h', 'mariadb',
+                '-h', process.env.MARIADB_HOST || 'mariadb',
                 '-u', 'root',
                 s.db_name
             ], { env: mysqlEnv(), stdinFile: dbDumpFile });
             await fs.unlink(dbDumpFile);
-        } catch (dbError) {
-            console.log(`[Backup Restore] No se encontro dump SQL o fallo importacion para ${s.id}: ${dbError.message}`);
+          } catch (dbError) {
+            throw new Error(`No se pudo restaurar la base de datos de ${s.id}: ${dbError.message}`);
+          }
         }
 
         await controlServer(s.id, userId, 'start', isAdmin);
+        await fs.rm(previousPath, { recursive: true, force: true });
+        await fs.unlink(rollbackDbDump).catch(() => {});
         await logAudit(userId, 'SERVER.BACKUP.RESTORE', { serverId: s.id, filename: safeFilename });
         return { success: true, message: 'Sistema restaurado con exito.' };
     } catch (err) {
         console.error('Fallo critico en la restauracion:', err);
+
+        if (filesSwapped) {
+            await fs.rm(s.data_path, { recursive: true, force: true }).catch(() => {});
+            await fs.rename(previousPath, s.data_path).catch((rollbackError) => {
+                console.error('Fallo al restaurar la carpeta anterior:', rollbackError);
+            });
+        } else if (originalMoved) {
+            await fs.rename(previousPath, s.data_path).catch((rollbackError) => {
+                console.error('Fallo al recolocar la carpeta original:', rollbackError);
+            });
+            await fs.rm(restorePath, { recursive: true, force: true }).catch(() => {});
+        } else {
+            await fs.rm(restorePath, { recursive: true, force: true }).catch(() => {});
+        }
+
+        if (includesDatabase && rollbackDatabaseAvailable) {
+            try {
+                await runProcess('mariadb', [
+                    '--skip-ssl',
+                    '-h', process.env.MARIADB_HOST || 'mariadb',
+                    '-u', 'root',
+                    '-e', `DROP DATABASE IF EXISTS \`${s.db_name}\`; CREATE DATABASE \`${s.db_name}\`;`
+                ], { env: mysqlEnv() });
+                await runProcess('mariadb', [
+                    '--skip-ssl',
+                    '-h', process.env.MARIADB_HOST || 'mariadb',
+                    '-u', 'root',
+                    s.db_name
+                ], { env: mysqlEnv(), stdinFile: rollbackDbDump });
+            } catch (rollbackError) {
+                console.error('Fallo al restaurar la base de datos anterior:', rollbackError);
+            }
+        }
+
+        await fs.unlink(rollbackDbDump).catch(() => {});
+        await controlServer(s.id, userId, 'start', isAdmin).catch(() => {});
         throw new Error('No se pudo restaurar la copia de seguridad.');
     }
 }
@@ -294,8 +391,13 @@ export async function migrateResources(oldServerId, newServerId, isAdmin) {
     const newSrv = await getServerByIdForUser(newServerId, null, true);
 
     if (!oldSrv || !newSrv) throw new Error('IDs de servidor no validos.');
-    assertSafeDbName(oldSrv.db_name);
-    assertSafeDbName(newSrv.db_name);
+    oldSrv.data_path = assertSafeDataPath(oldSrv.data_path);
+    newSrv.data_path = assertSafeDataPath(newSrv.data_path);
+    const migrateDatabase = hasManagedDatabase(oldSrv) && hasManagedDatabase(newSrv);
+    if (migrateDatabase) {
+        assertSafeDbName(oldSrv.db_name);
+        assertSafeDbName(newSrv.db_name);
+    }
 
     await controlServer(oldSrv.id, null, 'stop', true);
     await controlServer(newSrv.id, null, 'stop', true);
@@ -311,20 +413,22 @@ export async function migrateResources(oldServerId, newServerId, isAdmin) {
 
         await fs.copyFile(path.join(oldSrv.data_path, 'server.cfg'), path.join(newSrv.data_path, 'server.cfg'));
 
-        await runProcess('mariadb-dump', [
-            '--skip-ssl',
-            '-h', 'mariadb',
-            '-u', 'root',
-            `--result-file=${tmpDump}`,
-            oldSrv.db_name
-        ], { env: mysqlEnv() });
+        if (migrateDatabase) {
+            await runProcess('mariadb-dump', [
+                '--skip-ssl',
+                '-h', process.env.MARIADB_HOST || 'mariadb',
+                '-u', 'root',
+                `--result-file=${tmpDump}`,
+                oldSrv.db_name
+            ], { env: mysqlEnv() });
 
-        await runProcess('mariadb', [
-            '--skip-ssl',
-            '-h', 'mariadb',
-            '-u', 'root',
-            newSrv.db_name
-        ], { env: mysqlEnv(), stdinFile: tmpDump });
+            await runProcess('mariadb', [
+                '--skip-ssl',
+                '-h', process.env.MARIADB_HOST || 'mariadb',
+                '-u', 'root',
+                newSrv.db_name
+            ], { env: mysqlEnv(), stdinFile: tmpDump });
+        }
 
         await fs.unlink(tmpDump).catch(() => {});
         await controlServer(newSrv.id, null, 'start', true);
