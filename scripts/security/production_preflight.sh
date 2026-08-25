@@ -41,6 +41,21 @@ case "$security_options" in
   *) fail "El daemon Docker conectado no anuncia modo rootless." ;;
 esac
 
+docker_warnings="$(DOCKER_HOST="unix://$DOCKER_SOCKET" docker info --format '{{json .Warnings}}')"
+docker_warnings_lower="${docker_warnings,,}"
+for unsupported_control in \
+  "no cpu cfs quota support" \
+  "no cpu cfs period support" \
+  "no cpu shares support" \
+  "no memory limit support" \
+  "no pids limit support"; do
+  case "$docker_warnings_lower" in
+    *"$unsupported_control"*)
+      fail "El daemon Docker rootless no dispone de todos los controladores de recursos requeridos ($unsupported_control). Instala la delegacion systemd documentada antes de desplegar."
+      ;;
+  esac
+done
+
 case "${FRONTEND_BIND_IP:-127.0.0.1}" in
   127.0.0.1|::1) ;;
   *) fail "FRONTEND_BIND_IP debe permanecer limitado a loopback." ;;
