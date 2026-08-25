@@ -10,11 +10,10 @@ fail() {
 
 [ -f "$ENV_FILE" ] || fail "No existe el archivo de entorno: $ENV_FILE"
 
-set -a
-# El archivo de entorno del proyecto sigue formato shell y no se imprime nunca.
-# shellcheck disable=SC1090
-source "$ENV_FILE"
-set +a
+# El cargador interpreta formato dotenv sin ejecutar el contenido del archivo.
+# shellcheck disable=SC1091
+source ./scripts/load_env.sh
+load_env_file "$ENV_FILE"
 
 : "${APP_UID:?APP_UID es obligatorio}"
 : "${APP_GID:?APP_GID es obligatorio}"

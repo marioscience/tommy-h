@@ -7,9 +7,9 @@ if [ ! -f .env ]; then
   exit 0
 fi
 
-set -a
-source .env
-set +a
+# shellcheck disable=SC1091
+source ./scripts/load_env.sh
+load_env_file "${RAGENODES_ENV_FILE:-.env}"
 
 bash ./scripts/security/production_preflight.sh
 
@@ -70,6 +70,9 @@ echo "==> Los volúmenes de base de datos (Postgres/MariaDB) están protegidos."
 
 echo "==> 🔎 Validando la configuración de Docker Compose..."
 "${COMPOSE[@]}" config --quiet
+
+echo "==> 🧱 Verificando imágenes base para nuevas instancias..."
+bash ./scripts/ensure_base_images.sh
 
 echo "==> 🚀 Reconstruyendo únicamente los servicios de aplicación..."
 "${COMPOSE[@]}" build "${APP_SERVICES[@]}"

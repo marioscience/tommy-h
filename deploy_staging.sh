@@ -5,9 +5,9 @@ set -Eeuo pipefail
 PREFLIGHT_INSTANCE_DATA_ROOT="${STAGING_INSTANCE_DATA_ROOT:-/srv/ragenodes-staging-data}" \
   bash ./scripts/security/production_preflight.sh
 
-set -a
-source .env
-set +a
+# shellcheck disable=SC1091
+source ./scripts/load_env.sh
+load_env_file "${RAGENODES_ENV_FILE:-.env}"
 
 STAGING_DATA_ROOT="${STAGING_INSTANCE_DATA_ROOT:-/srv/ragenodes-staging-data}"
 mkdir -p "$STAGING_DATA_ROOT/templates"
@@ -40,6 +40,7 @@ wait_for_service() {
 }
 
 docker compose -f docker-compose.staging.yml config --quiet
+bash ./scripts/ensure_base_images.sh
 docker compose -f docker-compose.staging.yml build "${APP_SERVICES[@]}"
 docker compose -f docker-compose.staging.yml up -d --no-deps "${APP_SERVICES[@]}"
 
