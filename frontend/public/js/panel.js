@@ -853,9 +853,24 @@ function toggleSidebar() {
         }
 
         function buildTxAdminTargets(server) {
-            let publicUrl = server.txadmin_url;
-            if (!publicUrl || publicUrl.includes('//s')) {
-                publicUrl = buildDynamicEndpointUrl('tx', server.txadmin_port);
+            const canonicalUrl = buildDynamicEndpointUrl('tx', server.txadmin_port);
+            let publicUrl = canonicalUrl;
+
+            if (!isPrivatePanelHost(window.location.hostname) && server.txadmin_url) {
+                try {
+                    const candidate = new URL(server.txadmin_url);
+                    const expectedHosts = new Set([
+                        `tx${server.txadmin_port}.ragenodes.com`,
+                        `tx${server.txadmin_port}.ragenodes.dev`
+                    ]);
+                    if (candidate.protocol === 'https:' &&
+                        !candidate.port &&
+                        expectedHosts.has(candidate.hostname.toLowerCase())) {
+                        publicUrl = candidate.toString();
+                    }
+                } catch {
+                    // La URL persistida es heredada o inválida; se usa la ruta canónica.
+                }
             }
             publicUrl = ensureTrailingSlash(publicUrl);
             return {
@@ -1251,11 +1266,7 @@ function toggleSidebar() {
         function openTxAdminPopup() {
             let publicTarget = txTargetUrl;
             if (currentServer) {
-                publicTarget = currentServer.txadmin_url;
-                if (!publicTarget || publicTarget.includes('//s')) {
-                    publicTarget = buildDynamicEndpointUrl('tx', currentServer.txadmin_port);
-                }
-                publicTarget = ensureTrailingSlash(publicTarget);
+                publicTarget = buildTxAdminTargets(currentServer).primary;
             }
             if (!publicTarget) return showToast("El servidor no está iniciado", "warning");
             txTargetUrl = publicTarget;
