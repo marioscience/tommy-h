@@ -9,6 +9,7 @@ const files = Object.fromEntries(await Promise.all([
   '.env.example',
   'deploy.sh',
   'deploy_staging.sh',
+  'backend/src/services/dockerService.js',
   'scripts/ensure_base_images.sh',
   'scripts/load_env.sh',
   'scripts/security/production_preflight.sh'
@@ -53,6 +54,11 @@ assert(files['scripts/ensure_base_images.sh'].includes('${DOCKER_SOCKET:?'), 'ba
 assert(files['scripts/ensure_base_images.sh'].includes('RUNTIME_DOCKER_HOST="unix://$DOCKER_SOCKET"'), 'base-image preflight targets the runtime daemon explicitly');
 assert(files['scripts/ensure_base_images.sh'].includes('docker --host "$RUNTIME_DOCKER_HOST" build --tag "$image" "$context"'), 'base-image preflight builds the exact configured tags in the runtime daemon');
 assert(files['scripts/ensure_base_images.sh'].includes('docker --host "$RUNTIME_DOCKER_HOST" image inspect "$image"'), 'base-image preflight verifies every resulting image in the runtime daemon');
+assert(files['scripts/ensure_base_images.sh'].includes('network inspect "$RUNTIME_DOCKER_NETWORK"'), 'runtime network is verified in the rootless daemon');
+assert(files['scripts/ensure_base_images.sh'].includes('network create "$RUNTIME_DOCKER_NETWORK"'), 'missing runtime network is created in the rootless daemon');
+assert(files['deploy_staging.sh'].includes('RUNTIME_DOCKER_NETWORK=ragenodes_net_staging'), 'staging prepares its isolated rootless network');
+assert(files['backend/src/services/dockerService.js'].includes('[config.dockerNetwork]: {}'), 'Blender joins the configured runtime network');
+assert(!files['backend/src/services/dockerService.js'].includes("'ragenodes_net': {}"), 'Blender does not hardcode the production network');
 for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
   const deploy = files[deployFile];
   assert(deploy.includes('bash ./scripts/ensure_base_images.sh'), `${deployFile} prepares game images before application services`);

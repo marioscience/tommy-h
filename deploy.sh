@@ -72,7 +72,7 @@ echo "==> 🔎 Validando la configuración de Docker Compose..."
 "${COMPOSE[@]}" config --quiet
 
 echo "==> 🧱 Verificando imágenes base para nuevas instancias..."
-bash ./scripts/ensure_base_images.sh
+RUNTIME_DOCKER_NETWORK="${DOCKER_NETWORK:-ragenodes_net}" bash ./scripts/ensure_base_images.sh
 
 echo "==> 🚀 Reconstruyendo únicamente los servicios de aplicación..."
 "${COMPOSE[@]}" build "${APP_SERVICES[@]}"
