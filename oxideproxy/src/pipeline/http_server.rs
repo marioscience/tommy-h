@@ -46,6 +46,9 @@ struct AllowPhpMyAdminFraming;
 #[derive(Clone)]
 struct AllowRageNodesPanelFraming;
 
+#[derive(Clone)]
+struct TrustedStagingUpstream;
+
 fn env_port(name: &str, default: u16) -> u16 {
     std::env::var(name)
         .ok()
@@ -201,6 +204,52 @@ fn csp_with_frame_ancestors(existing: Option<&str>, ancestors: &str) -> String {
     directives.join("; ")
 }
 
+fn trusted_upstream_csp(existing: Option<&str>) -> Option<String> {
+    let policy = existing?.trim();
+    if policy.is_empty() || policy.len() > 8_192 {
+        return None;
+    }
+
+    let directive = |name: &str| {
+        policy.split(';').map(str::trim).find(|entry| {
+            entry
+                .split_whitespace()
+                .next()
+                .is_some_and(|candidate| candidate.eq_ignore_ascii_case(name))
+        })
+    };
+    let contains_token = |entry: &str, token: &str| {
+        entry
+            .split_whitespace()
+            .any(|candidate| candidate.eq_ignore_ascii_case(token))
+    };
+
+    let default_src = directive("default-src")?;
+    let object_src = directive("object-src")?;
+    directive("frame-ancestors")?;
+    if !contains_token(object_src, "'none'") {
+        return None;
+    }
+
+    if let Some(script_src) = directive("script-src") {
+        let has_nonce = script_src
+            .split_whitespace()
+            .any(|candidate| candidate.starts_with("'nonce-") && candidate.ends_with('\''));
+        if !has_nonce
+            || contains_token(script_src, "'unsafe-inline'")
+            || contains_token(script_src, "'unsafe-eval'")
+            || directive("script-src-attr")
+                .is_none_or(|entry| !contains_token(entry, "'none'"))
+        {
+            return None;
+        }
+    } else if !contains_token(default_src, "'none'") {
+        return None;
+    }
+
+    Some(policy.to_string())
+}
+
 fn static_page_security_profile(path: &Path, nonce: String) -> StaticPageSecurity {
     let file_name = path
         .file_name()
@@ -329,15 +378,22 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
         .extensions()
         .get::<AllowRageNodesPanelFraming>()
         .is_some();
+    let trusted_staging_upstream = response
+        .extensions()
+        .get::<TrustedStagingUpstream>()
+        .is_some();
     let access_gate_page = response.extensions().get::<AccessGatePage>().is_some();
     let headers = response.headers_mut();
     let upstream_csp = headers
         .get("content-security-policy")
         .and_then(|value| value.to_str().ok())
         .map(str::to_string);
+    let trusted_staging_csp = trusted_staging_upstream
+        .then(|| trusted_upstream_csp(upstream_csp.as_deref()))
+        .flatten();
     headers.remove("server");
     headers.remove("x-powered-by");
-    if !allow_panel_framing {
+    if !allow_panel_framing && trusted_staging_csp.is_none() {
         headers.remove("content-security-policy");
     }
     headers.remove("x-content-security-policy");
@@ -408,7 +464,9 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
             HeaderValue::from_static("credentialless"),
         );
     }
-    let csp = if allow_panel_framing {
+    let csp = if let Some(policy) = trusted_staging_csp {
+        policy
+    } else if allow_panel_framing {
         csp_with_frame_ancestors(upstream_csp.as_deref(), &frame_ancestors_policy())
     } else if access_gate_page {
         "default-src 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; style-src 'unsafe-inline'".to_string()
@@ -502,8 +560,10 @@ async fn handle_http_request(
             let staging_target = staging_target.trim();
             if !staging_target.is_empty() {
                 tracing::info!("Petición Staging detectada. Redirigiendo a destino configurado...");
-                return reverse_proxy_request(req, staging_target.to_string(), None, peer_addr)
-                    .await;
+                let mut response =
+                    reverse_proxy_request(req, staging_target.to_string(), None, peer_addr).await?;
+                response.extensions_mut().insert(TrustedStagingUpstream);
+                return Ok(response);
             }
         }
     }
@@ -1028,7 +1088,12 @@ async fn serve_static_file(
 
 #[cfg(test)]
 mod tests {
-    use super::{csp_with_frame_ancestors, dynamic_proxy_port_for_domains};
+    use super::{
+        apply_browser_security_headers, csp_with_frame_ancestors,
+        dynamic_proxy_port_for_domains, trusted_upstream_csp, TrustedStagingUpstream,
+    };
+    use http::{Response, StatusCode};
+    use hyper::Body;
 
     #[test]
     fn dynamic_hosts_only_resolve_inside_the_allowed_range_and_domain() {
@@ -1067,5 +1132,67 @@ mod tests {
         assert!(result.contains("object-src 'none'"));
         assert!(result.contains("frame-ancestors https://ragenodes.dev"));
         assert!(!result.contains("frame-ancestors 'self'"));
+    }
+
+    #[test]
+    fn trusted_staging_csp_requires_a_nonce_and_strict_script_attributes() {
+        let strict = "default-src 'self'; object-src 'none'; frame-ancestors 'none'; \
+            script-src 'nonce-test123' 'strict-dynamic' 'self'; script-src-attr 'none'; \
+            style-src 'self'; style-src-attr 'unsafe-inline'";
+        assert_eq!(trusted_upstream_csp(Some(strict)).as_deref(), Some(strict));
+
+        let unsafe_policy = "default-src 'self'; object-src 'none'; frame-ancestors 'none'; \
+            script-src 'self' 'unsafe-inline'; script-src-attr 'none'";
+        assert!(trusted_upstream_csp(Some(unsafe_policy)).is_none());
+
+        let missing_nonce = "default-src 'self'; object-src 'none'; frame-ancestors 'none'; \
+            script-src 'self'; script-src-attr 'none'";
+        assert!(trusted_upstream_csp(Some(missing_nonce)).is_none());
+    }
+
+    #[test]
+    fn trusted_staging_html_preserves_its_nonce_bound_csp() {
+        let policy = "default-src 'self'; object-src 'none'; frame-ancestors 'none'; \
+            script-src 'nonce-test123' 'strict-dynamic' 'self'; script-src-attr 'none'; \
+            style-src 'self'; style-src-elem 'self' 'nonce-test123'; \
+            style-src-attr 'unsafe-inline'";
+        let mut response = Response::new(Body::empty());
+        *response.status_mut() = StatusCode::OK;
+        response
+            .headers_mut()
+            .insert("content-security-policy", policy.parse().unwrap());
+        response.extensions_mut().insert(TrustedStagingUpstream);
+
+        apply_browser_security_headers(&mut response, true);
+
+        assert_eq!(
+            response
+                .headers()
+                .get("content-security-policy")
+                .and_then(|value| value.to_str().ok()),
+            Some(policy)
+        );
+    }
+
+    #[test]
+    fn trusted_staging_marker_does_not_preserve_a_permissive_csp() {
+        let mut response = Response::new(Body::empty());
+        response.headers_mut().insert(
+            "content-security-policy",
+            "default-src *; object-src *; frame-ancestors *; script-src 'unsafe-inline'"
+                .parse()
+                .unwrap(),
+        );
+        response.extensions_mut().insert(TrustedStagingUpstream);
+
+        apply_browser_security_headers(&mut response, true);
+
+        let policy = response
+            .headers()
+            .get("content-security-policy")
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default();
+        assert!(!policy.contains("script-src 'unsafe-inline'"));
+        assert!(policy.contains("object-src 'none'"));
     }
 }
