@@ -670,7 +670,9 @@ async fn handle_http_request(
                     "Enrutando petición Blender al contenedor {}...",
                     target_addr
                 );
-                return reverse_proxy_request(req, target_addr, None, peer_addr).await;
+                let mut response = reverse_proxy_request(req, target_addr, None, peer_addr).await?;
+                response.extensions_mut().insert(AllowSameOriginFraming);
+                return Ok(response);
             }
         }
     }

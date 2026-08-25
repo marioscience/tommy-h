@@ -193,6 +193,12 @@ impl AccessGate {
         }
 
         if self.has_valid_session(&req) {
+            if matches!(req.uri().path(), ACCESS_PATH | REQUEST_PATH | VERIFY_PATH) {
+                return GateOutcome::Respond(redirect_response(&format!(
+                    "https://panel.{}/panel",
+                    self.domain
+                )));
+            }
             return GateOutcome::Allow(req);
         }
 
@@ -398,10 +404,7 @@ impl AccessGate {
             "{SESSION_COOKIE}={token}; Domain={}; Path=/; Max-Age={SESSION_TTL_SECS}; Secure; HttpOnly; SameSite=Strict",
             self.domain
         );
-        let mut response = redirect_response(&format!(
-            "https://panel.{}/panel",
-            self.domain
-        ));
+        let mut response = redirect_response(&format!("https://panel.{}/panel", self.domain));
         if let Ok(value) = HeaderValue::from_str(&cookie) {
             response.headers_mut().insert(SET_COOKIE, value);
         }
@@ -803,6 +806,35 @@ mod tests {
             gate.enforce(request, peer_addr, ban_tx, true).await,
             GateOutcome::Allow(_)
         ));
+    }
+
+    #[tokio::test]
+    async fn valid_session_never_forwards_internal_access_routes() {
+        let mut gate = test_gate();
+        gate.shared_edge = true;
+        let token = gate.create_session_token("dev@example.com");
+        let request = Request::builder()
+            .method(Method::POST)
+            .uri(VERIFY_PATH)
+            .header(HOST, "ragenodes.dev")
+            .header(COOKIE, format!("{SESSION_COOKIE}={token}"))
+            .body(Body::empty())
+            .unwrap();
+        let (ban_tx, _ban_rx) = tokio::sync::mpsc::channel(1);
+        let peer_addr: SocketAddr = "192.0.2.10:443".parse().unwrap();
+
+        let GateOutcome::Respond(response) = gate.enforce(request, peer_addr, ban_tx, true).await
+        else {
+            panic!("las rutas internas de acceso no deben alcanzar staging");
+        };
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            response
+                .headers()
+                .get(LOCATION)
+                .and_then(|value| value.to_str().ok()),
+            Some("https://panel.ragenodes.dev/panel")
+        );
     }
 
     #[tokio::test]
