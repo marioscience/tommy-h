@@ -14,6 +14,15 @@ case "$DOCKER_SOCKET" in
     ;;
 esac
 
+RUNTIME_DOCKER_NETWORK="${RUNTIME_DOCKER_NETWORK:-${DOCKER_NETWORK:-ragenodes_net}}"
+[[ "$RUNTIME_DOCKER_NETWORK" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ ]] || {
+  echo "ERROR: nombre de red Docker no valido: $RUNTIME_DOCKER_NETWORK" >&2
+  exit 1
+}
+
+docker --host "$RUNTIME_DOCKER_HOST" network inspect "$RUNTIME_DOCKER_NETWORK" >/dev/null 2>&1 \
+  || docker --host "$RUNTIME_DOCKER_HOST" network create "$RUNTIME_DOCKER_NETWORK" >/dev/null
+
 build_base_image() {
   local image="$1"
   local context="$2"
