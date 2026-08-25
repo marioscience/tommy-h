@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { config } from './config.js';
 import { runMigrations } from './migrations.js';
+import { logger } from './utils/logger.js';
 
 import { createClient } from 'redis';
 
@@ -12,6 +13,18 @@ export const pool = new pg.Pool({
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });
+
+// node-postgres emite `error` cuando una conexión ociosa se pierde (por
+// ejemplo, durante un reinicio controlado de PostgreSQL). Sin un listener,
+// EventEmitter convierte ese evento recuperable en una excepción no capturada
+// y derriba el proceso completo.
+pool.on('error', (error) => {
+  logger.error(
+    { err: error, module: 'PostgresPool' },
+    'PostgreSQL cerró una conexión ociosa; el pool abrirá otra cuando sea necesaria.'
+  );
+});
+
 export async function query(text, params = []) { return pool.query(text, params); }
 
 export async function withTransaction(callback) {
