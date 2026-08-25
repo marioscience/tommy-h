@@ -1,6 +1,23 @@
 import os from 'os';
+import path from 'node:path';
 import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, applyRageNodesBranding, sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
+
+export function resolveDataSubdirectory(dataPath, subdir) {
+    if (typeof dataPath !== 'string' || !path.posix.isAbsolute(dataPath)) {
+        throw new TypeError('La ruta de datos debe ser absoluta.');
+    }
+    if (typeof subdir !== 'string' || !subdir || path.posix.isAbsolute(subdir)) {
+        throw new TypeError('El subdirectorio debe ser una ruta relativa no vacía.');
+    }
+
+    const base = path.posix.normalize(dataPath).replace(/\/+$/, '');
+    const resolved = path.posix.normalize(path.posix.join(base, subdir));
+    if (!resolved.startsWith(`${base}/`) || resolved === base) {
+        throw new TypeError('El subdirectorio no puede salir de la ruta de datos.');
+    }
+    return resolved;
+}
 
 /**
  * 🏛️ BaseGameService (Módulo 3 & 4: POO y Patrón Template Method)
@@ -26,7 +43,8 @@ export class BaseGameService {
     async prepareDirectory(nodeId, dataPath, subdirs = []) {
         await runRemoteCommand(nodeId || 0, sh`mkdir -p ${dataPath} && chown -R 1000:1000 ${dataPath}`);
         for (const sub of subdirs) {
-            await runRemoteCommand(nodeId || 0, sh`mkdir -p "${dataPath}/${sub}"`);
+            const subdirPath = resolveDataSubdirectory(dataPath, sub);
+            await runRemoteCommand(nodeId || 0, sh`mkdir -p ${subdirPath}`);
         }
         try {
             await runRemoteCommand(nodeId || 0, sh`chown -R 1000:1000 ${dataPath} && chmod -R u=rwX,g=rX,o= ${dataPath}`);
