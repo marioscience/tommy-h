@@ -190,7 +190,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./oxideproxy/config:/app/config:ro
+      - ./oxideproxy/config/oxide_proxy.yml:/app/config/oxide_proxy.yml:ro
       - oxide_acme_data_staging:/app/acme
       - oxide_runtime_data_staging:/app/runtime
       - ./frontend/public:/var/www/frontend:ro

@@ -161,7 +161,11 @@ EOF
 
 docker pull ragenodes/oxideproxy:1.0.0 > /dev/null 2>&1
 # OxideProxy recibe únicamente NET_ADMIN para su filtrado de red; no usa SYS_ADMIN.
-docker run -d --name oxideproxy --network host --restart always -v "$PROXY_DIR:/app/config:ro" --cap-drop=ALL --cap-add=NET_ADMIN ragenodes/oxideproxy:1.0.0 > /dev/null 2>&1
+docker run -d --name oxideproxy --network host --restart always \
+  -v "$PROXY_DIR/oxide_proxy.yml:/app/config/oxide_proxy.yml:ro" \
+  --read-only --tmpfs /app/runtime:rw,nosuid,nodev,size=64m \
+  --security-opt no-new-privileges:true --cap-drop=ALL --cap-add=NET_BIND_SERVICE \
+  ragenodes/oxideproxy:1.0.0 > /dev/null 2>&1
 echo -e "${YELLOW}OxideProxy activado en modo Perimetral (Edge).${NC}"
 
 echo -e "\n${BLUE}=================================================${NC}"

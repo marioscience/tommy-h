@@ -301,7 +301,7 @@ services:
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - OXIDE_RUNTIME_BLACKLIST_PATH=/app/runtime/runtime-blacklist.txt
     volumes:
-      - ./oxideproxy/config:/app/config:ro
+      - ./oxideproxy/config/oxide_proxy.yml:/app/config/oxide_proxy.yml:ro
       - oxide_acme_data:/app/acme
       - oxide_runtime_data:/app/runtime
       - ./frontend/public:/var/www/frontend:ro

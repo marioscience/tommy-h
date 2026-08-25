@@ -23,6 +23,7 @@ for (const composeFile of ['docker-compose.yml', 'docker-compose.staging.yml']) 
   const compose = files[composeFile];
   assert(compose.includes('${FRONTEND_BIND_IP:-127.0.0.1}'), `${composeFile} keeps auxiliary HTTP on loopback by default`);
   assert(!compose.includes('./rclone.conf:'), `${composeFile} cannot turn a missing rclone file into a directory`);
+  assert(compose.includes('./oxideproxy/config/oxide_proxy.yml:/app/config/oxide_proxy.yml:ro'), `${composeFile} preserves the certificates embedded in the proxy image`);
   assert(compose.includes('pids_limit:'), `${composeFile} defines process limits`);
   assert(compose.includes('read_only: true'), `${composeFile} defines read-only service filesystems`);
 }
