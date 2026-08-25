@@ -26,6 +26,10 @@ APP_SERVICES=(
   oxide_web
 )
 
+STATE_SERVICES=(
+  redis
+)
+
 COMPOSE=(docker compose -f docker-compose.yml)
 if [ "${BACKUP_REMOTE_ENABLED:-false}" = "true" ]; then
   COMPOSE+=(-f docker-compose.backup-remote.yml)
@@ -84,6 +88,10 @@ echo "==> Los volúmenes de base de datos (Postgres/MariaDB) están protegidos."
 
 echo "==> 🔎 Validando la configuración de Docker Compose..."
 "${COMPOSE[@]}" config --quiet
+
+echo "==> 🗄️ Aplicando y verificando servicios de estado requeridos..."
+"${COMPOSE[@]}" up -d "${STATE_SERVICES[@]}"
+wait_for_service redis 60
 
 echo "==> 🧱 Verificando imágenes base para nuevas instancias..."
 RUNTIME_DOCKER_NETWORK="${DOCKER_NETWORK:-ragenodes_net}" bash ./scripts/ensure_base_images.sh
