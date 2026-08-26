@@ -2333,7 +2333,21 @@ function toggleSidebar() {
                 }
             } catch (e) {
                 if (e.status === 401) Nexus.logout();
-                else console.warn("Polling loadServers:", e.message);
+                else {
+                    console.error("Polling loadServers:", e);
+                    const dashboardView = document.getElementById('view-servers');
+                    const dashboard = document.getElementById('client-servers');
+                    if (dashboardView && dashboard && !dashboardView.classList.contains('hidden') && !dashboard.dataset.renderedId) {
+                        dashboard.innerHTML = `<div class="card muted" style="text-align:center; padding:50px; max-width:600px; margin:50px auto;">
+                            <i class="fa-solid fa-triangle-exclamation" style="font-size:2.5rem; margin-bottom:18px; color:var(--warning)"></i>
+                            <h3 style="color:white; font-size:1.25rem; margin-bottom:10px;">No se pudo cargar el servidor</h3>
+                            <p style="margin-bottom:18px;">La información no se perdió. Vuelve a intentarlo.</p>
+                            <button class="btn" ${rnBind("click", () => { lastDataHash = ""; loadServers(); })}>
+                                <i class="fa-solid fa-rotate-right"></i> Reintentar
+                            </button>
+                        </div>`;
+                    }
+                }
             } finally {
                 isLoadServersInFlight = false;
             }
@@ -3462,7 +3476,9 @@ function toggleSidebar() {
         }
 
         loadNotifications();
-        loadServers();
+        // La carga inicial debe seguir el mismo camino que volver desde otra vista:
+        // primero hace visible el dashboard y después solicita/renderiza los datos.
+        switchView('servers', document.getElementById('nav-servers'));
         startDownloadPolling();
         // 🚀 TURBO MODE: Actualizaciones rápidas (1.5s) aprovechando el motor Rust
         window.panelPollRate = 1500;

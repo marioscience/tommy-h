@@ -41,6 +41,8 @@ export class MinecraftService extends BaseGameService {
             `MEMORY=${jvmMemory}`,
             `INIT_MEMORY=${jvmMemory}`,
             `MAX_MEMORY=${jvmMemory}`,
+            `GID=${config.gameContainerSharedGid}`,
+            'UMASK=0002',
             'USE_AIKAR_FLAGS=true',
             'ENABLE_RCON=false',
             'OVERRIDE_SERVER_PROPERTIES=false',
