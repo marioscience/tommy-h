@@ -2,12 +2,12 @@
 set -Eeuo pipefail
 
 [ -f .env ] || { echo "ERROR: falta .env" >&2; exit 1; }
-PREFLIGHT_INSTANCE_DATA_ROOT="${STAGING_INSTANCE_DATA_ROOT:-/srv/ragenodes-staging-data}" \
-  bash ./scripts/security/production_preflight.sh
-
 # shellcheck disable=SC1091
 source ./scripts/load_env.sh
 load_env_file "${RAGENODES_ENV_FILE:-.env}"
+
+PREFLIGHT_INSTANCE_DATA_ROOT="${STAGING_INSTANCE_DATA_ROOT:-/srv/ragenodes-staging-data}" \
+  bash ./scripts/security/production_preflight.sh
 
 STAGING_DATA_ROOT="${STAGING_INSTANCE_DATA_ROOT:-/srv/ragenodes-staging-data}"
 mkdir -p "$STAGING_DATA_ROOT/templates"

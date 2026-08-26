@@ -111,6 +111,12 @@ const stagingControlPanelOverride = files['docker-compose.staging.yml'].match(/\
 assert(!stagingControlPanelOverride.includes('security_opt:'), 'staging does not duplicate inherited control-panel security options');
 assert(!stagingControlPanelOverride.includes('cap_drop:'), 'staging does not duplicate inherited control-panel capability drops');
 assert(files['.env.example'].includes('STAGING_PORT_BASE_OFFSET=1000'), 'staging example avoids aliasing production service port bands');
+assert(files['docker-compose.yml'].includes('STAGING_TLS_UPSTREAM=${STAGING_TLS_UPSTREAM:-}'), 'production edge exposes an explicit staging TLS passthrough target');
+assert(files['docker-compose.yml'].includes('STAGING_TLS_DOMAINS=${STAGING_TLS_DOMAINS:-ragenodes.dev}'), 'staging TLS passthrough is restricted to the staging domain');
+assert(files['oxideproxy/src/pipeline/mod.rs'].includes('staging_tls_passthrough(&buffer)'), 'TLS ClientHello is routed by SNI before production termination');
+const stagingLoadEnv = files['deploy_staging.sh'].indexOf('load_env_file');
+const stagingPreflight = files['deploy_staging.sh'].indexOf('production_preflight.sh');
+assert(stagingLoadEnv !== -1 && stagingPreflight !== -1 && stagingLoadEnv < stagingPreflight, 'staging loads dotenv before production preflight');
 assert(files['.env.example'].includes('PORT_BIND_RETRY_LIMIT=8'), 'port binding retries are explicitly documented');
 assert(files['backend/src/services/dockerService.js'].includes('[config.dockerNetwork]: {}'), 'Blender joins the configured runtime network');
 assert(!files['backend/src/services/dockerService.js'].includes("'ragenodes_net': {}"), 'Blender does not hardcode the production network');
