@@ -46,6 +46,7 @@ export const config = {
   projectRoot: process.env.PROJECT_ROOT || process.cwd(),
   dockerSocket: process.env.DOCKER_SOCKET || '/var/run/docker.sock',
   dockerBlkioWeight: Number(process.env.DOCKER_BLKIO_WEIGHT ?? (process.env.NODE_ENV === 'production' ? 100 : 0)),
+  gameContainerSharedGid: Number(process.env.GAME_CONTAINER_SHARED_GID ?? 1000),
   allowRootfulDockerSocket: process.env.ALLOW_ROOTFUL_DOCKER_SOCKET === 'true',
   allowInsecureDockerNodes: process.env.ALLOW_INSECURE_DOCKER_NODES === 'true',
 
@@ -130,6 +131,11 @@ export function assertSecureConfig() {
   if (!Number.isInteger(config.dockerBlkioWeight)
       || (config.dockerBlkioWeight !== 0 && (config.dockerBlkioWeight < 10 || config.dockerBlkioWeight > 1000))) {
     errors.push('DOCKER_BLKIO_WEIGHT debe ser 0 (deshabilitado) o un entero entre 10 y 1000.');
+  }
+  if (!Number.isInteger(config.gameContainerSharedGid)
+      || config.gameContainerSharedGid < 0
+      || config.gameContainerSharedGid > 65535) {
+    errors.push('GAME_CONTAINER_SHARED_GID debe ser un entero entre 0 y 65535.');
   }
   if (!['http', 'https'].includes(config.publicEndpointScheme)) {
     errors.push('PUBLIC_ENDPOINT_SCHEME debe ser http o https.');

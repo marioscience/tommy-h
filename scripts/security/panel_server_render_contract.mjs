@@ -14,6 +14,12 @@ const [panelHtml, bindingsSource, commonSource, panelSource, minecraftPartial] =
   fs.readFile(path.join(publicDir, 'games/minecraft.html'), 'utf8')
 ]);
 
+assert.match(
+  panelHtml,
+  /js\/panel\.js\?v=2026082601/,
+  'panel.html debe invalidar la cache cuando cambia panel.js'
+);
+
 const warnings = [];
 const virtualConsole = new VirtualConsole();
 virtualConsole.on('error', (...args) => warnings.push(args.join(' ')));
@@ -71,6 +77,8 @@ window.fetch = async input => {
   return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 };
 
+// Reproduce una recarga directa en la que el dashboard todavia no fue activado.
+window.document.getElementById('view-servers').classList.add('hidden');
 window.eval(bindingsSource);
 window.eval(commonSource);
 window.eval(panelSource);
@@ -79,6 +87,11 @@ await new Promise(resolve => window.setTimeout(resolve, 100));
 
 const dashboard = window.document.getElementById('client-servers');
 assert.ok(dashboard, 'El contenedor principal del panel debe existir');
+assert.equal(
+  window.document.getElementById('view-servers').classList.contains('hidden'),
+  false,
+  'La carga inicial debe activar la vista principal antes de renderizar'
+);
 assert.match(dashboard.textContent, /Minecraft staging/, 'El servidor Minecraft debe renderizarse en el panel');
 assert.match(dashboard.textContent, /Conexi.n In-Game/, 'El panel debe mostrar la conexión del servidor');
 assert.equal(
