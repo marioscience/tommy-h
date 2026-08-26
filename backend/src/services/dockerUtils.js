@@ -21,7 +21,7 @@ export function deriveServicePassword(scope, identifier) {
 export const GAME_SECURITY_CONFIG = {
     SecurityOpt: ["no-new-privileges:true"],
     CapDrop: ["ALL"],
-    CapAdd: ["CHOWN", "SETUID", "SETGID", "NET_BIND_SERVICE", "KILL", "DAC_OVERRIDE", "DAC_READ_SEARCH"],
+    CapAdd: ["CHOWN", "FOWNER", "SETUID", "SETGID", "NET_BIND_SERVICE", "KILL", "DAC_OVERRIDE", "DAC_READ_SEARCH"],
     LogConfig: {
         Type: 'json-file',
         Config: {
