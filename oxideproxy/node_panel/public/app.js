@@ -284,7 +284,7 @@ function populateConfigUI() {
     document.getElementById('udp-addr').value = currentConfig.ingress.udp_listen_addr || "0.0.0.0:8080";
     document.getElementById('max-conn').value = currentConfig.ingress.max_concurrent_connections || 1000000;
     document.getElementById('buf-size').value = currentConfig.ingress.initial_buffer_size || 4096;
-    document.getElementById('web-backend').value = currentConfig.routing.default_web_backend || "10.5.0.12:80";
+    document.getElementById('web-backend').value = currentConfig.routing.default_web_backend || "frontend:80";
 
     // Advanced Tuning
     if (currentConfig.advanced_tuning) {

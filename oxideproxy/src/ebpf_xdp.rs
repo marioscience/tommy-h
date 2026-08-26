@@ -115,7 +115,10 @@ impl XdpFilter {
         }
         if let Some(parent) = self.runtime_blacklist_path.parent() {
             if let Err(error) = std::fs::create_dir_all(parent) {
-                tracing::error!("No se pudo crear el directorio de la lista negra: {}", error);
+                tracing::error!(
+                    "No se pudo crear el directorio de la lista negra: {}",
+                    error
+                );
                 return;
             }
         }
@@ -139,7 +142,11 @@ impl XdpFilter {
         let Ok(content) = std::fs::read_to_string(&self.runtime_blacklist_path) else {
             return;
         };
-        for line in content.lines().map(str::trim).filter(|line| !line.is_empty()) {
+        for line in content
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+        {
             if let Ok(ip) = line.parse::<IpAddr>() {
                 self.blacklist.insert(ip);
             }
@@ -147,7 +154,13 @@ impl XdpFilter {
     }
 
     pub fn reload_from_config(&mut self, config_path: &str) {
-        let config = ProxyConfig::load_or_default(config_path);
+        let config = match ProxyConfig::load(config_path) {
+            Ok(config) => config,
+            Err(error) => {
+                tracing::error!("Se conserva la politica eBPF actual: {}", error);
+                return;
+            }
+        };
         if let Some(tuning) = config.advanced_tuning {
             if let Some(sec) = tuning.security {
                 self.rate_limit_conns = sec.rate_limit_conns_per_ip;

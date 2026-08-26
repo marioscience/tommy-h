@@ -175,9 +175,8 @@ services:
     tmpfs:
       - /tmp
     pids_limit: 128
-    security_opt:
-      - no-new-privileges:true
-    cap_drop: [ALL]
+    # security_opt and cap_drop are inherited from docker-compose.yml.
+    # Repeating sequence values here makes the merged Compose model invalid.
 
   oxide_web_staging:
     build:

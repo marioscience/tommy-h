@@ -1186,7 +1186,13 @@ function toggleSidebar() {
             const customName = document.getElementById('manual-backup-name').value.trim();
             if (!confirm('¿Generar copia de seguridad manual?')) return;
 
-            const btn = event.currentTarget;
+            const btn = event?.target instanceof Element
+                ? event.target.closest('button')
+                : null;
+            if (!btn) {
+                showToast('No se pudo identificar el boton de backup.', 'error');
+                return;
+            }
             const originalHTML = btn.innerHTML;
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> En cola...';
             btn.disabled = true;
@@ -2355,7 +2361,11 @@ function toggleSidebar() {
 
         async function toggleBlender(event, id, action) {
             if (event) event.stopPropagation();
-            const btn = event ? event.currentTarget : null;
+            // Los manejadores CSP se ejecutan mediante delegación desde `document`,
+            // por lo que la referencia del receptor no es el botón pulsado.
+            const btn = event?.target instanceof Element
+                ? event.target.closest('button')
+                : null;
             const originalHtml = btn ? btn.innerHTML : '';
 
             if (blenderActionPending) return;
@@ -3308,7 +3318,7 @@ function toggleSidebar() {
                 const colors = ['var(--muted)', 'var(--info)', 'var(--success)', 'var(--warning)', 'var(--danger)', 'var(--primary)'];
 
                 grid.innerHTML = plans.map((p, i) => `
-                  <div class="disk-pack premium-disk-pack" ${rnBind("click", (event, element) => { selectDiskPack((p.id), (p.paypal_plan_id), (p.gb_amount)) })} style="position: relative; background: linear-gradient(180deg, rgba(30,30,35,0.8) 0%, rgba(18,18,20,0.9) 100%); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 25px 15px; text-align: center; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden;">
+                  <div class="disk-pack premium-disk-pack" ${rnBind("click", (event, element) => { selectDiskPack((p.id), (p.paypal_plan_id), (p.gb_amount), element) })} style="position: relative; background: linear-gradient(180deg, rgba(30,30,35,0.8) 0%, rgba(18,18,20,0.9) 100%); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 25px 15px; text-align: center; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden;">
                       <div class="disk-pack-glow" style="position: absolute; top: 0; left: 0; right: 0; height: 2px; background: ${colors[i % colors.length]}; opacity: 0.3; transition: opacity 0.3s;"></div>
                       <div style="position: absolute; top: -20px; left: 50%; transform: translateX(-50%); width: 80px; height: 80px; background: radial-gradient(circle, ${colors[i % colors.length]}40 0%, transparent 70%); filter: blur(15px); pointer-events: none; transition: opacity 0.3s;" class="disk-pack-blur"></div>
                       <i class="fa-solid fa-sd-card" style="font-size: 2.2rem; color: ${colors[i % colors.length]}; margin-bottom: 15px; display:block; position: relative; z-index: 1; filter: drop-shadow(0 4px 10px ${colors[i % colors.length]}60);"></i>
@@ -3321,9 +3331,13 @@ function toggleSidebar() {
             }
         }
 
-        function selectDiskPack(diskPlanId, paypalPlanId, gb) {
+        function selectDiskPack(diskPlanId, paypalPlanId, gb, selectedElement) {
             document.querySelectorAll('.disk-pack').forEach(el => el.classList.remove('selected'));
-            event.currentTarget.classList.add('selected');
+            if (!(selectedElement instanceof Element)) {
+                showToast('No se pudo seleccionar la expansion de disco.', 'error');
+                return;
+            }
+            selectedElement.classList.add('selected');
 
             currentSelectedDiskPack = diskPlanId;
             currentDiskGb = gb;

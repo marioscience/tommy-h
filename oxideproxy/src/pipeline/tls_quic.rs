@@ -55,14 +55,13 @@ impl TlsRuntime {
             .map_err(|_| "Tipo de llave privada no soportada por rustls")?;
         let certified_key = rustls::sign::CertifiedKey::new(cert_chain, signing_key);
 
-        let mut config = ServerConfig::builder_with_provider(Arc::new(
-            rustls::crypto::ring::default_provider(),
-        ))
-            .with_safe_default_protocol_versions()?
-            .with_no_client_auth()
-            .with_cert_resolver(Arc::new(StaticCertResolver {
-                certified_key: Arc::new(certified_key),
-            }));
+        let mut config =
+            ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+                .with_safe_default_protocol_versions()?
+                .with_no_client_auth()
+                .with_cert_resolver(Arc::new(StaticCertResolver {
+                    certified_key: Arc::new(certified_key),
+                }));
 
         config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
@@ -88,8 +87,8 @@ impl TlsRuntime {
             return Err("OXIDE_ACME_EMAIL no es válido".into());
         }
 
-        let cache_dir = std::env::var("OXIDE_ACME_CACHE_DIR")
-            .unwrap_or_else(|_| "/app/acme".to_string());
+        let cache_dir =
+            std::env::var("OXIDE_ACME_CACHE_DIR").unwrap_or_else(|_| "/app/acme".to_string());
         std::fs::create_dir_all(&cache_dir)?;
         let production = env_flag("OXIDE_ACME_PRODUCTION");
 
@@ -100,12 +99,11 @@ impl TlsRuntime {
             .state();
 
         let challenge_config = state.challenge_rustls_config();
-        let mut default_config = ServerConfig::builder_with_provider(Arc::new(
-            rustls::crypto::ring::default_provider(),
-        ))
-            .with_safe_default_protocol_versions()?
-            .with_no_client_auth()
-            .with_cert_resolver(state.resolver());
+        let mut default_config =
+            ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+                .with_safe_default_protocol_versions()?
+                .with_no_client_auth()
+                .with_cert_resolver(state.resolver());
         default_config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
         tokio::spawn(async move {
@@ -139,8 +137,8 @@ impl TlsRuntime {
         IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     {
         let handshake = LazyConfigAcceptor::new(Default::default(), stream).await?;
-        let is_challenge = self.challenge_config.is_some()
-            && is_tls_alpn_challenge(&handshake.client_hello());
+        let is_challenge =
+            self.challenge_config.is_some() && is_tls_alpn_challenge(&handshake.client_hello());
 
         if !is_challenge {
             if let Some(allowed_sni) = &self.allowed_sni {
@@ -194,7 +192,12 @@ impl rustls::server::ResolvesServerCert for StaticCertResolver {
 
 fn env_flag(name: &str) -> bool {
     std::env::var(name)
-        .map(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes"
+            )
+        })
         .unwrap_or(false)
 }
 

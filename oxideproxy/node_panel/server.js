@@ -347,73 +347,10 @@ function migrateConfigToV2(config) {
     config.ingress.socket_snd_buf = config.ingress.socket_snd_buf || 1048576;
 
     // Routing defaults
-    config.routing.default_web_backend = config.routing.default_web_backend || "10.5.0.12:80";
+    config.routing.default_web_backend = config.routing.default_web_backend || "frontend:80";
     if (!config.routing.game_servers || !Array.isArray(config.routing.game_servers)) {
-        config.routing.game_servers = [
-            {
-                game_id: 30129,
-                name: "Sin Reglas R.D",
-                backend_addr: "ragenodes-c8e4acb0:30129",
-                protocol: "DUAL",
-                port_range: "30129",
-                description: "Sin Reglas R.D (ragenodes-c8e4acb0)",
-                health_check: { enabled: false, interval_secs: 10, timeout_secs: 2 }
-            },
-            {
-                game_id: 7777,
-                name: "RAGENODES",
-                backend_addr: "ragenodes-e53f9c49:7777",
-                protocol: "DUAL",
-                port_range: "7777",
-                description: "RAGENODES (ragenodes-e53f9c49)",
-                health_check: { enabled: false, interval_secs: 10, timeout_secs: 2 }
-            },
-            {
-                game_id: 30120,
-                name: "Royalty PvP",
-                backend_addr: "ragenodes-aed4e8f8:30120",
-                protocol: "DUAL",
-                port_range: "30120",
-                description: "Royalty PvP (ragenodes-aed4e8f8)",
-                health_check: { enabled: false, interval_secs: 10, timeout_secs: 2 }
-            },
-            {
-                game_id: 30144,
-                name: "UNDERCITY RP",
-                backend_addr: "ragenodes-731ce9ac:30144",
-                protocol: "DUAL",
-                port_range: "30144",
-                description: "UNDERCITY RP (ragenodes-731ce9ac)",
-                health_check: { enabled: false, interval_secs: 10, timeout_secs: 2 }
-            },
-            {
-                game_id: 30139,
-                name: "GabrielRD",
-                backend_addr: "ragenodes-1bdfabf2:30139",
-                protocol: "DUAL",
-                port_range: "30139",
-                description: "GabrielRD (ragenodes-1bdfabf2)",
-                health_check: { enabled: false, interval_secs: 10, timeout_secs: 2 }
-            },
-            {
-                game_id: 30136,
-                name: "prueba21",
-                backend_addr: "ragenodes-17448347:30136",
-                protocol: "DUAL",
-                port_range: "30136",
-                description: "prueba21 (ragenodes-17448347)",
-                health_check: { enabled: false, interval_secs: 10, timeout_secs: 2 }
-            },
-            {
-                game_id: 30127,
-                name: "010203",
-                backend_addr: "ragenodes-29ed903a:30127",
-                protocol: "DUAL",
-                port_range: "30127",
-                description: "010203 (ragenodes-29ed903a)",
-                health_check: { enabled: false, interval_secs: 10, timeout_secs: 2 }
-            }
-        ];
+        // Fail closed: una migracion nunca debe inventar rutas de clientes.
+        config.routing.game_servers = [];
     } else {
         // Enriquecer rutas existentes con campos v2
         config.routing.game_servers = config.routing.game_servers.map(route => ({
@@ -714,6 +651,19 @@ app.get('/api/oxide/metrics/advanced', asyncHandler(async (req, res) => {
 app.get('/api/oxide/status', asyncHandler(async (req, res) => {
     const recentLogs = getLatestLogLines(100);
     const hasActivity = recentLogs.length > 0;
+    let configuredBackends = [];
+    try {
+        const config = migrateConfigToV2(yaml.load(fs.readFileSync(CONFIG_PATH, 'utf8')) || {});
+        configuredBackends = config.routing.game_servers.map(route => ({
+            id: route.game_id,
+            name: route.name || route.description || `GameID ${route.game_id}`,
+            addr: route.backend_addr,
+            protocol: route.protocol || 'DUAL',
+            health: 'UNVERIFIED'
+        }));
+    } catch (error) {
+        console.error('[OxideControlPanel] No se pudo leer la tabla real de rutas:', error.message);
+    }
     res.json({
         status: 'online',
         uptime: process.uptime(),
@@ -724,16 +674,7 @@ app.get('/api/oxide/status', asyncHandler(async (req, res) => {
             mode: 'SO_REUSEPORT (Async L4/L7)',
             ingress: ['TCP:8443', 'UDP:8080']
         },
-        backends: discoveredBackends.length > 0 ? discoveredBackends.concat([{ id: 'web', name: 'Web API (Nginx)', addr: '10.5.0.12:80', protocol: 'TCP', health: 'HEALTHY (HTTP 200)' }]) : [
-            { id: 30129, name: 'Sin Reglas R.D', addr: 'ragenodes-c8e4acb0:30129', protocol: 'DUAL', health: hasActivity ? 'HEALTHY (Ping 0.2ms)' : 'IDLE' },
-            { id: 7777, name: 'RAGENODES', addr: 'ragenodes-e53f9c49:7777', protocol: 'DUAL', health: hasActivity ? 'HEALTHY (Ping 0.2ms)' : 'IDLE' },
-            { id: 30120, name: 'Royalty PvP', addr: 'ragenodes-aed4e8f8:30120', protocol: 'DUAL', health: hasActivity ? 'HEALTHY (Ping 0.2ms)' : 'IDLE' },
-            { id: 30144, name: 'UNDERCITY RP', addr: 'ragenodes-731ce9ac:30144', protocol: 'DUAL', health: hasActivity ? 'HEALTHY (Ping 0.2ms)' : 'IDLE' },
-            { id: 30139, name: 'GabrielRD', addr: 'ragenodes-1bdfabf2:30139', protocol: 'DUAL', health: hasActivity ? 'HEALTHY (Ping 0.2ms)' : 'IDLE' },
-            { id: 30136, name: 'prueba21', addr: 'ragenodes-17448347:30136', protocol: 'DUAL', health: hasActivity ? 'HEALTHY (Ping 0.2ms)' : 'IDLE' },
-            { id: 30127, name: '010203', addr: 'ragenodes-29ed903a:30127', protocol: 'DUAL', health: hasActivity ? 'HEALTHY (Ping 0.2ms)' : 'IDLE' },
-            { id: 'web', name: 'Web API (Nginx)', addr: '10.5.0.12:80', protocol: 'TCP', health: 'HEALTHY (HTTP 200)' }
-        ]
+        backends: configuredBackends
     });
 }));
 

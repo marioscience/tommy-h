@@ -101,14 +101,17 @@ export async function controlServer(id, userId, action, isAdmin) {
               case 'zomboid': await Docker.restartZomboidContainer(opts); break;
               case 'ark': await Docker.restartARKContainer(opts); break;
               case 'sdtd': await Docker.restartSDTDContainer(s.container_name, s.id, s.fivem_port, plan, s.data_path); break;
-              case 'discord': await Docker.restartDiscordBotContainer(opts); break;
+              case 'discord':
+              case 'discordbot': await Docker.restartDiscordBotContainer(opts); break;
               case 'wordpress': await Docker.restartWordPressContainer(opts); break;
               case 'database': await Docker.restartDatabaseContainer(opts); break;
-              default: await Docker.restartFivemContainer(opts); break;
+              case 'fivem': await Docker.restartFivemContainer(opts); break;
+              default: throw new Error(`Plantilla desconocida: ${s.template}`);
           }
-
-      } finally {
           await query("UPDATE servers SET status = 'running' WHERE id = $1", [s.id]);
+      } catch (error) {
+          await query("UPDATE servers SET status = 'error' WHERE id = $1", [s.id]);
+          throw error;
       }
   }
 
@@ -336,7 +339,8 @@ export async function repairOneServer(s) {
             case 'zomboid': await Docker.restartZomboidContainer(opts); break;
             case 'ark': await Docker.restartARKContainer(opts); break;
             case 'sdtd': await Docker.restartSDTDContainer(s.container_name, s.id, s.fivem_port, plan, s.data_path); break;
-            case 'discord': await Docker.restartDiscordBotContainer(opts); break;
+            case 'discord':
+            case 'discordbot': await Docker.restartDiscordBotContainer(opts); break;
             case 'wordpress': await Docker.restartWordPressContainer(opts); break;
             case 'database': await Docker.restartDatabaseContainer(opts); break;
             case 'fivem':
@@ -350,9 +354,7 @@ export async function repairOneServer(s) {
                 opts.licenseKey = realLicenseKey;
                 await Docker.restartFivemContainer(opts);
                 break;
-            default:
-                console.warn(`[Auto-Curado] Plantilla desconocida '${s.template}' para ${s.name}. Omitiendo reparación específica.`);
-                break;
+            default: throw new Error(`Plantilla desconocida: ${s.template}`);
         }
         const { rows } = await query("SELECT status FROM servers WHERE id = $1", [s.id]);
         if (rows.length > 0 && (rows[0].status === 'stopped' || rows[0].status === 'stopping')) {
@@ -420,7 +422,8 @@ export async function repairServer(id, userId, isAdmin) {
           case 'zomboid': await Docker.restartZomboidContainer(opts); break;
           case 'ark': await Docker.restartARKContainer(opts); break;
           case 'sdtd': await Docker.restartSDTDContainer(s.container_name, s.id, s.fivem_port, plan, s.data_path); break;
-          case 'discord': await Docker.restartDiscordBotContainer(opts); break;
+          case 'discord':
+          case 'discordbot': await Docker.restartDiscordBotContainer(opts); break;
           case 'wordpress': await Docker.restartWordPressContainer(opts); break;
           case 'database': await Docker.restartDatabaseContainer(opts); break;
           case 'fivem': await Docker.restartFivemContainer(opts); break;

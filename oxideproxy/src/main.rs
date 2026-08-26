@@ -34,7 +34,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     access_gate::initialize()?;
 
-    let config = ProxyConfig::load_or_default("config/oxide_proxy.yml");
+    // Fallar de forma cerrada: una configuracion ausente o invalida nunca debe
+    // activar rutas de laboratorio ni un backend alternativo silencioso.
+    let config = ProxyConfig::load("config/oxide_proxy.yml")?;
 
     // Opcional: Adjuntar filtro XDP/eBPF si estamos en entorno Linux compatible
     let mut xdp = XdpFilter::new("eth0");
