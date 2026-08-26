@@ -1,4 +1,4 @@
-import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, sh } from '../dockerUtils.js';
+import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, deriveServiceIdentifier, sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
 import { saveValheimConfig } from '../valheimService.js';
 
@@ -7,10 +7,11 @@ export async function createValheimContainer(opts) {
     await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath} && chown -R 1000:1000 ${opts.dataPath}`);
     await cloneFromMasterTemplate('valheim', opts.dataPath, opts.nodeId);
     const serverPassword = opts.serverPassword || deriveServicePassword('valheim-server', opts.serverId || opts.containerName).slice(0, 16);
+    const worldName = deriveServiceIdentifier('world', opts.serverId || opts.containerName, 24);
     await saveValheimConfig(opts.dataPath, {
         SERVER_NAME: opts.serverName,
         SERVER_PASS: serverPassword,
-        WORLD_NAME: 'RageNodesWorld',
+        WORLD_NAME: worldName,
         SERVER_PUBLIC: '1',
         SERVER_ARGS: '-crossplay',
         UPDATE_CRON: '0 4 * * *',
@@ -30,7 +31,7 @@ export async function createValheimContainer(opts) {
         Env: [
             `SERVER_NAME=${opts.serverName}`,
             `SERVER_PASS=${serverPassword}`,
-            `WORLD_NAME=RageNodesWorld`,
+            `WORLD_NAME=${worldName}`,
             `SERVER_PUBLIC=1`,
             `UPDATE_CRON=0 4 * * *`,
             `BACKUPS=false`,

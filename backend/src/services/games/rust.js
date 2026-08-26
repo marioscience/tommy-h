@@ -1,6 +1,6 @@
 ﻿import { BaseGameService } from './BaseGameService.js';
 import { GameFactory } from './GameFactory.js';
-import { cloneFromMasterTemplate } from '../dockerUtils.js';
+import { cloneFromMasterTemplate, deriveServiceIdentifier } from '../dockerUtils.js';
 import { config } from '../../config.js';
 
 /**
@@ -17,9 +17,10 @@ export class RustGameService extends BaseGameService {
     }
 
     buildEnvironment(opts) {
+        const identity = deriveServiceIdentifier('rust', opts.serverId || opts.containerName, 24);
         return [
             `RUST_SERVER_NAME=${opts.serverName}`,
-            'RUST_SERVER_STARTUP_ARGUMENTS=-batchmode +server.port 28015 +server.queryport 28017 +server.identity "ragenodes"',
+            `RUST_SERVER_STARTUP_ARGUMENTS=-batchmode +server.port 28015 +server.queryport 28017 +server.identity "${identity}"`,
             'RUST_OXIDE=1',
             'RUST_UPDATE_CHECKING=1',
             'RUST_UPDATE_BRANCH=public'

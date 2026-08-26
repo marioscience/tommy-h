@@ -5,21 +5,30 @@ const files = Object.fromEntries(await Promise.all([
   'docker-compose.staging.yml',
   'docker-compose.backup-remote.yml',
   'backend/Dockerfile',
+  'fivem-base/Dockerfile',
   'oxideproxy/Dockerfile',
   '.env.example',
   'deploy.sh',
   'deploy_staging.sh',
   'backend/src/services/dockerService.js',
+  'backend/src/services/dockerUtils.js',
+  'backend/src/services/games/minecraft.js',
+  'backend/src/services/games/rust.js',
+  'backend/src/services/games/cs2.js',
+  'backend/src/services/games/valheim.js',
   'oxideproxy/config/oxide_proxy.yml',
   'oxideproxy/src/config.rs',
   'oxideproxy/src/pipeline/mod.rs',
   'oxideproxy/src/pipeline/http_server.rs',
   'oxideproxy/node_panel/server.js',
   'scripts/ensure_base_images.sh',
+  'scripts/update_image_cache.sh',
   'scripts/load_env.sh',
   'scripts/security/production_preflight.sh',
   'scripts/security/install_rootless_delegation.sh',
-  'ops/systemd/ragenodes-rootless-delegation.conf'
+  'ops/systemd/ragenodes-rootless-delegation.conf',
+  'ops/systemd/ragenodes-image-cache.service',
+  'ops/systemd/ragenodes-image-cache.timer'
 ].map(async (file) => [file, await fs.readFile(file, 'utf8')])));
 
 let failures = 0;
@@ -81,8 +90,19 @@ assert(files['scripts/ensure_base_images.sh'].includes('${FIVEM_BASE_IMAGE:?'), 
 assert(files['scripts/ensure_base_images.sh'].includes('${BLENDER_BASE_IMAGE:?'), 'base-image preflight requires the configured Blender image tag');
 assert(files['scripts/ensure_base_images.sh'].includes('${DOCKER_SOCKET:?'), 'base-image preflight requires the hardened runtime socket');
 assert(files['scripts/ensure_base_images.sh'].includes('RUNTIME_DOCKER_HOST="unix://$DOCKER_SOCKET"'), 'base-image preflight targets the runtime daemon explicitly');
-assert(files['scripts/ensure_base_images.sh'].includes('docker --host "$RUNTIME_DOCKER_HOST" build --tag "$image" "$context"'), 'base-image preflight builds the exact configured tags in the runtime daemon');
-assert(files['scripts/ensure_base_images.sh'].includes('docker --host "$RUNTIME_DOCKER_HOST" image inspect "$image"'), 'base-image preflight verifies every resulting image in the runtime daemon');
+assert(files['scripts/ensure_base_images.sh'].includes('docker_runtime build'), 'base-image updater builds through the configured runtime daemon');
+assert(files['scripts/ensure_base_images.sh'].includes("python3 -c 'import json, sys;"), 'FiveM metadata is parsed without an extra host package');
+assert(files['scripts/ensure_base_images.sh'].includes('docker_runtime image inspect "$FIVEM_BASE_IMAGE" "$BLENDER_BASE_IMAGE"'), 'base-image updater verifies the promoted master aliases');
+assert(files['scripts/ensure_base_images.sh'].includes('org.ragenodes.fivem.artifact'), 'FiveM rebuilds only when the recommended artifact changes');
+assert(files['scripts/ensure_base_images.sh'].includes('docker_runtime save "$image"'), 'base images are archived in the local master cache');
+assert(files['scripts/ensure_base_images.sh'].includes('docker_runtime pull "$image"'), 'digest-pinned external images are prefetched automatically');
+assert(files['scripts/ensure_base_images.sh'].includes('MINECRAFT_BASE_IMAGE:=itzg/minecraft-server:java25@sha256:'), 'image cache has a digest-pinned default manifest');
+assert(files['scripts/update_image_cache.sh'].includes('load_env_file "$ENV_FILE"'), 'scheduled image refresh loads dotenv without executing it');
+assert(files['ops/systemd/ragenodes-image-cache.timer'].includes('Persistent=true'), 'missed image refreshes run after the host returns');
+assert(files['ops/systemd/ragenodes-image-cache.service'].includes('NoNewPrivileges=true'), 'scheduled image refresh cannot gain privileges');
+assert(files['ops/systemd/ragenodes-image-cache.service'].includes('ProtectSystem=strict'), 'scheduled image refresh has a read-only system view');
+assert(files['fivem-base/Dockerfile'].includes('ARG FIVEM_DOWNLOAD_URL'), 'FiveM artifact selection is supplied explicitly at build time');
+assert(files['fivem-base/Dockerfile'].includes('https://runtime.fivem.net/artifacts/fivem/build_proot_linux/master/*'), 'FiveM downloads are restricted to the vendor artifact origin');
 assert(files['scripts/ensure_base_images.sh'].includes('network inspect "$RUNTIME_DOCKER_NETWORK"'), 'runtime network is verified in the rootless daemon');
 assert(files['scripts/ensure_base_images.sh'].includes('network create "$RUNTIME_DOCKER_NETWORK"'), 'missing runtime network is created in the rootless daemon');
 assert(files['deploy_staging.sh'].includes('RUNTIME_DOCKER_NETWORK=ragenodes_net_staging'), 'staging prepares its isolated rootless network');
@@ -94,6 +114,12 @@ assert(files['.env.example'].includes('STAGING_PORT_BASE_OFFSET=1000'), 'staging
 assert(files['.env.example'].includes('PORT_BIND_RETRY_LIMIT=8'), 'port binding retries are explicitly documented');
 assert(files['backend/src/services/dockerService.js'].includes('[config.dockerNetwork]: {}'), 'Blender joins the configured runtime network');
 assert(!files['backend/src/services/dockerService.js'].includes("'ragenodes_net': {}"), 'Blender does not hardcode the production network');
+assert(files['backend/src/services/dockerUtils.js'].includes('deriveServiceIdentifier'), 'game instances can derive stable unique identifiers');
+assert(files['backend/src/services/games/minecraft.js'].includes("DIFFICULTY=${opts.difficulty || 'normal'}"), 'Minecraft defaults to normal difficulty');
+assert(files['backend/src/services/games/minecraft.js'].includes("'ONLINE_MODE=TRUE'"), 'Minecraft identity verification is enabled by default');
+assert(files['backend/src/services/games/rust.js'].includes("deriveServiceIdentifier('rust'"), 'Rust identity is unique per server');
+assert(files['backend/src/services/games/cs2.js'].includes("'SRCDS_TICKRATE=64'"), 'CS2 uses the standard beginner-friendly tickrate');
+assert(files['backend/src/services/games/valheim.js'].includes("deriveServiceIdentifier('world'"), 'Valheim world names are unique per server');
 for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
   const deploy = files[deployFile];
   const redisService = deployFile === 'deploy.sh' ? 'redis' : 'redis-staging';
