@@ -4,7 +4,7 @@ ingress:
   max_concurrent_connections: 1000000
   initial_buffer_size: 4096
 routing:
-  default_web_backend: frontend:80
+  default_web_backend: backend:3006
   # Las rutas reales se registraran desde el plano de control autenticado.
   # Los mocks solo deben declararse en un fichero de laboratorio independiente.
   game_servers: []
