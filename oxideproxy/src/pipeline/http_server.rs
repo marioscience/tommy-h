@@ -866,6 +866,19 @@ async fn reverse_proxy_request(
             let req_upgrade = if is_upgrade {
                 Some(hyper::upgrade::on(&mut req))
             } else {
+                // HTTP/2 prohíbe cabeceras hop-by-hop. El cliente de salida las
+                // administra por conexión y nunca deben heredarse del navegador.
+                for header in [
+                    "connection",
+                    "keep-alive",
+                    "proxy-connection",
+                    "transfer-encoding",
+                    "te",
+                    "trailer",
+                    "upgrade",
+                ] {
+                    req.headers_mut().remove(header);
+                }
                 None
             };
 
@@ -899,11 +912,36 @@ async fn reverse_proxy_request(
                                 }
                             });
                         }
+                    } else {
+                        // Las respuestas HTTP/2 tampoco pueden transportar
+                        // cabeceras hop-by-hop heredadas del upstream HTTP/1.1.
+                        for header in [
+                            "connection",
+                            "keep-alive",
+                            "proxy-connection",
+                            "transfer-encoding",
+                            "te",
+                            "trailer",
+                            "upgrade",
+                        ] {
+                            res.headers_mut().remove(header);
+                        }
                     }
                     Ok(res)
                 }
                 Err(err) => {
-                    tracing::error!("Error en Reverse Proxy hacia {}: {}", target_addr, err);
+                    let message = err.to_string();
+                    if message.contains("Connection refused")
+                        || message.contains("connection refused")
+                    {
+                        tracing::debug!(
+                            "Backend web temporalmente inactivo en {}: {}",
+                            target_addr,
+                            message
+                        );
+                    } else {
+                        tracing::warn!("Error en Reverse Proxy hacia {}: {}", target_addr, message);
+                    }
                     let mut res = Response::new(Body::from("502 Bad Gateway"));
                     *res.status_mut() = StatusCode::BAD_GATEWAY;
                     res.headers_mut().insert(

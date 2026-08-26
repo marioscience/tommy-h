@@ -13,6 +13,7 @@ const files = Object.fromEntries(await Promise.all([
   'oxideproxy/config/oxide_proxy.yml',
   'oxideproxy/src/config.rs',
   'oxideproxy/src/pipeline/mod.rs',
+  'oxideproxy/src/pipeline/http_server.rs',
   'oxideproxy/node_panel/server.js',
   'scripts/ensure_base_images.sh',
   'scripts/load_env.sh',
@@ -53,8 +54,11 @@ assert(!files['oxideproxy/src/config.rs'].includes('pub fn load_or_default'), 'O
 const proxyPipeline = files['oxideproxy/src/pipeline/mod.rs'];
 const dedicatedTcpRoute = proxyPipeline.indexOf('if let Some(backend_addr) = specific_backend');
 const tlsDetection = proxyPipeline.indexOf("buffer[0] == 0x16");
+const proprietaryPacketParsing = proxyPipeline.indexOf('parse_game_packet(&buffer)');
 assert(dedicatedTcpRoute !== -1 && tlsDetection !== -1 && dedicatedTcpRoute < tlsDetection, 'dedicated game TCP routes bypass TLS termination');
+assert(tlsDetection < proprietaryPacketParsing, 'shared TCP ingress identifies TLS before proprietary game packets');
 assert(proxyPipeline.includes('forward_udp(socket, payload, peer_addr, &backend_addr).await'), 'dedicated game UDP routes remain transparent datagrams');
+assert((files['oxideproxy/src/pipeline/http_server.rs'].match(/"keep-alive"/g) || []).length >= 2, 'reverse proxy strips HTTP/2 hop-by-hop headers in both directions');
 assert(!files['oxideproxy/node_panel/server.js'].includes("health: hasActivity ? 'HEALTHY"), 'Oxide control panel does not fabricate backend health');
 assert(files['oxideproxy/node_panel/server.js'].includes("health: 'UNVERIFIED'"), 'Oxide control panel labels unprobed backends explicitly');
 assert(files['.env.example'].includes('DOCKER_SOCKET=/run/user/1000/docker.sock'), 'production example uses a rootless Docker socket');

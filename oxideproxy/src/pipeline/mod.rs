@@ -74,23 +74,8 @@ pub async fn process_tcp_stream(
         .peer_addr()
         .unwrap_or_else(|_| "0.0.0.0:0".parse().unwrap());
 
-    if let Ok((_remaining, packet)) = parse_game_packet(&buffer) {
-        tracing::info!(
-            "Paquete Gaming TCP detectado en Ingress. GameID: {}, Payload Len: {}",
-            packet.game_id,
-            packet.payload_len
-        );
-
-        if let Some(backend_addr) = config.routing.game_servers_map.get(&packet.game_id) {
-            tracing::debug!(
-                "Enrutando flujo de juego TCP directamente a backend: {}",
-                backend_addr
-            );
-            forward_tcp(stream, buffer, backend_addr).await;
-            return;
-        }
-    }
-
+    // Los listeners dedicados de juegos son L4 transparentes. Esta decisión debe
+    // ocurrir antes de cualquier inspección TLS para no transformar TCP nativo.
     if let Some(backend_addr) = specific_backend {
         tracing::debug!(
             "Enrutando flujo TCP en crudo (Transparent Proxy) hacia backend especifico: {}",
@@ -120,9 +105,38 @@ pub async fn process_tcp_stream(
             Ok(None) => {
                 tracing::debug!("Validación ACME TLS-ALPN-01 atendida correctamente");
             }
-            Err(e) => tracing::error!("Fallo en handshake TLS: {}", e),
+            Err(e) => {
+                let message = e.to_string();
+                if message.contains("SNI no autorizado")
+                    || message.contains("peer is incompatible")
+                    || message.contains("Connection reset by peer")
+                {
+                    tracing::debug!("Handshake TLS externo rechazado: {}", message);
+                } else {
+                    tracing::warn!("Fallo en handshake TLS: {}", message);
+                }
+            }
         }
         return;
+    }
+
+    // Solo el ingress compartido no-TLS interpreta la cabecera propietaria.
+    // Un ClientHello comienza por 0x16; analizarlo antes producía el GameID
+    // ficticio 0x1603 (5635) en la telemetría.
+    if let Ok((_remaining, packet)) = parse_game_packet(&buffer) {
+        if let Some(backend_addr) = config.routing.game_servers_map.get(&packet.game_id) {
+            tracing::info!(
+                "Paquete Gaming TCP reconocido. GameID: {}, Payload Len: {}",
+                packet.game_id,
+                packet.payload_len
+            );
+            tracing::debug!(
+                "Enrutando flujo de juego TCP directamente a backend: {}",
+                backend_addr
+            );
+            forward_tcp(stream, buffer, backend_addr).await;
+            return;
+        }
     }
 
     if !is_http_ingress {
