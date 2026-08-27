@@ -240,6 +240,7 @@ services:
       CONFIG_PATH: /app/game_config/oxide_proxy.yml
       OXIDE_LOG_DIR: /app/runtime/logs
       OXIDE_METRICS_PATH: /app/runtime/game_metrics.json
+      OXIDE_DEFAULT_WEB_BACKEND: 127.0.0.1:3010
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
       OXIDE_ROUTE_API_KEY: ${DISCORD_API_KEY:-${API_KEY:?Set DISCORD_API_KEY (legacy API_KEY is accepted during migration)}}
     networks:

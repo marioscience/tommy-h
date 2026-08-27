@@ -13,6 +13,7 @@ const BACKEND_URL = (process.env.BACKEND_URL || 'http://backend:3006').replace(/
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || '';
 const METRICS_PATH = process.env.OXIDE_METRICS_PATH || '/app/runtime/game_metrics.json';
 const LOG_DIR = process.env.OXIDE_LOG_DIR || '/app/runtime/logs';
+const DEFAULT_WEB_BACKEND = process.env.OXIDE_DEFAULT_WEB_BACKEND || '';
 const METRICS_WINDOW_MS = Math.max(3000, Number(process.env.OXIDE_METRICS_WINDOW_MS || 6000));
 const metricsSamples = [];
 
@@ -74,6 +75,7 @@ async function syncDockerGameServers() {
             configObj = yaml.load(fs.readFileSync(CONFIG_PATH, 'utf8')) || {};
         }
         configObj = migrateConfigToV2(configObj);
+        if (DEFAULT_WEB_BACKEND) configObj.routing.default_web_backend = DEFAULT_WEB_BACKEND;
         const manualRoutes = (configObj.routing.game_servers || [])
             .filter(route => !String(route.name || '').startsWith('auto:'));
         const nextRoutes = manualRoutes.concat(managedRoutes.map(route => ({
