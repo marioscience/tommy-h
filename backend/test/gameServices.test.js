@@ -5,7 +5,7 @@ import { GameFactory } from '../src/services/games/GameFactory.js';
 import { BaseGameService, normalizeSharedDataPermissions } from '../src/services/games/BaseGameService.js';
 import { FiveMService, fivemService } from '../src/services/games/fivem.js';
 import { RustGameService, rustGameService } from '../src/services/games/rust.js';
-import { MinecraftService, minecraftService, normalizeMinecraftIdentity } from '../src/services/games/minecraft.js';
+import { MinecraftService, minecraftService, normalizeMinecraftIdentity, resolveMinecraftIdentity } from '../src/services/games/minecraft.js';
 import { config } from '../src/config.js';
 
 describe('🏭 GameFactory & OOP Architecture Tests (Módulo 3 & 4)', () => {
@@ -69,6 +69,18 @@ describe('🏭 GameFactory & OOP Architecture Tests (Módulo 3 & 4)', () => {
         assert.throws(
             () => normalizeMinecraftIdentity('LATEST', 'PAPER'),
             /versión de Minecraft debe ser explícita/
+        );
+    });
+
+    it('conserva la identidad al reiniciar y sustituye una identidad de un servidor eliminado', () => {
+        const locked = { version: '1.21.4', type: 'PAPER', serverId: 'old-id' };
+        assert.deepEqual(
+            resolveMinecraftIdentity({ version: '1.21.4', type: 'FORGE' }, locked, 'old-id'),
+            { version: '1.21.4', type: 'PAPER' }
+        );
+        assert.deepEqual(
+            resolveMinecraftIdentity({ version: '1.21.4', type: 'FORGE' }, locked, 'new-id'),
+            { version: '1.21.4', type: 'FORGE' }
         );
     });
 

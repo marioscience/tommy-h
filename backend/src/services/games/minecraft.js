@@ -26,6 +26,19 @@ export function normalizeMinecraftIdentity(version, type) {
     return { version: normalizedVersion, type: normalizedType };
 }
 
+export function resolveMinecraftIdentity(requested, locked, serverId) {
+    const requestedIdentity = normalizeMinecraftIdentity(requested.version, requested.type);
+    if (!locked || typeof locked !== 'object') return requestedIdentity;
+
+    const lockedIdentity = normalizeMinecraftIdentity(locked.version, locked.type);
+    const sameServer = locked.serverId
+        ? String(locked.serverId) === String(serverId)
+        : lockedIdentity.version === requestedIdentity.version
+            && lockedIdentity.type === requestedIdentity.type;
+
+    return sameServer ? lockedIdentity : requestedIdentity;
+}
+
 /**
  * ⛏️ MinecraftService (Módulo 3: POO & Herencia)
  */
@@ -88,13 +101,14 @@ export class MinecraftService extends BaseGameService {
 
     async createContainer(opts) {
         const identityPath = `${opts.dataPath}/${MINECRAFT_IDENTITY_FILE}`;
-        let identity = normalizeMinecraftIdentity(opts.mcVersion, opts.mcType);
+        const requestedIdentity = normalizeMinecraftIdentity(opts.mcVersion, opts.mcType);
+        let identity = requestedIdentity;
         try {
             const result = await runRemoteCommand(opts.nodeId || 0, sh`cat ${identityPath}`);
             if (result && typeof result.stdout === 'string' && result.stdout.trim()) {
                 const locked = JSON.parse(result.stdout);
-                identity = normalizeMinecraftIdentity(locked.version, locked.type);
-                if (identity.version !== String(opts.mcVersion) || identity.type !== String(opts.mcType).toUpperCase()) {
+                identity = resolveMinecraftIdentity(requestedIdentity, locked, opts.serverId);
+                if (identity.version !== requestedIdentity.version || identity.type !== requestedIdentity.type) {
                     console.warn(
                         `[Minecraft] Se ignoró un cambio de identidad para ${opts.containerName}; ` +
                         `se conserva ${identity.type} ${identity.version}.`
@@ -113,6 +127,7 @@ export class MinecraftService extends BaseGameService {
         const serializedIdentity = JSON.stringify({
             version: identity.version,
             type: identity.type,
+            serverId: opts.serverId,
             locked: true
         });
         await runRemoteCommand(opts.nodeId || 0, sh`printf '%s' ${serializedIdentity} > ${identityPath}`);
