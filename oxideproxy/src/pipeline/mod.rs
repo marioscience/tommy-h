@@ -15,6 +15,78 @@ use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::{TcpStream, UdpSocket};
 
+fn tls_client_hello_sni(buffer: &[u8]) -> Option<String> {
+    if buffer.len() < 9 || buffer[0] != 0x16 || buffer[5] != 0x01 {
+        return None;
+    }
+    let mut cursor = 9usize;
+    cursor = cursor.checked_add(2 + 32)?;
+    let session_len = *buffer.get(cursor)? as usize;
+    cursor = cursor.checked_add(1 + session_len)?;
+    let cipher_len = u16::from_be_bytes([*buffer.get(cursor)?, *buffer.get(cursor + 1)?]) as usize;
+    cursor = cursor.checked_add(2 + cipher_len)?;
+    let compression_len = *buffer.get(cursor)? as usize;
+    cursor = cursor.checked_add(1 + compression_len)?;
+    let extensions_len = u16::from_be_bytes([*buffer.get(cursor)?, *buffer.get(cursor + 1)?]) as usize;
+    cursor += 2;
+    let extensions_end = cursor.checked_add(extensions_len)?.min(buffer.len());
+
+    while cursor.checked_add(4)? <= extensions_end {
+        let extension_type = u16::from_be_bytes([buffer[cursor], buffer[cursor + 1]]);
+        let extension_len = u16::from_be_bytes([buffer[cursor + 2], buffer[cursor + 3]]) as usize;
+        cursor += 4;
+        let extension_end = cursor.checked_add(extension_len)?;
+        if extension_end > extensions_end {
+            return None;
+        }
+        if extension_type == 0 {
+            let mut name_cursor = cursor.checked_add(2)?;
+            while name_cursor.checked_add(3)? <= extension_end {
+                let name_type = buffer[name_cursor];
+                let name_len = u16::from_be_bytes([
+                    buffer[name_cursor + 1],
+                    buffer[name_cursor + 2],
+                ]) as usize;
+                name_cursor += 3;
+                let name_end = name_cursor.checked_add(name_len)?;
+                if name_end > extension_end {
+                    return None;
+                }
+                if name_type == 0 {
+                    return std::str::from_utf8(&buffer[name_cursor..name_end])
+                        .ok()
+                        .map(|name| name.trim_end_matches('.').to_ascii_lowercase());
+                }
+                name_cursor = name_end;
+            }
+            return None;
+        }
+        cursor = extension_end;
+    }
+    None
+}
+
+fn staging_tls_passthrough(buffer: &[u8]) -> Option<String> {
+    if std::env::var("STAGING_MODE")
+        .is_ok_and(|value| value.trim().eq_ignore_ascii_case("true"))
+    {
+        return None;
+    }
+    let upstream = std::env::var("STAGING_TLS_UPSTREAM").ok()?;
+    let upstream = upstream.trim();
+    upstream.parse::<SocketAddr>().ok()?;
+    let requested_sni = tls_client_hello_sni(buffer)?;
+    let domains = std::env::var("STAGING_TLS_DOMAINS")
+        .or_else(|_| std::env::var("STAGING_DOMAINS"))
+        .unwrap_or_else(|_| "ragenodes.dev".to_string());
+    let matches_staging = domains.split(',').any(|domain| {
+        let domain = domain.trim().trim_start_matches("*.").trim_end_matches('.').to_ascii_lowercase();
+        !domain.is_empty()
+            && (requested_sni == domain || requested_sni.ends_with(&format!(".{domain}")))
+    });
+    matches_staging.then(|| upstream.to_string())
+}
+
 pub struct RewindStream<S> {
     pub stream: S,
     pub buffer: Option<Bytes>,
@@ -74,23 +146,8 @@ pub async fn process_tcp_stream(
         .peer_addr()
         .unwrap_or_else(|_| "0.0.0.0:0".parse().unwrap());
 
-    if let Ok((_remaining, packet)) = parse_game_packet(&buffer) {
-        tracing::info!(
-            "Paquete Gaming TCP detectado en Ingress. GameID: {}, Payload Len: {}",
-            packet.game_id,
-            packet.payload_len
-        );
-
-        if let Some(backend_addr) = config.routing.game_servers_map.get(&packet.game_id) {
-            tracing::debug!(
-                "Enrutando flujo de juego TCP directamente a backend: {}",
-                backend_addr
-            );
-            forward_tcp(stream, buffer, backend_addr).await;
-            return;
-        }
-    }
-
+    // Los listeners dedicados de juegos son L4 transparentes. Esta decisión debe
+    // ocurrir antes de cualquier inspección TLS para no transformar TCP nativo.
     if let Some(backend_addr) = specific_backend {
         tracing::debug!(
             "Enrutando flujo TCP en crudo (Transparent Proxy) hacia backend especifico: {}",
@@ -101,6 +158,14 @@ pub async fn process_tcp_stream(
     }
 
     if !buffer.is_empty() && buffer[0] == 0x16 {
+        if let Some(staging_upstream) = staging_tls_passthrough(&buffer) {
+            tracing::info!(
+                "Reenviando TLS de staging por SNI hacia {} sin terminarlo en producción",
+                staging_upstream
+            );
+            forward_tcp(stream, buffer, &staging_upstream).await;
+            return;
+        }
         tracing::debug!(
             "Flujo TCP identificado como TLS ClientHello. Evaluando terminacion TLS..."
         );
@@ -120,9 +185,38 @@ pub async fn process_tcp_stream(
             Ok(None) => {
                 tracing::debug!("Validación ACME TLS-ALPN-01 atendida correctamente");
             }
-            Err(e) => tracing::error!("Fallo en handshake TLS: {}", e),
+            Err(e) => {
+                let message = e.to_string();
+                if message.contains("SNI no autorizado")
+                    || message.contains("peer is incompatible")
+                    || message.contains("Connection reset by peer")
+                {
+                    tracing::debug!("Handshake TLS externo rechazado: {}", message);
+                } else {
+                    tracing::warn!("Fallo en handshake TLS: {}", message);
+                }
+            }
         }
         return;
+    }
+
+    // Solo el ingress compartido no-TLS interpreta la cabecera propietaria.
+    // Un ClientHello comienza por 0x16; analizarlo antes producía el GameID
+    // ficticio 0x1603 (5635) en la telemetría.
+    if let Ok((_remaining, packet)) = parse_game_packet(&buffer) {
+        if let Some(backend_addr) = config.routing.game_servers_map.get(&packet.game_id) {
+            tracing::info!(
+                "Paquete Gaming TCP reconocido. GameID: {}, Payload Len: {}",
+                packet.game_id,
+                packet.payload_len
+            );
+            tracing::debug!(
+                "Enrutando flujo de juego TCP directamente a backend: {}",
+                backend_addr
+            );
+            forward_tcp(stream, buffer, backend_addr).await;
+            return;
+        }
     }
 
     if !is_http_ingress {
@@ -150,6 +244,50 @@ pub async fn process_tcp_stream(
         buffer: Some(buffer.freeze()),
     };
     serve_http_connection(rewind_stream, config, peer_addr, ban_tx, false).await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{staging_tls_passthrough, tls_client_hello_sni};
+
+    fn client_hello_for(host: &str) -> Vec<u8> {
+        let name = host.as_bytes();
+        let server_name_len = 1 + 2 + name.len();
+        let extension_len = 2 + server_name_len;
+        let extensions_len = 4 + extension_len;
+        let handshake_len = 2 + 32 + 1 + 2 + 2 + 1 + 1 + 2 + extensions_len;
+        let record_len = 4 + handshake_len;
+        let mut hello = vec![0x16, 0x03, 0x03, (record_len >> 8) as u8, record_len as u8];
+        hello.extend([0x01, 0, 0, handshake_len as u8, 0x03, 0x03]);
+        hello.extend([0u8; 32]);
+        hello.extend([0, 0, 2, 0x13, 0x01, 1, 0, 0, extensions_len as u8]);
+        hello.extend([0, 0, 0, extension_len as u8, 0, server_name_len as u8, 0, 0, name.len() as u8]);
+        hello.extend(name);
+        hello
+    }
+
+    #[test]
+    fn extracts_sni_from_a_tls_client_hello() {
+        assert_eq!(
+            tls_client_hello_sni(&client_hello_for("tx41120.ragenodes.dev")),
+            Some("tx41120.ragenodes.dev".to_string())
+        );
+    }
+
+    #[test]
+    fn passthrough_matches_dynamic_staging_subdomains_only() {
+        std::env::set_var("STAGING_MODE", "false");
+        std::env::set_var("STAGING_TLS_UPSTREAM", "192.168.1.106:443");
+        std::env::set_var("STAGING_TLS_DOMAINS", "ragenodes.dev");
+        assert_eq!(
+            staging_tls_passthrough(&client_hello_for("tx41120.ragenodes.dev")),
+            Some("192.168.1.106:443".to_string())
+        );
+        assert_eq!(
+            staging_tls_passthrough(&client_hello_for("tx40120.ragenodes.app")),
+            None
+        );
+    }
 }
 
 pub async fn process_udp_packet_inline(

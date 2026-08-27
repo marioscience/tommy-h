@@ -33,6 +33,7 @@ let currentConfig = null;
 let chartThroughput = null;
 let chartPps = null;
 let chartSystem = null;
+let liveLogsRequest = null;
 
 const MAX_CHART_POINTS = 15;
 const timeLabels = [];
@@ -41,8 +42,8 @@ const timeLabels = [];
 const dataThroughput = {
     labels: timeLabels,
     datasets: [
-        { label: 'Ingress (Mbps)', borderColor: '#00f0ff', backgroundColor: 'rgba(0, 240, 255, 0.1)', data: [], fill: true, tension: 0.4 },
-        { label: 'Egress (Mbps)', borderColor: '#00ff88', backgroundColor: 'rgba(0, 255, 136, 0.1)', data: [], fill: true, tension: 0.4 }
+        { label: 'Ingress (Mbps)', yAxisID: 'yIngress', borderColor: '#00f0ff', backgroundColor: 'rgba(0, 240, 255, 0.1)', data: [], fill: true, tension: 0.4 },
+        { label: 'Egress (Mbps)', yAxisID: 'yEgress', borderColor: '#00ff88', backgroundColor: 'rgba(0, 255, 136, 0.1)', data: [], fill: true, tension: 0.4 }
     ]
 };
 
@@ -50,14 +51,14 @@ const dataPps = {
     labels: timeLabels,
     datasets: [
         { label: 'UDP (PPS - ZeroCopy)', borderColor: '#00ff88', backgroundColor: 'rgba(0, 255, 136, 0.1)', data: [], fill: true, tension: 0.4 },
-        { label: 'TCP (PPS)', borderColor: '#a855f7', backgroundColor: 'rgba(168, 85, 247, 0.1)', data: [], fill: true, tension: 0.4 }
+        { label: 'TCP (lecturas/s)', borderColor: '#a855f7', backgroundColor: 'rgba(168, 85, 247, 0.1)', data: [], fill: true, tension: 0.4 }
     ]
 };
 
 const dataSystem = {
     labels: timeLabels,
     datasets: [
-        { label: 'eBPF Dropped (PPS)', borderColor: '#ff3366', backgroundColor: 'rgba(255, 51, 102, 0.1)', data: [], fill: true, tension: 0.4 },
+        { label: 'Bloqueado L4 (PPS)', borderColor: '#ff3366', backgroundColor: 'rgba(255, 51, 102, 0.1)', data: [], fill: true, tension: 0.4 },
         { label: 'RAM Usada (%)', borderColor: '#ffbb00', backgroundColor: 'rgba(255, 187, 0, 0.1)', data: [], fill: true, tension: 0.4 }
     ]
 };
@@ -158,16 +159,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function createChart(ctxId, dataObj) {
     const ctx = document.getElementById(ctxId).getContext('2d');
+    const scales = {
+        x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8' } },
+        y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8' } }
+    };
+    if (ctxId === 'chartThroughput') {
+        delete scales.y;
+        scales.yIngress = {
+            type: 'linear', position: 'left', beginAtZero: true,
+            grid: { color: 'rgba(0, 240, 255, 0.08)' },
+            ticks: { color: '#00f0ff' }
+        };
+        scales.yEgress = {
+            type: 'linear', position: 'right', beginAtZero: true,
+            grid: { drawOnChartArea: false },
+            ticks: { color: '#00ff88' }
+        };
+    }
     return new Chart(ctx, {
         type: 'line',
         data: dataObj,
         options: {
             responsive: true, maintainAspectRatio: false,
             plugins: { legend: { labels: { color: '#94a3b8', font: { family: 'Inter', weight: 500 } } } },
-            scales: {
-                x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8' } },
-                y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8' } }
-            }
+            scales
         }
     });
 }
@@ -195,7 +210,10 @@ async function fetchAdvancedMetrics() {
         document.getElementById('stat-ebpf-mode').innerText = `Modo: ${data.proxy_analytics.ebpf_mitigation.mode}`;
         
         document.getElementById('stat-total-pps').innerText = `${data.proxy_analytics.throughput.total_pps.toLocaleString()} PPS`;
-        document.getElementById('stat-bandwidth').innerText = `${data.proxy_analytics.throughput.ingress_mbps} Mbps Ingress`;
+        const ingressMbps = Number(data.proxy_analytics.throughput.ingress_mbps || 0);
+        document.getElementById('stat-bandwidth').innerText = ingressMbps > 0 && ingressMbps < 1
+            ? `${(ingressMbps * 1000).toFixed(2)} Kbps Ingress`
+            : `${ingressMbps.toFixed(2)} Mbps Ingress`;
 
         document.getElementById('stat-sys-load').innerText = `${data.system.memory.usage_pct}% RAM`;
         document.getElementById('stat-cpu-cores').innerText = `Cores: ${data.system.cpu_cores} (${data.system.cpu_model.substring(0, 18)}...)`;
@@ -284,7 +302,7 @@ function populateConfigUI() {
     document.getElementById('udp-addr').value = currentConfig.ingress.udp_listen_addr || "0.0.0.0:8080";
     document.getElementById('max-conn').value = currentConfig.ingress.max_concurrent_connections || 1000000;
     document.getElementById('buf-size').value = currentConfig.ingress.initial_buffer_size || 4096;
-    document.getElementById('web-backend').value = currentConfig.routing.default_web_backend || "10.5.0.12:80";
+    document.getElementById('web-backend').value = currentConfig.routing.default_web_backend || "frontend:80";
 
     // Advanced Tuning
     if (currentConfig.advanced_tuning) {
@@ -325,7 +343,7 @@ function renderRoutesTable() {
     if (filterSelect) {
         filterSelect.innerHTML = `
             <option value="ALL">Mostrar Todos (ALL)</option>
-            <option value="SYS">Sistema / eBPF (SYS)</option>
+            <option value="SYS">Sistema / Mitigación L4 (SYS)</option>
         `;
     }
 
@@ -616,10 +634,26 @@ function closeServerChartModal() {
 
 async function fetchLiveLogs(force = false) {
     if (consolePaused && !force) return;
+    if (liveLogsRequest && !force) return;
+
+    if (liveLogsRequest && force) {
+        liveLogsRequest.abort();
+    }
+
+    const controller = new AbortController();
+    liveLogsRequest = controller;
+    const timeout = setTimeout(() => controller.abort(), 5000);
     try {
-        const res = await authFetch(`/api/oxide/logs?game_id=${currentLogFilter}`);
+        const res = await authFetch(`/api/oxide/logs?game_id=${encodeURIComponent(currentLogFilter)}`, {
+            signal: controller.signal,
+            cache: 'no-store'
+        });
+        if (!res.ok) {
+            if (res.status === 401 || res.status === 403) console.warn('La sesión del panel ya no permite consultar los logs.');
+            return;
+        }
         const data = await res.json();
-        if (!data.logs) return;
+        if (!Array.isArray(data.logs)) return;
 
         const consoleBody = document.getElementById('log-console-body');
         if (!consoleBody) return;
@@ -641,7 +675,12 @@ async function fetchLiveLogs(force = false) {
 
         consoleBody.scrollTop = consoleBody.scrollHeight;
     } catch(e) {
-        console.error('Error fetching logs:', e);
+        if (e.name !== 'AbortError') {
+            console.warn('La consola en vivo se reconectará automáticamente.');
+        }
+    } finally {
+        clearTimeout(timeout);
+        if (liveLogsRequest === controller) liveLogsRequest = null;
     }
 }
 

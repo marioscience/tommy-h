@@ -73,6 +73,7 @@ services:
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     group_add:
       - "${DOCKER_GID:-1000}"
+      - "${GAME_DATA_GID:-1000}"
     env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       PUBLIC_ENDPOINT_HOST: ${PUBLIC_ENDPOINT_HOST:-ragenodes.app}
@@ -119,6 +120,7 @@ services:
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     group_add:
       - "${DOCKER_GID:-1000}"
+      - "${GAME_DATA_GID:-1000}"
     env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       - RAGENODES_ROLE=worker-backups
@@ -156,6 +158,7 @@ services:
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     group_add:
       - "${DOCKER_GID:-1000}"
+      - "${GAME_DATA_GID:-1000}"
     env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       - RAGENODES_ROLE=worker-docker-events
@@ -194,6 +197,7 @@ services:
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     group_add:
       - "${DOCKER_GID:-1000}"
+      - "${GAME_DATA_GID:-1000}"
     env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       - RAGENODES_ROLE=worker-stats
@@ -233,15 +237,21 @@ services:
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     environment:
       BACKEND_URL: http://backend:3006
-      CONFIG_PATH: /app/rust_config/oxide_proxy.yml
+      CONFIG_PATH: /app/game_config/oxide_proxy.yml
+      OXIDE_LOG_DIR: /app/runtime/logs
+      OXIDE_METRICS_PATH: /app/runtime/game_metrics.json
+      OXIDE_DEFAULT_WEB_BACKEND: 127.0.0.1:3010
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+      OXIDE_ROUTE_API_KEY: ${DISCORD_API_KEY:?Set DISCORD_API_KEY}
     networks:
       - ragenodes_net
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
       - ./oxideproxy/config:/app/rust_config
+      - ./oxideproxy/game_config:/app/game_config
       - ./frontend/public/vendor:/app/public/vendor:ro
+      - oxide_game_runtime_data:/app/runtime:ro
     depends_on:
       backend:
         condition: service_healthy
@@ -259,6 +269,33 @@ services:
       - no-new-privileges:true
     cap_drop: [ALL]
     cpu_shares: 256
+
+  oxide_game:
+    build:
+      context: ./oxideproxy
+    image: ragenodes/oxideproxy:1.0.0-local
+    restart: unless-stopped
+    user: "65532:65532"
+    network_mode: host
+    environment:
+      - OXIDE_LOG_DIR=/app/runtime/logs
+      - OXIDE_METRICS_PATH=/app/runtime/game_metrics.json
+      - OXIDE_CONFIG_PATH=/app/game_config/oxide_proxy.yml
+      - OXIDE_EXIT_ON_CONFIG_CHANGE=true
+    volumes:
+      - ./oxideproxy/game_config:/app/game_config:ro
+      - oxide_game_runtime_data:/app/runtime
+    depends_on:
+      backend:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cpu_shares: 1024
 
   oxide_web:
     build:
@@ -278,6 +315,8 @@ services:
       - STAGING_MODE=${STAGING_MODE:-false}
       - STAGING_UPSTREAM=${STAGING_UPSTREAM:-}
       - STAGING_DOMAINS=${STAGING_DOMAINS:-ragenodes.dev,panel.ragenodes.dev}
+      - STAGING_TLS_UPSTREAM=${STAGING_TLS_UPSTREAM:-}
+      - STAGING_TLS_DOMAINS=${STAGING_TLS_DOMAINS:-ragenodes.dev}
       - OXIDE_ACME_ENABLED=${OXIDE_ACME_ENABLED:-false}
       - OXIDE_ACME_DOMAINS=${OXIDE_ACME_DOMAINS:-}
       - OXIDE_ACME_EMAIL=${OXIDE_ACME_EMAIL:-}
@@ -373,3 +412,4 @@ volumes:
   query_cache_data:
   oxide_acme_data:
   oxide_runtime_data:
+  oxide_game_runtime_data:

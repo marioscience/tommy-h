@@ -16,7 +16,7 @@ const [panelHtml, bindingsSource, commonSource, panelSource, minecraftPartial] =
 
 assert.match(
   panelHtml,
-  /js\/panel\.js\?v=2026082601/,
+  /js\/panel\.js\?v=2026082602/,
   'panel.html debe invalidar la cache cuando cambia panel.js'
 );
 

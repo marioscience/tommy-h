@@ -12,7 +12,7 @@
     <img src="https://img.shields.io/badge/Node.js-24.x-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js" />
     <img src="https://img.shields.io/badge/Rust-OxideProxy-DEA584?style=for-the-badge&logo=rust&logoColor=black" alt="Rust" />
     <img src="https://img.shields.io/badge/Docker-Rootless-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
-    <img src="https://img.shields.io/badge/PostgreSQL-15-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+    <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
     <img src="https://img.shields.io/badge/Redis-Cache-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
   </p>
 </div>
@@ -36,6 +36,13 @@ Whether deploying a large FiveM roleplay community or a multi-node cluster for R
 - **🐳 Hardened Docker Architecture:** Automated non-root execution (`1000:1000`), minimal capability allowlist, fail-fast volume validations, and Distroless base images.
 - **📊 Real-Time Telemetry & iFrame Auth:** Live CPU, memory heap, and I/O metrics streaming over WebSockets, with JWT token auto-propagation (`authFetch`).
 - **🩺 Production & Staging Diagnostics:** Native `/healthz`, `/readyz` probes, and an adaptive hardware test suite (`stagingHealthTestRunner.js`) generating PDF/HTML diagnostic reports.
+- **📦 Master Image Cache:** FiveM and Blender masters are version-aware, archived locally, refreshed by a hardened systemd timer, and reused by subsequent deployments. Digest-pinned game images are prefetched without replacing active customer containers.
+
+### Game ingress rollout
+
+OxideProxy can act as the public TCP/UDP ingress for newly deployed **Minecraft, FiveM game traffic, and Rust** instances. Public ports are owned by the dedicated, host-networked `oxide_game` service, while game containers bind their shifted backend ports to loopback only. Route inventory is generated from authenticated database and Docker state, written atomically, and reloaded automatically. Existing direct-published containers remain compatible and must be migrated individually; txAdmin and other web panels continue through the HTTPS L7 proxy. Set `OXIDE_GAME_PROXY_ENABLED=true` only after the dedicated ingress service is healthy.
+
+Minecraft deployments pin the requested edition and version in the server data directory. Automatic healing therefore recreates the same runtime instead of silently upgrading it, and hosted servers remain active while empty so proxy handshakes and paused clients are not disconnected.
 
 ---
 
@@ -82,6 +89,8 @@ git checkout -b feat/my-feature
 
 # 3. Configure the Linux local-development environment
 cp .env.local.example .env
+# Materialize the absolute local paths; the safe dotenv loader never evaluates shell expressions.
+sed -i "s|\${HOME}|$HOME|g" .env
 mkdir -p "$HOME/.local/share/ragenodes-ultimate/data/templates" \
   "$HOME/.local/share/ragenodes-ultimate/backups"
 ```
@@ -95,7 +104,7 @@ npm install
 # Run database migrations
 npm run db:migrate
 
-# Run automated test suite (23 unit tests across 7 suites in ~1s)
+# Run the current backend suite (46 tests across 10 suites)
 npm test
 cd ..
 ```
@@ -138,7 +147,29 @@ flowchart LR
 
 ## 🌐 Direct Public Endpoints
 
-The platform exposes OxideProxy and game ports directly, without a tunnel provider. Configure `PROXY_BIND_IP`, `PUBLIC_ENDPOINT_HOST`, and `PUBLIC_ENDPOINT_SCHEME` for each environment. txAdmin URLs are generated from the public host and assigned port, while DNS and TLS remain infrastructure responsibilities outside the application.
+The platform exposes OxideProxy and game ports directly, without a tunnel provider. Game traffic remains transparent TCP/UDP; web panels and embedded tools use HTTPS. txAdmin URLs are generated from the public host and assigned port.
+
+When staging sits behind the production edge, production must set `STAGING_UPSTREAM` for HTTP and `STAGING_TLS_UPSTREAM` for raw TLS passthrough. `STAGING_TLS_DOMAINS` limits SNI forwarding to the staging zone, so dynamic hosts such as `tx41120.ragenodes.dev` retain staging's certificate and access gate without weakening production TLS.
+
+TLS passthrough does not create certificates. The staging edge must therefore have a publicly trusted certificate for every name listed in `OXIDE_ACME_DOMAINS`, or use a wildcard certificate provisioned through DNS-01. Never expose the embedded self-signed development certificate on a public endpoint.
+
+| Environment | Public endpoint | Docker policy | Data and ports |
+|---|---|---|---|
+| Local | `http://localhost:8088` | Rootful exception permitted only in development | Developer-owned paths and local ports |
+| Staging | `https://panel.ragenodes.dev` | Isolated runtime socket and `STAGING_PORT_BASE_OFFSET` | Separate databases, volumes, networks and `.dev` endpoints |
+| Production | `https://ragenodes.com` / `.app` tools | Rootless socket required by preflight | Production-only volumes and unshifted port bands |
+
+The GitLab pipeline validates tests, security contracts, dependencies, Rust and Compose. It does **not** deploy automatically: promotion remains `feature -> dev -> staging -> main`, followed by the environment's reviewed deployment command.
+
+### Master image refresh
+
+```bash
+# Safe manual refresh; active customer containers are not recreated
+./scripts/update_image_cache.sh
+
+# Verify the scheduled refresh
+systemctl status ragenodes-image-cache.timer
+```
 
 ---
 
@@ -213,6 +244,9 @@ Ya sea para desplegar una comunidad masiva de FiveM o un clúster multi-nodo par
 - **🐳 Blindaje de Docker:** Ejecución rootless (`1000:1000`), lista de capacidades mínimas, validación fail-fast de volúmenes e imágenes Distroless.
 - **📊 Telemetría en Tiempo Real e iframe Autenticado:** Métricas de CPU, memoria heap e I/O transmitidas por WebSockets, con auto-propagación de tokens JWT (`authFetch`).
 - **🩺 Diagnóstico Adaptativo de Salud:** Sondas nativas `/healthz`, `/readyz` y runner adaptativo en Staging (`stagingHealthTestRunner.js`) con generación de reportes PDF/HTML.
+- **📦 Caché Maestra de Imágenes:** FiveM y Blender se actualizan por versión, se archivan localmente y se reutilizan. Las imágenes fijadas por digest se precargan sin reemplazar contenedores activos de clientes.
+
+Los despliegues de Minecraft fijan en el directorio de datos la edición y versión solicitadas. El auto-curado recrea exactamente ese runtime, sin actualizarlo de forma silenciosa, y los servidores alojados permanecen activos aunque estén vacíos para no interrumpir handshakes del proxy ni clientes en pausa.
 
 ---
 
@@ -259,6 +293,8 @@ git checkout -b feat/mi-caracteristica
 
 # 3. Configurar el entorno de desarrollo local en Linux
 cp .env.local.example .env
+# Convertir las rutas locales a absolutas; el lector seguro de dotenv no evalúa expresiones shell.
+sed -i "s|\${HOME}|$HOME|g" .env
 mkdir -p "$HOME/.local/share/ragenodes-ultimate/data/templates" \
   "$HOME/.local/share/ragenodes-ultimate/backups"
 ```
@@ -272,7 +308,7 @@ npm install
 # Ejecutar migraciones de base de datos
 npm run db:migrate
 
-# Ejecutar las 22 pruebas unitarias automatizadas
+# Ejecutar la suite actual: 46 pruebas en 10 suites
 npm test
 cd ..
 ```
@@ -318,7 +354,36 @@ flowchart LR
 
 ## 🌐 Endpoints Públicos Directos
 
-La plataforma expone OxideProxy y los puertos de juego directamente, sin depender de un proveedor de túneles. Cada entorno configura `PROXY_BIND_IP`, `PUBLIC_ENDPOINT_HOST` y `PUBLIC_ENDPOINT_SCHEME`. Las URLs de txAdmin se construyen con el host público y el puerto asignado; DNS y TLS quedan a cargo de la infraestructura externa a la aplicación.
+La plataforma expone OxideProxy y los puertos de juego directamente, sin depender de túneles. El tráfico de juego permanece TCP/UDP transparente; los paneles web e iframes usan HTTPS. Las URLs de txAdmin se construyen con el host público y el puerto asignado.
+
+Cuando staging está detrás del borde de producción, producción configura `STAGING_UPSTREAM` para HTTP y `STAGING_TLS_UPSTREAM` para passthrough TLS en crudo. `STAGING_TLS_DOMAINS` restringe el reenvío SNI a la zona de preproducción, permitiendo subdominios dinámicos como `tx41120.ragenodes.dev` sin compartir claves privadas ni debilitar TLS.
+
+El passthrough TLS no genera certificados. El borde de staging debe disponer de un certificado público válido para cada nombre de `OXIDE_ACME_DOMAINS`, o de un certificado wildcard emitido mediante DNS-01. El certificado autofirmado incluido para desarrollo nunca debe exponerse públicamente.
+
+| Entorno | Endpoint público | Política Docker | Aislamiento |
+|---|---|---|---|
+| Local | `http://localhost:8088` | Excepción rootful permitida solo en desarrollo | Rutas y puertos del desarrollador |
+| Staging | `https://panel.ragenodes.dev` | Socket aislado y `STAGING_PORT_BASE_OFFSET` | Bases de datos, volúmenes, redes y dominios `.dev` separados |
+| Producción | `https://ragenodes.com` / herramientas `.app` | El preflight exige Docker rootless | Volúmenes productivos y bandas de puertos sin desplazamiento |
+
+Si el plano de control se ejecuta con Docker rootful y los juegos con Docker
+rootless, los datos de juego aparecen en el host con un GID remapeado. Configura
+`GAME_DATA_GID` para producción y `STAGING_GAME_DATA_GID` para staging con el
+GID que devuelve `stat -c '%g'` sobre un directorio de instancia. Mantener ambos
+valores separados evita que el gestor de archivos y los editores de configuración
+pierdan acceso, sin ampliar permisos ni mezclar datos entre entornos.
+
+El pipeline de GitLab valida pruebas, contratos de seguridad, dependencias, Rust y Compose. Actualmente **no despliega automáticamente**: la promoción sigue `feature -> dev -> staging -> main` y después se ejecuta el despliegue revisado del entorno.
+
+### Actualización de imágenes maestras
+
+```bash
+# Actualización manual segura; no recrea contenedores activos de clientes
+./scripts/update_image_cache.sh
+
+# Comprobar la actualización programada
+systemctl status ragenodes-image-cache.timer
+```
 
 ---
 

@@ -2,12 +2,12 @@
 set -Eeuo pipefail
 
 [ -f .env ] || { echo "ERROR: falta .env" >&2; exit 1; }
-PREFLIGHT_INSTANCE_DATA_ROOT="${STAGING_INSTANCE_DATA_ROOT:-/srv/ragenodes-staging-data}" \
-  bash ./scripts/security/production_preflight.sh
-
 # shellcheck disable=SC1091
 source ./scripts/load_env.sh
 load_env_file "${RAGENODES_ENV_FILE:-.env}"
+
+PREFLIGHT_INSTANCE_DATA_ROOT="${STAGING_INSTANCE_DATA_ROOT:-/srv/ragenodes-staging-data}" \
+  bash ./scripts/security/production_preflight.sh
 
 STAGING_DATA_ROOT="${STAGING_INSTANCE_DATA_ROOT:-/srv/ragenodes-staging-data}"
 mkdir -p "$STAGING_DATA_ROOT/templates"
@@ -15,7 +15,9 @@ mkdir -p "$STAGING_DATA_ROOT/templates"
 APP_SERVICES=(
   backend-staging
   worker-docker-events-staging
+  worker-stats-staging
   oxide_control_panel
+  oxide_game_staging
   oxide_web_staging
 )
 
@@ -66,6 +68,7 @@ docker compose -f docker-compose.staging.yml up -d --no-deps "${APP_SERVICES[@]}
 
 wait_for_service backend-staging 90
 wait_for_service oxide_control_panel 60
+wait_for_service oxide_game_staging 60
 wait_for_service oxide_web_staging 60
 wait_for_http http://127.0.0.1:3011/healthz 90
 wait_for_http http://127.0.0.1:3011/readyz 90

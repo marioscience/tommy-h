@@ -33,4 +33,13 @@ assert.ok(loader.indexOf('resizeBlenderFrame()') < loader.indexOf('iframe.src = 
 assert.match(panelJs, /else if \(savedBlenderUrl\) \{[\s\S]*?loadBlenderFrame\(savedBlenderUrl\)/);
 assert.match(panelJs, /function confirmBlenderAuth\(\) \{[\s\S]*?loadBlenderFrame\(blenderPendingUrl\)/);
 
+const toggleStart = panelJs.indexOf('async function toggleBlender(event, id, action)');
+const toggleEnd = panelJs.indexOf('let blenderPendingUrl', toggleStart);
+assert.ok(toggleStart >= 0 && toggleEnd > toggleStart, 'Falta toggleBlender');
+const toggle = panelJs.slice(toggleStart, toggleEnd);
+assert.ok(toggle.includes("event.target.closest('button')"),
+  'El cierre debe resolver el botón real cuando el evento está delegado');
+assert.ok(!toggle.includes('event.currentTarget'),
+  'El cierre no debe usar document como botón en eventos delegados');
+
 console.log('Blender viewport contract: OK');

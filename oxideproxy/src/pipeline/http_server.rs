@@ -186,8 +186,37 @@ fn frame_ancestors_policy() -> String {
     if origins.is_empty() {
         "'none'".to_string()
     } else {
-        origins.join(" ")
+        // txAdmin y otras aplicaciones proxificadas pueden crear iframes
+        // internos bajo el mismo host. CSP comprueba toda la cadena de
+        // ancestros, por lo que el propio origen debe estar permitido junto
+        // a los paneles externos enumerados explícitamente.
+        format!("'self' {}", origins.join(" "))
     }
+}
+
+fn access_gate_csp(domain: Option<&str>) -> String {
+    let panel_origin = domain
+        .map(str::trim)
+        .map(|value| value.trim_end_matches('.'))
+        .filter(|value| {
+            value.contains('.')
+                && value.len() <= 253
+                && value.split('.').all(|label| {
+                    !label.is_empty()
+                        && label.len() <= 63
+                        && !label.starts_with('-')
+                        && !label.ends_with('-')
+                        && label
+                            .bytes()
+                            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+                })
+        })
+        .map(|value| format!(" https://panel.{value}"))
+        .unwrap_or_default();
+
+    format!(
+        "default-src 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'{panel_origin}; style-src 'unsafe-inline'"
+    )
 }
 
 fn csp_with_frame_ancestors(existing: Option<&str>, ancestors: &str) -> String {
@@ -253,8 +282,7 @@ fn trusted_upstream_csp(existing: Option<&str>) -> Option<String> {
         if !has_nonce
             || contains_token(script_src, "'unsafe-inline'")
             || contains_token(script_src, "'unsafe-eval'")
-            || directive("script-src-attr")
-                .is_none_or(|entry| !contains_token(entry, "'none'"))
+            || directive("script-src-attr").is_none_or(|entry| !contains_token(entry, "'none'"))
         {
             return None;
         }
@@ -492,7 +520,7 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
     } else if allow_panel_framing {
         csp_with_frame_ancestors(upstream_csp.as_deref(), &frame_ancestors_policy())
     } else if access_gate_page {
-        "default-src 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; style-src 'unsafe-inline'".to_string()
+        access_gate_csp(std::env::var("ACCESS_GATE_DOMAIN").ok().as_deref())
     } else if let Some(profile) = page_security.as_ref() {
         let third_party = match (profile.allows_paypal, profile.allows_internal_frames) {
             (true, true) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://www.paypal.com https://www.paypalobjects.com; frame-src 'self' https://*.ragenodes.app https://*.ragenodes.dev https://*.ragenodes.com https://www.paypal.com;",
@@ -578,7 +606,11 @@ async fn handle_http_request(
         .map(|domain| domain.trim().trim_end_matches('.').to_ascii_lowercase())
         .filter(|domain| !domain.is_empty())
         .collect::<Vec<_>>();
-    if !is_staging_vps && staging_domains.iter().any(|domain| domain == host_without_port) {
+    if !is_staging_vps
+        && staging_domains
+            .iter()
+            .any(|domain| domain == host_without_port)
+    {
         if let Ok(staging_target) = std::env::var("STAGING_UPSTREAM") {
             let staging_target = staging_target.trim();
             if !staging_target.is_empty() {
@@ -838,6 +870,19 @@ async fn reverse_proxy_request(
             let req_upgrade = if is_upgrade {
                 Some(hyper::upgrade::on(&mut req))
             } else {
+                // HTTP/2 prohíbe cabeceras hop-by-hop. El cliente de salida las
+                // administra por conexión y nunca deben heredarse del navegador.
+                for header in [
+                    "connection",
+                    "keep-alive",
+                    "proxy-connection",
+                    "transfer-encoding",
+                    "te",
+                    "trailer",
+                    "upgrade",
+                ] {
+                    req.headers_mut().remove(header);
+                }
                 None
             };
 
@@ -871,11 +916,36 @@ async fn reverse_proxy_request(
                                 }
                             });
                         }
+                    } else {
+                        // Las respuestas HTTP/2 tampoco pueden transportar
+                        // cabeceras hop-by-hop heredadas del upstream HTTP/1.1.
+                        for header in [
+                            "connection",
+                            "keep-alive",
+                            "proxy-connection",
+                            "transfer-encoding",
+                            "te",
+                            "trailer",
+                            "upgrade",
+                        ] {
+                            res.headers_mut().remove(header);
+                        }
                     }
                     Ok(res)
                 }
                 Err(err) => {
-                    tracing::error!("Error en Reverse Proxy hacia {}: {}", target_addr, err);
+                    let message = err.to_string();
+                    if message.contains("Connection refused")
+                        || message.contains("connection refused")
+                    {
+                        tracing::debug!(
+                            "Backend web temporalmente inactivo en {}: {}",
+                            target_addr,
+                            message
+                        );
+                    } else {
+                        tracing::warn!("Error en Reverse Proxy hacia {}: {}", target_addr, message);
+                    }
                     let mut res = Response::new(Body::from("502 Bad Gateway"));
                     *res.status_mut() = StatusCode::BAD_GATEWAY;
                     res.headers_mut().insert(
@@ -1114,9 +1184,10 @@ async fn serve_static_file(
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_browser_security_headers, blender_app_csp, csp_with_frame_ancestors,
-        dynamic_proxy_port_for_domains, trusted_upstream_csp, AllowBlenderApp,
-        AllowRageNodesPanelFraming, AllowSameOriginFraming, TrustedStagingUpstream,
+        access_gate_csp, apply_browser_security_headers, blender_app_csp, csp_with_frame_ancestors,
+        dynamic_proxy_port_for_domains, frame_ancestors_policy, trusted_upstream_csp,
+        AllowBlenderApp, AllowRageNodesPanelFraming, AllowSameOriginFraming,
+        TrustedStagingUpstream,
     };
     use http::{Response, StatusCode};
     use hyper::Body;
@@ -1149,6 +1220,17 @@ mod tests {
     }
 
     #[test]
+    fn access_gate_allows_only_its_configured_panel_redirect() {
+        let policy = access_gate_csp(Some("ragenodes.dev"));
+        assert!(policy.contains("form-action 'self' https://panel.ragenodes.dev"));
+        assert!(!policy.contains("https://*.ragenodes.dev"));
+
+        let unsafe_domain = access_gate_csp(Some("ragenodes.dev; form-action *"));
+        assert!(unsafe_domain.contains("form-action 'self';"));
+        assert!(!unsafe_domain.contains("form-action *"));
+    }
+
+    #[test]
     fn frame_ancestors_is_replaced_without_weakening_other_directives() {
         let result = csp_with_frame_ancestors(
             Some("default-src 'self'; frame-ancestors 'self'; object-src 'none'"),
@@ -1158,6 +1240,14 @@ mod tests {
         assert!(result.contains("object-src 'none'"));
         assert!(result.contains("frame-ancestors https://ragenodes.dev"));
         assert!(!result.contains("frame-ancestors 'self'"));
+    }
+
+    #[test]
+    fn configured_frame_ancestors_always_include_same_origin() {
+        let policy = frame_ancestors_policy();
+        assert!(policy.starts_with("'self' "));
+        assert!(policy.contains("https://ragenodes.com"));
+        assert!(!policy.contains("*"));
     }
 
     #[test]
@@ -1250,7 +1340,10 @@ mod tests {
             .get("content-security-policy")
             .and_then(|value| value.to_str().ok())
             .unwrap_or_default();
-        assert_eq!(response.headers().get("x-frame-options").unwrap(), "SAMEORIGIN");
+        assert_eq!(
+            response.headers().get("x-frame-options").unwrap(),
+            "SAMEORIGIN"
+        );
         assert!(policy.contains("frame-ancestors 'self'"));
         assert!(policy.contains("script-src 'self' blob:"));
     }
@@ -1269,7 +1362,7 @@ mod tests {
             .and_then(|value| value.to_str().ok())
             .unwrap_or_default();
         assert!(response.headers().get("x-frame-options").is_none());
-        assert!(policy.contains("frame-ancestors https://"));
+        assert!(policy.contains("frame-ancestors 'self' https://"));
         assert!(!policy.contains("frame-ancestors *"));
         assert!(policy.contains("object-src 'none'"));
     }

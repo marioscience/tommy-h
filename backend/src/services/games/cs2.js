@@ -31,7 +31,7 @@ export async function createCS2Container(opts) {
             'SRCDS_GAME_TYPE=0',
             'SRCDS_GAME_MODE=1',
             'SRCDS_MAXPLAYERS=12',
-            'SRCDS_TICKRATE=128', // Para máxima fluidez eSports
+            'SRCDS_TICKRATE=64', // Perfil estable y accesible para servidores nuevos
             `SRCDS_RCON_PW=${deriveServicePassword('cs2-rcon', opts.serverId || opts.containerName)}`,
         ],
         ExposedPorts: { '27015/tcp': {}, '27015/udp': {} },

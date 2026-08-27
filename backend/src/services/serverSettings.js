@@ -1,6 +1,6 @@
 import { query, logAudit } from '../db.js';
 import { getServerByIdForUser } from './serverService.js';
-import { GameFactory } from './games/GameFactory.js';
+import { toggleBlender as toggleBlenderContainer } from './dockerService.js';
 import { blenderActivity } from './serverService.js';
 
 export async function setServerBackupTime(id, userId, time, isAdmin) {
@@ -72,12 +72,17 @@ export async function toggleBlenderForServer(id, userId, isAdmin, action) {
   const s = await getServerByIdForUser(id, userId, isAdmin, 'settings');
   if (!s) throw new Error('Servidor no encontrado o sin permisos');
 
-  const gameSvc = GameFactory.get(s.template);
-  if (!gameSvc || typeof gameSvc.toggleBlender !== 'function') {
+  if (String(s.template).toLowerCase() !== 'fivem') {
     throw new Error('Este servidor no soporta Blender Studio 3D');
   }
 
-  const res = await gameSvc.toggleBlender(s, action);
+  const res = await toggleBlenderContainer({
+    nodeId: s.node_id,
+    serverId: s.id,
+    dataPath: s.data_path,
+    blenderPass: s.blender_pass,
+    blenderPort: s.blender_port
+  }, action);
   if (action === 'start') {
     blenderActivity.set(s.id, Date.now());
   } else if (action === 'stop') {

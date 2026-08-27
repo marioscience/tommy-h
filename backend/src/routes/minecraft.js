@@ -10,6 +10,7 @@ const router = express.Router();
 // Helper para parsear .properties a JSON
 function parseProperties(content) {
     const props = {};
+    if (typeof content !== 'string') return props;
     const lines = content.split('\n');
     lines.forEach(line => {
         line = line.trim();

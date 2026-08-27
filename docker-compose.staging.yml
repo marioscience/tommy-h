@@ -41,12 +41,17 @@ services:
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     group_add:
       - "${DOCKER_GID:-1000}"
+      - "${STAGING_GAME_DATA_GID:-${GAME_DATA_GID:-1000}}"
     env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       CONTAINER_PREFIX: ragenodes-staging-
       DOCKER_NETWORK: ragenodes_net_staging
       PORT_BASE_OFFSET: ${STAGING_PORT_BASE_OFFSET:-1000}
       GAME_CONTAINER_SHARED_GID: ${STAGING_GAME_CONTAINER_SHARED_GID:-0}
+      OXIDE_GAME_PROXY_ENABLED: ${OXIDE_GAME_PROXY_ENABLED:-false}
+      GAME_BACKEND_PORT_OFFSET: ${GAME_BACKEND_PORT_OFFSET:-10000}
+      GAME_BACKEND_BIND_IP: 127.0.0.1
+      OXIDE_GAME_PROXY_SERVICE: oxide_game_staging
       FIVEM_PUBLIC_HOST: ${STAGING_GAME_PUBLIC_HOST:-node1.ragenodes.dev}
       PUBLIC_ENDPOINT_HOST: ${STAGING_PUBLIC_ENDPOINT_HOST:-ragenodes.dev}
       PUBLIC_ENDPOINT_SCHEME: ${PUBLIC_ENDPOINT_SCHEME:-https}
@@ -94,6 +99,7 @@ services:
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     group_add:
       - "${DOCKER_GID:-1000}"
+      - "${STAGING_GAME_DATA_GID:-${GAME_DATA_GID:-1000}}"
     env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       - RAGENODES_ROLE=worker-docker-events
@@ -133,6 +139,46 @@ services:
       - /tmp:rw,noexec,nosuid,nodev,size=256m
     pids_limit: 128
 
+  worker-stats-staging:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    init: true
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    group_add:
+      - "${DOCKER_GID:-1000}"
+      - "${STAGING_GAME_DATA_GID:-${GAME_DATA_GID:-1000}}"
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
+    environment:
+      - RAGENODES_ROLE=worker-stats
+      - CONTAINER_PREFIX=ragenodes-staging-
+      - INSTANCE_DATA_ROOT=/srv/ragenodes-staging-data
+      - DB_HOST=postgres-staging
+      - DB_USER=${POSTGRES_USER}_staging
+      - DB_PASS=${POSTGRES_PASSWORD}_staging
+      - DB_NAME=${POSTGRES_DB}_staging
+      - DATABASE_URL=postgres://${POSTGRES_USER}_staging:${POSTGRES_PASSWORD}_staging@postgres-staging:5432/${POSTGRES_DB}_staging
+      - REDIS_URL=redis://redis-staging:6379
+    command: ["node", "src/worker.js"]
+    networks:
+      - ragenodes_net_staging
+    depends_on:
+      backend-staging:
+        condition: service_started
+    volumes:
+      - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
+      - /srv/ragenodes-staging-data:/srv/ragenodes-staging-data
+      - /srv/ragenodes-staging-data/templates:/srv/ragenodes-staging-data/templates:ro
+      - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
+      - ./backend/src:/app/src:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m
+    pids_limit: 128
+
   redis-staging:
     image: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
     restart: unless-stopped
@@ -155,13 +201,17 @@ services:
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     environment:
       BACKEND_URL: http://backend-staging:3006
-      CONFIG_PATH: /app/rust_config/oxide_proxy.yml
+      CONFIG_PATH: /app/game_config/oxide_proxy.yml
+      OXIDE_DEFAULT_WEB_BACKEND: 127.0.0.1:3011
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+      OXIDE_ROUTE_API_KEY: ${DISCORD_API_KEY:?Set DISCORD_API_KEY}
     networks:
       - ragenodes_net_staging
     volumes:
       - ./oxideproxy/config:/app/rust_config
+      - ./oxideproxy/game_config:/app/game_config
       - ./frontend/public/vendor:/app/public/vendor:ro
+      - oxide_game_runtime_data_staging:/app/runtime:ro
     depends_on:
       backend-staging:
         condition: service_started
@@ -175,6 +225,31 @@ services:
     tmpfs:
       - /tmp
     pids_limit: 128
+    # security_opt and cap_drop are inherited from docker-compose.yml.
+    # Repeating sequence values here makes the merged Compose model invalid.
+
+  oxide_game_staging:
+    build:
+      context: ./oxideproxy
+    image: ragenodes/oxideproxy:1.0.0-local
+    restart: unless-stopped
+    user: "65532:65532"
+    network_mode: host
+    environment:
+      - OXIDE_LOG_DIR=/app/runtime/logs
+      - OXIDE_METRICS_PATH=/app/runtime/game_metrics.json
+      - OXIDE_CONFIG_PATH=/app/game_config/oxide_proxy.yml
+      - OXIDE_EXIT_ON_CONFIG_CHANGE=true
+    volumes:
+      - ./oxideproxy/game_config:/app/game_config:ro
+      - oxide_game_runtime_data_staging:/app/runtime
+    depends_on:
+      backend-staging:
+        condition: service_started
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+    pids_limit: 256
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
@@ -254,3 +329,4 @@ volumes:
   redis_data_staging:
   oxide_acme_data_staging:
   oxide_runtime_data_staging:
+  oxide_game_runtime_data_staging:

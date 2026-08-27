@@ -1,0 +1,24 @@
+[Unit]
+Description=RageNodes master game image cache refresh
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=niko
+Group=niko
+WorkingDirectory=/opt/ragenodes-ultimate
+Environment=PROJECT_ROOT=/opt/ragenodes-ultimate
+Environment=RAGENODES_ENV_FILE=/opt/ragenodes-ultimate/.env
+ExecStart=/opt/ragenodes-ultimate/scripts/update_image_cache.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/ragenodes-ultimate/.image-cache /run/user/1000
+
+[Install]
+WantedBy=multi-user.target

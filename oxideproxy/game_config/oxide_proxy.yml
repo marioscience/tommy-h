@@ -1,12 +1,14 @@
 ingress:
-  tcp_listen_addr: 0.0.0.0:8443
-  udp_listen_addr: 0.0.0.0:8080
-  max_concurrent_connections: 1000000
+  # Listeners de control no publicados. Los listeners de juego se crean a
+  # partir de routing.game_servers en sus puertos públicos reales.
+  tcp_listen_addr: 127.0.0.1:62000
+  udp_listen_addr: 127.0.0.1:62001
+  game_listen_ip: 0.0.0.0
+  http_listen_addrs: []
+  max_concurrent_connections: 100000
   initial_buffer_size: 4096
 routing:
-  default_web_backend: backend:3006
-  # Las rutas reales se registraran desde el plano de control autenticado.
-  # Los mocks solo deben declararse en un fichero de laboratorio independiente.
+  default_web_backend: 127.0.0.1:3006
   game_servers: []
 tls:
   cert_path: config/certs/cert.pem
@@ -16,7 +18,7 @@ runtime:
   enable_core_pinning: false
 advanced_tuning:
   ebpf_xdp:
-    enabled: true
+    enabled: false
     interface: eth0
     ddos_mitigation_mode: STRICT_GAMING
     max_packet_rate_per_ip: 25000
@@ -27,5 +29,5 @@ advanced_tuning:
   security:
     rate_limit_conns_per_ip: 150
     blacklist_enabled: true
-    handshake_timeout_ms: 1500
+    handshake_timeout_ms: 3000
     blacklisted_ips: []
