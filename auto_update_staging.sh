@@ -24,7 +24,9 @@ rollback() {
 }
 
 cd "$PROJECT_DIR"
-git fetch origin "$BRANCH" >> "$LOG_FILE" 2>&1 \
+# Avoid background auto-gc inheriting the deployment lock. A long repack would
+# otherwise block every later updater run even after fetch has returned.
+git -c gc.auto=0 fetch origin "$BRANCH" >> "$LOG_FILE" 2>&1 \
   || { log "No se pudo consultar origin/$BRANCH."; exit 1; }
 
 LOCAL="$(git rev-parse HEAD)"
