@@ -12,6 +12,7 @@ const PROMETHEUS_URL = process.env.PROMETHEUS_URL || 'http://oxide_prometheus:90
 const BACKEND_URL = (process.env.BACKEND_URL || 'http://backend:3006').replace(/\/$/, '');
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || '';
 const METRICS_PATH = process.env.OXIDE_METRICS_PATH || '/app/runtime/game_metrics.json';
+const LOG_DIR = process.env.OXIDE_LOG_DIR || '/app/runtime/logs';
 let previousMetricsSnapshot = null;
 
 // El panel se mantiene deliberadamente separado del daemon de contenedores.
@@ -67,18 +68,17 @@ async function syncDockerGameServers() {
 // LECTOR DE LOGS REALES (PRODUCCIÓN)
 // ==========================================================================
 function getLatestLogLines(maxLines = 300) {
-    const logDir = '/app/rust_config/logs';
-    if (!fs.existsSync(logDir)) return [];
+    if (!fs.existsSync(LOG_DIR)) return [];
 
     try {
-        const files = fs.readdirSync(logDir)
+        const files = fs.readdirSync(LOG_DIR)
             .filter(f => f.startsWith('oxide_proxy.log'))
-            .map(f => ({ name: f, time: fs.statSync(path.join(logDir, f)).mtime.getTime() }))
+            .map(f => ({ name: f, time: fs.statSync(path.join(LOG_DIR, f)).mtime.getTime() }))
             .sort((a, b) => b.time - a.time);
 
         if (files.length === 0) return [];
 
-        const latestFile = path.join(logDir, files[0].name);
+        const latestFile = path.join(LOG_DIR, files[0].name);
         const content = fs.readFileSync(latestFile, 'utf8');
         const lines = content.split('\n').filter(l => l.trim().length > 0);
         
@@ -131,7 +131,7 @@ app.disable('x-powered-by');
 app.use((req, res, next) => {
     res.set({
         'Cache-Control': 'no-store',
-        'Content-Security-Policy': "default-src 'self'; base-uri 'none'; frame-ancestors *; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline' https: http:; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https: http:; style-src-attr 'unsafe-inline'; img-src * 'self' data: blob: https: http:; connect-src * 'self' ws: wss: https: http:; connect-src 'self' https: http:; font-src 'self' https: http: data:; frame-src 'self' https: http:; manifest-src 'none'; media-src 'none'; worker-src 'none'",
+        'Content-Security-Policy': "default-src 'self'; base-uri 'none'; frame-ancestors *; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline' https: http:; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https: http:; style-src-attr 'unsafe-inline'; img-src * 'self' data: blob: https: http:; connect-src 'self' ws: wss: https: http:; font-src 'self' https: http: data:; frame-src 'self' https: http:; manifest-src 'none'; media-src 'none'; worker-src 'none'",
         'Cross-Origin-Resource-Policy': 'cross-origin',
         'Cross-Origin-Embedder-Policy': 'credentialless',
         'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',

@@ -33,6 +33,7 @@ let currentConfig = null;
 let chartThroughput = null;
 let chartPps = null;
 let chartSystem = null;
+let liveLogsRequest = null;
 
 const MAX_CHART_POINTS = 15;
 const timeLabels = [];
@@ -616,10 +617,26 @@ function closeServerChartModal() {
 
 async function fetchLiveLogs(force = false) {
     if (consolePaused && !force) return;
+    if (liveLogsRequest && !force) return;
+
+    if (liveLogsRequest && force) {
+        liveLogsRequest.abort();
+    }
+
+    const controller = new AbortController();
+    liveLogsRequest = controller;
+    const timeout = setTimeout(() => controller.abort(), 5000);
     try {
-        const res = await authFetch(`/api/oxide/logs?game_id=${currentLogFilter}`);
+        const res = await authFetch(`/api/oxide/logs?game_id=${encodeURIComponent(currentLogFilter)}`, {
+            signal: controller.signal,
+            cache: 'no-store'
+        });
+        if (!res.ok) {
+            if (res.status === 401 || res.status === 403) console.warn('La sesión del panel ya no permite consultar los logs.');
+            return;
+        }
         const data = await res.json();
-        if (!data.logs) return;
+        if (!Array.isArray(data.logs)) return;
 
         const consoleBody = document.getElementById('log-console-body');
         if (!consoleBody) return;
@@ -641,7 +658,12 @@ async function fetchLiveLogs(force = false) {
 
         consoleBody.scrollTop = consoleBody.scrollHeight;
     } catch(e) {
-        console.error('Error fetching logs:', e);
+        if (e.name !== 'AbortError') {
+            console.warn('La consola en vivo se reconectará automáticamente.');
+        }
+    } finally {
+        clearTimeout(timeout);
+        if (liveLogsRequest === controller) liveLogsRequest = null;
     }
 }
 
