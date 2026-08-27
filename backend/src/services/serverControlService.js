@@ -138,8 +138,10 @@ export async function deleteServer(id, userId, isAdmin) {
   return { success: true };
 }
 
-// 🛡️ MANTENIMIENTO PROACTIVO (Cada 60 segundos)
-setInterval(async () => {
+// El mantenimiento tiene un unico propietario. Este modulo tambien lo importan
+// la API y otros workers; iniciar el intervalo en todos ellos provoca carreras
+// y recreaciones duplicadas de servidores activos.
+if (process.env.RAGENODES_ROLE === 'worker-docker-events') setInterval(async () => {
     try {
         console.log("🛠️ [Mantenimiento] Iniciando escaneo de salud de servidores...");
 
@@ -217,25 +219,35 @@ setInterval(async () => {
                             // 🛡️ Verificar Logs para errores fatales
                             const logs = await Docker.fetchContainerLogs(s.container_name);
                             const tailLogs = logs.slice(-5000).toLowerCase();
-                            if (tailLogs.includes('address already in use') || tailLogs.includes('segmentation fault') || tailLogs.includes('core dumped')) {
+                            const containerHealth = inspect.State?.Health?.Status;
+                            const hasFatalLog = tailLogs.includes('address already in use')
+                                || tailLogs.includes('segmentation fault')
+                                || tailLogs.includes('core dumped');
+                            // Un mensaje antiguo no demuestra que el proceso actual esté
+                            // averiado. Recrear un contenedor saludable por texto persistente
+                            // corta todas las sesiones de juego. Solo se usa como señal de
+                            // reparación cuando Docker confirma además un healthcheck fallido.
+                            if (hasFatalLog && containerHealth === 'unhealthy') {
                                 console.log(`⚠️ [Mantenimiento] Error fatal detectado en los logs de ${s.name}. Forzando reinicio.`);
                                 needsFix = true;
                             }
 
                             // 🛡️ Verificar TCP Port Ping si lleva más de 5 min arrancado
                             if (!needsFix && uptimeMs > 5 * 60 * 1000) {
+                                if (isGameProxyBackend && containerHealth === 'unhealthy') {
+                                    console.log(`⚠️ [Mantenimiento] Healthcheck interno fallido para ${s.name}. Posible cuelgue.`);
+                                    needsFix = true;
+                                }
+
                                 let checkPort = s.fivem_port;
                                 if (s.template === 'rust' || s.template === 'palworld') checkPort = s.fivem_port + 1; // RCON
                                 if (s.template === 'ark') checkPort = s.fivem_port + 13; // RCON
 
-                                if (s.template !== 'valheim' && s.template !== 'zomboid' && s.template !== 'ark') {
-                                    const healthHost = isGameProxyBackend ? config.gameBackendBindIp : '172.17.0.1';
-                                    if (isGameProxyBackend) {
-                                        const labelOffset = Number(inspect.Config?.Labels?.['ragenodes.game_proxy_offset']);
-                                        checkPort += Number.isInteger(labelOffset) && labelOffset > 0
-                                            ? labelOffset
-                                            : config.gameBackendPortOffset;
-                                    }
+                                // Los backends rootless del proxy se publican solo en el loopback del host.
+                                // Desde este worker rootful ese loopback sería el propio contenedor, por lo
+                                // que una sonda TCP produciría un falso negativo y expulsaría a los jugadores.
+                                if (!needsFix && !isGameProxyBackend && s.template !== 'valheim' && s.template !== 'zomboid' && s.template !== 'ark') {
+                                    const healthHost = '172.17.0.1';
                                     const isPortReachable = await verifyServerPort(healthHost, checkPort, 'tcp');
                                     if (!isPortReachable) {
                                         console.log(`⚠️ [Mantenimiento] Puerto TCP ${checkPort} no responde para ${s.name} (Uptime: ${Math.round(uptimeMs/60000)}m). Posible cuelgue.`);
@@ -287,13 +299,31 @@ setInterval(async () => {
                             }
                         }
                     } else {
-                        needsFix = true;
+                        // El inventario agregado puede quedar momentaneamente desfasado
+                        // durante una actualizacion del daemon. Antes de reemplazar un
+                        // servidor activo, confirma su ausencia contra Docker de forma
+                        // directa para no expulsar jugadores por un falso negativo.
+                        await new Promise(resolve => setTimeout(resolve, 1500));
+                        try {
+                            const retryInspect = await Docker.inspectContainer(s.container_name);
+                            if (retryInspect?.State) {
+                                console.warn(`⚠️ [Mantenimiento] Inventario transitorio para ${s.name}; el contenedor existe. Se omite la recreacion.`);
+                            } else {
+                                console.warn(`⚠️ [Mantenimiento] Contenedor ${s.name} confirmado ausente. Forzando auto-curado.`);
+                                needsFix = true;
+                            }
+                        } catch (retryError) {
+                            console.warn(`⚠️ [Mantenimiento] Contenedor ${s.name} confirmado ausente: ${retryError.message}. Forzando auto-curado.`);
+                            needsFix = true;
+                        }
                     }
 
                     if (needsFix) {
                         if (shouldRepairWithBackoff(s.id)) {
-                            await repairOneServer(s);
-                            console.log(`✅ [Mantenimiento] ${s.name} restaurado con éxito.`);
+                            const repaired = await repairOneServer(s);
+                            if (repaired) {
+                                console.log(`✅ [Mantenimiento] ${s.name} restaurado con éxito.`);
+                            }
                         } else {
                             console.log(`❌ [Mantenimiento] ${s.name} ha fallado demasiadas veces. Pausando auto-curado.`);
                             await query("UPDATE servers SET status = 'error' WHERE id = $1", [s.id]);
@@ -328,7 +358,7 @@ export async function repairOneServer(s) {
     if (rowCount === 0 && s.status !== 'error') {
         // Allow retry if it was already in recreating, but to prevent infinite loops without delay we set it to error if it fails
         console.warn(`⏳ [Mantenimiento] Servidor ${s.name} ya está en proceso de recreación. Omitiendo por ahora.`);
-        return;
+        return false;
     }
 
     const basePlan = PLAN_LIMITS[s.runtime_plan] || PLAN_LIMITS.hobby;
@@ -374,14 +404,16 @@ export async function repairOneServer(s) {
         if (rows.length > 0 && (rows[0].status === 'stopped' || rows[0].status === 'stopping')) {
             console.warn(`[Auto-Curado] Reparación de ${s.name} cancelada: El usuario solicitó detener el servidor durante la reparación.`);
             await Docker.stopContainer(s.container_name);
-            return;
+            return false;
         }
 
         await query("UPDATE servers SET status = 'running' WHERE id = $1", [s.id]);
+        return true;
 
     } catch (e) {
         console.error(`❌ Error en mantenimiento de ${s.name}:`, e.message);
         await query("UPDATE servers SET status = 'error' WHERE id = $1", [s.id]);
+        return false;
     }
 }
 

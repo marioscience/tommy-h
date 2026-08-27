@@ -74,6 +74,10 @@ export class MinecraftService extends BaseGameService {
             'UMASK=0002',
             'USE_AIKAR_FLAGS=true',
             'ENABLE_RCON=false',
+            // Los servidores alojados deben permanecer activos aunque no haya
+            // jugadores. La pausa nativa puede interrumpir handshakes largos
+            // (especialmente Forge) cuando el acceso pasa por el proxy L4.
+            'PAUSE_WHEN_EMPTY_SECONDS=-1',
             'OVERRIDE_SERVER_PROPERTIES=false',
             'ONLINE_MODE=TRUE',
             'ENFORCE_SECURE_PROFILE=TRUE'

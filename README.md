@@ -42,6 +42,8 @@ Whether deploying a large FiveM roleplay community or a multi-node cluster for R
 
 OxideProxy can act as the public TCP/UDP ingress for newly deployed **Minecraft, FiveM game traffic, and Rust** instances. Public ports are owned by the dedicated, host-networked `oxide_game` service, while game containers bind their shifted backend ports to loopback only. Route inventory is generated from authenticated database and Docker state, written atomically, and reloaded automatically. Existing direct-published containers remain compatible and must be migrated individually; txAdmin and other web panels continue through the HTTPS L7 proxy. Set `OXIDE_GAME_PROXY_ENABLED=true` only after the dedicated ingress service is healthy.
 
+Minecraft deployments pin the requested edition and version in the server data directory. Automatic healing therefore recreates the same runtime instead of silently upgrading it, and hosted servers remain active while empty so proxy handshakes and paused clients are not disconnected.
+
 ---
 
 ## 🖥️ Supported Game Engines & Services
@@ -102,7 +104,7 @@ npm install
 # Run database migrations
 npm run db:migrate
 
-# Run the current backend suite (44 tests across 10 suites)
+# Run the current backend suite (46 tests across 10 suites)
 npm test
 cd ..
 ```
@@ -244,6 +246,8 @@ Ya sea para desplegar una comunidad masiva de FiveM o un clúster multi-nodo par
 - **🩺 Diagnóstico Adaptativo de Salud:** Sondas nativas `/healthz`, `/readyz` y runner adaptativo en Staging (`stagingHealthTestRunner.js`) con generación de reportes PDF/HTML.
 - **📦 Caché Maestra de Imágenes:** FiveM y Blender se actualizan por versión, se archivan localmente y se reutilizan. Las imágenes fijadas por digest se precargan sin reemplazar contenedores activos de clientes.
 
+Los despliegues de Minecraft fijan en el directorio de datos la edición y versión solicitadas. El auto-curado recrea exactamente ese runtime, sin actualizarlo de forma silenciosa, y los servidores alojados permanecen activos aunque estén vacíos para no interrumpir handshakes del proxy ni clientes en pausa.
+
 ---
 
 ## 🖥️ Juegos y Servicios Soportados
@@ -304,7 +308,7 @@ npm install
 # Ejecutar migraciones de base de datos
 npm run db:migrate
 
-# Ejecutar la suite actual: 44 pruebas en 10 suites
+# Ejecutar la suite actual: 46 pruebas en 10 suites
 npm test
 cd ..
 ```

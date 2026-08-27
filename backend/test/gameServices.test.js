@@ -52,6 +52,7 @@ describe('🏭 GameFactory & OOP Architecture Tests (Módulo 3 & 4)', () => {
         });
         assert.ok(minecraftEnv.includes(`GID=${config.gameContainerSharedGid}`));
         assert.ok(minecraftEnv.includes('UMASK=0002'));
+        assert.ok(minecraftEnv.includes('PAUSE_WHEN_EMPTY_SECONDS=-1'));
 
         const minecraftHost = minecraft.buildHostConfig(
             { plan: { memoryBytes: 4 * 1024 * 1024 * 1024, nanoCpus: 2 * 10**9 } },

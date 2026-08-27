@@ -12,6 +12,7 @@ const files = Object.fromEntries(await Promise.all([
   'deploy_staging.sh',
   'backend/src/services/dockerService.js',
   'backend/src/services/dockerUtils.js',
+  'backend/src/services/serverControlService.js',
   'backend/src/routes/discord.js',
   'backend/src/services/games/minecraft.js',
   'backend/src/services/games/rust.js',
@@ -128,6 +129,9 @@ assert(!files['backend/src/services/dockerService.js'].includes("'ragenodes_net'
 assert(files['backend/src/services/dockerUtils.js'].includes('deriveServiceIdentifier'), 'game instances can derive stable unique identifiers');
 assert(files['backend/src/services/games/minecraft.js'].includes("DIFFICULTY=${opts.difficulty || 'normal'}"), 'Minecraft defaults to normal difficulty');
 assert(files['backend/src/services/games/minecraft.js'].includes("'ONLINE_MODE=TRUE'"), 'Minecraft identity verification is enabled by default');
+assert(files['backend/src/services/games/minecraft.js'].includes("'PAUSE_WHEN_EMPTY_SECONDS=-1'"), 'Minecraft stays active while empty');
+assert(files['backend/src/services/serverControlService.js'].includes("process.env.RAGENODES_ROLE === 'worker-docker-events'"), 'game maintenance has a single worker owner');
+assert(files['backend/src/services/serverControlService.js'].includes("hasFatalLog && containerHealth === 'unhealthy'"), 'stale fatal log text cannot recreate a healthy game server');
 assert(files['backend/src/services/games/rust.js'].includes("deriveServiceIdentifier('rust'"), 'Rust identity is unique per server');
 assert(files['backend/src/services/games/cs2.js'].includes("'SRCDS_TICKRATE=64'"), 'CS2 uses the standard beginner-friendly tickrate');
 assert(files['backend/src/services/games/valheim.js'].includes("deriveServiceIdentifier('world'"), 'Valheim world names are unique per server');
