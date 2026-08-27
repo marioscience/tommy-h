@@ -41,6 +41,7 @@ services:
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     group_add:
       - "${DOCKER_GID:-1000}"
+      - "${GAME_DATA_GID:-1000}"
     env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       CONTAINER_PREFIX: ragenodes-staging-
@@ -98,6 +99,7 @@ services:
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     group_add:
       - "${DOCKER_GID:-1000}"
+      - "${GAME_DATA_GID:-1000}"
     env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       - RAGENODES_ROLE=worker-docker-events

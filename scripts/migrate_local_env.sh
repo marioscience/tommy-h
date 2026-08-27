@@ -47,12 +47,16 @@ docker_socket="$(read_key DOCKER_SOCKET)"
 [ -S "$docker_socket" ] || docker_socket=/var/run/docker.sock
 [ -S "$docker_socket" ] || { echo 'ERROR: no se encontro el socket Docker local.' >&2; exit 1; }
 
+game_data_gid="$(read_key GAME_DATA_GID)"
+[ -n "$game_data_gid" ] || game_data_gid="$(id -g)"
+
 set_key NODE_ENV development
 set_key DISCORD_API_KEY "$discord_key"
 set_key NODE_ENROLLMENT_API_KEY "$enrollment_key"
 set_key APP_UID "$(id -u)"
 set_key APP_GID "$(id -g)"
 set_key DOCKER_GID "$(stat -c '%g' "$docker_socket")"
+set_key GAME_DATA_GID "$game_data_gid"
 set_key DOCKER_SOCKET "$docker_socket"
 set_key BACKUP_REMOTE_ENABLED false
 set_key ALLOW_ROOTFUL_DOCKER_SOCKET true
