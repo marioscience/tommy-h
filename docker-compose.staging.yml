@@ -2,7 +2,7 @@ services:
   postgres-staging:
     image: postgres@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
     restart: unless-stopped
-    env_file: [ .env ]
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       POSTGRES_DB: ${POSTGRES_DB}_staging
       POSTGRES_USER: ${POSTGRES_USER}_staging
@@ -21,7 +21,7 @@ services:
   mariadb-staging:
     image: mariadb@sha256:de61fed4a40d3842f3ee09944ba52792156cfd9adf489b2cc670fc6ded28df8d
     restart: unless-stopped
-    env_file: [ .env ]
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       MYSQL_ROOT_PASSWORD: ${CENTRAL_DB_PASS}
     volumes:
@@ -38,13 +38,25 @@ services:
       context: ./backend
     restart: unless-stopped
     init: true
-    env_file: [ .env ]
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    group_add:
+      - "${DOCKER_GID:-1000}"
+      - "${STAGING_GAME_DATA_GID:-${GAME_DATA_GID:-1000}}"
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       CONTAINER_PREFIX: ragenodes-staging-
       DOCKER_NETWORK: ragenodes_net_staging
-      PORT_BASE_OFFSET: 10000
-      PUBLIC_ENDPOINT_HOST: ${PUBLIC_ENDPOINT_HOST:-staging.ragenodes.com}
+      PORT_BASE_OFFSET: ${STAGING_PORT_BASE_OFFSET:-1000}
+      GAME_CONTAINER_SHARED_GID: ${STAGING_GAME_CONTAINER_SHARED_GID:-0}
+      OXIDE_GAME_PROXY_ENABLED: ${OXIDE_GAME_PROXY_ENABLED:-false}
+      GAME_BACKEND_PORT_OFFSET: ${GAME_BACKEND_PORT_OFFSET:-10000}
+      GAME_BACKEND_BIND_IP: 127.0.0.1
+      OXIDE_GAME_PROXY_SERVICE: oxide_game_staging
+      FIVEM_PUBLIC_HOST: ${STAGING_GAME_PUBLIC_HOST:-node1.ragenodes.dev}
+      PUBLIC_ENDPOINT_HOST: ${STAGING_PUBLIC_ENDPOINT_HOST:-ragenodes.dev}
       PUBLIC_ENDPOINT_SCHEME: ${PUBLIC_ENDPOINT_SCHEME:-https}
+      PUBLIC_ENDPOINT_MODE: ${PUBLIC_ENDPOINT_MODE:-subdomain}
+      PUBLIC_ENDPOINT_PREFIX: ${PUBLIC_ENDPOINT_PREFIX:-tx}
       INSTANCE_DATA_ROOT: /srv/ragenodes-staging-data
       MARIADB_HOST: mariadb
       DB_HOST: postgres-staging
@@ -52,6 +64,7 @@ services:
       DB_PASS: ${POSTGRES_PASSWORD}_staging
       DB_NAME: ${POSTGRES_DB}_staging
       DATABASE_URL: postgres://${POSTGRES_USER}_staging:${POSTGRES_PASSWORD}_staging@postgres-staging:5432/${POSTGRES_DB}_staging
+      REDIS_URL: redis://redis-staging:6379
     networks:
       ragenodes_net_staging:
         aliases:
@@ -65,35 +78,48 @@ services:
       - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
       - /srv/ragenodes-staging-data:/srv/ragenodes-staging-data
       - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
-      - ./backend/src:/app/src
+      - ./backend/src:/app/src:ro
       - ./fivem-base:/app/fivem-base
-      - ./certs:/opt/ragenodes-ultimate/certs:ro
+      - ./certs:/opt/ragenodes-ultimate/certs
     ports:
       - "127.0.0.1:3011:3006" # Puerto 3011 para el panel de Staging
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
-    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=512m
+    pids_limit: 256
 
   worker-docker-events-staging:
     build:
       context: ./backend
     restart: unless-stopped
     init: true
-    env_file: [ .env ]
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    group_add:
+      - "${DOCKER_GID:-1000}"
+      - "${STAGING_GAME_DATA_GID:-${GAME_DATA_GID:-1000}}"
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       - RAGENODES_ROLE=worker-docker-events
       - CONTAINER_PREFIX=ragenodes-staging-
       - DOCKER_NETWORK=ragenodes_net_staging
-      - PORT_BASE_OFFSET=10000
-      - PUBLIC_ENDPOINT_HOST=${PUBLIC_ENDPOINT_HOST:-staging.ragenodes.com}
+      - PORT_BASE_OFFSET=${STAGING_PORT_BASE_OFFSET:-1000}
+      - GAME_CONTAINER_SHARED_GID=${STAGING_GAME_CONTAINER_SHARED_GID:-0}
+      - FIVEM_PUBLIC_HOST=${STAGING_GAME_PUBLIC_HOST:-node1.ragenodes.dev}
+      - PUBLIC_ENDPOINT_HOST=${STAGING_PUBLIC_ENDPOINT_HOST:-ragenodes.dev}
       - PUBLIC_ENDPOINT_SCHEME=${PUBLIC_ENDPOINT_SCHEME:-https}
+      - PUBLIC_ENDPOINT_MODE=${PUBLIC_ENDPOINT_MODE:-subdomain}
+      - PUBLIC_ENDPOINT_PREFIX=${PUBLIC_ENDPOINT_PREFIX:-tx}
       - INSTANCE_DATA_ROOT=/srv/ragenodes-staging-data
       - DB_HOST=postgres-staging
       - DB_USER=${POSTGRES_USER}_staging
       - DB_PASS=${POSTGRES_PASSWORD}_staging
       - DB_NAME=${POSTGRES_DB}_staging
-    command: ["npm", "run", "worker:docker-events"]
+      - DATABASE_URL=postgres://${POSTGRES_USER}_staging:${POSTGRES_PASSWORD}_staging@postgres-staging:5432/${POSTGRES_DB}_staging
+      - REDIS_URL=redis://redis-staging:6379
+    command: ["node", "src/worker.js"]
     networks:
       - ragenodes_net_staging
     depends_on:
@@ -104,17 +130,65 @@ services:
       - /srv/ragenodes-staging-data:/srv/ragenodes-staging-data
       - /srv/ragenodes-staging-data/templates:/srv/ragenodes-staging-data/templates:ro
       - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
-      - ./backend/src:/app/src
+      - ./backend/src:/app/src:ro
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
-    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m
+    pids_limit: 128
+
+  worker-stats-staging:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    init: true
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    group_add:
+      - "${DOCKER_GID:-1000}"
+      - "${STAGING_GAME_DATA_GID:-${GAME_DATA_GID:-1000}}"
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
+    environment:
+      - RAGENODES_ROLE=worker-stats
+      - CONTAINER_PREFIX=ragenodes-staging-
+      - INSTANCE_DATA_ROOT=/srv/ragenodes-staging-data
+      - DB_HOST=postgres-staging
+      - DB_USER=${POSTGRES_USER}_staging
+      - DB_PASS=${POSTGRES_PASSWORD}_staging
+      - DB_NAME=${POSTGRES_DB}_staging
+      - DATABASE_URL=postgres://${POSTGRES_USER}_staging:${POSTGRES_PASSWORD}_staging@postgres-staging:5432/${POSTGRES_DB}_staging
+      - REDIS_URL=redis://redis-staging:6379
+    command: ["node", "src/worker.js"]
+    networks:
+      - ragenodes_net_staging
+    depends_on:
+      backend-staging:
+        condition: service_started
+    volumes:
+      - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
+      - /srv/ragenodes-staging-data:/srv/ragenodes-staging-data
+      - /srv/ragenodes-staging-data/templates:/srv/ragenodes-staging-data/templates:ro
+      - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
+      - ./backend/src:/app/src:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m
+    pids_limit: 128
 
   redis-staging:
     image: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
     restart: unless-stopped
     networks:
       - ragenodes_net_staging
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     volumes:
       - redis_data_staging:/data
 
@@ -124,15 +198,20 @@ services:
     image: ragenodes/oxide-control-panel:1.0.0-local
     restart: unless-stopped
     init: true
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
     environment:
       BACKEND_URL: http://backend-staging:3006
-      CONFIG_PATH: /app/rust_config/oxide_proxy.yml
+      CONFIG_PATH: /app/game_config/oxide_proxy.yml
+      OXIDE_DEFAULT_WEB_BACKEND: 127.0.0.1:3011
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+      OXIDE_ROUTE_API_KEY: ${DISCORD_API_KEY:?Set DISCORD_API_KEY}
     networks:
       - ragenodes_net_staging
     volumes:
       - ./oxideproxy/config:/app/rust_config
+      - ./oxideproxy/game_config:/app/game_config
       - ./frontend/public/vendor:/app/public/vendor:ro
+      - oxide_game_runtime_data_staging:/app/runtime:ro
     depends_on:
       backend-staging:
         condition: service_started
@@ -146,6 +225,31 @@ services:
     tmpfs:
       - /tmp
     pids_limit: 128
+    # security_opt and cap_drop are inherited from docker-compose.yml.
+    # Repeating sequence values here makes the merged Compose model invalid.
+
+  oxide_game_staging:
+    build:
+      context: ./oxideproxy
+    image: ragenodes/oxideproxy:1.0.0-local
+    restart: unless-stopped
+    user: "65532:65532"
+    network_mode: host
+    environment:
+      - OXIDE_LOG_DIR=/app/runtime/logs
+      - OXIDE_METRICS_PATH=/app/runtime/game_metrics.json
+      - OXIDE_CONFIG_PATH=/app/game_config/oxide_proxy.yml
+      - OXIDE_EXIT_ON_CONFIG_CHANGE=true
+    volumes:
+      - ./oxideproxy/game_config:/app/game_config:ro
+      - oxide_game_runtime_data_staging:/app/runtime
+    depends_on:
+      backend-staging:
+        condition: service_started
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+    pids_limit: 256
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
@@ -155,6 +259,7 @@ services:
       context: ./oxideproxy
     image: ragenodes/oxideproxy:1.0.0-local
     restart: unless-stopped
+    user: "65532:65532"
     networks:
       ragenodes_net_staging:
         aliases:
@@ -163,9 +268,11 @@ services:
     ports:
       - "${PROXY_BIND_IP:-127.0.0.1}:80:80"
       - "${PROXY_BIND_IP:-127.0.0.1}:443:8443"
-      - "${PROXY_BIND_IP:-127.0.0.1}:${HOST_BIND_FRONTEND_PORT:-8088}:8088"
+      - "${FRONTEND_BIND_IP:-127.0.0.1}:${HOST_BIND_FRONTEND_PORT:-8088}:8088"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
-      - ./oxideproxy/config:/app/config
+      - ./oxideproxy/config/oxide_proxy.yml:/app/config/oxide_proxy.yml:ro
       - oxide_acme_data_staging:/app/acme
       - oxide_runtime_data_staging:/app/runtime
       - ./frontend/public:/var/www/frontend:ro
@@ -174,17 +281,25 @@ services:
     environment:
       - UPSTREAM_API=http://backend-staging:3006
       - STAGING_MODE=true
-      - STAGING_DOMAIN=${STAGING_DOMAIN:-ragenodes.dev}
+      - STAGING_DOMAINS=${STAGING_DOMAINS:-ragenodes.dev,panel.ragenodes.dev}
       - OXIDE_ACME_ENABLED=${OXIDE_ACME_ENABLED:-false}
       - OXIDE_ACME_DOMAINS=${OXIDE_ACME_DOMAINS:-}
       - OXIDE_ACME_EMAIL=${OXIDE_ACME_EMAIL:-}
       - OXIDE_ACME_PRODUCTION=${OXIDE_ACME_PRODUCTION:-false}
       - OXIDE_ACME_CACHE_DIR=/app/acme
+      - OXIDE_DYNAMIC_WEB_DOMAINS=${OXIDE_DYNAMIC_WEB_DOMAINS:-ragenodes.dev,ragenodes.app,ragenodes.com,node1.ragenodes.com}
+      - OXIDE_DYNAMIC_BACKEND_HOST=${OXIDE_DYNAMIC_BACKEND_HOST:-host.docker.internal}
+      - OXIDE_TXADMIN_PORT_START=${OXIDE_TXADMIN_PORT_START:-40100}
+      - OXIDE_TXADMIN_PORT_END=${OXIDE_TXADMIN_PORT_END:-59999}
+      - OXIDE_BLENDER_PORT_START=${OXIDE_BLENDER_PORT_START:-50100}
+      - OXIDE_BLENDER_PORT_END=${OXIDE_BLENDER_PORT_END:-59999}
+      - OXIDE_FRAME_ANCESTORS=${OXIDE_FRAME_ANCESTORS:-https://ragenodes.com https://www.ragenodes.com https://panel.ragenodes.app https://ragenodes.dev https://panel.ragenodes.dev https://staging.ragenodes.com}
       - ACCESS_GATE_ENABLED=${ACCESS_GATE_ENABLED:-false}
       - ACCESS_GATE_DOMAIN=${ACCESS_GATE_DOMAIN:-}
       - ACCESS_GATE_SHARED_EDGE=${ACCESS_GATE_SHARED_EDGE:-false}
       - ACCESS_GATE_ALLOWED_EMAILS=${ACCESS_GATE_ALLOWED_EMAILS:-}
       - ACCESS_GATE_SESSION_SECRET=${ACCESS_GATE_SESSION_SECRET:-}
+      - ACCESS_GATE_REDIS_URL=${ACCESS_GATE_REDIS_URL:-redis://redis-staging:6379/0}
       - ACCESS_GATE_FROM_EMAIL=${ACCESS_GATE_FROM_EMAIL:-RageNodes Access <info@ragenodes.com>}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - OXIDE_RUNTIME_BLACKLIST_PATH=/app/runtime/runtime-blacklist.txt
@@ -193,6 +308,16 @@ services:
         condition: service_started
       oxide_control_panel:
         condition: service_healthy
+      redis-staging:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
 
 networks:
   ragenodes_net_staging:
@@ -204,3 +329,4 @@ volumes:
   redis_data_staging:
   oxide_acme_data_staging:
   oxide_runtime_data_staging:
+  oxide_game_runtime_data_staging:

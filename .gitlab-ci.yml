@@ -1,21 +1,37 @@
 # You can override the included template(s) by including variable overrides
 # SAST customization: https://docs.gitlab.com/user/application_security/sast/#available-cicd-variables
 # Secret Detection customization: https://docs.gitlab.com/user/application_security/secret_detection/pipeline/configure/
-# Dependency Scanning customization: https://docs.gitlab.com/user/application_security/dependency_scanning/dependency_scanning_sbom/#customizing-analyzer-behavior
 # Container Scanning customization: https://docs.gitlab.com/user/application_security/container_scanning/#customizing-analyzer-behavior
 # Note that environment variables can be set in several places
 # See https://docs.gitlab.com/ci/variables/#cicd-variable-precedence
 stages:
 - test
 - secret-detection
+workflow:
+  rules:
+  - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
+    when: never
+  - if: '$CI_COMMIT_BRANCH'
+  - if: '$CI_COMMIT_TAG'
+default:
+  interruptible: true
+  tags:
+  - ragenodes-general
 variables:
   SECRET_DETECTION_ENABLED: 'true'
+  AST_ENABLE_MR_PIPELINES: 'true'
+  # The GitLab dependency-scanning service is not enabled for this project.
+  # Production dependencies are still enforced by the dependency_audit job.
+  DEPENDENCY_SCANNING_DISABLED: 'true'
 
 security_contracts:
   stage: test
   image: node:24-bookworm
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-npm"
+    key:
+      files:
+      - package-lock.json
     paths:
     - .npm-cache/
   before_script:
@@ -24,21 +40,83 @@ security_contracts:
   - npm run security:secrets
   - npm run security:csp-bindings
   - npm run security:inline-code
+  - npm run security:blender-viewport
+  - npm run security:panel-render
+  - npm run security:deployment
+  - bash scripts/security/env_loader_contract.sh
 
 backend_tests:
   stage: test
   image: node:24-bookworm
   cache:
-    key: "${CI_COMMIT_REF_SLUG}-backend-npm"
+    key:
+      files:
+      - backend/package-lock.json
     paths:
     - backend/.npm-cache/
   before_script:
   - cd backend
   - npm ci --ignore-scripts --cache .npm-cache
   script:
-  - node --test test/*.test.js
+  - npm test
+
+dependency_audit:
+  stage: test
+  image: node:24-bookworm
+  cache:
+    key:
+      files:
+      - package-lock.json
+      - backend/package-lock.json
+    paths:
+    - .npm-cache/
+    - backend/.npm-cache/
+  before_script:
+  - npm ci --ignore-scripts --cache .npm-cache
+  - cd backend && npm ci --ignore-scripts --cache .npm-cache && cd ..
+  script:
+  - npm audit --omit=dev --audit-level=high
+  - cd backend && npm audit --omit=dev --audit-level=high
+
+oxide_tests:
+  stage: test
+  image: rust:bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97
+  services:
+  - name: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
+    alias: redis
+  tags:
+  - ragenodes-rust
+  cache:
+    key:
+      files:
+      - oxideproxy/Cargo.lock
+    paths:
+    - .cargo/
+    - oxideproxy/target/
+  variables:
+    CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
+    ACCESS_GATE_TEST_REDIS_URL: redis://redis:6379/15
+  script:
+  - cargo test --manifest-path oxideproxy/Cargo.toml --locked
+
+compose_validation:
+  stage: test
+  image: docker:27.5.1-cli
+  variables:
+    LEGO_EMAIL: ci@example.invalid
+    PDNS_API_KEY: ci-contract-only
+    POWERDNS_ZONE: security-test.invalid
+  before_script:
+  - cp .env.example .env
+  script:
+  - docker compose -f docker-compose.yml config --quiet
+  - docker compose -f docker-compose.staging.yml config --quiet
+  - docker compose -f docker-compose.yml -f docker-compose.security.yml config --quiet
+  - docker compose -f docker-compose.yml -f docker-compose.backup-remote.yml config --quiet
+  - docker compose -f docker-compose.yml -f docker-compose.powerdns.yml --profile dns-authority --profile dns-certificate config --quiet
 
 secret_detection:
   stage: secret-detection
 include:
 - template: Security/Secret-Detection.gitlab-ci.yml
+- template: Jobs/SAST.gitlab-ci.yml

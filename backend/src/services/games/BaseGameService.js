@@ -1,6 +1,48 @@
 import os from 'os';
+import path from 'node:path';
 import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, applyRageNodesBranding, sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
+
+export function resolveDataSubdirectory(dataPath, subdir) {
+    if (typeof dataPath !== 'string' || !path.posix.isAbsolute(dataPath)) {
+        throw new TypeError('La ruta de datos debe ser absoluta.');
+    }
+    if (typeof subdir !== 'string' || !subdir || path.posix.isAbsolute(subdir)) {
+        throw new TypeError('El subdirectorio debe ser una ruta relativa no vacía.');
+    }
+
+    const base = path.posix.normalize(dataPath).replace(/\/+$/, '');
+    const resolved = path.posix.normalize(path.posix.join(base, subdir));
+    if (!resolved.startsWith(`${base}/`) || resolved === base) {
+        throw new TypeError('El subdirectorio no puede salir de la ruta de datos.');
+    }
+    return resolved;
+}
+
+export async function normalizeSharedDataPermissions(container, sharedGid = config.gameContainerSharedGid) {
+    const gid = Number(sharedGid);
+    if (!Number.isInteger(gid) || gid < 0 || gid > 65535) {
+        throw new TypeError('El grupo compartido del contenedor no es valido.');
+    }
+
+    const command = `chgrp -R ${gid} /data && chmod -R g+rwX,o= /data && find /data -type d -exec chmod g+s {} \\;`;
+    const exec = await container.exec({
+        User: '0',
+        Cmd: ['sh', '-c', command],
+        AttachStdout: true,
+        AttachStderr: true
+    });
+    const stream = await exec.start();
+    await new Promise((resolve, reject) => {
+        stream.once('end', resolve);
+        stream.once('error', reject);
+        stream.resume?.();
+    });
+    const result = await exec.inspect();
+    if (result.ExitCode !== 0) {
+        throw new Error(`No se pudieron normalizar los permisos compartidos (codigo ${result.ExitCode}).`);
+    }
+}
 
 /**
  * 🏛️ BaseGameService (Módulo 3 & 4: POO y Patrón Template Method)
@@ -21,15 +63,26 @@ export class BaseGameService {
     }
 
     /**
-     * Prepara directorios remotos con permisos estándar seguros (1000:1000).
+     * Prepara directorios remotos con permisos compartidos y sin acceso publico.
      */
     async prepareDirectory(nodeId, dataPath, subdirs = []) {
-        await runRemoteCommand(nodeId || 0, sh`mkdir -p ${dataPath} && chown -R 1000:1000 ${dataPath}`);
+        await runRemoteCommand(nodeId || 0, sh`mkdir -p ${dataPath}`);
+        try {
+            await runRemoteCommand(nodeId || 0, sh`chown -R 1000:1000 ${dataPath}`);
+        } catch (error) {
+            // En Docker rootless los ficheros pueden pertenecer al UID mapeado.
+            // El ajuste definitivo se realiza dentro del contenedor tras arrancar.
+        }
         for (const sub of subdirs) {
-            await runRemoteCommand(nodeId || 0, sh`mkdir -p "${dataPath}/${sub}"`);
+            const subdirPath = resolveDataSubdirectory(dataPath, sub);
+            await runRemoteCommand(nodeId || 0, sh`mkdir -p ${subdirPath}`);
         }
         try {
-            await runRemoteCommand(nodeId || 0, sh`chown -R 1000:1000 ${dataPath} && chmod -R u=rwX,g=rX,o= ${dataPath}`);
+            const safeDataPath = sh`${dataPath}`;
+            await runRemoteCommand(
+                nodeId || 0,
+                `chown -R 1000:1000 ${safeDataPath} && chmod -R u=rwX,g=rwX,o= ${safeDataPath} && find ${safeDataPath} -type d -exec chmod g+s {} \\;`
+            );
         } catch (e) {}
     }
 
@@ -63,14 +116,35 @@ export class BaseGameService {
         const nanoCpus = Math.min(rawNanoCpus, hostCpuCount * 10**9);
         const memoryBytes = opts.plan?.memoryBytes || 4 * 1024 * 1024 * 1024;
 
+        const effectiveBindings = structuredClone(portBindings.bindings || {});
+        const proxyBackendPortOffset = Number(portBindings.proxyBackendPortOffset || config.gameBackendPortOffset);
+        if (config.oxideGameProxyEnabled) {
+            const proxiedPorts = new Set(portBindings.proxiedPorts || []);
+            for (const [containerPort, bindings] of Object.entries(effectiveBindings)) {
+                if (!proxiedPorts.has(containerPort)) continue;
+                for (const binding of bindings || []) {
+                    const publicPort = Number(binding.HostPort);
+                    if (!Number.isInteger(publicPort) || publicPort < 1 || publicPort > 55535) {
+                        throw new Error(`Puerto público inválido para proxy de juego: ${binding.HostPort}`);
+                    }
+                    binding.HostIp = config.gameBackendBindIp;
+                    if (!Number.isInteger(proxyBackendPortOffset) || proxyBackendPortOffset < 1 || publicPort + proxyBackendPortOffset > 65535) {
+                        throw new Error(`Offset de backend inválido para proxy de juego: ${proxyBackendPortOffset}`);
+                    }
+                    binding.HostPort = String(publicPort + proxyBackendPortOffset);
+                }
+            }
+        }
+
         const hostConfig = {
             Binds: binds,
-            PortBindings: portBindings.bindings,
+            PortBindings: effectiveBindings,
             RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: memoryBytes,
             NanoCpus: nanoCpus,
             CpuShares: Math.round((nanoCpus / 10**9) * 1024),
             ExtraHosts: ["host.docker.internal:host-gateway"],
+            GroupAdd: [String(config.gameContainerSharedGid)],
             ...GAME_SECURITY_CONFIG
         };
 
@@ -85,6 +159,11 @@ export class BaseGameService {
      * Hook posterior a la creación e inicio del contenedor.
      */
     async afterStart(container, opts) {
+        try {
+            await normalizeSharedDataPermissions(container);
+        } catch (error) {
+            console.warn(`[BaseGameService] No se pudieron normalizar los permisos de ${opts.containerName}: ${error.message}`);
+        }
         applyRageNodesBranding(container, opts.containerName);
         try {
             const { query } = await import('../../db.js');
@@ -134,7 +213,9 @@ export class BaseGameService {
             HostConfig: hostConfig,
             Labels: {
                 "ragenodes.server_id": String(opts.serverId),
-                "ragenodes.game": String(this.gameId)
+                "ragenodes.game": String(this.gameId),
+                "ragenodes.game_proxy": config.oxideGameProxyEnabled ? "enabled" : "direct",
+                "ragenodes.game_proxy_offset": String(ports.proxyBackendPortOffset || config.gameBackendPortOffset)
             }
         });
 

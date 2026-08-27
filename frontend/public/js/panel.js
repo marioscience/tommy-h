@@ -618,7 +618,7 @@ function toggleSidebar() {
                 await Nexus.api('/api/servers', { method: 'POST', body: JSON.stringify(body) });
                 showToast('¡Servidor creado con éxito!', 'success');
                 lastDataHash = "";
-                loadServers();
+                await switchView('servers', document.getElementById('nav-servers'));
             } catch (e) {
                 showToast("Error al desplegar: " + (e.message || "Contacta a soporte."), 'danger');
                 btn.innerHTML = '<i class="fa-solid fa-plus"></i> Desplegar';
@@ -841,10 +841,36 @@ function toggleSidebar() {
             return url.endsWith('/') ? url : `${url}/`;
         }
 
+        function buildDynamicEndpointUrl(prefix, port) {
+            const hostname = window.location.hostname.toLowerCase();
+            if (isPrivatePanelHost(hostname)) {
+                return `${window.location.protocol}//${hostname}:${port}`;
+            }
+            const domain = hostname === 'ragenodes.dev' || hostname.endsWith('.ragenodes.dev')
+                ? 'ragenodes.dev'
+                : 'ragenodes.app';
+            return `https://${prefix}${port}.${domain}`;
+        }
+
         function buildTxAdminTargets(server) {
-            let publicUrl = server.txadmin_url;
-            if (!publicUrl || publicUrl.includes('//s')) {
-                publicUrl = `https://tx${server.txadmin_port}.ragenodes.com`;
+            const canonicalUrl = buildDynamicEndpointUrl('tx', server.txadmin_port);
+            let publicUrl = canonicalUrl;
+
+            if (!isPrivatePanelHost(window.location.hostname) && server.txadmin_url) {
+                try {
+                    const candidate = new URL(server.txadmin_url);
+                    const expectedHosts = new Set([
+                        `tx${server.txadmin_port}.ragenodes.app`,
+                        `tx${server.txadmin_port}.ragenodes.dev`
+                    ]);
+                    if (candidate.protocol === 'https:' &&
+                        !candidate.port &&
+                        expectedHosts.has(candidate.hostname.toLowerCase())) {
+                        publicUrl = candidate.toString();
+                    }
+                } catch {
+                    // La URL persistida es heredada o inválida; se usa la ruta canónica.
+                }
             }
             publicUrl = ensureTrailingSlash(publicUrl);
             return {
@@ -948,6 +974,7 @@ function toggleSidebar() {
 
         let activeView = 'servers';
         function switchView(viewId, element) {
+            if (viewId !== 'logs') stopLogStreaming();
             if (activeView === viewId && viewId !== 'servers') return; // Evitar recargas innecesarias (excepto en dashboard que puede requerir refresco)
 
             if (window.innerWidth <= 1024) {
@@ -988,7 +1015,9 @@ function toggleSidebar() {
 
             if (viewId === 'servers') {
                 document.getElementById('page-sub').innerText = "Gestiona tu instancia y recursos";
-                document.getElementById('view-servers').classList.remove('hidden'); lastDataHash = ""; loadServers();
+                document.getElementById('view-servers').classList.remove('hidden');
+                lastDataHash = "";
+                return loadServers();
             } else if (viewId === 'marketplace') {
                 document.getElementById('page-sub').innerText = "Adquiere scripts exclusivos protegidos por Vault™";
                 document.getElementById('view-marketplace').classList.remove('hidden');
@@ -1045,10 +1074,7 @@ function toggleSidebar() {
                     if (currentServerId && !isBlenderIframeLoaded && !savedBlenderUrl) {
                         openBlender(currentServerId);
                     } else if (savedBlenderUrl) {
-                        const iframe = document.getElementById('blender-iframe');
-                        iframe.style.display = 'block';
-                        if (iframe.src !== savedBlenderUrl) iframe.src = savedBlenderUrl;
-                        isBlenderIframeLoaded = true;
+                        void loadBlenderFrame(savedBlenderUrl);
                         // 🚀 Asegurar que se carguen las credenciales
                         openBlender(currentServerId);
                     }
@@ -1161,7 +1187,13 @@ function toggleSidebar() {
             const customName = document.getElementById('manual-backup-name').value.trim();
             if (!confirm('¿Generar copia de seguridad manual?')) return;
 
-            const btn = event.currentTarget;
+            const btn = event?.target instanceof Element
+                ? event.target.closest('button')
+                : null;
+            if (!btn) {
+                showToast('No se pudo identificar el boton de backup.', 'error');
+                return;
+            }
             const originalHTML = btn.innerHTML;
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> En cola...';
             btn.disabled = true;
@@ -1240,11 +1272,7 @@ function toggleSidebar() {
         function openTxAdminPopup() {
             let publicTarget = txTargetUrl;
             if (currentServer) {
-                publicTarget = currentServer.txadmin_url;
-                if (!publicTarget || publicTarget.includes('//s')) {
-                    publicTarget = `https://tx${currentServer.txadmin_port}.ragenodes.com`;
-                }
-                publicTarget = ensureTrailingSlash(publicTarget);
+                publicTarget = buildTxAdminTargets(currentServer).primary;
             }
             if (!publicTarget) return showToast("El servidor no está iniciado", "warning");
             txTargetUrl = publicTarget;
@@ -2312,7 +2340,21 @@ function toggleSidebar() {
                 }
             } catch (e) {
                 if (e.status === 401) Nexus.logout();
-                else console.warn("Polling loadServers:", e.message);
+                else {
+                    console.error("Polling loadServers:", e);
+                    const dashboardView = document.getElementById('view-servers');
+                    const dashboard = document.getElementById('client-servers');
+                    if (dashboardView && dashboard && !dashboardView.classList.contains('hidden') && !dashboard.dataset.renderedId) {
+                        dashboard.innerHTML = `<div class="card muted" style="text-align:center; padding:50px; max-width:600px; margin:50px auto;">
+                            <i class="fa-solid fa-triangle-exclamation" style="font-size:2.5rem; margin-bottom:18px; color:var(--warning)"></i>
+                            <h3 style="color:white; font-size:1.25rem; margin-bottom:10px;">No se pudo cargar el servidor</h3>
+                            <p style="margin-bottom:18px;">La información no se perdió. Vuelve a intentarlo.</p>
+                            <button class="btn" ${rnBind("click", () => { lastDataHash = ""; loadServers(); })}>
+                                <i class="fa-solid fa-rotate-right"></i> Reintentar
+                            </button>
+                        </div>`;
+                    }
+                }
             } finally {
                 isLoadServersInFlight = false;
             }
@@ -2320,7 +2362,11 @@ function toggleSidebar() {
 
         async function toggleBlender(event, id, action) {
             if (event) event.stopPropagation();
-            const btn = event ? event.currentTarget : null;
+            // Los manejadores CSP se ejecutan mediante delegación desde `document`,
+            // por lo que la referencia del receptor no es el botón pulsado.
+            const btn = event?.target instanceof Element
+                ? event.target.closest('button')
+                : null;
             const originalHtml = btn ? btn.innerHTML : '';
 
             if (blenderActionPending) return;
@@ -2375,6 +2421,77 @@ function toggleSidebar() {
         }
 
         let blenderPendingUrl = "";
+        let blenderResizeFrame = 0;
+
+        function resizeBlenderFrame() {
+            const container = document.getElementById('blender-iframe-container');
+            const iframe = document.getElementById('blender-iframe');
+            if (!container || !iframe || activeView !== 'blender') return 0;
+
+            const visualViewport = window.visualViewport;
+            const viewportBottom = (visualViewport?.offsetTop || 0) + (visualViewport?.height || window.innerHeight);
+            const main = container.closest('.main');
+            const mainStyle = main ? window.getComputedStyle(main) : null;
+            const mainBottom = main
+                ? main.getBoundingClientRect().bottom - (parseFloat(mainStyle?.paddingBottom || '0') || 0)
+                : viewportBottom;
+            const containerTop = container.getBoundingClientRect().top;
+            const availableHeight = Math.max(320, Math.floor(Math.min(viewportBottom, mainBottom) - containerTop));
+
+            container.style.setProperty('height', `${availableHeight}px`, 'important');
+            iframe.style.setProperty('height', `${availableHeight}px`, 'important');
+
+            try {
+                iframe.contentWindow?.dispatchEvent(new Event('resize'));
+            } catch (_) {
+                // El proxy puede volver el documento temporalmente cross-origin durante la carga.
+            }
+            return availableHeight;
+        }
+
+        function scheduleBlenderResize() {
+            if (blenderResizeFrame) cancelAnimationFrame(blenderResizeFrame);
+            blenderResizeFrame = requestAnimationFrame(() => {
+                blenderResizeFrame = 0;
+                resizeBlenderFrame();
+            });
+        }
+
+        function waitForBlenderLayout() {
+            return new Promise(resolve => {
+                requestAnimationFrame(() => requestAnimationFrame(resolve));
+            });
+        }
+
+        async function loadBlenderFrame(url) {
+            const iframe = document.getElementById('blender-iframe');
+            if (!iframe || !url) return;
+
+            const absoluteUrl = new URL(url, window.location.origin);
+            if (absoluteUrl.origin !== window.location.origin || !absoluteUrl.pathname.startsWith('/blender/')) {
+                console.warn('URL de Blender rechazada por no pertenecer al proxy local.');
+                return;
+            }
+
+            iframe.style.display = 'block';
+            await waitForBlenderLayout();
+            resizeBlenderFrame();
+
+            if (iframe.src !== absoluteUrl.href) {
+                iframe.addEventListener('load', () => {
+                    scheduleBlenderResize();
+                    setTimeout(scheduleBlenderResize, 250);
+                    setTimeout(scheduleBlenderResize, 1000);
+                }, { once: true });
+                iframe.src = absoluteUrl.href;
+            } else {
+                scheduleBlenderResize();
+            }
+            isBlenderIframeLoaded = true;
+        }
+
+        window.addEventListener('resize', scheduleBlenderResize, { passive: true });
+        window.visualViewport?.addEventListener('resize', scheduleBlenderResize, { passive: true });
 
         async function openBlender(id) {
             try {
@@ -2397,13 +2514,10 @@ function toggleSidebar() {
 
         function confirmBlenderAuth() {
             document.getElementById('blender-auth-modal').classList.add('hidden');
-            const iframe = document.getElementById('blender-iframe');
-            iframe.style.display = 'block';
-            iframe.src = blenderPendingUrl;
-            isBlenderIframeLoaded = true;
             if (currentServerId) {
                 sessionStorage.setItem('blenderUrl_' + currentServerId, blenderPendingUrl);
             }
+            void loadBlenderFrame(blenderPendingUrl);
         }
 
         let srvActionPending = false;
@@ -2946,6 +3060,20 @@ function toggleSidebar() {
         function fmUploadFolder() { const i = document.createElement('input'); i.type = 'file'; i.setAttribute('webkitdirectory', ''); i.setAttribute('directory', ''); i.onchange = e => { if (e.target.files.length > 0) processUpload(e.target.files); }; i.click(); }
 
         let logEventSource = null;
+        let logReconnectTimer = null;
+        let logStreamGeneration = 0;
+
+        function stopLogStreaming() {
+            logStreamGeneration++;
+            if (logReconnectTimer) {
+                clearTimeout(logReconnectTimer);
+                logReconnectTimer = null;
+            }
+            if (logEventSource) {
+                logEventSource.close();
+                logEventSource = null;
+            }
+        }
 
         // ============================================================
         // 🎮 CONSOLA INTERACTIVA (Minecraft)
@@ -3014,15 +3142,18 @@ function toggleSidebar() {
             const term = document.getElementById('terminal-out');
             if (!term) return;
 
-            // Cerrar stream previo si existe
-            if (logEventSource) logEventSource.close();
+            // Cerrar cualquier stream/reintento previo y crear una única generación activa.
+            stopLogStreaming();
+            const generation = logStreamGeneration;
 
             term.innerHTML = '<div class="muted"><i class="fa-solid fa-sync fa-spin"></i> Conectando con el motor de logs nativo...</div>';
 
             const streamUrl = `${window.location.origin}/api/servers/${currentServerId}/logs/stream`;
-            logEventSource = new EventSource(streamUrl);
+            const eventSource = new EventSource(streamUrl);
+            logEventSource = eventSource;
 
-            logEventSource.addEventListener('open', (e) => {
+            eventSource.addEventListener('open', () => {
+                if (generation !== logStreamGeneration) return;
                 console.log("SSE Stream Abierto");
                 // No borramos el terminal aquí para esperar el primer bloque de logs real
                 // pero podemos dar feedback visual de que estamos conectados
@@ -3035,7 +3166,8 @@ function toggleSidebar() {
                 }
             });
 
-            logEventSource.onmessage = (event) => {
+            eventSource.onmessage = (event) => {
+                if (generation !== logStreamGeneration) return;
                 try {
                     const data = JSON.parse(event.data);
 
@@ -3063,12 +3195,20 @@ function toggleSidebar() {
                 }
             };
 
-            logEventSource.onerror = (e) => {
+            eventSource.onerror = (e) => {
+                if (generation !== logStreamGeneration || activeView !== 'logs') return;
                 console.error("SSE Error:", e);
                 term.innerHTML = '<div class="text-danger"><i class="fa-solid fa-triangle-exclamation"></i> Conexión perdida. Reintentando...</div>';
-                logEventSource.close();
-                // Reintento exponencial o simple
-                setTimeout(startLogStreaming, 5000);
+                eventSource.close();
+                if (logEventSource === eventSource) logEventSource = null;
+                if (!logReconnectTimer) {
+                    logReconnectTimer = setTimeout(() => {
+                        logReconnectTimer = null;
+                        if (generation === logStreamGeneration && activeView === 'logs') {
+                            startLogStreaming();
+                        }
+                    }, 5000);
+                }
             };
         }
 
@@ -3205,7 +3345,7 @@ function toggleSidebar() {
                 const colors = ['var(--muted)', 'var(--info)', 'var(--success)', 'var(--warning)', 'var(--danger)', 'var(--primary)'];
 
                 grid.innerHTML = plans.map((p, i) => `
-                  <div class="disk-pack premium-disk-pack" ${rnBind("click", (event, element) => { selectDiskPack((p.id), (p.paypal_plan_id), (p.gb_amount)) })} style="position: relative; background: linear-gradient(180deg, rgba(30,30,35,0.8) 0%, rgba(18,18,20,0.9) 100%); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 25px 15px; text-align: center; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden;">
+                  <div class="disk-pack premium-disk-pack" ${rnBind("click", (event, element) => { selectDiskPack((p.id), (p.paypal_plan_id), (p.gb_amount), element) })} style="position: relative; background: linear-gradient(180deg, rgba(30,30,35,0.8) 0%, rgba(18,18,20,0.9) 100%); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 25px 15px; text-align: center; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden;">
                       <div class="disk-pack-glow" style="position: absolute; top: 0; left: 0; right: 0; height: 2px; background: ${colors[i % colors.length]}; opacity: 0.3; transition: opacity 0.3s;"></div>
                       <div style="position: absolute; top: -20px; left: 50%; transform: translateX(-50%); width: 80px; height: 80px; background: radial-gradient(circle, ${colors[i % colors.length]}40 0%, transparent 70%); filter: blur(15px); pointer-events: none; transition: opacity 0.3s;" class="disk-pack-blur"></div>
                       <i class="fa-solid fa-sd-card" style="font-size: 2.2rem; color: ${colors[i % colors.length]}; margin-bottom: 15px; display:block; position: relative; z-index: 1; filter: drop-shadow(0 4px 10px ${colors[i % colors.length]}60);"></i>
@@ -3218,9 +3358,13 @@ function toggleSidebar() {
             }
         }
 
-        function selectDiskPack(diskPlanId, paypalPlanId, gb) {
+        function selectDiskPack(diskPlanId, paypalPlanId, gb, selectedElement) {
             document.querySelectorAll('.disk-pack').forEach(el => el.classList.remove('selected'));
-            event.currentTarget.classList.add('selected');
+            if (!(selectedElement instanceof Element)) {
+                showToast('No se pudo seleccionar la expansion de disco.', 'error');
+                return;
+            }
+            selectedElement.classList.add('selected');
 
             currentSelectedDiskPack = diskPlanId;
             currentDiskGb = gb;
@@ -3373,7 +3517,9 @@ function toggleSidebar() {
         }
 
         loadNotifications();
-        loadServers();
+        // La carga inicial debe seguir el mismo camino que volver desde otra vista:
+        // primero hace visible el dashboard y después solicita/renderiza los datos.
+        switchView('servers', document.getElementById('nav-servers'));
         startDownloadPolling();
         // 🚀 TURBO MODE: Actualizaciones rápidas (1.5s) aprovechando el motor Rust
         window.panelPollRate = 1500;

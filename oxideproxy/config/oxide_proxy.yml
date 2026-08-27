@@ -4,20 +4,10 @@ ingress:
   max_concurrent_connections: 1000000
   initial_buffer_size: 4096
 routing:
-  default_web_backend: 10.5.0.12:80
-  game_servers:
-  - game_id: 1001
-    backend_addr: 10.5.0.10:9001
-    description: Mock MMORPG Realm (Python UDP en 10.5.0.10)
-    port_range: '9001'
-    name: Mock MMORPG Realm
-    protocol: UDP
-  - game_id: 1002
-    backend_addr: 10.5.0.11:9002
-    description: Mock FPS Arena (Python UDP en 10.5.0.11)
-    port_range: '9002'
-    name: Mock FPS Arena
-    protocol: UDP
+  default_web_backend: backend:3006
+  # Las rutas reales se registraran desde el plano de control autenticado.
+  # Los mocks solo deben declararse en un fichero de laboratorio independiente.
+  game_servers: []
 tls:
   cert_path: config/certs/cert.pem
   key_path: config/certs/key.pem

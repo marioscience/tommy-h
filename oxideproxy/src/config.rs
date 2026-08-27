@@ -1,7 +1,25 @@
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::PathBuf;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ConfigError {
+    #[error("no se pudo leer {path}: {source}")]
+    Read {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("YAML invalido en {path}: {source}")]
+    Parse {
+        path: String,
+        #[source]
+        source: serde_yaml::Error,
+    },
+    #[error("configuracion invalida: {0}")]
+    Invalid(String),
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ProxyConfig {
@@ -46,8 +64,16 @@ pub struct SecurityConfig {
 pub struct IngressConfig {
     pub tcp_listen_addr: SocketAddr,
     pub udp_listen_addr: SocketAddr,
+    #[serde(default)]
+    pub game_listen_ip: Option<IpAddr>,
+    #[serde(default = "default_http_listen_addrs")]
+    pub http_listen_addrs: Vec<SocketAddr>,
     pub max_concurrent_connections: usize,
     pub initial_buffer_size: usize,
+}
+
+fn default_http_listen_addrs() -> Vec<SocketAddr> {
+    vec!["0.0.0.0:80".parse().unwrap(), "0.0.0.0:8088".parse().unwrap()]
 }
 
 fn default_socket_addr() -> SocketAddr {
@@ -110,42 +136,19 @@ fn detect_core_pinning() -> bool {
 
 impl Default for ProxyConfig {
     fn default() -> Self {
-        // Mapeo directo a las IPs fijas de los contenedores mock en la red de laboratorio (10.5.0.0/16)
-        let game_servers = vec![
-            GameServerRoute {
-                game_id: 1001,
-                backend_addr: "10.5.0.10:9001".to_string(),
-                description: "Mock MMORPG Realm (Python UDP en 10.5.0.10)".to_string(),
-                port_range: Some("9001".to_string()),
-                name: Some("Mock MMORPG Realm".to_string()),
-                protocol: Some("UDP".to_string()),
-            },
-            GameServerRoute {
-                game_id: 1002,
-                backend_addr: "10.5.0.11:9002".to_string(),
-                description: "Mock FPS Arena (Python UDP en 10.5.0.11)".to_string(),
-                port_range: Some("9002".to_string()),
-                name: Some("Mock FPS Arena".to_string()),
-                protocol: Some("UDP".to_string()),
-            },
-        ];
-
-        let mut game_servers_map = FxHashMap::default();
-        for route in &game_servers {
-            game_servers_map.insert(route.game_id, route.backend_addr.clone());
-        }
-
-        let default_web_backend = "10.5.0.12:80".to_string();
-        let default_web_backend_addr = default_web_backend
-            .to_socket_addrs()
-            .ok()
-            .and_then(|mut a| a.next())
-            .unwrap_or_else(|| "10.5.0.12:80".parse().unwrap());
+        // Un valor por defecto nunca debe crear rutas de laboratorio. Los mocks
+        // pertenecen exclusivamente al perfil `lab` y a su fichero de ejemplo.
+        let game_servers = Vec::new();
+        let game_servers_map = FxHashMap::default();
+        let default_web_backend = "127.0.0.1:80".to_string();
+        let default_web_backend_addr = "127.0.0.1:80".parse().unwrap();
 
         Self {
             ingress: IngressConfig {
                 tcp_listen_addr: "0.0.0.0:8443".parse().unwrap(),
                 udp_listen_addr: "0.0.0.0:8080".parse().unwrap(),
+                game_listen_ip: None,
+                http_listen_addrs: default_http_listen_addrs(),
                 max_concurrent_connections: 1_000_000,
                 initial_buffer_size: 4096,
             },
@@ -187,54 +190,154 @@ impl Default for ProxyConfig {
 }
 
 impl ProxyConfig {
-    pub fn load_or_default(path: &str) -> Self {
-        match std::fs::read_to_string(path) {
-            Ok(content) => match serde_yaml::from_str::<ProxyConfig>(&content) {
-                Ok(mut config) => {
-                    let mut map = FxHashMap::default();
-                    for route in &config.routing.game_servers {
-                        map.insert(route.game_id, route.backend_addr.clone());
-                    }
-                    config.routing.game_servers_map = map;
+    pub fn load(path: &str) -> Result<Self, ConfigError> {
+        let content = std::fs::read_to_string(path).map_err(|source| ConfigError::Read {
+            path: path.to_owned(),
+            source,
+        })?;
+        let config =
+            serde_yaml::from_str::<ProxyConfig>(&content).map_err(|source| ConfigError::Parse {
+                path: path.to_owned(),
+                source,
+            })?;
+        config.validate_and_hydrate()
+    }
 
-                    let default_web_addr = config
-                        .routing
-                        .default_web_backend
-                        .to_socket_addrs()
-                        .ok()
-                        .and_then(|mut a| a.next())
-                        .unwrap_or_else(|| "127.0.0.1:80".parse().unwrap());
-                    config.routing.default_web_backend_addr = default_web_addr;
+    fn validate_and_hydrate(mut self) -> Result<Self, ConfigError> {
+        let default_web_addr = self
+            .routing
+            .default_web_backend
+            .to_socket_addrs()
+            .map_err(|e| {
+                ConfigError::Invalid(format!(
+                    "default_web_backend no se puede resolver ({}): {}",
+                    self.routing.default_web_backend, e
+                ))
+            })?
+            .next()
+            .ok_or_else(|| {
+                ConfigError::Invalid("default_web_backend no resolvio ninguna direccion".into())
+            })?;
 
-                    config.runtime.enable_core_pinning = detect_core_pinning();
-
-                    tracing::debug!(
-                        "ConfiguraciÃ³n y tabla de ruteo O(1) cargadas exitosamente desde {}",
-                        path
-                    );
-                    config
-                }
-
-                Err(e) => {
-                    tracing::error!(
-                        "Error al parsear {}, usando configuraciÃ³n por defecto: {}",
-                        path,
-                        e
-                    );
-                    Self::default()
-                }
-            },
-            Err(_) => {
-                tracing::warn!("Archivo de configuraciÃ³n {} no encontrado. Generando configuraciÃ³n por defecto.", path);
-                let default_config = Self::default();
-                if let Ok(yaml) = serde_yaml::to_string(&default_config) {
-                    if let Some(prefix) = std::path::Path::new(path).parent() {
-                        let _ = std::fs::create_dir_all(prefix);
-                    }
-                    let _ = std::fs::write(path, yaml);
-                }
-                default_config
+        let mut map = FxHashMap::default();
+        let mut listen_ports = std::collections::HashMap::<u16, u8>::new();
+        for route in &self.routing.game_servers {
+            if route.game_id == 0 {
+                return Err(ConfigError::Invalid("game_id 0 no esta permitido".into()));
+            }
+            let backend_addr = route
+                .backend_addr
+                .to_socket_addrs()
+                .map_err(|e| {
+                    ConfigError::Invalid(format!(
+                        "backend_addr invalido para game_id {}: {}",
+                        route.game_id, e
+                    ))
+                })?
+                .next()
+                .ok_or_else(|| {
+                    ConfigError::Invalid(format!(
+                        "backend_addr sin direccion para game_id {}",
+                        route.game_id
+                    ))
+                })?;
+            let protocol = route
+                .protocol
+                .as_deref()
+                .unwrap_or("DUAL")
+                .to_ascii_uppercase();
+            if !matches!(protocol.as_str(), "TCP" | "UDP" | "DUAL") {
+                return Err(ConfigError::Invalid(format!(
+                    "protocolo no admitido para game_id {}",
+                    route.game_id
+                )));
+            }
+            let listen_port = match route.port_range.as_deref() {
+                Some(port) => port.parse::<u16>().map_err(|_| {
+                    ConfigError::Invalid(format!(
+                        "port_range debe ser un unico puerto valido para game_id {}",
+                        route.game_id
+                    ))
+                })?,
+                None => backend_addr.port(),
+            };
+            if listen_port == 0
+                || listen_port == self.ingress.tcp_listen_addr.port()
+                || listen_port == self.ingress.udp_listen_addr.port()
+            {
+                return Err(ConfigError::Invalid(format!(
+                    "puerto de escucha invalido o duplicado para game_id {}",
+                    route.game_id
+                )));
+            }
+            let mask = match protocol.as_str() {
+                "TCP" => 0b01,
+                "UDP" => 0b10,
+                _ => 0b11,
+            };
+            let used = listen_ports.entry(listen_port).or_default();
+            if *used & mask != 0 {
+                return Err(ConfigError::Invalid(format!(
+                    "puerto de escucha invalido o duplicado para game_id {}",
+                    route.game_id
+                )));
+            }
+            *used |= mask;
+            if map
+                .insert(route.game_id, route.backend_addr.clone())
+                .is_some()
+            {
+                return Err(ConfigError::Invalid(format!(
+                    "game_id duplicado: {}",
+                    route.game_id
+                )));
             }
         }
+
+        self.routing.default_web_backend_addr = default_web_addr;
+        self.routing.game_servers_map = map;
+        self.runtime.enable_core_pinning = detect_core_pinning();
+        Ok(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaults_do_not_expose_lab_routes() {
+        let config = ProxyConfig::default();
+        assert!(config.routing.game_servers.is_empty());
+        assert!(config.routing.game_servers_map.is_empty());
+    }
+
+    #[test]
+    fn duplicate_game_ids_fail_closed() {
+        let mut config = ProxyConfig::default();
+        let route = GameServerRoute {
+            game_id: 25565,
+            backend_addr: "127.0.0.1:25565".into(),
+            description: "test".into(),
+            port_range: Some("35565".into()),
+            name: None,
+            protocol: Some("TCP".into()),
+        };
+        config.routing.game_servers = vec![route.clone(), route];
+        assert!(config.validate_and_hydrate().is_err());
+    }
+
+    #[test]
+    fn invalid_protocol_fails_closed() {
+        let mut config = ProxyConfig::default();
+        config.routing.game_servers.push(GameServerRoute {
+            game_id: 30120,
+            backend_addr: "127.0.0.1:30120".into(),
+            description: "test".into(),
+            port_range: Some("30120".into()),
+            name: None,
+            protocol: Some("SCTP".into()),
+        });
+        assert!(config.validate_and_hydrate().is_err());
     }
 }

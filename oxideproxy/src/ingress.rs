@@ -11,6 +11,7 @@ use tokio::net::{TcpListener, UdpSocket};
 pub async fn start_ingress(
     config: ProxyConfig,
     worker_threads: usize,
+    config_path: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let tls_runtime = Arc::new(
         TlsRuntime::initialize(&config.tls.cert_path, &config.tls.key_path)
@@ -23,8 +24,19 @@ pub async fn start_ingress(
     let initial_buf_size = config_arc.ingress.initial_buffer_size;
 
     let mut xdp = XdpFilter::new("eth0");
-    xdp.reload_from_config("config/oxide_proxy.yml");
-    let _ = xdp.attach();
+    xdp.reload_from_config(&config_path);
+    let xdp_enabled = config_arc
+        .advanced_tuning
+        .as_ref()
+        .and_then(|advanced| advanced.ebpf_xdp.as_ref())
+        .is_some_and(|settings| settings.enabled);
+    if xdp_enabled {
+        if xdp.attach().is_ok() {
+            tracing::info!("Política de mitigación L4 en memoria activa para eth0 (sin programa XDP en kernel).");
+        }
+    } else {
+        tracing::info!("Política de mitigación L4 en memoria desactivada por configuración.");
+    }
     let xdp_arc = Arc::new(RwLock::new(xdp));
 
     // --- MPSC Fail2Ban Channel ---
@@ -37,22 +49,25 @@ pub async fn start_ingress(
             if let Ok(xdp_read) = consumer_xdp_arc.read() {
                 xdp_read.block_ip(ip);
                 tracing::warn!(
-                    "[eBPF/XDP] IP {} bloqueada permanentemente (Fail2Ban L7).",
+                    "[Mitigación L4] IP {} bloqueada permanentemente (Fail2Ban L7).",
                     ip
                 );
             }
         }
     });
 
-    let xdp_reload = Arc::clone(&xdp_arc);
-    tokio::spawn(async move {
-        loop {
-            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            if let Ok(mut xdp_write) = xdp_reload.write() {
-                xdp_write.reload_from_config("config/oxide_proxy.yml");
+    if xdp_enabled {
+        let xdp_reload = Arc::clone(&xdp_arc);
+        let xdp_config_path = config_path.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                if let Ok(mut xdp_write) = xdp_reload.write() {
+                    xdp_write.reload_from_config(&xdp_config_path);
+                }
             }
-        }
-    });
+        });
+    }
 
     let mut handles = Vec::new();
 
@@ -110,10 +125,7 @@ pub async fn start_ingress(
     });
     handles.push(tcp_handle);
 
-    for http_addr in [
-        "0.0.0.0:80".parse::<SocketAddr>().unwrap(),
-        "0.0.0.0:8088".parse::<SocketAddr>().unwrap(),
-    ] {
+    for http_addr in config_arc.ingress.http_listen_addrs.clone() {
         let http_config = Arc::clone(&config_arc);
         let http_xdp = Arc::clone(&xdp_arc);
         let http_ban_tx = ban_tx.clone();
@@ -204,6 +216,7 @@ pub async fn start_ingress(
                                     continue;
                                 }
                                 let packet_data = buffer.split_to(size).freeze();
+                                crate::metrics::udp_ingress(size);
                                 process_udp_packet_inline(sock, packet_data, peer_addr, cfg, None)
                                     .await;
                             }
@@ -239,7 +252,7 @@ pub async fn start_ingress(
         }
 
         let proto = route.protocol.as_deref().unwrap_or("DUAL").to_uppercase();
-        let listen_ip = tcp_addr.ip();
+        let listen_ip = config_arc.ingress.game_listen_ip.unwrap_or(tcp_addr.ip());
         let custom_addr = SocketAddr::new(listen_ip, port);
         let route_name = route
             .name
@@ -286,6 +299,7 @@ pub async fn start_ingress(
                                     {
                                         Ok(0) => {}
                                         Ok(_) => {
+                                            crate::metrics::tcp_open(buffer.len());
                                             process_tcp_stream(
                                                 stream,
                                                 buffer,
@@ -295,7 +309,8 @@ pub async fn start_ingress(
                                                 ban_sender,
                                                 tls,
                                             )
-                                            .await
+                                            .await;
+                                            crate::metrics::tcp_close();
                                         }
                                         Err(e) => tracing::error!(
                                             "Error leyendo TCP de {}: {}",
@@ -358,6 +373,7 @@ pub async fn start_ingress(
                                             continue;
                                         }
                                         let packet_data = buffer.split_to(size).freeze();
+                                        crate::metrics::udp_ingress(size);
                                         process_udp_packet_inline(
                                             sock,
                                             packet_data,

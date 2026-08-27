@@ -13,6 +13,7 @@ node_modules/
 *.p12
 *.pickle
 credentials*.json
+config/rclone/rclone.conf
 
 # Dependencies
 venv/
@@ -73,3 +74,4 @@ screenshot.js
 test_panel.js
 local_windows_data/
 backend/src/services/Untitled-1
+.image-cache/

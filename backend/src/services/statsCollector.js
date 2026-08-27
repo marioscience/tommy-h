@@ -7,8 +7,7 @@ import { checkServerAlerts } from './alertService.js';
 export function startStatsCollector() {
     console.log("📈 [StatsCollector] Iniciando recolector de estadísticas históricas...");
 
-    // Cada 5 minutos recolectamos datos de todos los servidores activos
-    nodeCron.schedule('*/5 * * * *', async () => {
+    const collectStats = async () => {
         try {
             const servers = await serverService.getAllServers();
             const statsPromises = servers.map(async (server) => {
@@ -35,5 +34,10 @@ export function startStatsCollector() {
         } catch (error) {
             console.error("❌ [StatsCollector] Error recolectando estadísticas:", error);
         }
-    });
+    };
+
+    // Primera muestra inmediata y después una por minuto. Las tarjetas en vivo
+    // continúan usando el recolector de alta frecuencia sin escribir en la BD.
+    void collectStats();
+    nodeCron.schedule('* * * * *', collectStats);
 }

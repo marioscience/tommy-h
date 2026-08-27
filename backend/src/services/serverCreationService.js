@@ -8,6 +8,7 @@ import * as Docker from './dockerService.js';
 import { GameFactory } from './games/GameFactory.js';
 import { getPublicEndpointUrl } from './publicEndpointService.js';
 import { getNextAvailablePort, selectDeploymentNode } from './serverNodeSelection.js';
+import { isPortBindingConflict } from './portBindingConflict.js';
 import {
   getEffectiveServerLimit,
   getPlanRamGb,
@@ -19,6 +20,20 @@ import {
 } from './serverPlanPolicy.js';
 
 const userCreationLocks = new Map();
+function excludePortBlock(excludedPorts, start, range = 1) {
+  for (let offset = 0; offset < Number(range || 1); offset += 1) {
+    excludedPorts.add(Number(start) + offset);
+  }
+}
+
+async function removeContainerForPortRetry(nodeId, containerName) {
+  try {
+    const docker = await Docker.getNodeConnection(nodeId);
+    await docker.getContainer(containerName).remove({ force: true });
+  } catch (error) {
+    if (error?.statusCode !== 404) throw error;
+  }
+}
 
 export function checkSystemLoad() {
   const load = os.loadavg()[0];
@@ -185,11 +200,12 @@ export async function createServerForUser(userId, payload = {}) {
     );
     const targetNodeId = Number(targetNode.id);
     const portPolicy = getPortAllocationPolicy(template, config);
-    const gamePort = await getNextAvailablePort(portPolicy.start, portPolicy.range, targetNodeId);
-    const txAdminPort = portPolicy.adminStart
-      ? await getNextAvailablePort(portPolicy.adminStart, 1, targetNodeId)
+    const excludedPorts = new Set();
+    let gamePort = await getNextAvailablePort(portPolicy.start, portPolicy.range, targetNodeId, excludedPorts);
+    let txAdminPort = portPolicy.adminStart
+      ? await getNextAvailablePort(portPolicy.adminStart, 1, targetNodeId, excludedPorts)
       : gamePort;
-    const blenderPort = await getNextAvailablePort(config.blenderPortStart, 1, targetNodeId);
+    let blenderPort = await getNextAvailablePort(config.blenderPortStart, 1, targetNodeId, excludedPorts);
 
     const serverId = uuidv4();
     const shortId = serverId.slice(0, 8);
@@ -198,7 +214,7 @@ export async function createServerForUser(userId, payload = {}) {
     const slug = `${safeName.toLowerCase().replace(/\s+/g, '-')}-${shortId}`;
     const licenseKey = String(payload.licenseKey || 'changeme');
     const licenseKeyHint = licenseKey === 'changeme' ? 'hidden' : `***${licenseKey.slice(-4)}`;
-    const txAdminUrl = getPublicEndpointUrl(template === 'fivem' ? txAdminPort : gamePort, { path: '' });
+    let txAdminUrl = getPublicEndpointUrl(template === 'fivem' ? txAdminPort : gamePort, { path: '' });
     const blenderPass = generateSecurePassword();
     const needsMariaDatabase = template === 'fivem' || template === 'ark';
     const dbName = needsMariaDatabase ? `${template}_${shortId}` : null;
@@ -225,31 +241,61 @@ export async function createServerForUser(userId, payload = {}) {
           gamePort, txAdminPort, blenderPort, blenderPass,
           containerName, dataPath, licenseKeyHint, txAdminUrl,
           dbName, dbUser, dbPass, targetNodeId, user.expires_at || null,
-          payload.mcVersion || payload.mc_version || 'LATEST',
+          payload.mcVersion || payload.mc_version || '1.21.4',
           payload.mcType || payload.mc_type || 'PAPER',
           requestedRamGb
         ]
       );
 
-      await createGameContainer(template, {
-        containerName,
-        dataPath,
-        gamePort,
-        fivemPort: gamePort,
-        txadminPort: txAdminPort,
-        serverId,
-        serverName: safeName,
-        licenseKey,
-        plan: customPlan,
-        dbName,
-        dbUser,
-        dbPass,
-        nodeId: targetNodeId,
-        mcVersion: payload.mcVersion || payload.mc_version || 'LATEST',
-        mcType: payload.mcType || payload.mc_type || 'PAPER',
-        maxPlayers: Number(payload.maxPlayers || 20),
-        cpuset: payload.cpuset || null
-      });
+      const configuredRetryLimit = Number(process.env.PORT_BIND_RETRY_LIMIT || 8);
+      const retryLimit = Number.isInteger(configuredRetryLimit) && configuredRetryLimit > 0
+        ? Math.min(20, configuredRetryLimit)
+        : 8;
+      for (let attempt = 1; attempt <= retryLimit; attempt += 1) {
+        try {
+          await createGameContainer(template, {
+            containerName,
+            dataPath,
+            gamePort,
+            fivemPort: gamePort,
+            txadminPort: txAdminPort,
+            serverId,
+            serverName: safeName,
+            licenseKey,
+            plan: customPlan,
+            dbName,
+            dbUser,
+            dbPass,
+            nodeId: targetNodeId,
+            mcVersion: payload.mcVersion || payload.mc_version || '1.21.4',
+            mcType: payload.mcType || payload.mc_type || 'PAPER',
+            maxPlayers: Number(payload.maxPlayers || 20),
+            cpuset: payload.cpuset || null
+          });
+          break;
+        } catch (error) {
+          if (!isPortBindingConflict(error) || attempt >= retryLimit) throw error;
+
+          await removeContainerForPortRetry(targetNodeId, containerName);
+          excludePortBlock(excludedPorts, gamePort, portPolicy.range);
+          excludePortBlock(excludedPorts, txAdminPort, 1);
+          excludePortBlock(excludedPorts, blenderPort, 1);
+
+          gamePort = await getNextAvailablePort(portPolicy.start, portPolicy.range, targetNodeId, excludedPorts);
+          txAdminPort = portPolicy.adminStart
+            ? await getNextAvailablePort(portPolicy.adminStart, 1, targetNodeId, excludedPorts)
+            : gamePort;
+          blenderPort = await getNextAvailablePort(config.blenderPortStart, 1, targetNodeId, excludedPorts);
+          txAdminUrl = getPublicEndpointUrl(template === 'fivem' ? txAdminPort : gamePort, { path: '' });
+          await query(
+            `UPDATE servers
+             SET fivem_port = $2, txadmin_port = $3, blender_port = $4, txadmin_url = $5
+             WHERE id = $1`,
+            [serverId, gamePort, txAdminPort, blenderPort, txAdminUrl]
+          );
+          console.warn(`[ServerCreation] Puerto ocupado en el nodo ${targetNodeId}; reintento ${attempt + 1}/${retryLimit}.`);
+        }
+      }
       await query("UPDATE servers SET status = 'running' WHERE id = $1", [serverId]);
     } catch (error) {
       console.error(`[ServerCreation] Fallo al crear ${serverId}; iniciando rollback:`, error);

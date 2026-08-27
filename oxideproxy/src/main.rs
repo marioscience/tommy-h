@@ -3,16 +3,18 @@ pub mod config;
 pub mod ebpf_xdp;
 pub mod egress;
 pub mod ingress;
+pub mod metrics;
 pub mod pipeline;
 
 use crate::config::ProxyConfig;
-use crate::ebpf_xdp::XdpFilter;
 use crate::ingress::start_ingress;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Configuración de telemetría asíncrona no bloqueante (Stdout + Archivo Rotativo)
-    let file_appender = tracing_appender::rolling::daily("config/logs", "oxide_proxy.log");
+    let log_dir = std::env::var("OXIDE_LOG_DIR").unwrap_or_else(|_| "/app/runtime/logs".into());
+    std::fs::create_dir_all(&log_dir)?;
+    let file_appender = tracing_appender::rolling::daily(log_dir, "oxide_proxy.log");
     let (non_blocking_file, _guard_file) = tracing_appender::non_blocking(file_appender);
     let (non_blocking_stdout, _guard_stdout) = tracing_appender::non_blocking(std::io::stdout());
 
@@ -32,13 +34,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     access_gate::initialize()?;
 
-    let config = ProxyConfig::load_or_default("config/oxide_proxy.yml");
-
-    // Opcional: Adjuntar filtro XDP/eBPF si estamos en entorno Linux compatible
-    let mut xdp = XdpFilter::new("eth0");
-    if let Ok(_) = xdp.attach() {
-        tracing::info!("Filtro eBPF/XDP activo en eth0.");
-    }
+    // Fallar de forma cerrada: una configuracion ausente o invalida nunca debe
+    // activar rutas de laboratorio ni un backend alternativo silencioso.
+    let config_path = std::env::var("OXIDE_CONFIG_PATH")
+        .unwrap_or_else(|_| "config/oxide_proxy.yml".into());
+    let config = ProxyConfig::load(&config_path)?;
 
     let worker_threads = config.runtime.worker_threads.unwrap_or_else(|| {
         let cores = num_cpus();
@@ -70,7 +70,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
 
     runtime.block_on(async {
-        if let Err(e) = start_ingress(config, worker_threads).await {
+        if std::env::var("OXIDE_EXIT_ON_CONFIG_CHANGE")
+            .is_ok_and(|value| value.eq_ignore_ascii_case("true") || value == "1")
+        {
+            let watched_path = config_path.clone();
+            tokio::spawn(async move {
+                let initial = std::fs::metadata(&watched_path)
+                    .and_then(|metadata| metadata.modified())
+                    .ok();
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    let current = std::fs::metadata(&watched_path)
+                        .and_then(|metadata| metadata.modified())
+                        .ok();
+                    if initial.is_some() && current.is_some() && current != initial {
+                        tracing::info!("Configuración de rutas modificada; reinicio controlado solicitado.");
+                        std::process::exit(75);
+                    }
+                }
+            });
+        }
+        let metrics_path = std::env::var("OXIDE_METRICS_PATH")
+            .unwrap_or_else(|_| "/app/runtime/game_metrics.json".into());
+        tokio::spawn(metrics::write_snapshots(metrics_path));
+        if let Err(e) = start_ingress(config, worker_threads, config_path).await {
             tracing::error!("Error crítico en el bucle principal de Ingress: {}", e);
         }
     });

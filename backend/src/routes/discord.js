@@ -1,17 +1,11 @@
 import express from 'express';
-import pg from 'pg';
 import Docker from 'dockerode';
 import { config } from '../config.js';
+import { query } from '../db.js';
 import * as serverService from '../services/serverService.js';
 import crypto from 'crypto';
 
 const router = express.Router();
-const { Pool } = pg;
-
-// 🗄️ Conexión a tu Base de Datos PostgreSQL
-const pool = new Pool({
-    connectionString: config.databaseUrl,
-});
 
 // 🐳 Conexión al motor del sistema de servidores
 const motorServidores = new Docker({ socketPath: config.dockerSocket });
@@ -20,7 +14,7 @@ const motorServidores = new Docker({ socketPath: config.dockerSocket });
 const verifyApiKey = (req, res, next) => {
     const apiKey = req.headers['x-api-key'];
     const received = crypto.createHash('sha256').update(String(apiKey || '')).digest();
-    const expected = crypto.createHash('sha256').update(String(config.apiKey || '')).digest();
+    const expected = crypto.createHash('sha256').update(String(config.discordApiKey || '')).digest();
     if (!apiKey || !crypto.timingSafeEqual(received, expected)) {
         console.warn(`⚠️ Intento de acceso bloqueado a la API del bot desde IP: ${req.ip}`);
         return res.status(401).json({ error: 'Acceso denegado. API Key inválida.' });
@@ -43,7 +37,7 @@ router.get('/diagnostico/:discordId', verifyApiKey, async (req, res) => {
 
     try {
         // 1️⃣ BUSCAR USUARIO EN POSTGRESQL
-        const userQuery = await pool.query(
+        const userQuery = await query(
             'SELECT id, username, plan FROM users WHERE discord_id = $1 LIMIT 1',
             [discordId]
         );
@@ -55,7 +49,7 @@ router.get('/diagnostico/:discordId', verifyApiKey, async (req, res) => {
         const user = userQuery.rows[0];
 
         // 2️⃣ BUSCAR LOS SERVIDORES DEL USUARIO (Corregido owner_id y container_name)
-        const serversQuery = await pool.query(
+        const serversQuery = await query(
             'SELECT id, name, container_name, fivem_port, status FROM servers WHERE owner_id = $1',
             [user.id]
         );
@@ -133,7 +127,7 @@ router.post('/aprender', verifyApiKey, async (req, res) => {
         return res.status(400).json({ error: 'Se requiere patron y respuesta.' });
     }
     try {
-        const result = await pool.query(
+        const result = await query(
             `INSERT INTO bot_knowledge (patron, respuesta, contexto, creado_por, activo)
              VALUES ($1, $2, $3, $4, true) RETURNING id, patron, respuesta, contexto, creado_por, created_at`,
             [patron.toLowerCase().trim(), respuesta, contexto || 'general', creado_por || 'admin']
@@ -151,7 +145,7 @@ router.post('/aprender', verifyApiKey, async (req, res) => {
 // ============================================================================
 router.get('/conocimiento', verifyApiKey, async (req, res) => {
     try {
-        const result = await pool.query(
+        const result = await query(
             `SELECT id, patron, respuesta, contexto, peso, veces_usado, creado_por, activo, created_at
              FROM bot_knowledge WHERE activo = true ORDER BY peso DESC, veces_usado DESC`
         );
@@ -168,7 +162,7 @@ router.get('/conocimiento', verifyApiKey, async (req, res) => {
 router.delete('/conocimiento/:id', verifyApiKey, async (req, res) => {
     const { id } = req.params;
     try {
-        const result = await pool.query(
+        const result = await query(
             `UPDATE bot_knowledge SET activo = false, updated_at = NOW() WHERE id = $1 RETURNING id, patron`,
             [id]
         );
@@ -189,7 +183,7 @@ router.delete('/conocimiento/:id', verifyApiKey, async (req, res) => {
 router.post('/conocimiento/:id/uso', verifyApiKey, async (req, res) => {
     const { id } = req.params;
     try {
-        await pool.query(
+        await query(
             `UPDATE bot_knowledge 
              SET veces_usado = veces_usado + 1, 
                  peso = LEAST(peso + 0.05, 10.0),
@@ -212,7 +206,7 @@ router.post('/ticket-log', verifyApiKey, async (req, res) => {
         return res.status(400).json({ error: 'Se requiere discord_user_id y canal_id.' });
     }
     try {
-        const result = await pool.query(
+        const result = await query(
             `INSERT INTO bot_ticket_logs (discord_user_id, discord_username, canal_id, mensajes, intenciones_detectadas, resuelto_por_ia, escalado_a_humano, patron_usado_id)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
             [
@@ -237,7 +231,7 @@ router.post('/ticket-log', verifyApiKey, async (req, res) => {
 router.post('/estadistica', verifyApiKey, async (req, res) => {
     const { intencion, resuelto, escalado, patron_id } = req.body;
     try {
-        await pool.query(
+        await query(
             `INSERT INTO bot_stats (intencion, resuelto, escalado, patron_id) VALUES ($1, $2, $3, $4)`,
             [intencion || 'desconocida', resuelto || false, escalado || false, patron_id || null]
         );
@@ -250,18 +244,18 @@ router.post('/estadistica', verifyApiKey, async (req, res) => {
 router.get('/estadisticas', verifyApiKey, async (req, res) => {
     try {
         const [resumen, top_intenciones, top_patrones] = await Promise.all([
-            pool.query(`
+            query(`
                 SELECT 
                     COUNT(*) as total_interacciones,
                     SUM(CASE WHEN resuelto THEN 1 ELSE 0 END) as resueltas_por_ia,
                     SUM(CASE WHEN escalado THEN 1 ELSE 0 END) as escaladas_a_humano
                 FROM bot_stats
             `),
-            pool.query(`
+            query(`
                 SELECT intencion, COUNT(*) as veces
                 FROM bot_stats GROUP BY intencion ORDER BY veces DESC LIMIT 10
             `),
-            pool.query(`
+            query(`
                 SELECT id, patron, veces_usado, peso
                 FROM bot_knowledge WHERE activo = true
                 ORDER BY veces_usado DESC LIMIT 5
@@ -320,7 +314,7 @@ router.post('/vendor-action/:applicationId', verifyApiKey, async (req, res) => {
     }
 
     try {
-        const appQuery = await pool.query('SELECT user_id FROM vendor_applications WHERE id = $1', [applicationId]);
+        const appQuery = await query('SELECT user_id FROM vendor_applications WHERE id = $1', [applicationId]);
         if (appQuery.rowCount === 0) {
             return res.status(404).json({ error: 'Postulación no encontrada' });
         }
@@ -329,14 +323,14 @@ router.post('/vendor-action/:applicationId', verifyApiKey, async (req, res) => {
         const newStatus = action === 'saved' ? 'pending' : (action === 'revoke' ? 'revoked' : action);
 
         // Actualizar el estado de la postulación
-        await pool.query('UPDATE vendor_applications SET status = $1, updated_at = NOW() WHERE id = $2', [newStatus, applicationId]);
+        await query('UPDATE vendor_applications SET status = $1, updated_at = NOW() WHERE id = $2', [newStatus, applicationId]);
 
         // Si es aceptado, darle el rol de vendor
         if (action === 'accepted') {
-            await pool.query('UPDATE users SET role = $1 WHERE id = $2 AND role = $3', ['vendor', userId, 'user']);
+            await query('UPDATE users SET role = $1 WHERE id = $2 AND role = $3', ['vendor', userId, 'user']);
         } else if (action === 'revoke') {
             // Si es revocado, quitarle el rol de vendor
-            await pool.query('UPDATE users SET role = $1 WHERE id = $2 AND role = $3', ['user', userId, 'vendor']);
+            await query('UPDATE users SET role = $1 WHERE id = $2 AND role = $3', ['user', userId, 'vendor']);
         }
 
         res.json({ ok: true, message: `Postulación ${action} correctamente.` });
@@ -348,7 +342,7 @@ router.post('/vendor-action/:applicationId', verifyApiKey, async (req, res) => {
 
 router.get('/vendors', verifyApiKey, async (req, res) => {
     try {
-        const result = await pool.query(`
+        const result = await query(`
             SELECT id, user_id, discord_username, portfolio_url, status, created_at
             FROM vendor_applications
             ORDER BY created_at DESC
@@ -366,11 +360,114 @@ router.get('/vendors', verifyApiKey, async (req, res) => {
 // ============================================================================
 router.get('/servers', verifyApiKey, async (req, res) => {
     try {
-        const result = await pool.query("SELECT container_name FROM servers WHERE status NOT IN ('stopped', 'suspended', 'offline')");
+        const result = await query("SELECT container_name FROM servers WHERE status NOT IN ('stopped', 'suspended', 'offline')");
         res.json({ ok: true, servers: result.rows.map(r => r.container_name).filter(Boolean) });
     } catch (error) {
         console.error('❌ Error listando servidores para OxideProxy:', error);
         res.status(500).json({ error: 'Error interno' });
+    }
+});
+
+// Inventario L4 autorizado para OxideProxy. El panel de Oxide nunca recibe el
+// socket Docker: el backend valida que el contenedor exista y esté ejecutándose.
+router.get('/servers/routes', verifyApiKey, async (req, res) => {
+    try {
+        const result = await query(`
+            SELECT id, name, template, fivem_port, container_name, node_id
+            FROM servers
+            ORDER BY fivem_port ASC
+        `);
+        const protocolOffsets = {
+            minecraft: [[0, 'TCP']],
+            fivem: [[0, 'DUAL']],
+            rust: [[0, 'UDP'], [1, 'TCP'], [2, 'UDP']],
+            palworld: [[0, 'UDP'], [1, 'TCP'], [2, 'UDP']],
+            cs2: [[0, 'DUAL']],
+            valheim: [[0, 'UDP'], [1, 'UDP'], [2, 'UDP']],
+            zomboid: [[0, 'UDP'], [1, 'UDP']],
+            ark: Array.from({ length: 14 }, (_, offset) => [offset, 'DUAL']),
+            sdtd: [[0, 'DUAL'], [1, 'UDP'], [2, 'UDP'], [3, 'UDP']]
+        };
+        const routes = [];
+
+        for (const server of result.rows) {
+            if (!server.container_name || !Number.isInteger(Number(server.fivem_port))) continue;
+            // El inventario actual solo anuncia el daemon local. Los nodos
+            // remotos se publicarán por su propio backend/edge autorizado.
+            if (Number(server.node_id || 0) !== 0) continue;
+            let inspect;
+            try {
+                inspect = await motorServidores.getContainer(server.container_name).inspect();
+                // Docker es la fuente de verdad para el plano de datos. El
+                // estado SQL puede retrasarse tras un reinicio o recuperación,
+                // pero nunca se anuncia un contenedor inexistente o detenido.
+                if (!inspect?.State?.Running) continue;
+            } catch {
+                continue;
+            }
+
+            if (config.oxideGameProxyEnabled && inspect?.Config?.Labels?.['ragenodes.game_proxy'] !== 'enabled') {
+                // Un contenedor todavía publicado en el puerto público no debe
+                // anunciarse: Oxide no podría vincular ese mismo puerto.
+                continue;
+            }
+
+            const basePort = Number(server.fivem_port);
+            const offsets = protocolOffsets[server.template] || [[0, 'DUAL']];
+            const labelOffset = Number(inspect?.Config?.Labels?.['ragenodes.game_proxy_offset']);
+            const backendOffset = config.oxideGameProxyEnabled
+                ? (Number.isInteger(labelOffset) && labelOffset > 0 ? labelOffset : config.gameBackendPortOffset)
+                : 0;
+            const published = new Set();
+            for (const [containerPort, bindings] of Object.entries(inspect?.HostConfig?.PortBindings || {})) {
+                const transport = String(containerPort).split('/')[1]?.toUpperCase();
+                for (const binding of bindings || []) {
+                    published.add(`${Number(binding.HostPort)}:${transport}`);
+                }
+            }
+            for (const [offset, protocol] of offsets) {
+                const port = basePort + offset;
+                const backendPort = port + backendOffset;
+                const requiredProtocols = protocol === 'DUAL' ? ['TCP', 'UDP'] : [protocol];
+                if (!requiredProtocols.every(item => published.has(`${backendPort}:${item}`))) continue;
+                routes.push({
+                    game_id: port,
+                    name: `auto:${server.container_name}:${port}`,
+                    backend_addr: `127.0.0.1:${backendPort}`,
+                    protocol,
+                    port_range: String(port),
+                    description: `Auto ${String(server.template).toUpperCase()} - ${server.name}`
+                });
+            }
+        }
+
+        res.json({ ok: true, generated_at: new Date().toISOString(), routes });
+    } catch (error) {
+        console.error('❌ Error generando rutas para OxideProxy:', error);
+        res.status(500).json({ error: 'Error interno' });
+    }
+});
+
+// Recarga acotada del plano de datos. No acepta nombres proporcionados por el
+// cliente: solo reinicia el servicio Compose configurado para Oxide Game.
+router.post('/servers/routes/reload-proxy', verifyApiKey, async (req, res) => {
+    try {
+        const service = String(config.oxideGameProxyService || 'oxide_game');
+        if (!/^oxide_game(?:_staging)?$/.test(service)) {
+            return res.status(503).json({ error: 'Servicio de proxy no autorizado' });
+        }
+        const containers = await motorServidores.listContainers({
+            all: true,
+            filters: { label: [`com.docker.compose.service=${service}`] }
+        });
+        if (containers.length !== 1) {
+            return res.status(503).json({ error: 'Proxy de juego no disponible de forma inequívoca' });
+        }
+        await motorServidores.getContainer(containers[0].Id).restart({ t: 10 });
+        res.json({ ok: true, service });
+    } catch (error) {
+        console.error('❌ Error recargando Oxide Game:', error);
+        res.status(500).json({ error: 'No se pudo recargar el proxy de juego' });
     }
 });
 
@@ -379,7 +476,7 @@ router.get('/servers', verifyApiKey, async (req, res) => {
 // ============================================================================
 router.get('/proxies/active', verifyApiKey, async (req, res) => {
     try {
-        const result = await pool.query("SELECT ip_address, api_port, api_key FROM edge_proxies WHERE is_active = true LIMIT 1");
+        const result = await query("SELECT ip_address, api_port, api_key FROM edge_proxies WHERE is_active = true LIMIT 1");
         if (result.rowCount === 0) {
             return res.json({ ok: false, error: 'No active proxy found' });
         }

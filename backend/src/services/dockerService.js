@@ -401,7 +401,7 @@ export async function toggleBlender(opts, action) {
             ExposedPorts: { '3000/tcp': {} },
             NetworkingConfig: {
                 EndpointsConfig: {
-                    'ragenodes_net': {}
+                    [config.dockerNetwork]: {}
                 }
             },
             HostConfig: {

@@ -29,7 +29,7 @@
                     <i class="fa-solid fa-chart-pie"></i> Telemetría
                 </button>
                 <button class="tab-btn" data-tab="tab-firewall">
-                    <i class="fa-solid fa-shield-virus"></i> Firewall & eBPF
+                    <i class="fa-solid fa-shield-virus"></i> Firewall & L4
                 </button>
                 <button class="tab-btn" data-tab="tab-config">
                     <i class="fa-solid fa-route"></i> Ruteo & Ingress
@@ -60,10 +60,10 @@
                 <section class="metrics-grid">
                     <div class="glass-card stat-card">
                         <div class="stat-header">
-                            <h3>Estado eBPF / XDP</h3>
+                            <h3>Mitigación L4 en memoria</h3>
                             <i class="fa-solid fa-shield-virus stat-icon"></i>
                         </div>
-                        <div class="stat-value status-online" id="stat-ebpf-status">ACTIVE (eth0)</div>
+                        <div class="stat-value status-online" id="stat-ebpf-status">MEMORY ACTIVE (eth0)</div>
                         <div class="stat-subtext" id="stat-ebpf-mode">Modo: STRICT_GAMING</div>
                     </div>
 
@@ -125,12 +125,12 @@
                         </div>
                     </div>
 
-                    <!-- Gráfico 3: Mitigación eBPF & Carga de Sistema -->
+                    <!-- Gráfico 3: Mitigación L4 y carga del sistema -->
                     <div class="glass-card chart-card">
                         <div class="card-header">
                             <div class="header-title">
                                 <i class="fa-solid fa-shield-halved"></i>
-                                <h2>Mitigación eBPF & Descarte</h2>
+                                <h2>Mitigación L4 & Descarte</h2>
                             </div>
                             <span class="live-badge"><i class="fa-solid fa-circle live-dot"></i> LIVE</span>
                         </div>
@@ -141,7 +141,7 @@
                 </section>
             </div>
 
-            <!-- ================= PESTAÑA 2: FIREWALL & eBPF ================= -->
+            <!-- ================= PESTAÑA 2: FIREWALL & L4 ================= -->
             <div class="tab-pane" id="tab-firewall">
                 <!-- Fila 3.5: Gestión de Firewall y Listas Negras en Tiempo Real -->
                 <section class="firewall-section full-width">
@@ -149,7 +149,7 @@
                         <div class="card-header">
                             <div class="header-title">
                                 <i class="fa-solid fa-shield-halved icon-danger"></i>
-                                <h2>Gestión de Firewall & Listas Negras en Tiempo Real (eBPF/XDP)</h2>
+                                <h2>Gestión de Firewall & Listas Negras en Tiempo Real</h2>
                             </div>
                             <button id="btn-save-firewall" class="btn btn-primary glow-btn small-btn">
                                 <i class="fa-solid fa-shield-virus"></i> Aplicar Reglas al Motor
@@ -160,7 +160,7 @@
                             <div class="tuning-box">
                                 <h3><i class="fa-solid fa-sliders"></i> Ajustes de Mitigación DDoS</h3>
                                 <div class="form-group">
-                                    <label for="fw-ebpf-mode">Modo eBPF / XDP</label>
+                                    <label for="fw-ebpf-mode">Modo de mitigación L4</label>
                                     <select id="fw-ebpf-mode" class="glass-input">
                                         <option value="STRICT_GAMING">STRICT_GAMING (Máxima Protección)</option>
                                         <option value="STANDARD">STANDARD (Balanceado)</option>
@@ -217,9 +217,9 @@
                             </div>
                         </div>
                         <div class="tuning-grid">
-                            <!-- Columna 1: eBPF / XDP Mitigation -->
+                            <!-- Columna 1: L4 in-memory mitigation -->
                             <div class="tuning-box">
-                                <h3><i class="fa-solid fa-shield-virus"></i> eBPF / XDP DDoS Mitigation</h3>
+                                <h3><i class="fa-solid fa-shield-virus"></i> Mitigación DDoS L4 en memoria</h3>
                                 <div class="form-group">
                                     <label for="ebpf-iface">Interfaz de Red</label>
                                     <input type="text" id="ebpf-iface" class="glass-input" value="eth0">
@@ -321,7 +321,7 @@
 
                                 <div class="form-group">
                                     <label for="web-backend"><i class="fa-solid fa-server"></i> Backend Web Default</label>
-                                    <input type="text" id="web-backend" class="glass-input" value="10.5.0.12:80">
+                                    <input type="text" id="web-backend" class="glass-input" value="frontend:80">
                                 </div>
                             </form>
                         </div>
@@ -373,7 +373,7 @@
                                     <label for="log-filter-select"><i class="fa-solid fa-filter"></i> Filtrar por Servidor:</label>
                                     <select id="log-filter-select" class="glass-input small-input">
                                         <option value="ALL">Mostrar Todos (ALL)</option>
-                                        <option value="SYS">Sistema / eBPF (SYS)</option>
+                                        <option value="SYS">Sistema / Mitigación L4 (SYS)</option>
                                     </select>
                                 </div>
                                 <button id="btn-console-pause" class="btn btn-secondary glass-btn small-btn">

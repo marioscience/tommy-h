@@ -1,0 +1,77 @@
+services:
+  powerdns-authoritative:
+    image: powerdns/pdns-auth-49:4.9.17@sha256:b554df74bbde1afa7caedad4af9c91378be6d46d05807d089b3c7c443002e684
+    profiles: ["dns-authority"]
+    restart: unless-stopped
+    environment:
+      PDNS_AUTH_API_KEY: ${PDNS_API_KEY:?Set PDNS_API_KEY}
+    ports:
+      - "${POWERDNS_BIND_IP:-127.0.0.1}:${POWERDNS_DNS_PORT:-5353}:53/tcp"
+      - "${POWERDNS_BIND_IP:-127.0.0.1}:${POWERDNS_DNS_PORT:-5353}:53/udp"
+      - "127.0.0.1:${POWERDNS_API_PORT:-8081}:8081/tcp"
+    volumes:
+      - powerdns_data:/var/lib/powerdns
+    networks:
+      - ragenodes_dns
+    healthcheck:
+      test: ["CMD", "pdns_control", "rping"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run:uid=953,gid=953,mode=0770
+      # La imagen oficial genera aquí la configuración de la API al arrancar.
+      - /etc/powerdns/pdns.d:uid=953,gid=953,mode=0770
+    pids_limit: 128
+
+  oxide_wildcard_certificate:
+    image: goacme/lego:v5.3.1@sha256:f4fd80df0ef94d2f536cc2e7fb5bdbd090fb0aa81b3595226b9fe814bb9a2bfe
+    profiles: ["dns-certificate"]
+    environment:
+      PDNS_API_URL: http://powerdns-authoritative:8081/api/v1
+      PDNS_API_KEY: ${PDNS_API_KEY:?Set PDNS_API_KEY}
+    command:
+      - --accept-tos
+      - --server=${LEGO_ACME_SERVER:-https://acme-staging-v02.api.letsencrypt.org/directory}
+      - --email=${LEGO_EMAIL:?Set LEGO_EMAIL}
+      - --dns=pdns
+      - --domains=${POWERDNS_ZONE:?Set POWERDNS_ZONE}
+      - --domains=*.${POWERDNS_ZONE:?Set POWERDNS_ZONE}
+      - --path=/var/lib/lego
+      - ${LEGO_ACTION:-run}
+    volumes:
+      - lego_certificates:/var/lib/lego
+    networks:
+      - ragenodes_dns
+    depends_on:
+      powerdns-authoritative:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp
+    pids_limit: 64
+
+  # Esta superposición sólo se usa después de obtener un certificado válido.
+  oxide_web:
+    environment:
+      - OXIDE_ACME_ENABLED=false
+      - OXIDE_TLS_CERT_PATH=/var/lib/lego/certificates/${POWERDNS_ZONE:?Set POWERDNS_ZONE}.crt
+      - OXIDE_TLS_KEY_PATH=/var/lib/lego/certificates/${POWERDNS_ZONE:?Set POWERDNS_ZONE}.key
+    volumes:
+      - lego_certificates:/var/lib/lego:ro
+
+networks:
+  ragenodes_dns:
+    name: ragenodes_dns
+
+volumes:
+  powerdns_data:
+  lego_certificates:
