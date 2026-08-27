@@ -13,7 +13,49 @@ const BACKEND_URL = (process.env.BACKEND_URL || 'http://backend:3006').replace(/
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || '';
 const METRICS_PATH = process.env.OXIDE_METRICS_PATH || '/app/runtime/game_metrics.json';
 const LOG_DIR = process.env.OXIDE_LOG_DIR || '/app/runtime/logs';
-let previousMetricsSnapshot = null;
+const METRICS_WINDOW_MS = Math.max(3000, Number(process.env.OXIDE_METRICS_WINDOW_MS || 6000));
+const metricsSamples = [];
+
+function readNativeMetricsSnapshot() {
+    try {
+        const snapshot = JSON.parse(fs.readFileSync(METRICS_PATH, 'utf8'));
+        return Number.isFinite(Number(snapshot?.timestamp_ms)) ? snapshot : null;
+    } catch {
+        return null;
+    }
+}
+
+function sampleNativeMetrics() {
+    const snapshot = readNativeMetricsSnapshot();
+    if (!snapshot) return;
+    const timestamp = Number(snapshot.timestamp_ms);
+    const last = metricsSamples[metricsSamples.length - 1];
+    if (!last || Number(last.timestamp_ms) !== timestamp) metricsSamples.push(snapshot);
+    const cutoff = timestamp - METRICS_WINDOW_MS;
+    while (metricsSamples.length > 2 && Number(metricsSamples[1].timestamp_ms) < cutoff) {
+        metricsSamples.shift();
+    }
+}
+
+function nativeMetricsWindow() {
+    sampleNativeMetrics();
+    const current = metricsSamples[metricsSamples.length - 1] || null;
+    const cutoff = Number(current?.timestamp_ms || 0) - METRICS_WINDOW_MS;
+    const previous = metricsSamples.find(sample => Number(sample.timestamp_ms) >= cutoff)
+        || metricsSamples[0]
+        || null;
+    const elapsedSeconds = current && previous
+        ? Math.max(0.001, (Number(current.timestamp_ms) - Number(previous.timestamp_ms)) / 1000)
+        : 0;
+    const rate = (field) => elapsedSeconds > 0
+        ? Math.max(0, (Number(current?.[field] || 0) - Number(previous?.[field] || 0)) / elapsedSeconds)
+        : 0;
+    return { current, rate };
+}
+
+sampleNativeMetrics();
+const nativeMetricsTimer = setInterval(sampleNativeMetrics, 1000);
+nativeMetricsTimer.unref();
 
 // El panel se mantiene deliberadamente separado del daemon de contenedores.
 let discoveredBackends = [];
@@ -425,23 +467,12 @@ app.get('/api/oxide/metrics/advanced', asyncHandler(async (req, res) => {
     const migrated = migrateConfigToV2(configObj);
     const gameServers = migrated.routing.game_servers || [];
 
-    let currentMetrics = null;
-    try {
-        currentMetrics = JSON.parse(fs.readFileSync(METRICS_PATH, 'utf8'));
-    } catch {}
-    const previous = previousMetricsSnapshot;
-    const elapsedSeconds = currentMetrics && previous
-        ? Math.max(0.001, (Number(currentMetrics.timestamp_ms) - Number(previous.timestamp_ms)) / 1000)
-        : 0;
-    const rate = (field) => elapsedSeconds > 0
-        ? Math.max(0, (Number(currentMetrics?.[field] || 0) - Number(previous?.[field] || 0)) / elapsedSeconds)
-        : 0;
+    const { current: currentMetrics, rate } = nativeMetricsWindow();
     const globalActiveConns = Number(currentMetrics?.tcp_active || 0);
     const globalTcpPps = Math.round(rate('tcp_events_in'));
     const globalUdpPps = Math.round(rate('udp_packets_in'));
     const globalIngressMbps = (rate('tcp_bytes_in') + rate('udp_bytes_in')) * 8 / 1_000_000;
     const globalEgressMbps = (rate('tcp_bytes_out') + rate('udp_bytes_out')) * 8 / 1_000_000;
-    if (currentMetrics) previousMetricsSnapshot = currentMetrics;
 
     // La instrumentación actual es global. No se inventan jugadores, latencia
     // ni tráfico por servidor cuando el motor no los proporciona.
@@ -461,6 +492,7 @@ app.get('/api/oxide/metrics/advanced', asyncHandler(async (req, res) => {
     const totalPps = globalTcpPps + globalUdpPps;
     const l4Latency = "0.000";
     const ebpfDroppedPps = 0;
+    const ebpfConfig = migrated.advanced_tuning?.ebpf_xdp || {};
 
     res.json({
         timestamp: new Date().toISOString(),
@@ -494,8 +526,10 @@ app.get('/api/oxide/metrics/advanced', asyncHandler(async (req, res) => {
                 l7_tls_ms: globalActiveConns > 0 ? (parseFloat(l4Latency) + 1.25).toFixed(2) : "0.00"
             },
             ebpf_mitigation: {
-                status: 'ACTIVE (eth0)',
-                mode: 'STRICT_GAMING',
+                status: ebpfConfig.enabled
+                    ? `ACTIVE (${ebpfConfig.interface || 'eth0'})`
+                    : 'DISABLED',
+                mode: ebpfConfig.ddos_mitigation_mode || 'STRICT_GAMING',
                 dropped_packets_per_sec: ebpfDroppedPps,
                 blocked_ips_count: 0
             },
