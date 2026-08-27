@@ -10,6 +10,7 @@ const files = Object.fromEntries(await Promise.all([
   '.env.example',
   'deploy.sh',
   'deploy_staging.sh',
+  'auto_update_staging.sh',
   'backend/src/services/dockerService.js',
   'backend/src/services/dockerUtils.js',
   'backend/src/services/serverControlService.js',
@@ -76,6 +77,7 @@ assert(files['.env.example'].includes('DOCKER_SOCKET=/run/user/1000/docker.sock'
 assert(files['.env.example'].includes('STAGING_GAME_DATA_GID='), 'staging documents the remapped rootless game-data group');
 assert(files['docker-compose.staging.yml'].includes('STAGING_GAME_DATA_GID:-${GAME_DATA_GID:-1000}'), 'staging control services use their dedicated remapped game-data group');
 assert(files['deploy_staging.sh'].includes('worker-stats-staging'), 'staging deploys its metrics worker on every release');
+assert(files['auto_update_staging.sh'].includes('git -c gc.auto=0 fetch'), 'staging updater cannot leak its deployment lock into background Git maintenance');
 assert(files['.env.example'].includes('ALLOW_ROOTFUL_DOCKER_SOCKET=false'), 'rootful Docker exception is disabled by default');
 assert(files['.env.example'].includes('FRONTEND_BIND_IP=127.0.0.1'), 'auxiliary frontend bind is explicitly loopback-only');
 assert(files['.env.example'].includes('DISCORD_API_KEY=') && files['.env.example'].includes('NODE_ENROLLMENT_API_KEY='), 'Discord and node enrollment use separate credentials');
