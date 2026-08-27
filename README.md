@@ -38,6 +38,12 @@ Whether deploying a large FiveM roleplay community or a multi-node cluster for R
 - **🩺 Production & Staging Diagnostics:** Native `/healthz`, `/readyz` probes, and an adaptive hardware test suite (`stagingHealthTestRunner.js`) generating PDF/HTML diagnostic reports.
 - **📦 Master Image Cache:** FiveM and Blender masters are version-aware, archived locally, refreshed by a hardened systemd timer, and reused by subsequent deployments. Digest-pinned game images are prefetched without replacing active customer containers.
 
+### Game ingress rollout
+
+OxideProxy can act as the public TCP/UDP ingress for newly deployed **Minecraft, FiveM game traffic, and Rust** instances. Public ports are owned by the dedicated, host-networked `oxide_game` service, while game containers bind their shifted backend ports to loopback only. Route inventory is generated from authenticated database and Docker state, written atomically, and reloaded automatically. Existing direct-published containers remain compatible and must be migrated individually; txAdmin and other web panels continue through the HTTPS L7 proxy. Set `OXIDE_GAME_PROXY_ENABLED=true` only after the dedicated ingress service is healthy.
+
+Minecraft deployments pin the requested edition and version in the server data directory. Automatic healing therefore recreates the same runtime instead of silently upgrading it, and hosted servers remain active while empty so proxy handshakes and paused clients are not disconnected.
+
 ---
 
 ## 🖥️ Supported Game Engines & Services
@@ -98,7 +104,7 @@ npm install
 # Run database migrations
 npm run db:migrate
 
-# Run the current backend suite (44 tests across 10 suites)
+# Run the current backend suite (46 tests across 10 suites)
 npm test
 cd ..
 ```
@@ -240,6 +246,8 @@ Ya sea para desplegar una comunidad masiva de FiveM o un clúster multi-nodo par
 - **🩺 Diagnóstico Adaptativo de Salud:** Sondas nativas `/healthz`, `/readyz` y runner adaptativo en Staging (`stagingHealthTestRunner.js`) con generación de reportes PDF/HTML.
 - **📦 Caché Maestra de Imágenes:** FiveM y Blender se actualizan por versión, se archivan localmente y se reutilizan. Las imágenes fijadas por digest se precargan sin reemplazar contenedores activos de clientes.
 
+Los despliegues de Minecraft fijan en el directorio de datos la edición y versión solicitadas. El auto-curado recrea exactamente ese runtime, sin actualizarlo de forma silenciosa, y los servidores alojados permanecen activos aunque estén vacíos para no interrumpir handshakes del proxy ni clientes en pausa.
+
 ---
 
 ## 🖥️ Juegos y Servicios Soportados
@@ -300,7 +308,7 @@ npm install
 # Ejecutar migraciones de base de datos
 npm run db:migrate
 
-# Ejecutar la suite actual: 44 pruebas en 10 suites
+# Ejecutar la suite actual: 46 pruebas en 10 suites
 npm test
 cd ..
 ```
@@ -357,6 +365,13 @@ El passthrough TLS no genera certificados. El borde de staging debe disponer de 
 | Local | `http://localhost:8088` | Excepción rootful permitida solo en desarrollo | Rutas y puertos del desarrollador |
 | Staging | `https://panel.ragenodes.dev` | Socket aislado y `STAGING_PORT_BASE_OFFSET` | Bases de datos, volúmenes, redes y dominios `.dev` separados |
 | Producción | `https://ragenodes.com` / herramientas `.app` | El preflight exige Docker rootless | Volúmenes productivos y bandas de puertos sin desplazamiento |
+
+Si el plano de control se ejecuta con Docker rootful y los juegos con Docker
+rootless, los datos de juego aparecen en el host con un GID remapeado. Configura
+`GAME_DATA_GID` para producción y `STAGING_GAME_DATA_GID` para staging con el
+GID que devuelve `stat -c '%g'` sobre un directorio de instancia. Mantener ambos
+valores separados evita que el gestor de archivos y los editores de configuración
+pierdan acceso, sin ampliar permisos ni mezclar datos entre entornos.
 
 El pipeline de GitLab valida pruebas, contratos de seguridad, dependencias, Rust y Compose. Actualmente **no despliega automáticamente**: la promoción sigue `feature -> dev -> staging -> main` y después se ejecuta el despliegue revisado del entorno.
 

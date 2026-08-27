@@ -43,7 +43,8 @@ export class RustGameService extends BaseGameService {
                 '28015/udp': [{ HostIp: '0.0.0.0', HostPort: String(gamePort) }],
                 '28016/tcp': [{ HostIp: '0.0.0.0', HostPort: String(gamePort + 1) }],
                 '28017/udp': [{ HostIp: '0.0.0.0', HostPort: String(gamePort + 2) }]
-            }
+            },
+            proxiedPorts: ['28015/udp', '28016/tcp', '28017/udp']
         };
     }
 }

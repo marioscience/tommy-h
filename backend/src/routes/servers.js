@@ -138,8 +138,9 @@ router.get('/:id/logs/stream', async (req, res) => {
     if (!s) return res.status(404).end();
 
     res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
     const sendLog = (data) => {
@@ -150,13 +151,23 @@ router.get('/:id/logs/stream', async (req, res) => {
     res.write('retry: 5000\n');
     res.write('event: open\ndata: {"status":"connected"}\n\n');
 
+    // Evita que proxies HTTP/2, balanceadores y NAT cierren un stream inactivo.
+    const heartbeat = setInterval(() => {
+        if (res.writableEnded || res.destroyed) return;
+        res.write(`: heartbeat ${Date.now()}\n\n`);
+        res.flush?.();
+    }, 15000);
+
     // Suscribirse al Hub compartido
     const logListener = (logs) => sendLog(logs);
     logHub.subscribe(serverId, logListener);
 
-    req.on('close', () => {
+    const cleanup = () => {
+        clearInterval(heartbeat);
         logHub.unsubscribe(serverId, logListener);
-    });
+    };
+    req.once('close', cleanup);
+    res.once('close', cleanup);
 });
 router.get('/:id/stats-history', async (req, res) => { try { res.json({ items: await getServerStatsHistory(req.params.id, req.user.sub, req.user.role === 'admin') }); } catch(e) { res.status(400).json({ error: e.message }); } });
 

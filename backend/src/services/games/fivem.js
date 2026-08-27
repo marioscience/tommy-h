@@ -62,7 +62,13 @@ export class FiveMService extends BaseGameService {
                 [`${opts.fivemPort}/tcp`]: [{ HostIp: "0.0.0.0", HostPort: String(opts.fivemPort) }],
                 [`${opts.fivemPort}/udp`]: [{ HostIp: "0.0.0.0", HostPort: String(opts.fivemPort) }],
                 [`${opts.txadminPort}/tcp`]: [{ HostIp: "0.0.0.0", HostPort: String(opts.txadminPort) }]
-            }
+            },
+            // El offset global +10000 colisiona con el puerto txAdmin
+            // (30120 -> 40120). FiveM usa un espacio interno separado.
+            proxyBackendPortOffset: 30000,
+            // txAdmin sigue detrás del proxy HTTPS; solo el tráfico del juego
+            // atraviesa el plano L4 dedicado.
+            proxiedPorts: [`${opts.fivemPort}/tcp`, `${opts.fivemPort}/udp`]
         };
     }
 }

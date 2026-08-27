@@ -3,12 +3,64 @@ use dashmap::DashMap;
 use rustc_hash::FxHasher;
 use std::hash::BuildHasherDefault;
 use std::net::{SocketAddr, ToSocketAddrs};
+use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
+use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpStream, UdpSocket};
 
 type UdpSessionMap = DashMap<SocketAddr, (Arc<UdpSocket>, Instant), BuildHasherDefault<FxHasher>>;
+
+#[derive(Clone, Copy)]
+enum TrafficDirection {
+    Ingress,
+    Egress,
+}
+
+struct MeteredStream<S> {
+    inner: S,
+    direction: TrafficDirection,
+}
+
+impl<S: AsyncRead + Unpin> AsyncRead for MeteredStream<S> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        let before = buf.filled().len();
+        let result = Pin::new(&mut self.inner).poll_read(cx, buf);
+        if let Poll::Ready(Ok(())) = &result {
+            let bytes = buf.filled().len().saturating_sub(before);
+            if bytes > 0 {
+                match self.direction {
+                    TrafficDirection::Ingress => crate::metrics::tcp_ingress(bytes),
+                    TrafficDirection::Egress => crate::metrics::tcp_egress(bytes),
+                }
+            }
+        }
+        result
+    }
+}
+
+impl<S: AsyncWrite + Unpin> AsyncWrite for MeteredStream<S> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        Pin::new(&mut self.inner).poll_write(cx, buf)
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.inner).poll_flush(cx)
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.inner).poll_shutdown(cx)
+    }
+}
 
 fn udp_sessions() -> &'static UdpSessionMap {
     static SESSIONS: OnceLock<UdpSessionMap> = OnceLock::new();
@@ -60,7 +112,15 @@ where
                     return;
                 }
             }
-            match tokio::io::copy_bidirectional(&mut client_stream, &mut backend_stream).await {
+            let mut metered_client = MeteredStream {
+                inner: client_stream,
+                direction: TrafficDirection::Ingress,
+            };
+            let mut metered_backend = MeteredStream {
+                inner: backend_stream,
+                direction: TrafficDirection::Egress,
+            };
+            match tokio::io::copy_bidirectional(&mut metered_client, &mut metered_backend).await {
                 Ok((from_client, from_backend)) => {
                     tracing::debug!(
                         "Sesion TCP finalizada. Bytes cliente->backend: {}, backend->cliente: {}",
@@ -143,6 +203,7 @@ pub async fn forward_udp(
                                             }
                                         }
                                         let _ = ingress_clone.send_to(&buf[..len], client_addr).await;
+                                        crate::metrics::udp_egress(len);
                                     }
                                 }
                                 Ok(Err(_)) => break,

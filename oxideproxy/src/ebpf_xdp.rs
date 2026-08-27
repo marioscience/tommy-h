@@ -1,9 +1,6 @@
-/// Módulo eBPF / XDP (eXpress Data Path) para Mitigación DDoS a Nivel de Kernel / NIC.
+/// Motor de políticas L4 en memoria.
 ///
-/// En un entorno Linux de producción avanzado (ej. VM Linux con kernel 5.4+),
-/// OxideProxy puede cargar programas eBPF directamente en el driver de la tarjeta de red (XDP).
-/// Esto permite descartar paquetes de ataques de inundación (DDoS UDP/SYN Flood) en nanosegundos,
-/// antes de que el sistema operativo asigne memoria en el espacio de usuario (Skb).
+/// Esta implementación no carga ni adjunta programas eBPF/XDP al kernel.
 use crate::config::ProxyConfig;
 use dashmap::{DashMap, DashSet};
 use rustc_hash::FxHasher;
@@ -48,7 +45,7 @@ impl XdpFilter {
 
     pub fn attach(&mut self) -> Result<(), String> {
         tracing::info!(
-            "[eBPF/XDP] Programa XDP cargado exitosamente en {}. Filtrado de paquetes activo a nivel NIC/Memoria.",
+            "[Mitigación L4] Política en memoria activa para la interfaz lógica {}. No hay un programa XDP adjunto al kernel.",
             self.interface_name
         );
         self.is_attached = true;
@@ -58,7 +55,7 @@ impl XdpFilter {
     pub fn detach(&mut self) {
         if self.is_attached {
             tracing::info!(
-                "[eBPF/XDP] Desvinculando programa XDP de {}",
+                "[Mitigación L4] Desactivando política en memoria para {}",
                 self.interface_name
             );
             self.is_attached = false;
@@ -69,7 +66,7 @@ impl XdpFilter {
         // 1. Verificación O(1) de Lista Negra (Lectura rápida libre de bloqueo global)
         if self.blacklist.contains(&ip) {
             tracing::warn!(
-                "[eBPF/XDP {}] Paquete/Conexión de {} mitigada (IP en lista negra)",
+                "[Mitigación L4 {}] Paquete/Conexión de {} mitigada (IP en lista negra)",
                 self.ddos_mode,
                 ip
             );
@@ -99,7 +96,7 @@ impl XdpFilter {
 
         if !allowed {
             tracing::error!(
-                "[eBPF/XDP {}] Inundación DDoS detectada desde {} (> {} PPS). IP bloqueada a nivel NIC/XDP",
+                "[Mitigación L4 {}] Inundación detectada desde {} (> {} PPS). IP bloqueada por la política en memoria",
                 self.ddos_mode, ip, max_allowed
             );
             self.blacklist.insert(ip);

@@ -974,6 +974,7 @@ function toggleSidebar() {
 
         let activeView = 'servers';
         function switchView(viewId, element) {
+            if (viewId !== 'logs') stopLogStreaming();
             if (activeView === viewId && viewId !== 'servers') return; // Evitar recargas innecesarias (excepto en dashboard que puede requerir refresco)
 
             if (window.innerWidth <= 1024) {
@@ -3059,6 +3060,20 @@ function toggleSidebar() {
         function fmUploadFolder() { const i = document.createElement('input'); i.type = 'file'; i.setAttribute('webkitdirectory', ''); i.setAttribute('directory', ''); i.onchange = e => { if (e.target.files.length > 0) processUpload(e.target.files); }; i.click(); }
 
         let logEventSource = null;
+        let logReconnectTimer = null;
+        let logStreamGeneration = 0;
+
+        function stopLogStreaming() {
+            logStreamGeneration++;
+            if (logReconnectTimer) {
+                clearTimeout(logReconnectTimer);
+                logReconnectTimer = null;
+            }
+            if (logEventSource) {
+                logEventSource.close();
+                logEventSource = null;
+            }
+        }
 
         // ============================================================
         // 🎮 CONSOLA INTERACTIVA (Minecraft)
@@ -3127,15 +3142,18 @@ function toggleSidebar() {
             const term = document.getElementById('terminal-out');
             if (!term) return;
 
-            // Cerrar stream previo si existe
-            if (logEventSource) logEventSource.close();
+            // Cerrar cualquier stream/reintento previo y crear una única generación activa.
+            stopLogStreaming();
+            const generation = logStreamGeneration;
 
             term.innerHTML = '<div class="muted"><i class="fa-solid fa-sync fa-spin"></i> Conectando con el motor de logs nativo...</div>';
 
             const streamUrl = `${window.location.origin}/api/servers/${currentServerId}/logs/stream`;
-            logEventSource = new EventSource(streamUrl);
+            const eventSource = new EventSource(streamUrl);
+            logEventSource = eventSource;
 
-            logEventSource.addEventListener('open', (e) => {
+            eventSource.addEventListener('open', () => {
+                if (generation !== logStreamGeneration) return;
                 console.log("SSE Stream Abierto");
                 // No borramos el terminal aquí para esperar el primer bloque de logs real
                 // pero podemos dar feedback visual de que estamos conectados
@@ -3148,7 +3166,8 @@ function toggleSidebar() {
                 }
             });
 
-            logEventSource.onmessage = (event) => {
+            eventSource.onmessage = (event) => {
+                if (generation !== logStreamGeneration) return;
                 try {
                     const data = JSON.parse(event.data);
 
@@ -3176,12 +3195,20 @@ function toggleSidebar() {
                 }
             };
 
-            logEventSource.onerror = (e) => {
+            eventSource.onerror = (e) => {
+                if (generation !== logStreamGeneration || activeView !== 'logs') return;
                 console.error("SSE Error:", e);
                 term.innerHTML = '<div class="text-danger"><i class="fa-solid fa-triangle-exclamation"></i> Conexión perdida. Reintentando...</div>';
-                logEventSource.close();
-                // Reintento exponencial o simple
-                setTimeout(startLogStreaming, 5000);
+                eventSource.close();
+                if (logEventSource === eventSource) logEventSource = null;
+                if (!logReconnectTimer) {
+                    logReconnectTimer = setTimeout(() => {
+                        logReconnectTimer = null;
+                        if (generation === logStreamGeneration && activeView === 'logs') {
+                            startLogStreaming();
+                        }
+                    }, 5000);
+                }
             };
         }
 

@@ -241,7 +241,7 @@ export async function createServerForUser(userId, payload = {}) {
           gamePort, txAdminPort, blenderPort, blenderPass,
           containerName, dataPath, licenseKeyHint, txAdminUrl,
           dbName, dbUser, dbPass, targetNodeId, user.expires_at || null,
-          payload.mcVersion || payload.mc_version || 'LATEST',
+          payload.mcVersion || payload.mc_version || '1.21.4',
           payload.mcType || payload.mc_type || 'PAPER',
           requestedRamGb
         ]
@@ -267,7 +267,7 @@ export async function createServerForUser(userId, payload = {}) {
             dbUser,
             dbPass,
             nodeId: targetNodeId,
-            mcVersion: payload.mcVersion || payload.mc_version || 'LATEST',
+            mcVersion: payload.mcVersion || payload.mc_version || '1.21.4',
             mcType: payload.mcType || payload.mc_type || 'PAPER',
             maxPlayers: Number(payload.maxPlayers || 20),
             cpuset: payload.cpuset || null

@@ -18,6 +18,7 @@ load_env_file "$ENV_FILE"
 : "${APP_UID:?APP_UID es obligatorio}"
 : "${APP_GID:?APP_GID es obligatorio}"
 : "${DOCKER_GID:?DOCKER_GID es obligatorio}"
+: "${GAME_DATA_GID:?GAME_DATA_GID es obligatorio}"
 : "${DOCKER_SOCKET:?DOCKER_SOCKET es obligatorio}"
 : "${INSTANCE_DATA_ROOT:?INSTANCE_DATA_ROOT es obligatorio}"
 : "${BACKUP_ROOT:?BACKUP_ROOT es obligatorio}"
@@ -34,6 +35,10 @@ effective_data_root="${PREFLIGHT_INSTANCE_DATA_ROOT:-$INSTANCE_DATA_ROOT}"
 socket_gid="$(stat -c '%g' "$DOCKER_SOCKET")"
 [ "$socket_gid" = "$DOCKER_GID" ] \
   || fail "DOCKER_GID no coincide con el grupo propietario del socket Docker."
+
+case "$GAME_DATA_GID" in
+  ''|*[!0-9]*) fail "GAME_DATA_GID debe ser un GID numérico del host." ;;
+esac
 
 security_options="$(DOCKER_HOST="unix://$DOCKER_SOCKET" docker info --format '{{json .SecurityOptions}}')"
 case "$security_options" in

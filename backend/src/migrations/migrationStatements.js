@@ -66,7 +66,7 @@ export const migrations = [
         slug TEXT NOT NULL,
         template TEXT NOT NULL,
         runtime_plan TEXT NOT NULL,
-        mc_version TEXT NOT NULL DEFAULT 'LATEST',
+        mc_version TEXT NOT NULL DEFAULT '1.21.4',
         mc_type TEXT NOT NULL DEFAULT 'PAPER',
         cpuset TEXT,
         status TEXT NOT NULL DEFAULT 'creating',
@@ -300,7 +300,7 @@ export const migrations = [
   {
     id: '202608170002_server_game_runtime_columns',
     statements: [
-      "ALTER TABLE servers ADD COLUMN IF NOT EXISTS mc_version TEXT NOT NULL DEFAULT 'LATEST'",
+      "ALTER TABLE servers ADD COLUMN IF NOT EXISTS mc_version TEXT NOT NULL DEFAULT '1.21.4'",
       "ALTER TABLE servers ADD COLUMN IF NOT EXISTS mc_type TEXT NOT NULL DEFAULT 'PAPER'",
       'ALTER TABLE servers ADD COLUMN IF NOT EXISTS cpuset TEXT'
     ]

@@ -1,0 +1,33 @@
+ingress:
+  # Listeners de control no publicados. Los listeners de juego se crean a
+  # partir de routing.game_servers en sus puertos públicos reales.
+  tcp_listen_addr: 127.0.0.1:62000
+  udp_listen_addr: 127.0.0.1:62001
+  game_listen_ip: 0.0.0.0
+  http_listen_addrs: []
+  max_concurrent_connections: 100000
+  initial_buffer_size: 4096
+routing:
+  default_web_backend: 127.0.0.1:3006
+  game_servers: []
+tls:
+  cert_path: config/certs/cert.pem
+  key_path: config/certs/key.pem
+runtime:
+  worker_threads: null
+  enable_core_pinning: false
+advanced_tuning:
+  ebpf_xdp:
+    enabled: false
+    interface: eth0
+    ddos_mitigation_mode: STRICT_GAMING
+    max_packet_rate_per_ip: 25000
+  tcp_settings:
+    tcp_nodelay: true
+    keepalive_interval_secs: 30
+    congestion_control: bbr
+  security:
+    rate_limit_conns_per_ip: 150
+    blacklist_enabled: true
+    handshake_timeout_ms: 3000
+    blacklisted_ips: []

@@ -12,6 +12,8 @@ const files = Object.fromEntries(await Promise.all([
   'deploy_staging.sh',
   'backend/src/services/dockerService.js',
   'backend/src/services/dockerUtils.js',
+  'backend/src/services/serverControlService.js',
+  'backend/src/routes/discord.js',
   'backend/src/services/games/minecraft.js',
   'backend/src/services/games/rust.js',
   'backend/src/services/games/cs2.js',
@@ -71,9 +73,13 @@ assert((files['oxideproxy/src/pipeline/http_server.rs'].match(/"keep-alive"/g) |
 assert(!files['oxideproxy/node_panel/server.js'].includes("health: hasActivity ? 'HEALTHY"), 'Oxide control panel does not fabricate backend health');
 assert(files['oxideproxy/node_panel/server.js'].includes("health: 'UNVERIFIED'"), 'Oxide control panel labels unprobed backends explicitly');
 assert(files['.env.example'].includes('DOCKER_SOCKET=/run/user/1000/docker.sock'), 'production example uses a rootless Docker socket');
+assert(files['.env.example'].includes('STAGING_GAME_DATA_GID='), 'staging documents the remapped rootless game-data group');
+assert(files['docker-compose.staging.yml'].includes('STAGING_GAME_DATA_GID:-${GAME_DATA_GID:-1000}'), 'staging control services use their dedicated remapped game-data group');
+assert(files['deploy_staging.sh'].includes('worker-stats-staging'), 'staging deploys its metrics worker on every release');
 assert(files['.env.example'].includes('ALLOW_ROOTFUL_DOCKER_SOCKET=false'), 'rootful Docker exception is disabled by default');
 assert(files['.env.example'].includes('FRONTEND_BIND_IP=127.0.0.1'), 'auxiliary frontend bind is explicitly loopback-only');
 assert(files['.env.example'].includes('DISCORD_API_KEY=') && files['.env.example'].includes('NODE_ENROLLMENT_API_KEY='), 'Discord and node enrollment use separate credentials');
+assert(!files['docker-compose.yml'].includes('DISCORD_API_KEY:-${API_KEY') && !files['docker-compose.staging.yml'].includes('DISCORD_API_KEY:-${API_KEY'), 'Compose requires the dedicated Discord credential without eager legacy interpolation');
 assert(files['scripts/security/production_preflight.sh'].includes('rootless'), 'production preflight enforces rootless Docker');
 assert(files['scripts/security/production_preflight.sh'].includes("'{{json .Warnings}}'"), 'production preflight inspects Docker resource-controller warnings');
 assert(files['scripts/security/production_preflight.sh'].includes('no cpu cfs quota support'), 'production preflight rejects missing CPU quota delegation');
@@ -107,9 +113,13 @@ assert(files['scripts/ensure_base_images.sh'].includes('network inspect "$RUNTIM
 assert(files['scripts/ensure_base_images.sh'].includes('network create "$RUNTIME_DOCKER_NETWORK"'), 'missing runtime network is created in the rootless daemon');
 assert(files['deploy_staging.sh'].includes('RUNTIME_DOCKER_NETWORK=ragenodes_net_staging'), 'staging prepares its isolated rootless network');
 assert(files['docker-compose.staging.yml'].match(/PORT_BASE_OFFSET(?::|=)\s*\$\{STAGING_PORT_BASE_OFFSET:-1000\}/g)?.length === 2, 'staging backend and worker share a configurable non-overlapping port offset');
-const stagingControlPanelOverride = files['docker-compose.staging.yml'].match(/\n  oxide_control_panel:\n([\s\S]*?)(?=\n  oxide_web_staging:)/)?.[1] || '';
+const stagingControlPanelOverride = files['docker-compose.staging.yml'].match(/\n  oxide_control_panel:\n([\s\S]*?)(?=\n  oxide_game_staging:)/)?.[1] || '';
 assert(!stagingControlPanelOverride.includes('security_opt:'), 'staging does not duplicate inherited control-panel security options');
 assert(!stagingControlPanelOverride.includes('cap_drop:'), 'staging does not duplicate inherited control-panel capability drops');
+assert(files['docker-compose.yml'].includes('network_mode: host'), 'Oxide Game can bind active public game ports without broad Docker ranges');
+assert(files['docker-compose.staging.yml'].includes('OXIDE_GAME_PROXY_ENABLED: ${OXIDE_GAME_PROXY_ENABLED:-false}'), 'staging game proxy migration remains opt-in');
+assert(files['backend/src/routes/discord.js'].includes("ragenodes.game_proxy'] !== 'enabled'"), 'route inventory excludes containers that still occupy public ports');
+assert(!files['oxideproxy/node_panel/server.js'].includes('baseConns ='), 'Oxide telemetry never fabricates active players');
 assert(files['.env.example'].includes('STAGING_PORT_BASE_OFFSET=1000'), 'staging example avoids aliasing production service port bands');
 assert(files['docker-compose.yml'].includes('STAGING_TLS_UPSTREAM=${STAGING_TLS_UPSTREAM:-}'), 'production edge exposes an explicit staging TLS passthrough target');
 assert(files['docker-compose.yml'].includes('STAGING_TLS_DOMAINS=${STAGING_TLS_DOMAINS:-ragenodes.dev}'), 'staging TLS passthrough is restricted to the staging domain');
@@ -123,6 +133,9 @@ assert(!files['backend/src/services/dockerService.js'].includes("'ragenodes_net'
 assert(files['backend/src/services/dockerUtils.js'].includes('deriveServiceIdentifier'), 'game instances can derive stable unique identifiers');
 assert(files['backend/src/services/games/minecraft.js'].includes("DIFFICULTY=${opts.difficulty || 'normal'}"), 'Minecraft defaults to normal difficulty');
 assert(files['backend/src/services/games/minecraft.js'].includes("'ONLINE_MODE=TRUE'"), 'Minecraft identity verification is enabled by default');
+assert(files['backend/src/services/games/minecraft.js'].includes("'PAUSE_WHEN_EMPTY_SECONDS=-1'"), 'Minecraft stays active while empty');
+assert(files['backend/src/services/serverControlService.js'].includes("process.env.RAGENODES_ROLE === 'worker-docker-events'"), 'game maintenance has a single worker owner');
+assert(files['backend/src/services/serverControlService.js'].includes("hasFatalLog && containerHealth === 'unhealthy'"), 'stale fatal log text cannot recreate a healthy game server');
 assert(files['backend/src/services/games/rust.js'].includes("deriveServiceIdentifier('rust'"), 'Rust identity is unique per server');
 assert(files['backend/src/services/games/cs2.js'].includes("'SRCDS_TICKRATE=64'"), 'CS2 uses the standard beginner-friendly tickrate');
 assert(files['backend/src/services/games/valheim.js'].includes("deriveServiceIdentifier('world'"), 'Valheim world names are unique per server');
