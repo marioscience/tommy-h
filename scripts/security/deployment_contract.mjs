@@ -79,6 +79,7 @@ assert(files['deploy_staging.sh'].includes('worker-stats-staging'), 'staging dep
 assert(files['.env.example'].includes('ALLOW_ROOTFUL_DOCKER_SOCKET=false'), 'rootful Docker exception is disabled by default');
 assert(files['.env.example'].includes('FRONTEND_BIND_IP=127.0.0.1'), 'auxiliary frontend bind is explicitly loopback-only');
 assert(files['.env.example'].includes('DISCORD_API_KEY=') && files['.env.example'].includes('NODE_ENROLLMENT_API_KEY='), 'Discord and node enrollment use separate credentials');
+assert(!files['docker-compose.yml'].includes('DISCORD_API_KEY:-${API_KEY') && !files['docker-compose.staging.yml'].includes('DISCORD_API_KEY:-${API_KEY'), 'Compose requires the dedicated Discord credential without eager legacy interpolation');
 assert(files['scripts/security/production_preflight.sh'].includes('rootless'), 'production preflight enforces rootless Docker');
 assert(files['scripts/security/production_preflight.sh'].includes("'{{json .Warnings}}'"), 'production preflight inspects Docker resource-controller warnings');
 assert(files['scripts/security/production_preflight.sh'].includes('no cpu cfs quota support'), 'production preflight rejects missing CPU quota delegation');
