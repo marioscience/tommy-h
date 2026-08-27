@@ -165,7 +165,12 @@ setInterval(async () => {
         `);
 
         // Filtramos en Postgres para evitar procesamiento inútil en contenedores apagados o suspendidos
-        const { rows: servers } = await query("SELECT id, name, status, template, fivem_port, txadmin_port, txadmin_url, container_name, data_path, runtime_plan, allocated_ram_gb, extra_disk_gb, cluster_id, node_id, mc_version, mc_type FROM servers WHERE status NOT IN ('stopped', 'stopping', 'suspended', 'deleting')");
+        const { rows: servers } = await query(`
+            SELECT servers.*, users.extra_disk_gb
+            FROM servers
+            LEFT JOIN users ON servers.owner_id = users.id
+            WHERE servers.status NOT IN ('stopped', 'stopping', 'suspended', 'deleting')
+        `);
 
         // Ejecución en lotes para no asfixiar al host ni al API de Docker
         const CHUNK_SIZE = MAINTENANCE_CHUNK_SIZE;
