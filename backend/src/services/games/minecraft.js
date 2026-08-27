@@ -65,7 +65,8 @@ export class MinecraftService extends BaseGameService {
             bindings: {
                 '25565/tcp': [{ HostIp: '0.0.0.0', HostPort: String(gamePort) }],
                 '25565/udp': [{ HostIp: '0.0.0.0', HostPort: String(gamePort) }]
-            }
+            },
+            proxiedPorts: ['25565/tcp', '25565/udp']
         };
     }
 

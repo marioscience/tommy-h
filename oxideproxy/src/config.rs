@@ -1,6 +1,6 @@
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::PathBuf;
 
 #[derive(Debug, thiserror::Error)]
@@ -64,8 +64,16 @@ pub struct SecurityConfig {
 pub struct IngressConfig {
     pub tcp_listen_addr: SocketAddr,
     pub udp_listen_addr: SocketAddr,
+    #[serde(default)]
+    pub game_listen_ip: Option<IpAddr>,
+    #[serde(default = "default_http_listen_addrs")]
+    pub http_listen_addrs: Vec<SocketAddr>,
     pub max_concurrent_connections: usize,
     pub initial_buffer_size: usize,
+}
+
+fn default_http_listen_addrs() -> Vec<SocketAddr> {
+    vec!["0.0.0.0:80".parse().unwrap(), "0.0.0.0:8088".parse().unwrap()]
 }
 
 fn default_socket_addr() -> SocketAddr {
@@ -139,6 +147,8 @@ impl Default for ProxyConfig {
             ingress: IngressConfig {
                 tcp_listen_addr: "0.0.0.0:8443".parse().unwrap(),
                 udp_listen_addr: "0.0.0.0:8080".parse().unwrap(),
+                game_listen_ip: None,
+                http_listen_addrs: default_http_listen_addrs(),
                 max_concurrent_connections: 1_000_000,
                 initial_buffer_size: 4096,
             },

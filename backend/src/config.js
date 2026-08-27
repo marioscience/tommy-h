@@ -47,6 +47,10 @@ export const config = {
   dockerSocket: process.env.DOCKER_SOCKET || '/var/run/docker.sock',
   dockerBlkioWeight: Number(process.env.DOCKER_BLKIO_WEIGHT ?? (process.env.NODE_ENV === 'production' ? 100 : 0)),
   gameContainerSharedGid: Number(process.env.GAME_CONTAINER_SHARED_GID ?? 1000),
+  oxideGameProxyEnabled: process.env.OXIDE_GAME_PROXY_ENABLED === 'true',
+  gameBackendPortOffset: Number(process.env.GAME_BACKEND_PORT_OFFSET || 10000),
+  gameBackendBindIp: process.env.GAME_BACKEND_BIND_IP || '127.0.0.1',
+  oxideGameProxyService: process.env.OXIDE_GAME_PROXY_SERVICE || 'oxide_game',
   allowRootfulDockerSocket: process.env.ALLOW_ROOTFUL_DOCKER_SOCKET === 'true',
   allowInsecureDockerNodes: process.env.ALLOW_INSECURE_DOCKER_NODES === 'true',
 

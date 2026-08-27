@@ -62,6 +62,7 @@ where
             }
             match tokio::io::copy_bidirectional(&mut client_stream, &mut backend_stream).await {
                 Ok((from_client, from_backend)) => {
+                    crate::metrics::tcp_transfer(from_client, from_backend);
                     tracing::debug!(
                         "Sesion TCP finalizada. Bytes cliente->backend: {}, backend->cliente: {}",
                         from_client,
@@ -143,6 +144,7 @@ pub async fn forward_udp(
                                             }
                                         }
                                         let _ = ingress_clone.send_to(&buf[..len], client_addr).await;
+                                        crate::metrics::udp_egress(len);
                                     }
                                 }
                                 Ok(Err(_)) => break,

@@ -186,7 +186,11 @@ fn frame_ancestors_policy() -> String {
     if origins.is_empty() {
         "'none'".to_string()
     } else {
-        origins.join(" ")
+        // txAdmin y otras aplicaciones proxificadas pueden crear iframes
+        // internos bajo el mismo host. CSP comprueba toda la cadena de
+        // ancestros, por lo que el propio origen debe estar permitido junto
+        // a los paneles externos enumerados explícitamente.
+        format!("'self' {}", origins.join(" "))
     }
 }
 
@@ -1181,8 +1185,9 @@ async fn serve_static_file(
 mod tests {
     use super::{
         access_gate_csp, apply_browser_security_headers, blender_app_csp, csp_with_frame_ancestors,
-        dynamic_proxy_port_for_domains, trusted_upstream_csp, AllowBlenderApp,
-        AllowRageNodesPanelFraming, AllowSameOriginFraming, TrustedStagingUpstream,
+        dynamic_proxy_port_for_domains, frame_ancestors_policy, trusted_upstream_csp,
+        AllowBlenderApp, AllowRageNodesPanelFraming, AllowSameOriginFraming,
+        TrustedStagingUpstream,
     };
     use http::{Response, StatusCode};
     use hyper::Body;
@@ -1235,6 +1240,14 @@ mod tests {
         assert!(result.contains("object-src 'none'"));
         assert!(result.contains("frame-ancestors https://ragenodes.dev"));
         assert!(!result.contains("frame-ancestors 'self'"));
+    }
+
+    #[test]
+    fn configured_frame_ancestors_always_include_same_origin() {
+        let policy = frame_ancestors_policy();
+        assert!(policy.starts_with("'self' "));
+        assert!(policy.contains("https://ragenodes.com"));
+        assert!(!policy.contains("*"));
     }
 
     #[test]
@@ -1349,7 +1362,7 @@ mod tests {
             .and_then(|value| value.to_str().ok())
             .unwrap_or_default();
         assert!(response.headers().get("x-frame-options").is_none());
-        assert!(policy.contains("frame-ancestors https://"));
+        assert!(policy.contains("frame-ancestors 'self' https://"));
         assert!(!policy.contains("frame-ancestors *"));
         assert!(policy.contains("object-src 'none'"));
     }

@@ -38,6 +38,10 @@ Whether deploying a large FiveM roleplay community or a multi-node cluster for R
 - **🩺 Production & Staging Diagnostics:** Native `/healthz`, `/readyz` probes, and an adaptive hardware test suite (`stagingHealthTestRunner.js`) generating PDF/HTML diagnostic reports.
 - **📦 Master Image Cache:** FiveM and Blender masters are version-aware, archived locally, refreshed by a hardened systemd timer, and reused by subsequent deployments. Digest-pinned game images are prefetched without replacing active customer containers.
 
+### Game ingress rollout
+
+OxideProxy can act as the public TCP/UDP ingress for newly deployed **Minecraft, FiveM game traffic, and Rust** instances. Public ports are owned by the dedicated, host-networked `oxide_game` service, while game containers bind their shifted backend ports to loopback only. Route inventory is generated from authenticated database and Docker state, written atomically, and reloaded automatically. Existing direct-published containers remain compatible and must be migrated individually; txAdmin and other web panels continue through the HTTPS L7 proxy. Set `OXIDE_GAME_PROXY_ENABLED=true` only after the dedicated ingress service is healthy.
+
 ---
 
 ## 🖥️ Supported Game Engines & Services

@@ -40,7 +40,7 @@ WORKDIR /app
 
 # Copiamos el binario compilado y los certificados generados
 COPY --from=builder /usr/src/oxide_proxy/target/release/oxide_proxy /app/oxide_proxy
-COPY --from=builder /usr/src/oxide_proxy/config /app/config
+COPY --from=builder --chown=65532:65532 /usr/src/oxide_proxy/config /app/config
 COPY --from=builder /runtime-root/var/www /var/www
 COPY --from=builder --chown=65532:65532 /runtime-root/app/acme /app/acme
 COPY --from=builder --chown=65532:65532 /runtime-root/app/runtime /app/runtime

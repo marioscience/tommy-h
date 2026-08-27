@@ -368,6 +368,107 @@ router.get('/servers', verifyApiKey, async (req, res) => {
     }
 });
 
+// Inventario L4 autorizado para OxideProxy. El panel de Oxide nunca recibe el
+// socket Docker: el backend valida que el contenedor exista y esté ejecutándose.
+router.get('/servers/routes', verifyApiKey, async (req, res) => {
+    try {
+        const result = await query(`
+            SELECT id, name, template, fivem_port, container_name, node_id
+            FROM servers
+            WHERE status = 'running'
+            ORDER BY fivem_port ASC
+        `);
+        const protocolOffsets = {
+            minecraft: [[0, 'TCP']],
+            fivem: [[0, 'DUAL']],
+            rust: [[0, 'UDP'], [1, 'TCP'], [2, 'UDP']],
+            palworld: [[0, 'UDP'], [1, 'TCP'], [2, 'UDP']],
+            cs2: [[0, 'DUAL']],
+            valheim: [[0, 'UDP'], [1, 'UDP'], [2, 'UDP']],
+            zomboid: [[0, 'UDP'], [1, 'UDP']],
+            ark: Array.from({ length: 14 }, (_, offset) => [offset, 'DUAL']),
+            sdtd: [[0, 'DUAL'], [1, 'UDP'], [2, 'UDP'], [3, 'UDP']]
+        };
+        const routes = [];
+
+        for (const server of result.rows) {
+            if (!server.container_name || !Number.isInteger(Number(server.fivem_port))) continue;
+            // El inventario actual solo anuncia el daemon local. Los nodos
+            // remotos se publicarán por su propio backend/edge autorizado.
+            if (Number(server.node_id || 0) !== 0) continue;
+            let inspect;
+            try {
+                inspect = await motorServidores.getContainer(server.container_name).inspect();
+                if (!inspect?.State?.Running) continue;
+            } catch {
+                continue;
+            }
+
+            if (config.oxideGameProxyEnabled && inspect?.Config?.Labels?.['ragenodes.game_proxy'] !== 'enabled') {
+                // Un contenedor todavía publicado en el puerto público no debe
+                // anunciarse: Oxide no podría vincular ese mismo puerto.
+                continue;
+            }
+
+            const basePort = Number(server.fivem_port);
+            const offsets = protocolOffsets[server.template] || [[0, 'DUAL']];
+            const labelOffset = Number(inspect?.Config?.Labels?.['ragenodes.game_proxy_offset']);
+            const backendOffset = config.oxideGameProxyEnabled
+                ? (Number.isInteger(labelOffset) && labelOffset > 0 ? labelOffset : config.gameBackendPortOffset)
+                : 0;
+            const published = new Set();
+            for (const [containerPort, bindings] of Object.entries(inspect?.HostConfig?.PortBindings || {})) {
+                const transport = String(containerPort).split('/')[1]?.toUpperCase();
+                for (const binding of bindings || []) {
+                    published.add(`${Number(binding.HostPort)}:${transport}`);
+                }
+            }
+            for (const [offset, protocol] of offsets) {
+                const port = basePort + offset;
+                const backendPort = port + backendOffset;
+                const requiredProtocols = protocol === 'DUAL' ? ['TCP', 'UDP'] : [protocol];
+                if (!requiredProtocols.every(item => published.has(`${backendPort}:${item}`))) continue;
+                routes.push({
+                    game_id: port,
+                    name: `auto:${server.container_name}:${port}`,
+                    backend_addr: `127.0.0.1:${backendPort}`,
+                    protocol,
+                    port_range: String(port),
+                    description: `Auto ${String(server.template).toUpperCase()} - ${server.name}`
+                });
+            }
+        }
+
+        res.json({ ok: true, generated_at: new Date().toISOString(), routes });
+    } catch (error) {
+        console.error('❌ Error generando rutas para OxideProxy:', error);
+        res.status(500).json({ error: 'Error interno' });
+    }
+});
+
+// Recarga acotada del plano de datos. No acepta nombres proporcionados por el
+// cliente: solo reinicia el servicio Compose configurado para Oxide Game.
+router.post('/servers/routes/reload-proxy', verifyApiKey, async (req, res) => {
+    try {
+        const service = String(config.oxideGameProxyService || 'oxide_game');
+        if (!/^oxide_game(?:_staging)?$/.test(service)) {
+            return res.status(503).json({ error: 'Servicio de proxy no autorizado' });
+        }
+        const containers = await motorServidores.listContainers({
+            all: true,
+            filters: { label: [`com.docker.compose.service=${service}`] }
+        });
+        if (containers.length !== 1) {
+            return res.status(503).json({ error: 'Proxy de juego no disponible de forma inequívoca' });
+        }
+        await motorServidores.getContainer(containers[0].Id).restart({ t: 10 });
+        res.json({ ok: true, service });
+    } catch (error) {
+        console.error('❌ Error recargando Oxide Game:', error);
+        res.status(500).json({ error: 'No se pudo recargar el proxy de juego' });
+    }
+});
+
 // ============================================================================
 // 🛡️ RUTA 14: OBTENER PROXY ACTIVO (Para OxideProxy Sync)
 // ============================================================================

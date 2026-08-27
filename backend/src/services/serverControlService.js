@@ -197,8 +197,10 @@ setInterval(async () => {
                         const isPrivate = bindingsKeys.length > 0 && Object.values(portBindings).every(bindings =>
                             bindings && bindings.every(b => b.HostIp === '127.0.0.1')
                         );
+                        const isGameProxyBackend = config.oxideGameProxyEnabled
+                            && inspect.Config?.Labels?.['ragenodes.game_proxy'] === 'enabled';
 
-                        if (!needsFix && isPrivate) {
+                        if (!needsFix && isPrivate && !isGameProxyBackend) {
                             console.log(`⚠️ [Mantenimiento] Corrigiendo red de ${s.name} a Modo Directo.`);
                             needsFix = true;
                         }
@@ -222,7 +224,14 @@ setInterval(async () => {
                                 if (s.template === 'ark') checkPort = s.fivem_port + 13; // RCON
 
                                 if (s.template !== 'valheim' && s.template !== 'zomboid' && s.template !== 'ark') {
-                                    const isPortReachable = await verifyServerPort('172.17.0.1', checkPort, 'tcp');
+                                    const healthHost = isGameProxyBackend ? config.gameBackendBindIp : '172.17.0.1';
+                                    if (isGameProxyBackend) {
+                                        const labelOffset = Number(inspect.Config?.Labels?.['ragenodes.game_proxy_offset']);
+                                        checkPort += Number.isInteger(labelOffset) && labelOffset > 0
+                                            ? labelOffset
+                                            : config.gameBackendPortOffset;
+                                    }
+                                    const isPortReachable = await verifyServerPort(healthHost, checkPort, 'tcp');
                                     if (!isPortReachable) {
                                         console.log(`⚠️ [Mantenimiento] Puerto TCP ${checkPort} no responde para ${s.name} (Uptime: ${Math.round(uptimeMs/60000)}m). Posible cuelgue.`);
                                         needsFix = true;

@@ -23,6 +23,7 @@ APP_SERVICES=(
   worker-backups
   worker-docker-events
   oxide_control_panel
+  oxide_game
   oxide_web
 )
 
@@ -105,6 +106,7 @@ echo "==> 🌐 Aplicando solo las imágenes o configuraciones que cambiaron..."
 echo "==> 🩺 Esperando servicios críticos..."
 wait_for_service backend 90
 wait_for_service oxide_control_panel 60
+wait_for_service oxide_game 60
 wait_for_service oxide_web 60
 wait_for_http http://127.0.0.1:3010/healthz 90
 wait_for_http http://127.0.0.1:3010/readyz 90

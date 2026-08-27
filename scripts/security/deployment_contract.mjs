@@ -12,6 +12,7 @@ const files = Object.fromEntries(await Promise.all([
   'deploy_staging.sh',
   'backend/src/services/dockerService.js',
   'backend/src/services/dockerUtils.js',
+  'backend/src/routes/discord.js',
   'backend/src/services/games/minecraft.js',
   'backend/src/services/games/rust.js',
   'backend/src/services/games/cs2.js',
@@ -107,9 +108,13 @@ assert(files['scripts/ensure_base_images.sh'].includes('network inspect "$RUNTIM
 assert(files['scripts/ensure_base_images.sh'].includes('network create "$RUNTIME_DOCKER_NETWORK"'), 'missing runtime network is created in the rootless daemon');
 assert(files['deploy_staging.sh'].includes('RUNTIME_DOCKER_NETWORK=ragenodes_net_staging'), 'staging prepares its isolated rootless network');
 assert(files['docker-compose.staging.yml'].match(/PORT_BASE_OFFSET(?::|=)\s*\$\{STAGING_PORT_BASE_OFFSET:-1000\}/g)?.length === 2, 'staging backend and worker share a configurable non-overlapping port offset');
-const stagingControlPanelOverride = files['docker-compose.staging.yml'].match(/\n  oxide_control_panel:\n([\s\S]*?)(?=\n  oxide_web_staging:)/)?.[1] || '';
+const stagingControlPanelOverride = files['docker-compose.staging.yml'].match(/\n  oxide_control_panel:\n([\s\S]*?)(?=\n  oxide_game_staging:)/)?.[1] || '';
 assert(!stagingControlPanelOverride.includes('security_opt:'), 'staging does not duplicate inherited control-panel security options');
 assert(!stagingControlPanelOverride.includes('cap_drop:'), 'staging does not duplicate inherited control-panel capability drops');
+assert(files['docker-compose.yml'].includes('network_mode: host'), 'Oxide Game can bind active public game ports without broad Docker ranges');
+assert(files['docker-compose.staging.yml'].includes('OXIDE_GAME_PROXY_ENABLED: ${OXIDE_GAME_PROXY_ENABLED:-false}'), 'staging game proxy migration remains opt-in');
+assert(files['backend/src/routes/discord.js'].includes("ragenodes.game_proxy'] !== 'enabled'"), 'route inventory excludes containers that still occupy public ports');
+assert(!files['oxideproxy/node_panel/server.js'].includes('baseConns ='), 'Oxide telemetry never fabricates active players');
 assert(files['.env.example'].includes('STAGING_PORT_BASE_OFFSET=1000'), 'staging example avoids aliasing production service port bands');
 assert(files['docker-compose.yml'].includes('STAGING_TLS_UPSTREAM=${STAGING_TLS_UPSTREAM:-}'), 'production edge exposes an explicit staging TLS passthrough target');
 assert(files['docker-compose.yml'].includes('STAGING_TLS_DOMAINS=${STAGING_TLS_DOMAINS:-ragenodes.dev}'), 'staging TLS passthrough is restricted to the staging domain');

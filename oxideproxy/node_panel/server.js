@@ -11,127 +11,55 @@ const CONFIG_PATH = process.env.CONFIG_PATH || (fs.existsSync('/app/rust_config/
 const PROMETHEUS_URL = process.env.PROMETHEUS_URL || 'http://oxide_prometheus:9090';
 const BACKEND_URL = (process.env.BACKEND_URL || 'http://backend:3006').replace(/\/$/, '');
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || '';
+const METRICS_PATH = process.env.OXIDE_METRICS_PATH || '/app/runtime/game_metrics.json';
+let previousMetricsSnapshot = null;
 
 // El panel se mantiene deliberadamente separado del daemon de contenedores.
-const discoveredBackends = [];
+let discoveredBackends = [];
 
 async function syncDockerGameServers() {
-    // Conservado temporalmente solo como referencia de migración. Nunca se
-    // ejecuta ni dispone de un cliente para el daemon local.
-    return;
     try {
-        const res = await dockerAxios.get('http://unix/containers/json');
-        const containers = res.data || [];
-        
+        const apiKey = process.env.OXIDE_ROUTE_API_KEY;
+        if (!apiKey) throw new Error('OXIDE_ROUTE_API_KEY no configurada');
+        const response = await axios.get(`${BACKEND_URL}/api/discord/servers/routes`, {
+            headers: { 'x-api-key': apiKey },
+            timeout: 5000
+        });
+        const managedRoutes = Array.isArray(response.data?.routes) ? response.data.routes : [];
         let configObj = {};
         if (fs.existsSync(CONFIG_PATH)) {
-            try { configObj = yaml.load(fs.readFileSync(CONFIG_PATH, 'utf8')) || {}; } catch(e){}
+            configObj = yaml.load(fs.readFileSync(CONFIG_PATH, 'utf8')) || {};
         }
         configObj = migrateConfigToV2(configObj);
-        let configChanged = false;
+        const manualRoutes = (configObj.routing.game_servers || [])
+            .filter(route => !String(route.name || '').startsWith('auto:'));
+        const nextRoutes = manualRoutes.concat(managedRoutes.map(route => ({
+            ...route,
+            health_check: { enabled: false, interval_secs: 10, timeout_secs: 2 }
+        })));
+        discoveredBackends = managedRoutes.map(route => ({
+            id: route.game_id,
+            name: route.description || route.name,
+            addr: route.backend_addr,
+            protocol: route.protocol,
+            health: 'HEALTHY (Backend verificado)'
+        }));
 
-        // Consultar la base de datos central de RageNodes Ultimate para obtener la lista oficial de servidores activos de clientes
-        let validClientContainers = null;
-        try {
-            if (!process.env.RAGENODES_API_KEY) throw new Error('RAGENODES_API_KEY no configurada');
-            const dbRes = await axios.get(`${BACKEND_URL}/api/discord/servers`, {
-                headers: { 'x-api-key': process.env.RAGENODES_API_KEY },
-                timeout: 3000
-            });
-            if (dbRes.data && Array.isArray(dbRes.data.servers)) {
-                validClientContainers = new Set(dbRes.data.servers);
-            }
-        } catch(err) {
-            console.warn('[OxideControlPanel] No se pudo obtener la lista de servidores de la BD central, usando fallback de Docker socket.');
-        }
-
-        const activeRunningNames = new Set();
-        const newBackends = [];
-
-        containers.forEach(c => {
-            const name = c.Names && c.Names.length > 0 ? c.Names[0].replace('/', '') : '';
-            // Solo considerar contenedores de servidores de juego de RageNodes que estén TRULY running
-            // Excluir explícitamente los contenedores de la infraestructura interna (ragenodes-ultimate-...)
-            if (name.startsWith('ragenodes-') && !name.startsWith('ragenodes-ultimate-') && c.State === 'running') {
-                // Si logramos obtener la lista oficial de la base de datos de RageNodes, verificar que pertenezca a un cliente activo
-                if (validClientContainers && !validClientContainers.has(name)) {
-                    return; // Ignorar este contenedor residual/huérfano que no pertenece a ningún cliente en la BD
-                }
-
-                activeRunningNames.add(name);
-                const ports = c.Ports || [];
-                let mainPort = null;
-                ports.forEach(p => {
-                    if (p.PublicPort && p.PublicPort < 40000 && p.PublicPort > 1000) {
-                        if (!mainPort || p.PublicPort < mainPort) mainPort = p.PublicPort;
-                    }
-                });
-
-                if (mainPort) {
-                    const gameId = mainPort;
-                    const backendAddr = `${name}:${mainPort}`;
-                    const protocol = mainPort === 7777 ? 'DUAL' : 'DUAL';
-
-                    newBackends.push({
-                        id: gameId,
-                        name: name,
-                        addr: backendAddr,
-                        protocol: protocol,
-                        health: 'HEALTHY (Auto-Ruteo)'
-                    });
-                }
-            }
-        });
-
-        discoveredBackends = newBackends;
-
-        // Filtrar y reconstruir el YAML para mantener solo los servidores verdaderamente activos
-        const currentServers = configObj.routing && Array.isArray(configObj.routing.game_servers) ? configObj.routing.game_servers : [];
-        const existingMap = new Map();
-        const cleanedGameServers = [];
-
-        // Mantener los que estén verdaderamente corriendo en Docker
-        currentServers.forEach(srv => {
-            const containerName = srv.backend_addr ? srv.backend_addr.split(':')[0] : (srv.name || '');
-            if (containerName.startsWith('ragenodes-')) {
-                if (activeRunningNames.has(containerName)) {
-                    cleanedGameServers.push(srv);
-                    existingMap.set(srv.game_id.toString(), true);
-                } else {
-                    configChanged = true; // Se eliminó un servidor detenido o zombie
-                }
-            } else {
-                // Mantener configuraciones personalizadas que no sean contenedores de ragenodes
-                cleanedGameServers.push(srv);
-                existingMap.set(srv.game_id.toString(), true);
-            }
-        });
-
-        // Añadir nuevos descubiertos que no estén en el mapa
-        newBackends.forEach(b => {
-            if (!existingMap.has(b.id.toString())) {
-                cleanedGameServers.push({
-                    game_id: b.id,
-                    name: b.name,
-                    backend_addr: b.addr,
-                    protocol: b.protocol,
-                    port_range: b.id.toString(),
-                    description: `Auto-Ruteo ${b.name}`,
-                    health_check: { enabled: false, interval_secs: 10, timeout_secs: 2 }
-                });
-                existingMap.set(b.id.toString(), true);
-                configChanged = true;
-            }
-        });
-
-        configObj.routing.game_servers = cleanedGameServers;
-
-        if (configChanged) {
-            fs.writeFileSync(CONFIG_PATH, yaml.dump(configObj), 'utf8');
-            console.log('[OxideControlPanel] ¡Tabla de ruteo actualizada! Se eliminaron zombies y se sincronizaron servidores activos.');
+        if (JSON.stringify(configObj.routing.game_servers || []) !== JSON.stringify(nextRoutes)) {
+            configObj.routing.game_servers = nextRoutes;
+            const temporaryPath = `${CONFIG_PATH}.tmp-${process.pid}`;
+            // El fichero solo contiene rutas y ajustes no secretos; 0644
+            // permite que el proceso Oxide (UID sin privilegios) lo lea.
+            fs.writeFileSync(temporaryPath, yaml.dump(configObj), { encoding: 'utf8', mode: 0o644 });
+            fs.renameSync(temporaryPath, CONFIG_PATH);
+            fs.chmodSync(CONFIG_PATH, 0o644);
+            console.log(`[OxideControlPanel] Tabla reconciliada: ${managedRoutes.length} rutas automáticas activas.`);
+            console.log('[OxideControlPanel] El plano de datos detectará el cambio y se recargará de forma controlada.');
         }
     } catch(e) {
-        console.error('[OxideControlPanel] Error sincronizando con Docker socket:', e.message);
+        // Fallo cerrado: se conserva la última tabla válida y nunca se recurre
+        // al socket Docker ni a descubrimiento privilegiado.
+        console.error('[OxideControlPanel] Error reconciliando rutas autorizadas:', e.message);
     }
 }
 
@@ -497,113 +425,42 @@ app.get('/api/oxide/metrics/advanced', asyncHandler(async (req, res) => {
     const migrated = migrateConfigToV2(configObj);
     const gameServers = migrated.routing.game_servers || [];
 
-    // Obtenemos las últimas líneas de log reales para calcular estadísticas en tiempo real
-    const allRecentLogs = getLatestLogLines(500);
-    const nowMs = Date.now();
+    let currentMetrics = null;
+    try {
+        currentMetrics = JSON.parse(fs.readFileSync(METRICS_PATH, 'utf8'));
+    } catch {}
+    const previous = previousMetricsSnapshot;
+    const elapsedSeconds = currentMetrics && previous
+        ? Math.max(0.001, (Number(currentMetrics.timestamp_ms) - Number(previous.timestamp_ms)) / 1000)
+        : 0;
+    const rate = (field) => elapsedSeconds > 0
+        ? Math.max(0, (Number(currentMetrics?.[field] || 0) - Number(previous?.[field] || 0)) / elapsedSeconds)
+        : 0;
+    const globalActiveConns = Number(currentMetrics?.tcp_active || 0);
+    const globalTcpPps = Math.round(rate('tcp_events_in'));
+    const globalUdpPps = Math.round(rate('udp_packets_in'));
+    const globalIngressMbps = (rate('tcp_bytes_in') + rate('udp_bytes_in')) * 8 / 1_000_000;
+    const globalEgressMbps = (rate('tcp_bytes_out') + rate('udp_bytes_out')) * 8 / 1_000_000;
+    if (currentMetrics) previousMetricsSnapshot = currentMetrics;
 
-    // Logs en los últimos 15 segundos para capturar nuevos flujos L4/L7 inmediatos y picos
-    const recentLogs = allRecentLogs.filter(l => {
-        const logTime = new Date(l.timestamp).getTime();
-        return !isNaN(logTime) && (nowMs - logTime) <= 15000;
-    });
-
-    // Logs en los últimos 60 segundos para mantener el conteo de sesiones activas reales
-    const activeSessionLogs = allRecentLogs.filter(l => {
-        const logTime = new Date(l.timestamp).getTime();
-        return !isNaN(logTime) && (nowMs - logTime) <= 60000;
-    });
-
-    let globalActiveConns = 0;
-    let globalTcpPps = 0;
-    let globalUdpPps = 0;
-    let globalIngressMbps = 0;
-    let globalEgressMbps = 0;
-
-    // Analizamos los logs recientes por servidor para obtener datos reales y dinámicos
-    const perServer = gameServers.map(srv => {
-        const srvLogs15s = recentLogs.filter(l => l.game_id === srv.game_id || (srv.game_id === 30120 && l.message.includes('30120')));
-        const srvLogs60s = activeSessionLogs.filter(l => l.game_id === srv.game_id || (srv.game_id === 30120 && l.message.includes('30120')));
-        
-        // Contamos conexiones activas reales en el último minuto
-        let activeConns = srvLogs60s.filter(l => l.message.includes('Conexión TCP aceptada') || l.message.includes('Iniciando reenvío') || l.message.includes('Reenviando datagrama')).length;
-        if (activeConns === 0) {
-            // Generar conexiones activas realistas basadas en el game_id / puerto para servidores vivos en producción
-            const baseConns = (srv.game_id % 12) + 2; // Rango de 2 a 13 jugadores activos
-            const timeMod = Math.floor(Math.sin(nowMs / 5000) * 2); // Fluctuación de -2 a +2
-            activeConns = Math.max(1, baseConns + timeMod);
-        }
-
-        // PPS reales basados en los logs de los últimos 15s
-        let tcpPps = srvLogs15s.filter(l => l.message.includes('TCP')).length * 4;
-        let udpPps = srvLogs15s.filter(l => l.message.includes('UDP')).length * 4;
-
-        // Si hay sesiones activas pero el motor no está logueando cada datagrama (para no saturar disco),
-        // calculamos el tráfico L4/L7 real dinámico en tiempo real (Jitter activo)
-        if (activeConns > 0) {
-            const timeJitter = Math.sin(nowMs / 2000) * 0.2 + 0.8; // Fluctuación suave 0.6 a 1.0
-            if (tcpPps === 0) tcpPps = Math.floor((srv.game_id === 30120 ? 140 : 45) * activeConns * timeJitter + Math.random() * 15);
-            if (udpPps === 0 && (srv.protocol === 'UDP' || srv.protocol === 'DUAL')) {
-                udpPps = Math.floor((srv.game_id === 30120 ? 320 : 110) * activeConns * timeJitter + Math.random() * 25);
-            }
-        }
-
-        let totalPps = tcpPps + udpPps;
-
-        // Calculamos ancho de banda real basado en los bytes logueados en los últimos 15s
-        let ingressBytes = 0;
-        let egressBytes = 0;
-
-        srvLogs15s.forEach(l => {
-            const matchIn = l.message.match(/Escribiendo (\d+) bytes/);
-            if (matchIn) ingressBytes += parseInt(matchIn[1], 10);
-
-            const matchOut = l.message.match(/enviados (\d+) bytes/i);
-            if (matchOut) egressBytes += parseInt(matchOut[1], 10);
-
-            const matchSess = l.message.match(/cliente->backend: (\d+), backend->cliente: (\d+)/);
-            if (matchSess) {
-                ingressBytes += parseInt(matchSess[1], 10);
-                egressBytes += parseInt(matchSess[2], 10);
-            }
-        });
-
-        let ingressMbps = ((ingressBytes * 8) / 1000000 / 15).toFixed(2);
-        let egressMbps = ((egressBytes * 8) / 1000000 / 15).toFixed(2);
-
-        // Si hay tráfico PPS activo pero no hubo logs de bytes en esta ventana de 15s, estimamos el ancho de banda proporcional al PPS
-        if (totalPps > 0 && parseFloat(ingressMbps) === 0) {
-            const jitter = Math.random() * 0.1 + 0.9;
-            ingressMbps = ((totalPps * 256 * 8 * jitter) / 1000000).toFixed(2);
-            egressMbps = ((totalPps * 410 * 8 * jitter) / 1000000).toFixed(2);
-        }
-
-        let latency = activeConns > 0 ? (0.18 + (srv.game_id % 5) * 0.03 + Math.random() * 0.04).toFixed(2) : "0.00";
-
-        globalActiveConns += activeConns;
-        globalTcpPps += tcpPps;
-        globalUdpPps += udpPps;
-        globalIngressMbps += parseFloat(ingressMbps);
-        globalEgressMbps += parseFloat(egressMbps);
-
-        return {
-            game_id: srv.game_id,
-            name: srv.name,
-            protocol: srv.protocol,
-            backend_addr: srv.backend_addr,
-            active_connections: activeConns,
-            tcp_pps: tcpPps,
-            udp_pps: udpPps,
-            total_pps: totalPps,
-            ingress_mbps: parseFloat(ingressMbps),
-            egress_mbps: parseFloat(egressMbps),
-            latency_ms: parseFloat(latency)
-        };
-    });
-
+    // La instrumentación actual es global. No se inventan jugadores, latencia
+    // ni tráfico por servidor cuando el motor no los proporciona.
+    const perServer = gameServers.map(srv => ({
+        game_id: srv.game_id,
+        name: srv.name,
+        protocol: srv.protocol,
+        backend_addr: srv.backend_addr,
+        active_connections: 0,
+        tcp_pps: 0,
+        udp_pps: 0,
+        total_pps: 0,
+        ingress_mbps: 0,
+        egress_mbps: 0,
+        latency_ms: 0
+    }));
     const totalPps = globalTcpPps + globalUdpPps;
-    const l4Latency = globalActiveConns > 0 ? (0.18 + Math.random() * 0.05).toFixed(3) : "0.000";
-    // Descarte eBPF dinámico en los últimos 15s
-    const ebpfDroppedPps = recentLogs.filter(l => l.message.includes('mitigada') || l.message.includes('descartados')).length * 15 + (globalActiveConns > 0 ? Math.floor(Math.random() * 4) : 0);
+    const l4Latency = "0.000";
+    const ebpfDroppedPps = 0;
 
     res.json({
         timestamp: new Date().toISOString(),
@@ -640,7 +497,7 @@ app.get('/api/oxide/metrics/advanced', asyncHandler(async (req, res) => {
                 status: 'ACTIVE (eth0)',
                 mode: 'STRICT_GAMING',
                 dropped_packets_per_sec: ebpfDroppedPps,
-                blocked_ips_count: recentLogs.filter(l => l.message.includes('mitigada')).length
+                blocked_ips_count: 0
             },
             per_server: perServer
         }
@@ -711,4 +568,6 @@ app.listen(PORT, () => {
     console.log(`🚀 OxideControlPanel v2.0 (L7 Control Plane) escuchando en el puerto ${PORT}`);
     console.log(`📁 Archivo de configuración enlazado: ${CONFIG_PATH}`);
     console.log(`📈 Motor de Telemetría Nativo Híbrido Activo`);
+    syncDockerGameServers();
+    setInterval(syncDockerGameServers, 15000).unref();
 });

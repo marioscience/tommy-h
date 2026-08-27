@@ -47,6 +47,10 @@ services:
       DOCKER_NETWORK: ragenodes_net_staging
       PORT_BASE_OFFSET: ${STAGING_PORT_BASE_OFFSET:-1000}
       GAME_CONTAINER_SHARED_GID: ${STAGING_GAME_CONTAINER_SHARED_GID:-0}
+      OXIDE_GAME_PROXY_ENABLED: ${OXIDE_GAME_PROXY_ENABLED:-false}
+      GAME_BACKEND_PORT_OFFSET: ${GAME_BACKEND_PORT_OFFSET:-10000}
+      GAME_BACKEND_BIND_IP: 127.0.0.1
+      OXIDE_GAME_PROXY_SERVICE: oxide_game_staging
       FIVEM_PUBLIC_HOST: ${STAGING_GAME_PUBLIC_HOST:-node1.ragenodes.dev}
       PUBLIC_ENDPOINT_HOST: ${STAGING_PUBLIC_ENDPOINT_HOST:-ragenodes.dev}
       PUBLIC_ENDPOINT_SCHEME: ${PUBLIC_ENDPOINT_SCHEME:-https}
@@ -155,13 +159,16 @@ services:
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     environment:
       BACKEND_URL: http://backend-staging:3006
-      CONFIG_PATH: /app/rust_config/oxide_proxy.yml
+      CONFIG_PATH: /app/game_config/oxide_proxy.yml
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+      OXIDE_ROUTE_API_KEY: ${DISCORD_API_KEY:-${API_KEY:?Set DISCORD_API_KEY (legacy API_KEY is accepted during migration)}}
     networks:
       - ragenodes_net_staging
     volumes:
       - ./oxideproxy/config:/app/rust_config
+      - ./oxideproxy/game_config:/app/game_config
       - ./frontend/public/vendor:/app/public/vendor:ro
+      - oxide_game_runtime_data_staging:/app/runtime:ro
     depends_on:
       backend-staging:
         condition: service_started
@@ -177,6 +184,32 @@ services:
     pids_limit: 128
     # security_opt and cap_drop are inherited from docker-compose.yml.
     # Repeating sequence values here makes the merged Compose model invalid.
+
+  oxide_game_staging:
+    build:
+      context: ./oxideproxy
+    image: ragenodes/oxideproxy:1.0.0-local
+    restart: unless-stopped
+    user: "65532:65532"
+    network_mode: host
+    environment:
+      - OXIDE_LOG_DIR=/app/runtime/logs
+      - OXIDE_METRICS_PATH=/app/runtime/game_metrics.json
+      - OXIDE_CONFIG_PATH=/app/game_config/oxide_proxy.yml
+      - OXIDE_EXIT_ON_CONFIG_CHANGE=true
+    volumes:
+      - ./oxideproxy/game_config:/app/game_config:ro
+      - oxide_game_runtime_data_staging:/app/runtime
+    depends_on:
+      backend-staging:
+        condition: service_started
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
 
   oxide_web_staging:
     build:
@@ -253,3 +286,4 @@ volumes:
   redis_data_staging:
   oxide_acme_data_staging:
   oxide_runtime_data_staging:
+  oxide_game_runtime_data_staging:
