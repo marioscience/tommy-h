@@ -14,7 +14,7 @@ const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || '';
 const METRICS_PATH = process.env.OXIDE_METRICS_PATH || '/app/runtime/game_metrics.json';
 const LOG_DIR = process.env.OXIDE_LOG_DIR || '/app/runtime/logs';
 const DEFAULT_WEB_BACKEND = process.env.OXIDE_DEFAULT_WEB_BACKEND || '';
-const METRICS_WINDOW_MS = Math.max(3000, Number(process.env.OXIDE_METRICS_WINDOW_MS || 6000));
+const METRICS_WINDOW_MS = Math.max(5000, Number(process.env.OXIDE_METRICS_WINDOW_MS || 15000));
 const metricsSamples = [];
 
 function readNativeMetricsSnapshot() {
@@ -60,6 +60,8 @@ nativeMetricsTimer.unref();
 
 // El panel se mantiene deliberadamente separado del daemon de contenedores.
 let discoveredBackends = [];
+let consecutiveEmptyRouteSnapshots = 0;
+const EMPTY_ROUTE_CONFIRMATIONS = Math.max(2, Number(process.env.OXIDE_EMPTY_ROUTE_CONFIRMATIONS || 3));
 
 async function syncDockerGameServers() {
     try {
@@ -78,6 +80,25 @@ async function syncDockerGameServers() {
         if (DEFAULT_WEB_BACKEND) configObj.routing.default_web_backend = DEFAULT_WEB_BACKEND;
         const manualRoutes = (configObj.routing.game_servers || [])
             .filter(route => !String(route.name || '').startsWith('auto:'));
+        const currentAutomaticRoutes = (configObj.routing.game_servers || [])
+            .filter(route => String(route.name || '').startsWith('auto:'));
+
+        // El inventario del backend puede quedar vacío durante una consulta
+        // transitoria (reinicio, timeout interno o actualización de estado).
+        // No retire rutas activas ni corte sesiones por una sola instantánea.
+        if (managedRoutes.length === 0 && currentAutomaticRoutes.length > 0) {
+            consecutiveEmptyRouteSnapshots += 1;
+            if (consecutiveEmptyRouteSnapshots < EMPTY_ROUTE_CONFIRMATIONS) {
+                console.warn(
+                    `[OxideControlPanel] Inventario vacío transitorio ` +
+                    `(${consecutiveEmptyRouteSnapshots}/${EMPTY_ROUTE_CONFIRMATIONS}); ` +
+                    `se conservan ${currentAutomaticRoutes.length} rutas automáticas.`
+                );
+                return;
+            }
+        } else {
+            consecutiveEmptyRouteSnapshots = 0;
+        }
         const nextRoutes = manualRoutes.concat(managedRoutes.map(route => ({
             ...route,
             health_check: { enabled: false, interval_secs: 10, timeout_secs: 2 }
@@ -471,7 +492,10 @@ app.get('/api/oxide/metrics/advanced', asyncHandler(async (req, res) => {
 
     const { current: currentMetrics, rate } = nativeMetricsWindow();
     const globalActiveConns = Number(currentMetrics?.tcp_active || 0);
-    const globalTcpPps = Math.round(rate('tcp_events_in'));
+    // TCP no expone datagramas como UDP. Una conexión corta puede entregar
+    // todo su primer bloque al aceptarse y no generar lecturas posteriores;
+    // por eso se suman aperturas y lecturas adicionales como actividad TCP.
+    const globalTcpPps = Number((rate('tcp_events_in') + rate('tcp_reads_in')).toFixed(2));
     const globalUdpPps = Math.round(rate('udp_packets_in'));
     const globalIngressMbps = (rate('tcp_bytes_in') + rate('udp_bytes_in')) * 8 / 1_000_000;
     const globalEgressMbps = (rate('tcp_bytes_out') + rate('udp_bytes_out')) * 8 / 1_000_000;
@@ -520,8 +544,8 @@ app.get('/api/oxide/metrics/advanced', asyncHandler(async (req, res) => {
                 tcp_pps: globalTcpPps,
                 udp_pps: globalUdpPps,
                 total_pps: totalPps,
-                ingress_mbps: parseFloat(globalIngressMbps.toFixed(2)),
-                egress_mbps: parseFloat(globalEgressMbps.toFixed(2))
+                ingress_mbps: parseFloat(globalIngressMbps.toFixed(4)),
+                egress_mbps: parseFloat(globalEgressMbps.toFixed(4))
             },
             latency: {
                 l4_p99_ms: parseFloat(l4Latency),
@@ -529,7 +553,7 @@ app.get('/api/oxide/metrics/advanced', asyncHandler(async (req, res) => {
             },
             ebpf_mitigation: {
                 status: ebpfConfig.enabled
-                    ? `ACTIVE (${ebpfConfig.interface || 'eth0'})`
+                    ? `MEMORY ACTIVE (${ebpfConfig.interface || 'eth0'})`
                     : 'DISABLED',
                 mode: ebpfConfig.ddos_mitigation_mode || 'STRICT_GAMING',
                 dropped_packets_per_sec: ebpfDroppedPps,

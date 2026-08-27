@@ -10,6 +10,22 @@ const MINECRAFT_IMAGES = {
     java25: config.minecraftBaseImage || 'itzg/minecraft-server:java21'
 };
 
+const MINECRAFT_IDENTITY_FILE = '.ragenodes-minecraft-identity.json';
+const DEFAULT_MINECRAFT_VERSION = '1.21.4';
+const ALLOWED_MINECRAFT_TYPES = new Set(['PAPER', 'FORGE', 'FABRIC', 'NEOFORGE', 'PURPUR', 'VANILLA']);
+
+export function normalizeMinecraftIdentity(version, type) {
+    const normalizedVersion = String(version || DEFAULT_MINECRAFT_VERSION).trim();
+    const normalizedType = String(type || 'PAPER').trim().toUpperCase();
+    if (!/^\d+(?:\.\d+){1,2}$/.test(normalizedVersion)) {
+        throw new Error('La versión de Minecraft debe ser explícita y no puede ser LATEST.');
+    }
+    if (!ALLOWED_MINECRAFT_TYPES.has(normalizedType)) {
+        throw new Error(`Tipo de servidor Minecraft no permitido: ${normalizedType}`);
+    }
+    return { version: normalizedVersion, type: normalizedType };
+}
+
 /**
  * ⛏️ MinecraftService (Módulo 3: POO & Herencia)
  */
@@ -29,12 +45,12 @@ export class MinecraftService extends BaseGameService {
     buildEnvironment(opts) {
         const memoryMb = Math.floor((opts.plan?.memoryBytes || 4 * 1024 * 1024 * 1024) / 1024 / 1024 * 0.85);
         const jvmMemory = `${memoryMb}M`;
-        const version = opts.mcVersion || 'LATEST';
+        const { version, type } = normalizeMinecraftIdentity(opts.mcVersion, opts.mcType);
 
         return [
             'EULA=TRUE',
             `VERSION=${version}`,
-            `TYPE=${opts.mcType || 'PAPER'}`,
+            `TYPE=${type}`,
             `DIFFICULTY=${opts.difficulty || 'normal'}`,
             `MAX_PLAYERS=${opts.maxPlayers || 20}`,
             `SERVER_NAME=${opts.serverName}`,
@@ -71,19 +87,36 @@ export class MinecraftService extends BaseGameService {
     }
 
     async createContainer(opts) {
-        let version = opts.mcVersion || 'LATEST';
-        if (version === 'LATEST') {
-            try {
-                const { stdout } = await runRemoteCommand(opts.nodeId || 0, sh`ls -1 ${opts.dataPath} || true`);
-                const match = stdout?.match(/(?:paper|purpur|spigot|forge|fabric|minecraft_server\.?)-?(\d+\.\d+(\.\d+)?)/i);
-                if (match && match[1]) {
-                    version = match[1];
-                    opts.mcVersion = version;
+        const identityPath = `${opts.dataPath}/${MINECRAFT_IDENTITY_FILE}`;
+        let identity = normalizeMinecraftIdentity(opts.mcVersion, opts.mcType);
+        try {
+            const result = await runRemoteCommand(opts.nodeId || 0, sh`cat ${identityPath}`);
+            if (result && typeof result.stdout === 'string' && result.stdout.trim()) {
+                const locked = JSON.parse(result.stdout);
+                identity = normalizeMinecraftIdentity(locked.version, locked.type);
+                if (identity.version !== String(opts.mcVersion) || identity.type !== String(opts.mcType).toUpperCase()) {
+                    console.warn(
+                        `[Minecraft] Se ignoró un cambio de identidad para ${opts.containerName}; ` +
+                        `se conserva ${identity.type} ${identity.version}.`
+                    );
                 }
-            } catch (e) {}
+            }
+        } catch (error) {
+            if (!String(error?.message || '').includes('No such file')) {
+                console.warn(`[Minecraft] No se pudo leer la identidad de ${opts.containerName}: ${error.message}`);
+            }
         }
-        opts.customImage = this.resolveTargetImage(version);
-        return super.createContainer(opts);
+        opts.mcVersion = identity.version;
+        opts.mcType = identity.type;
+        opts.customImage = this.resolveTargetImage(identity.version);
+        const container = await super.createContainer(opts);
+        const serializedIdentity = JSON.stringify({
+            version: identity.version,
+            type: identity.type,
+            locked: true
+        });
+        await runRemoteCommand(opts.nodeId || 0, sh`printf '%s' ${serializedIdentity} > ${identityPath}`);
+        return container;
     }
 }
 

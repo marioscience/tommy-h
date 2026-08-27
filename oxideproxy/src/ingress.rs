@@ -11,6 +11,7 @@ use tokio::net::{TcpListener, UdpSocket};
 pub async fn start_ingress(
     config: ProxyConfig,
     worker_threads: usize,
+    config_path: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let tls_runtime = Arc::new(
         TlsRuntime::initialize(&config.tls.cert_path, &config.tls.key_path)
@@ -23,7 +24,7 @@ pub async fn start_ingress(
     let initial_buf_size = config_arc.ingress.initial_buffer_size;
 
     let mut xdp = XdpFilter::new("eth0");
-    xdp.reload_from_config("config/oxide_proxy.yml");
+    xdp.reload_from_config(&config_path);
     let xdp_enabled = config_arc
         .advanced_tuning
         .as_ref()
@@ -31,10 +32,10 @@ pub async fn start_ingress(
         .is_some_and(|settings| settings.enabled);
     if xdp_enabled {
         if xdp.attach().is_ok() {
-            tracing::info!("Filtro eBPF/XDP activo en eth0.");
+            tracing::info!("Política de mitigación L4 en memoria activa para eth0 (sin programa XDP en kernel).");
         }
     } else {
-        tracing::info!("Filtro eBPF/XDP desactivado por configuración.");
+        tracing::info!("Política de mitigación L4 en memoria desactivada por configuración.");
     }
     let xdp_arc = Arc::new(RwLock::new(xdp));
 
@@ -48,7 +49,7 @@ pub async fn start_ingress(
             if let Ok(xdp_read) = consumer_xdp_arc.read() {
                 xdp_read.block_ip(ip);
                 tracing::warn!(
-                    "[eBPF/XDP] IP {} bloqueada permanentemente (Fail2Ban L7).",
+                    "[Mitigación L4] IP {} bloqueada permanentemente (Fail2Ban L7).",
                     ip
                 );
             }
@@ -57,11 +58,12 @@ pub async fn start_ingress(
 
     if xdp_enabled {
         let xdp_reload = Arc::clone(&xdp_arc);
+        let xdp_config_path = config_path.clone();
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(2)).await;
                 if let Ok(mut xdp_write) = xdp_reload.write() {
-                    xdp_write.reload_from_config("config/oxide_proxy.yml");
+                    xdp_write.reload_from_config(&xdp_config_path);
                 }
             }
         });
@@ -214,6 +216,7 @@ pub async fn start_ingress(
                                     continue;
                                 }
                                 let packet_data = buffer.split_to(size).freeze();
+                                crate::metrics::udp_ingress(size);
                                 process_udp_packet_inline(sock, packet_data, peer_addr, cfg, None)
                                     .await;
                             }

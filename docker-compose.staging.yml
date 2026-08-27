@@ -139,6 +139,46 @@ services:
       - /tmp:rw,noexec,nosuid,nodev,size=256m
     pids_limit: 128
 
+  worker-stats-staging:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    init: true
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    group_add:
+      - "${DOCKER_GID:-1000}"
+      - "${GAME_DATA_GID:-1000}"
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
+    environment:
+      - RAGENODES_ROLE=worker-stats
+      - CONTAINER_PREFIX=ragenodes-staging-
+      - INSTANCE_DATA_ROOT=/srv/ragenodes-staging-data
+      - DB_HOST=postgres-staging
+      - DB_USER=${POSTGRES_USER}_staging
+      - DB_PASS=${POSTGRES_PASSWORD}_staging
+      - DB_NAME=${POSTGRES_DB}_staging
+      - DATABASE_URL=postgres://${POSTGRES_USER}_staging:${POSTGRES_PASSWORD}_staging@postgres-staging:5432/${POSTGRES_DB}_staging
+      - REDIS_URL=redis://redis-staging:6379
+    command: ["node", "src/worker.js"]
+    networks:
+      - ragenodes_net_staging
+    depends_on:
+      backend-staging:
+        condition: service_started
+    volumes:
+      - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
+      - /srv/ragenodes-staging-data:/srv/ragenodes-staging-data
+      - /srv/ragenodes-staging-data/templates:/srv/ragenodes-staging-data/templates:ro
+      - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
+      - ./backend/src:/app/src:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m
+    pids_limit: 128
+
   redis-staging:
     image: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
     restart: unless-stopped

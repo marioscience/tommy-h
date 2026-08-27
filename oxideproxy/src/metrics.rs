@@ -5,6 +5,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 static TCP_ACTIVE: AtomicU64 = AtomicU64::new(0);
 static TCP_EVENTS_IN: AtomicU64 = AtomicU64::new(0);
+static TCP_READS_IN: AtomicU64 = AtomicU64::new(0);
+static TCP_READS_OUT: AtomicU64 = AtomicU64::new(0);
 static TCP_BYTES_IN: AtomicU64 = AtomicU64::new(0);
 static TCP_BYTES_OUT: AtomicU64 = AtomicU64::new(0);
 static UDP_PACKETS_IN: AtomicU64 = AtomicU64::new(0);
@@ -17,6 +19,8 @@ struct Snapshot {
     timestamp_ms: u128,
     tcp_active: u64,
     tcp_events_in: u64,
+    tcp_reads_in: u64,
+    tcp_reads_out: u64,
     tcp_bytes_in: u64,
     tcp_bytes_out: u64,
     udp_packets_in: u64,
@@ -35,9 +39,14 @@ pub fn tcp_close() {
     let _ = TCP_ACTIVE.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| value.checked_sub(1));
 }
 
-pub fn tcp_transfer(client_to_backend: u64, backend_to_client: u64) {
-    TCP_BYTES_IN.fetch_add(client_to_backend, Ordering::Relaxed);
-    TCP_BYTES_OUT.fetch_add(backend_to_client, Ordering::Relaxed);
+pub fn tcp_ingress(bytes: usize) {
+    TCP_READS_IN.fetch_add(1, Ordering::Relaxed);
+    TCP_BYTES_IN.fetch_add(bytes as u64, Ordering::Relaxed);
+}
+
+pub fn tcp_egress(bytes: usize) {
+    TCP_READS_OUT.fetch_add(1, Ordering::Relaxed);
+    TCP_BYTES_OUT.fetch_add(bytes as u64, Ordering::Relaxed);
 }
 
 pub fn udp_ingress(bytes: usize) {
@@ -56,6 +65,8 @@ pub async fn write_snapshots(path: String) {
             timestamp_ms: SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
             tcp_active: TCP_ACTIVE.load(Ordering::Relaxed),
             tcp_events_in: TCP_EVENTS_IN.load(Ordering::Relaxed),
+            tcp_reads_in: TCP_READS_IN.load(Ordering::Relaxed),
+            tcp_reads_out: TCP_READS_OUT.load(Ordering::Relaxed),
             tcp_bytes_in: TCP_BYTES_IN.load(Ordering::Relaxed),
             tcp_bytes_out: TCP_BYTES_OUT.load(Ordering::Relaxed),
             udp_packets_in: UDP_PACKETS_IN.load(Ordering::Relaxed),

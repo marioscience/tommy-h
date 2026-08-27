@@ -93,7 +93,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let metrics_path = std::env::var("OXIDE_METRICS_PATH")
             .unwrap_or_else(|_| "/app/runtime/game_metrics.json".into());
         tokio::spawn(metrics::write_snapshots(metrics_path));
-        if let Err(e) = start_ingress(config, worker_threads).await {
+        if let Err(e) = start_ingress(config, worker_threads, config_path).await {
             tracing::error!("Error crítico en el bucle principal de Ingress: {}", e);
         }
     });

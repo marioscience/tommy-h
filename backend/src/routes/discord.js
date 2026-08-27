@@ -375,7 +375,6 @@ router.get('/servers/routes', verifyApiKey, async (req, res) => {
         const result = await query(`
             SELECT id, name, template, fivem_port, container_name, node_id
             FROM servers
-            WHERE status = 'running'
             ORDER BY fivem_port ASC
         `);
         const protocolOffsets = {
@@ -399,6 +398,9 @@ router.get('/servers/routes', verifyApiKey, async (req, res) => {
             let inspect;
             try {
                 inspect = await motorServidores.getContainer(server.container_name).inspect();
+                // Docker es la fuente de verdad para el plano de datos. El
+                // estado SQL puede retrasarse tras un reinicio o recuperación,
+                // pero nunca se anuncia un contenedor inexistente o detenido.
                 if (!inspect?.State?.Running) continue;
             } catch {
                 continue;
