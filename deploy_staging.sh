@@ -15,6 +15,7 @@ mkdir -p "$STAGING_DATA_ROOT/templates"
 APP_SERVICES=(
   backend-staging
   worker-docker-events-staging
+  worker-stats-staging
   oxide_control_panel
   oxide_game_staging
   oxide_web_staging

@@ -366,6 +366,13 @@ El passthrough TLS no genera certificados. El borde de staging debe disponer de 
 | Staging | `https://panel.ragenodes.dev` | Socket aislado y `STAGING_PORT_BASE_OFFSET` | Bases de datos, volúmenes, redes y dominios `.dev` separados |
 | Producción | `https://ragenodes.com` / herramientas `.app` | El preflight exige Docker rootless | Volúmenes productivos y bandas de puertos sin desplazamiento |
 
+Si el plano de control se ejecuta con Docker rootful y los juegos con Docker
+rootless, los datos de juego aparecen en el host con un GID remapeado. Configura
+`GAME_DATA_GID` para producción y `STAGING_GAME_DATA_GID` para staging con el
+GID que devuelve `stat -c '%g'` sobre un directorio de instancia. Mantener ambos
+valores separados evita que el gestor de archivos y los editores de configuración
+pierdan acceso, sin ampliar permisos ni mezclar datos entre entornos.
+
 El pipeline de GitLab valida pruebas, contratos de seguridad, dependencias, Rust y Compose. Actualmente **no despliega automáticamente**: la promoción sigue `feature -> dev -> staging -> main` y después se ejecuta el despliegue revisado del entorno.
 
 ### Actualización de imágenes maestras
