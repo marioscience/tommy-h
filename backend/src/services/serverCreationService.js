@@ -9,6 +9,7 @@ import { GameFactory } from './games/GameFactory.js';
 import { getPublicEndpointUrl } from './publicEndpointService.js';
 import { getNextAvailablePort, selectDeploymentNode } from './serverNodeSelection.js';
 import { isPortBindingConflict } from './portBindingConflict.js';
+import { assertNodeStartCapacity } from './nodeResourcePolicy.js';
 import {
   getEffectiveServerLimit,
   getPlanRamGb,
@@ -206,6 +207,7 @@ export async function createServerForUser(userId, payload = {}) {
       payload.nodeId ?? payload.explicitNodeId
     );
     const targetNodeId = Number(targetNode.id);
+    await assertNodeStartCapacity(targetNodeId, requestedRamGb);
     const portPolicy = getPortAllocationPolicy(template, config);
     const excludedPorts = new Set();
     let gamePort = await getNextAvailablePort(portPolicy.start, portPolicy.range, targetNodeId, excludedPorts);
