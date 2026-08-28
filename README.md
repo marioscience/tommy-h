@@ -133,6 +133,12 @@ mkdir -p "$HOME/.local/share/ragenodes-ultimate/data/templates" \
   "$HOME/.local/share/ragenodes-ultimate/backups"
 ```
 
+### Optional: Reproducible Development Container
+
+The repository includes [`.devcontainer/devcontainer.json`](.devcontainer/devcontainer.json) for editors and tools that support the Development Container Specification. It provides Node.js 24, Rust, Docker Compose and an isolated Docker-in-Docker daemon, then installs the exact locked dependencies automatically. Choose **Reopen in Container** after cloning.
+
+The container does not start RageNodes or any game service automatically, does not contain real secrets, and does not mount the host Docker socket. Copy `.env.local.example` to `.env` only when you explicitly want to launch the local stack. See [`.devcontainer/README.md`](.devcontainer/README.md) for the workflow and security boundary.
+
 ### 3. Install Dependencies & Run Tests
 ```bash
 # Install the exact locked backend dependencies
@@ -373,6 +379,12 @@ sed -i "s|\${HOME}|$HOME|g" .env
 mkdir -p "$HOME/.local/share/ragenodes-ultimate/data/templates" \
   "$HOME/.local/share/ragenodes-ultimate/backups"
 ```
+
+### Opcional: Contenedor de Desarrollo Reproducible
+
+El repositorio incluye [`.devcontainer/devcontainer.json`](.devcontainer/devcontainer.json) para editores y herramientas compatibles con la especificación Development Container. Proporciona Node.js 24, Rust, Docker Compose y un daemon Docker-in-Docker aislado, e instala automáticamente las dependencias exactas fijadas en los lockfiles. Después de clonar, selecciona **Reopen in Container**.
+
+El contenedor no inicia RageNodes ni servidores de juegos automáticamente, no incluye secretos reales y no monta el socket Docker del host. Copia `.env.local.example` a `.env` únicamente cuando quieras levantar explícitamente el stack local. Consulta [`.devcontainer/README.md`](.devcontainer/README.md) para conocer el flujo y el límite de seguridad.
 
 ### 3. Instalar Dependencias y Ejecutar Pruebas
 ```bash
