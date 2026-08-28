@@ -124,14 +124,15 @@ compose_validation:
 
 registry_publish_niko:
   stage: package
-  image: docker:27.5.1-cli
+  image:
+    name: moby/buildkit:rootless@sha256:504731e577c20559c00f968f33219f30115e70be29ab96728d1d06e963fc494b
+    entrypoint: [""]
   variables:
-    DOCKER_BUILDKIT: "1"
-    DOCKER_HOST: unix:///var/run/docker.sock
+    BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
   rules:
   - if: '$CI_COMMIT_BRANCH == "niko-local"'
   script:
-  - REGISTRY_IMAGE_ROOT="$CI_REGISTRY_IMAGE" RELEASE_TAG="$CI_COMMIT_SHA" REGISTRY_USER="$CI_REGISTRY_USER" REGISTRY_PASSWORD="$CI_REGISTRY_PASSWORD" sh scripts/registry/build_and_push.sh
+  - REGISTRY_IMAGE_ROOT="$CI_REGISTRY_IMAGE" RELEASE_TAG="$CI_COMMIT_SHA" sh scripts/registry/build_and_push_buildkit.sh
   artifacts:
     expire_in: 30 days
     paths:
