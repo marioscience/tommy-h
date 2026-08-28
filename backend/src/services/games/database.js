@@ -1,9 +1,10 @@
-import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, deriveServicePassword, sh } from '../dockerUtils.js';
+import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, deriveServicePassword, normalizeBindOwnership, sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
 
 export async function createDatabaseContainer(opts) {
     const docker = await getNodeConnection(opts.nodeId || 0);
-    await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath} && chown -R 999:999 ${opts.dataPath}`);
+    const databasePath = `${opts.dataPath}/mysql`;
+    await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${databasePath}`);
 
     try {
         await docker.getImage(config.databaseBaseImage).inspect();
@@ -14,6 +15,8 @@ export async function createDatabaseContainer(opts) {
             docker.modem.followProgress(stream, (err, res) => err ? reject(err) : resolve(res));
         });
     }
+
+    await normalizeBindOwnership(docker, config.databaseBaseImage, databasePath, '999:999', 'database');
 
     const credentialId = opts.serverId || opts.containerName;
     const rootPassword = deriveServicePassword('database-root', credentialId);
@@ -28,11 +31,9 @@ export async function createDatabaseContainer(opts) {
             `MYSQL_PASSWORD=${userPassword}`
         ],
         ExposedPorts: { '3306/tcp': {} },
-        Tty: true,
-        OpenStdin: true,
         NetworkingConfig: { EndpointsConfig: { [config.dockerNetwork]: {} } },
         HostConfig: {
-            Binds: [`${opts.dataPath}:/var/lib/mysql`],
+            Binds: [`${databasePath}:/var/lib/mysql`],
             PortBindings: {
                 '3306/tcp': [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort) }]
             },

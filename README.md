@@ -11,7 +11,7 @@
   <p>
     <img src="https://img.shields.io/badge/Node.js-24.x-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js" />
     <img src="https://img.shields.io/badge/Rust-OxideProxy-DEA584?style=for-the-badge&logo=rust&logoColor=black" alt="Rust" />
-    <img src="https://img.shields.io/badge/Docker-Rootless-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
+    <img src="https://img.shields.io/badge/Docker-Hardened%20Hybrid-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
     <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
     <img src="https://img.shields.io/badge/Redis-Cache-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
   </p>
@@ -145,9 +145,9 @@ flowchart LR
 
 ---
 
-## 🌐 Direct Public Endpoints
+## 🌐 Public Edge and Direct Game Endpoints
 
-The platform exposes OxideProxy and game ports directly, without a tunnel provider. Game traffic remains transparent TCP/UDP; web panels and embedded tools use HTTPS. txAdmin URLs are generated from the public host and assigned port.
+The platform exposes OxideProxy and game ports directly, without a tunnel provider. Game traffic remains transparent TCP/UDP; web panels and embedded tools use HTTPS. txAdmin URLs are generated from the public host and assigned port. For the current production rollout, `ragenodes.com` keeps Cloudflare only as its public web/SSL edge; Cloudflare is not used to tunnel game traffic. The `.dev` staging zone and `.app` tool endpoints terminate or pass through TLS at OxideProxy according to their environment configuration.
 
 When staging sits behind the production edge, production must set `STAGING_UPSTREAM` for HTTP and `STAGING_TLS_UPSTREAM` for raw TLS passthrough. `STAGING_TLS_DOMAINS` limits SNI forwarding to the staging zone, so dynamic hosts such as `tx41120.ragenodes.dev` retain staging's certificate and access gate without weakening production TLS.
 
@@ -157,9 +157,9 @@ TLS passthrough does not create certificates. The staging edge must therefore ha
 |---|---|---|---|
 | Local | `http://localhost:8088` | Rootful exception permitted only in development | Developer-owned paths and local ports |
 | Staging | `https://panel.ragenodes.dev` | Isolated runtime socket and `STAGING_PORT_BASE_OFFSET` | Separate databases, volumes, networks and `.dev` endpoints |
-| Production | `https://ragenodes.com` / `.app` tools | Rootless socket required by preflight | Production-only volumes and unshifted port bands |
+| Production | `https://ragenodes.com` / `.app` tools | Hardened hybrid: rootful control plane and rootless game runtime | Production-only volumes and unshifted port bands |
 
-The GitLab pipeline validates tests, security contracts, dependencies, Rust and Compose. It does **not** deploy automatically: promotion remains `feature -> dev -> staging -> main`, followed by the environment's reviewed deployment command.
+The GitLab pipeline validates tests, security contracts, dependencies, Rust and Compose; it does not connect to production or perform the deployment itself. Promotion remains `feature -> dev -> staging -> main`. On the production host, a local updater polls `origin/main`, accepts only a clean fast-forward update, runs the reviewed deployment script and records success or rollback in its deployment log. This keeps deployment automatic after promotion to `main` without granting the GitLab runner direct production access.
 
 ### Master image refresh
 
@@ -352,9 +352,9 @@ flowchart LR
 
 ---
 
-## 🌐 Endpoints Públicos Directos
+## 🌐 Borde Público y Endpoints Directos de Juego
 
-La plataforma expone OxideProxy y los puertos de juego directamente, sin depender de túneles. El tráfico de juego permanece TCP/UDP transparente; los paneles web e iframes usan HTTPS. Las URLs de txAdmin se construyen con el host público y el puerto asignado.
+La plataforma expone OxideProxy y los puertos de juego directamente, sin depender de túneles. El tráfico de juego permanece TCP/UDP transparente; los paneles web e iframes usan HTTPS. Las URLs de txAdmin se construyen con el host público y el puerto asignado. En el despliegue productivo actual, `ragenodes.com` conserva Cloudflare únicamente como borde web y proveedor de SSL; Cloudflare no transporta el tráfico de los juegos. La zona `.dev` de staging y las herramientas `.app` terminan o atraviesan TLS en OxideProxy según la configuración de cada entorno.
 
 Cuando staging está detrás del borde de producción, producción configura `STAGING_UPSTREAM` para HTTP y `STAGING_TLS_UPSTREAM` para passthrough TLS en crudo. `STAGING_TLS_DOMAINS` restringe el reenvío SNI a la zona de preproducción, permitiendo subdominios dinámicos como `tx41120.ragenodes.dev` sin compartir claves privadas ni debilitar TLS.
 
@@ -364,7 +364,7 @@ El passthrough TLS no genera certificados. El borde de staging debe disponer de 
 |---|---|---|---|
 | Local | `http://localhost:8088` | Excepción rootful permitida solo en desarrollo | Rutas y puertos del desarrollador |
 | Staging | `https://panel.ragenodes.dev` | Socket aislado y `STAGING_PORT_BASE_OFFSET` | Bases de datos, volúmenes, redes y dominios `.dev` separados |
-| Producción | `https://ragenodes.com` / herramientas `.app` | El preflight exige Docker rootless | Volúmenes productivos y bandas de puertos sin desplazamiento |
+| Producción | `https://ragenodes.com` / herramientas `.app` | Híbrido endurecido: plano de control rootful y juegos rootless | Volúmenes productivos y bandas de puertos sin desplazamiento |
 
 Si el plano de control se ejecuta con Docker rootful y los juegos con Docker
 rootless, los datos de juego aparecen en el host con un GID remapeado. Configura
@@ -373,7 +373,7 @@ GID que devuelve `stat -c '%g'` sobre un directorio de instancia. Mantener ambos
 valores separados evita que el gestor de archivos y los editores de configuración
 pierdan acceso, sin ampliar permisos ni mezclar datos entre entornos.
 
-El pipeline de GitLab valida pruebas, contratos de seguridad, dependencias, Rust y Compose. Actualmente **no despliega automáticamente**: la promoción sigue `feature -> dev -> staging -> main` y después se ejecuta el despliegue revisado del entorno.
+El pipeline de GitLab valida pruebas, contratos de seguridad, dependencias, Rust y Compose; no se conecta a producción ni ejecuta directamente el despliegue. La promoción sigue `feature -> dev -> staging -> main`. En el host de producción, un actualizador local consulta `origin/main`, acepta únicamente una actualización *fast-forward* con el árbol de trabajo limpio, ejecuta el script de despliegue revisado y registra el éxito o la reversión. Así, la actualización se aplica automáticamente después de promover a `main` sin conceder acceso directo a producción al runner de GitLab.
 
 ### Actualización de imágenes maestras
 

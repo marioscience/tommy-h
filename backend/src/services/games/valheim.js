@@ -1,6 +1,7 @@
 import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, deriveServiceIdentifier, sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
 import { saveValheimConfig } from '../valheimService.js';
+import { prepareGameProxyBindings } from '../gameProxyPolicy.js';
 
 export async function createValheimContainer(opts) {
     const docker = await getNodeConnection(opts.nodeId || 0);
@@ -25,6 +26,11 @@ export async function createValheimContainer(opts) {
         await new Promise((resolve, reject) => { docker.modem.followProgress(stream, (err, res) => err ? reject(err) : resolve(res)); });
     }
 
+    const proxy = prepareGameProxyBindings({
+        '2456/udp': [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort) }],
+        '2457/udp': [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort + 1) }],
+        '2458/udp': [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort + 2) }]
+    }, { enabled: config.oxideGameProxyEnabled, backendOffset: config.gameBackendPortOffset, backendBindIp: config.gameBackendBindIp });
     const container = await docker.createContainer({
         Image: config.valheimBaseImage,
         name: opts.containerName,
@@ -43,17 +49,14 @@ export async function createValheimContainer(opts) {
         NetworkingConfig: { EndpointsConfig: { [config.dockerNetwork]: {} } },
         HostConfig: {
             Binds: [`${opts.dataPath}:/config`, `${opts.dataPath}/data:/opt/valheim`],
-            PortBindings: {
-                '2456/udp': [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort) }],
-                '2457/udp': [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort + 1) }],
-                '2458/udp': [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort + 2) }],
-            },
+            PortBindings: proxy.bindings,
             RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: opts.plan.memoryBytes,
             NanoCpus: opts.plan.nanoCpus, CpuShares: Math.round((opts.plan.nanoCpus / 10**9) * 1024),
             BlkioWeight: config.dockerBlkioWeight,
             ...GAME_SECURITY_CONFIG
-        }
+        },
+        Labels: { 'ragenodes.server_id': String(opts.serverId), 'ragenodes.game': 'valheim', ...proxy.labels }
     });
 
     await container.start();
