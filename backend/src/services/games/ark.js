@@ -86,11 +86,14 @@ export async function createARKContainer(opts) {
 
     await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${win64Path}`);
     await detachMutableTemplatePath(path.join(shooterPath, 'Saved'), opts.nodeId);
-    await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p "${opts.dataPath}/compatdata/2430930"`);
+    await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath + '/compatdata/2430930'}`);
     await runRemoteCommand(opts.nodeId || 0, sh`chown -R 1000:1000 ${opts.dataPath}`);
 
     try {
-        await runRemoteCommand(opts.nodeId || 0, sh`echo 2430930 > "${baseArkPath}/steam_appid.txt" && echo 2430930 > "${shooterPath}/steam_appid.txt" && echo 2430930 > "${win64Path}/steam_appid.txt" && chown 1000:1000 "${baseArkPath}/steam_appid.txt" "${shooterPath}/steam_appid.txt" "${win64Path}/steam_appid.txt" && chmod 644 "${baseArkPath}/steam_appid.txt" "${shooterPath}/steam_appid.txt" "${win64Path}/steam_appid.txt"`);
+        const baseAppId = path.join(baseArkPath, 'steam_appid.txt');
+        const shooterAppId = path.join(shooterPath, 'steam_appid.txt');
+        const win64AppId = path.join(win64Path, 'steam_appid.txt');
+        await runRemoteCommand(opts.nodeId || 0, sh`echo 2430930 > ${baseAppId} && echo 2430930 > ${shooterAppId} && echo 2430930 > ${win64AppId} && chown 1000:1000 ${baseAppId} ${shooterAppId} ${win64AppId} && chmod 644 ${baseAppId} ${shooterAppId} ${win64AppId}`);
     } catch (e) {}
 
     try {
