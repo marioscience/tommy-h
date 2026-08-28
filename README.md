@@ -540,7 +540,8 @@ npm run security:routes
 ---
 
 ## 🤝 Contributors / Contribuidores
-* [@payniko24](https://gitlab.com/payniko24)
+* [Nicolas Figuereo (@payniko24)](https://gitlab.com/payniko24)
+* [Mario Matos (@mariomatos)](https://gitlab.com/mariomatos)
 * Additional contributors are recorded in the private GitLab repository history.
 
 ---
