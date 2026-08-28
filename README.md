@@ -205,6 +205,13 @@ TLS passthrough does not create certificates. The staging edge must therefore ha
 
 The GitLab pipeline validates tests, security contracts, dependencies, Rust and Compose; it does not connect to production or perform the deployment itself. Promotion remains `feature -> dev -> staging -> main`. On the production host, a local updater polls `origin/main`, accepts only a clean fast-forward update, runs the reviewed deployment script and records success or rollback in its deployment log. This keeps deployment automatic after promotion to `main` without granting the GitLab runner direct production access.
 
+The `niko-local` integration branch also builds the application containers once
+and publishes them to the private GitLab Container Registry. Its pipeline
+produces a digest-pinned `registry-release.env` artifact; the same reviewed
+digests can later be promoted without recompiling. The existing source-build
+deployment remains available as the manual recovery path during this rollout.
+See [`docs/container-registry-deployments.md`](docs/container-registry-deployments.md).
+
 ### Complete base-image cache refresh
 
 ```bash
@@ -461,6 +468,13 @@ valores separados evita que el gestor de archivos y los editores de configuraci�
 pierdan acceso, sin ampliar permisos ni mezclar datos entre entornos.
 
 El pipeline de GitLab valida pruebas, contratos de seguridad, dependencias, Rust y Compose; no se conecta a producción ni ejecuta directamente el despliegue. La promoción sigue `feature -> dev -> staging -> main`. En el host de producción, un actualizador local consulta `origin/main`, acepta únicamente una actualización *fast-forward* con el árbol de trabajo limpio, ejecuta el script de despliegue revisado y registra el éxito o la reversión. Así, la actualización se aplica automáticamente después de promover a `main` sin conceder acceso directo a producción al runner de GitLab.
+
+La rama de integración `niko-local` también compila una sola vez los
+contenedores propios y los publica en el GitLab Container Registry privado. El
+pipeline genera el artefacto `registry-release.env` con referencias inmutables
+por digest, que después podrán promocionarse sin recompilar. Durante esta
+adopción se conserva el despliegue actual desde código como recuperación manual.
+Consulta [`docs/container-registry-deployments.md`](docs/container-registry-deployments.md).
 
 ### Actualización de la caché completa de imágenes base
 

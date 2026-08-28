@@ -26,6 +26,8 @@ const files = Object.fromEntries(await Promise.all([
   'oxideproxy/node_panel/server.js',
   'scripts/ensure_base_images.sh',
   'scripts/update_image_cache.sh',
+  'scripts/registry/prepare_runtime_images.sh',
+  'deploy/registry-release.lock',
   'scripts/load_env.sh',
   'scripts/security/production_preflight.sh',
   'scripts/security/install_rootless_delegation.sh',
@@ -77,6 +79,16 @@ assert(files['.env.example'].includes('DOCKER_SOCKET=/run/user/1000/docker.sock'
 assert(files['.env.example'].includes('STAGING_GAME_DATA_GID='), 'staging documents the remapped rootless game-data group');
 assert(files['docker-compose.staging.yml'].includes('STAGING_GAME_DATA_GID:-${GAME_DATA_GID:-1000}'), 'staging control services use their dedicated remapped game-data group');
 assert(files['deploy_staging.sh'].includes('worker-stats-staging'), 'staging deploys its metrics worker on every release');
+for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
+  assert(files[deployFile].includes('prepare_runtime_images.sh'), `${deployFile} prefers reviewed Registry images`);
+  assert(files[deployFile].includes('RAGENODES_REGISTRY_REQUIRED'), `${deployFile} supports fail-closed Registry deployment`);
+  assert(files[deployFile].includes('REGISTRY_DEPLOY=false'), `${deployFile} retains an explicit source-build recovery path`);
+}
+for (const ref of files['deploy/registry-release.lock'].match(/registry\.gitlab\.com[^\r\n]+/g) || []) {
+  assert(/@sha256:[0-9a-f]{64}$/.test(ref), 'reviewed Registry release uses an immutable digest');
+}
+assert(files['scripts/registry/prepare_runtime_images.sh'].includes('docker pull "$ref"'), 'Registry release images are downloaded before application recreation');
+assert(files['scripts/registry/prepare_runtime_images.sh'].includes('grep -Fx "$ref"'), 'downloaded Registry images are verified against the reviewed digest');
 assert(files['auto_update_staging.sh'].includes('git -c gc.auto=0 fetch'), 'staging updater cannot leak its deployment lock into background Git maintenance');
 assert(files['auto_update_staging.sh'].includes('RUNTIME_CONFIG="oxideproxy/game_config/oxide_proxy.yml"'), 'staging updater identifies the OxideProxy runtime config explicitly');
 assert(files['auto_update_staging.sh'].includes('\":(exclude)$RUNTIME_CONFIG\"'), 'staging updater permits only the generated OxideProxy config outside the clean-worktree guard');
