@@ -1,5 +1,6 @@
 import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
+import { prepareGameProxyBindings } from '../gameProxyPolicy.js';
 
 export async function createCS2Container(opts) {
     const docker = await getNodeConnection(opts.nodeId || 0);
@@ -22,6 +23,10 @@ export async function createCS2Container(opts) {
         });
     }
 
+    const proxy = prepareGameProxyBindings({
+        '27015/tcp': [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort) }],
+        '27015/udp': [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort) }]
+    }, { enabled: config.oxideGameProxyEnabled, backendOffset: config.gameBackendPortOffset, backendBindIp: config.gameBackendBindIp });
     const container = await docker.createContainer({
         Image: config.cs2BaseImage,
         name: opts.containerName,
@@ -40,16 +45,14 @@ export async function createCS2Container(opts) {
         NetworkingConfig: { EndpointsConfig: { [config.dockerNetwork]: {} } },
         HostConfig: {
             Binds: [`${opts.dataPath}:/home/steam/cs2-dedicated`],
-            PortBindings: {
-                '27015/tcp': [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort) }],
-                '27015/udp': [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort) }]
-            },
+            PortBindings: proxy.bindings,
             RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: opts.plan.memoryBytes,
             NanoCpus: opts.plan.nanoCpus, CpuShares: Math.round((opts.plan.nanoCpus / 10**9) * 1024),
             BlkioWeight: config.dockerBlkioWeight,
             ...GAME_SECURITY_CONFIG
-        }
+        },
+        Labels: { 'ragenodes.server_id': String(opts.serverId), 'ragenodes.game': 'cs2', ...proxy.labels }
     });
 
     await container.start();

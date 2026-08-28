@@ -1,6 +1,7 @@
 import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
 import { saveSDTDConfig } from '../sdtdService.js';
+import { prepareGameProxyBindings } from '../gameProxyPolicy.js';
 
 export async function createSDTDContainer(containerName, serverId, gamePort, plan, dataPath, nodeId = 0) {
     const docker = await getNodeConnection(nodeId);
@@ -23,6 +24,14 @@ export async function createSDTDContainer(containerName, serverId, gamePort, pla
         TelnetPassword: telnetPassword
     });
 
+    const publicBindings = {
+        [`${gamePort}/tcp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort) }],
+        [`${gamePort}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort) }],
+        [`${gamePort+1}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort + 1) }],
+        [`${gamePort+2}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort + 2) }],
+        [`${gamePort+3}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort + 3) }]
+    };
+    const proxy = prepareGameProxyBindings(publicBindings, { enabled: config.oxideGameProxyEnabled, backendOffset: config.gameBackendPortOffset, backendBindIp: config.gameBackendBindIp });
     const container = await docker.createContainer({
         Image: config.sdtdBaseImage,
         name: containerName,
@@ -48,19 +57,14 @@ export async function createSDTDContainer(containerName, serverId, gamePort, pla
                 `${dataPath}/7dtd:/steamcmd/7dtd`,
                 `${dataPath}/config:/app/.local/share/7DaysToDie`
             ],
-            PortBindings: {
-                [`${gamePort}/tcp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort) }],
-                [`${gamePort}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort) }],
-                [`${gamePort+1}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort + 1) }],
-                [`${gamePort+2}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort + 2) }],
-                [`${gamePort+3}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort + 3) }]
-            },
+            PortBindings: proxy.bindings,
             RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: plan.memoryBytes,
             NanoCpus: plan.nanoCpus, CpuShares: Math.round((plan.nanoCpus / 10**9) * 1024),
             BlkioWeight: config.dockerBlkioWeight,
             ...GAME_SECURITY_CONFIG
-        }
+        },
+        Labels: { 'ragenodes.server_id': String(serverId), 'ragenodes.game': 'sdtd', ...proxy.labels }
     });
 
     await container.start();
