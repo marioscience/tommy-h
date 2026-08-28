@@ -5,6 +5,7 @@ import { query } from '../db.js';
 import { config } from '../config.js';
 import { getNodeConnection } from './dockerService.js';
 import { getPlanRamGb, resolveServerPlan } from './serverPlanPolicy.js';
+import { calculateReservableRamGb, getNodeRamPolicy } from './nodeResourcePolicy.js';
 
 export async function getFolderSize(dirPath) {
   let size = 0;
@@ -77,6 +78,16 @@ export async function selectDeploymentNode(plan, requestedRamGb, template, expli
     if (!(await nodeCanAcceptDockerWorkload(node))) {
       throw new Error(`El nodo seleccionado '${node.name}' no responde o Docker no esta disponible.`);
     }
+    const usage = (await getNodeRuntimeUsage()).get(targetId) || { count: 0, ramGb: 0 };
+    const localNode = targetId === 0 ? localMasterNode() : null;
+    const totalRam = Number(node.ram_total_gb) || localNode?.ram_total_gb || 0;
+    const reservableRam = calculateReservableRamGb(totalRam, getNodeRamPolicy());
+    if (reservableRam - usage.ramGb < requiredRamGb) {
+      throw new Error(
+        `El nodo seleccionado '${node.name}' no tiene capacidad reservable suficiente ` +
+        `para ${String(template).toUpperCase()} (${requiredRamGb} GB RAM).`
+      );
+    }
     return node;
   }
 
@@ -86,6 +97,7 @@ export async function selectDeploymentNode(plan, requestedRamGb, template, expli
   const { rows } = await query("SELECT * FROM nodes WHERE status = 'active' OR id = 0 ORDER BY id ASC");
   const nodes = rows.length > 0 ? rows : [localMasterNode()];
   const usageMap = await getNodeRuntimeUsage();
+  const ramPolicy = getNodeRamPolicy();
   const requiredCpu = Math.max(1, Math.ceil(Number(plan?.nanoCpus || 0) / 1e9));
   let bestNode = null;
   let bestScore = Number.NEGATIVE_INFINITY;
@@ -103,7 +115,8 @@ export async function selectDeploymentNode(plan, requestedRamGb, template, expli
     const localNode = nodeId === 0 ? localMasterNode() : null;
     const totalRam = Number(node.ram_total_gb) || localNode?.ram_total_gb || 0;
     const totalCpu = Number(node.cpu_cores) || localNode?.cpu_cores || 0;
-    const availableRam = totalRam - usage.ramGb;
+    const reservableRam = calculateReservableRamGb(totalRam, ramPolicy);
+    const availableRam = reservableRam - usage.ramGb;
     if (availableRam < requiredRamGb || (totalCpu > 0 && requiredCpu > totalCpu)) continue;
 
     const score = (availableRam * 10) + totalCpu - (usage.count * 2);
