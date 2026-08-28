@@ -120,6 +120,13 @@ async function rollbackCreation({ serverId, containerName, dataPath, nodeId, dbN
   }
 
   try {
+    const docker = await Docker.getNodeConnection(nodeId);
+    await docker.getContainer(`${containerName}-db`).remove({ force: true });
+  } catch (error) {
+    if (error?.statusCode !== 404) console.warn(`[Rollback] No se pudo retirar ${containerName}-db: ${error.message}`);
+  }
+
+  try {
     await Docker.runRemoteCommand(nodeId, Docker.sh`rm -rf -- ${dataPath}`);
   } catch (error) {
     console.warn(`[Rollback] No se pudo retirar ${dataPath}: ${error.message}`);
