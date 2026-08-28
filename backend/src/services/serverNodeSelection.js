@@ -80,7 +80,10 @@ export async function selectDeploymentNode(plan, requestedRamGb, template, expli
     return node;
   }
 
-  const { rows } = await query("SELECT * FROM nodes WHERE status = 'active' ORDER BY id ASC");
+  // El nodo maestro local siempre debe poder comprobarse por socket. Si una
+  // prueba mTLS antigua lo dejó offline, excluirlo aquí impediría su propia
+  // recuperación aunque Docker y el host continuasen sanos.
+  const { rows } = await query("SELECT * FROM nodes WHERE status = 'active' OR id = 0 ORDER BY id ASC");
   const nodes = rows.length > 0 ? rows : [localMasterNode()];
   const usageMap = await getNodeRuntimeUsage();
   const requiredCpu = Math.max(1, Math.ceil(Number(plan?.nanoCpus || 0) / 1e9));
@@ -89,6 +92,11 @@ export async function selectDeploymentNode(plan, requestedRamGb, template, expli
 
   for (const node of nodes) {
     if (!(await nodeCanAcceptDockerWorkload(node))) continue;
+
+    if (Number(node.id) === 0 && node.status !== 'active') {
+      await query("UPDATE nodes SET status = 'active' WHERE id = 0");
+      node.status = 'active';
+    }
 
     const nodeId = Number(node.id);
     const usage = usageMap.get(nodeId) || { count: 0, ramGb: 0 };
