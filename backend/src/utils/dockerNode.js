@@ -1,6 +1,7 @@
 import https from 'https';
 import fs from 'fs/promises';
 import path from 'path';
+import Docker from 'dockerode';
 import { config } from '../config.js';
 
 /**
@@ -8,6 +9,21 @@ import { config } from '../config.js';
  * Extrae la CPU y la RAM total del motor de Docker.
  */
 export async function testNodeConnection(nodeId, ipAddress) {
+    if (Number(nodeId) === 0) {
+        try {
+            const docker = new Docker({ socketPath: config.dockerSocket });
+            const info = await docker.info();
+            return {
+                status: 'active',
+                cpuCores: info.NCPU,
+                ramTotalGb: Math.round(info.MemTotal / (1024 * 1024 * 1024)),
+                dockerVersion: info.ServerVersion
+            };
+        } catch (e) {
+            throw new Error(`No se pudo conectar al Docker local: ${e.message}`);
+        }
+    }
+
     return new Promise(async (resolve, reject) => {
         try {
             // Localizar los certificados del nodo
