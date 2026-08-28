@@ -7,7 +7,7 @@ use http::{HeaderValue, Method, Request, Response, StatusCode};
 use hyper::Body;
 use serde_json::json;
 use sha2::{Digest, Sha256};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::error::Error;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -25,6 +25,7 @@ const VERIFY_PATH: &str = "/__access/verify";
 const SESSION_COOKIE: &str = "__Secure-rn_staging_access";
 const OTP_TTL_SECS: u64 = 10 * 60;
 const SESSION_TTL_SECS: u64 = 24 * 60 * 60;
+const DEFAULT_ALLOWED_EMAIL_DOMAIN: &str = "ragenodes.com";
 const UNKNOWN_WINDOW: Duration = Duration::from_secs(60 * 60);
 const RESEND_COOLDOWN: Duration = Duration::from_secs(60);
 const MAX_FORM_BYTES: usize = 4096;
@@ -66,7 +67,7 @@ struct AttemptWindow {
 pub struct AccessGate {
     domain: String,
     shared_edge: bool,
-    allowed_emails: HashSet<String>,
+    allowed_email_domain: String,
     session_secret: Vec<u8>,
     resend_api_key: String,
     from_email: String,
@@ -107,12 +108,14 @@ impl AccessGate {
             return Err("ACCESS_GATE_DOMAIN no es un nombre DNS válido".into());
         }
 
-        let allowed_emails = required_env("ACCESS_GATE_ALLOWED_EMAILS")?
-            .split(',')
-            .filter_map(normalize_email)
-            .collect::<HashSet<_>>();
-        if allowed_emails.is_empty() {
-            return Err("ACCESS_GATE_ALLOWED_EMAILS debe contener al menos un correo".into());
+        let allowed_email_domain = std::env::var("ACCESS_GATE_ALLOWED_EMAIL_DOMAIN")
+            .unwrap_or_else(|_| DEFAULT_ALLOWED_EMAIL_DOMAIN.to_string())
+            .trim()
+            .trim_start_matches('@')
+            .trim_end_matches('.')
+            .to_ascii_lowercase();
+        if !valid_dns_name(&allowed_email_domain) {
+            return Err("ACCESS_GATE_ALLOWED_EMAIL_DOMAIN no es un dominio DNS válido".into());
         }
 
         let session_secret = required_env("ACCESS_GATE_SESSION_SECRET")?.into_bytes();
@@ -133,15 +136,15 @@ impl AccessGate {
             .build()?;
 
         tracing::info!(
-            "Puerta de acceso habilitada para {} con {} correo(s) autorizado(s)",
+            "Puerta de acceso habilitada para {} y correos del dominio @{}",
             domain,
-            allowed_emails.len()
+            allowed_email_domain
         );
 
         Ok(Some(Self {
             domain,
             shared_edge,
-            allowed_emails,
+            allowed_email_domain,
             session_secret,
             resend_api_key,
             from_email,
@@ -257,7 +260,7 @@ impl AccessGate {
             return access_page(Some("Introduce un correo válido."), false, None);
         };
 
-        if !self.allowed_emails.contains(&email) {
+        if !self.email_is_allowed(&email) {
             let attempts = self.record_unknown_attempt(ip);
             tracing::warn!(
                 "Puerta de acceso: intento con correo no autorizado desde {} ({}/3)",
@@ -346,7 +349,7 @@ impl AccessGate {
             return access_page(Some("Código inválido o caducado."), true, None);
         };
 
-        if !self.allowed_emails.contains(&email) {
+        if !self.email_is_allowed(&email) {
             let attempts = self.record_unknown_attempt(ip);
             if attempts >= 3 {
                 let _ = ban_tx.send(ip).await;
@@ -587,6 +590,12 @@ impl AccessGate {
         record_attempt(&self.unknown_by_ip, ip)
     }
 
+    fn email_is_allowed(&self, email: &str) -> bool {
+        email
+            .rsplit_once('@')
+            .is_some_and(|(_, domain)| domain == self.allowed_email_domain)
+    }
+
     fn record_invalid_code(&self, ip: IpAddr) -> u8 {
         record_attempt(&self.invalid_code_by_ip, ip)
     }
@@ -819,7 +828,7 @@ mod tests {
         AccessGate {
             domain: "ragenodes.dev".to_string(),
             shared_edge: false,
-            allowed_emails: HashSet::from(["dev@example.com".to_string()]),
+            allowed_email_domain: "ragenodes.com".to_string(),
             session_secret: b"0123456789abcdef0123456789abcdef".to_vec(),
             resend_api_key: "unused".to_string(),
             from_email: "unused@example.com".to_string(),
@@ -904,6 +913,16 @@ mod tests {
     }
 
     #[test]
+    fn allows_only_the_exact_corporate_email_domain() {
+        let gate = test_gate();
+        assert!(gate.email_is_allowed("developer@ragenodes.com"));
+        assert!(gate.email_is_allowed("DEV@ragenodes.com"));
+        assert!(!gate.email_is_allowed("developer@sub.ragenodes.com"));
+        assert!(!gate.email_is_allowed("developer@ragenodes.com.example"));
+        assert!(!gate.email_is_allowed("developer@example.com"));
+    }
+
+    #[test]
     fn origin_validation_accepts_only_canonical_https_origin() {
         let gate = test_gate();
         let request = |origin: Option<&str>| {
@@ -964,6 +983,29 @@ mod tests {
         assert_eq!(gate.record_unknown_attempt(ip), 1);
         assert_eq!(gate.record_unknown_attempt(ip), 2);
         assert_eq!(gate.record_unknown_attempt(ip), 3);
+    }
+
+    #[tokio::test]
+    async fn third_non_corporate_email_attempt_blacklists_the_source_ip() {
+        let gate = test_gate();
+        let ip: IpAddr = "203.0.113.8".parse().unwrap();
+        let (ban_tx, mut ban_rx) = tokio::sync::mpsc::channel(1);
+
+        for attempt in 1..=3 {
+            let request = Request::builder()
+                .method(Method::POST)
+                .uri(REQUEST_PATH)
+                .body(Body::from("email=outsider%40example.com"))
+                .unwrap();
+            let response = gate.request_code(request, ip, ban_tx.clone()).await;
+            if attempt < 3 {
+                assert_eq!(response.status(), StatusCode::OK);
+            } else {
+                assert_eq!(response.status(), StatusCode::FORBIDDEN);
+            }
+        }
+
+        assert_eq!(ban_rx.try_recv().unwrap(), ip);
     }
 
     #[tokio::test]
