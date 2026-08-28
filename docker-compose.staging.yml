@@ -294,10 +294,10 @@ services:
       - OXIDE_BLENDER_PORT_START=${OXIDE_BLENDER_PORT_START:-50100}
       - OXIDE_BLENDER_PORT_END=${OXIDE_BLENDER_PORT_END:-59999}
       - OXIDE_FRAME_ANCESTORS=${OXIDE_FRAME_ANCESTORS:-https://ragenodes.com https://www.ragenodes.com https://panel.ragenodes.app https://ragenodes.dev https://panel.ragenodes.dev https://staging.ragenodes.com}
-      - ACCESS_GATE_ENABLED=${ACCESS_GATE_ENABLED:-false}
-      - ACCESS_GATE_DOMAIN=${ACCESS_GATE_DOMAIN:-}
+      - ACCESS_GATE_ENABLED=${ACCESS_GATE_ENABLED:-true}
+      - ACCESS_GATE_DOMAIN=${ACCESS_GATE_DOMAIN:-ragenodes.dev}
       - ACCESS_GATE_SHARED_EDGE=${ACCESS_GATE_SHARED_EDGE:-false}
-      - ACCESS_GATE_ALLOWED_EMAILS=${ACCESS_GATE_ALLOWED_EMAILS:-}
+      - ACCESS_GATE_ALLOWED_EMAIL_DOMAIN=${ACCESS_GATE_ALLOWED_EMAIL_DOMAIN:-ragenodes.com}
       - ACCESS_GATE_SESSION_SECRET=${ACCESS_GATE_SESSION_SECRET:-}
       - ACCESS_GATE_REDIS_URL=${ACCESS_GATE_REDIS_URL:-redis://redis-staging:6379/0}
       - ACCESS_GATE_FROM_EMAIL=${ACCESS_GATE_FROM_EMAIL:-RageNodes Access <info@ragenodes.com>}
