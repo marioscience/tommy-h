@@ -1,0 +1,59 @@
+{
+  "name": "RageNodes Ultimate Development",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:24-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/rust:1": {
+      "profile": "minimal"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:4": {
+      "version": "latest",
+      "moby": true,
+      "dockerDashComposeVersion": "v2"
+    }
+  },
+  "containerEnv": {
+    "NODE_ENV": "development",
+    "NPM_CONFIG_CACHE": "/home/node/.cache/npm"
+  },
+  "postCreateCommand": "npm ci && npm --prefix backend ci",
+  "remoteUser": "node",
+  "updateRemoteUserUID": true,
+  "privileged": true,
+  "shutdownAction": "stopContainer",
+  "forwardPorts": [3010, 8088, 8089],
+  "portsAttributes": {
+    "3010": {
+      "label": "RageNodes Backend API",
+      "onAutoForward": "notify"
+    },
+    "8088": {
+      "label": "RageNodes Web Dashboard",
+      "onAutoForward": "openPreview"
+    },
+    "8089": {
+      "label": "phpMyAdmin",
+      "onAutoForward": "silent"
+    }
+  },
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "8gb",
+    "storage": "32gb"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "eamodio.gitlens",
+        "ms-azuretools.vscode-docker",
+        "rust-lang.rust-analyzer",
+        "tamasfe.even-better-toml"
+      ],
+      "settings": {
+        "files.eol": "\n",
+        "editor.formatOnSave": false,
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}
