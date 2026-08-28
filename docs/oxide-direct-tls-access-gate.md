@@ -44,12 +44,22 @@ OXIDE_ACME_PRODUCTION=false
 
 ACCESS_GATE_ENABLED=true
 ACCESS_GATE_DOMAIN=ragenodes.dev
-ACCESS_GATE_ALLOWED_EMAILS=dev1@example.com,dev2@example.com
+ACCESS_GATE_ALLOWED_EMAIL_DOMAIN=ragenodes.com
 ACCESS_GATE_SESSION_SECRET=[INSERT_SECRET_HERE]
 ACCESS_GATE_REDIS_URL=redis://redis:6379/0
 ACCESS_GATE_FROM_EMAIL="RageNodes Access <info@ragenodes.com>"
 RESEND_API_KEY=establecer-en-el-entorno-privado
 ```
+
+La comprobación operativa recomendada usa una cuenta corporativa real, por
+ejemplo `bnfire@ragenodes.com`, sin registrar el código recibido ni ningún
+secreto en logs, artefactos o variables versionadas.
+
+Solo se aceptan direcciones cuyo dominio sea exactamente `ragenodes.com`. El
+dominio corporativo permite solicitar el código, pero no concede acceso por sí
+solo: el usuario debe introducir el OTP recibido por correo. El código caduca
+en 10 minutos, se consume una sola vez y la verificación correcta concede una
+sesión de 24 horas.
 
 La cuenta y los certificados ACME se conservan en el volumen `oxide_acme_data_staging`. No deben almacenarse en Git.
 
@@ -64,12 +74,12 @@ No alternar repetidamente entre staging y producción para evitar límites de em
 ## Comportamiento de la puerta de acceso
 
 - Solo acepta el dominio configurado y rechaza otros valores de SNI o `Host`.
-- No revela si un correo pertenece a la lista autorizada.
+- No revela si un correo pertenece al dominio autorizado.
 - Envía mediante Resend un código numérico de un solo uso que caduca en 10 minutos.
 - El desafío OTP se conserva en Redis y sobrevive a reinicios o cambios de instancia del proxy.
 - La validación consume el desafío de forma atómica, por lo que un código aceptado no puede reutilizarse.
 - La sesión se guarda en una cookie `Secure`, `HttpOnly`, `SameSite=Strict` y dura 24 horas.
-- Tres intentos con correos no autorizados bloquean la IP de origen observada directamente por OxideProxy.
+- Tres intentos con correos ajenos a `@ragenodes.com` bloquean la IP de origen observada directamente por OxideProxy.
 - Cinco códigos incorrectos bloquean igualmente la IP.
 - La lista negra dinámica persiste en `oxide_runtime_data_staging` y sobrevive a reinicios.
 - `/healthz` queda disponible para las comprobaciones internas de salud.
