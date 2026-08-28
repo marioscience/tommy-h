@@ -6,9 +6,9 @@ OxideProxy and OxideProxy control-panel images once, pushes them to the private
 GitLab Container Registry and emits `registry-release.env` with digest-pinned
 references.
 
-CI uses daemonless rootless BuildKit. The package job receives neither the host
-Docker socket nor privileged mode, and layer caches live in the private
-registry alongside each component.
+CI uses four isolated daemonless Kaniko jobs. They receive neither the host
+Docker socket nor privileged mode. Layer caches live in the private registry
+alongside each component, and the four application images build in parallel.
 
 Digest references are mandatory. Mutable tags such as `latest`, `main` or
 `staging` are not deployment inputs. The same digest can therefore be promoted

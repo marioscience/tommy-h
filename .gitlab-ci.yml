@@ -122,17 +122,65 @@ compose_validation:
   - docker compose -f docker-compose.yml -f docker-compose.registry.yml config --quiet
   - docker compose -f docker-compose.staging.yml -f docker-compose.registry.staging.yml config --quiet
 
-registry_publish_niko:
+.registry_publish_niko:
   stage: package
   image:
-    name: moby/buildkit:rootless@sha256:504731e577c20559c00f968f33219f30115e70be29ab96728d1d06e963fc494b
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug@sha256:c3109d5926a997b100c4343944e06c6b30a6804b2f9abe0994d3de6ef92b028e
     entrypoint: [""]
-  variables:
-    BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
   rules:
   - if: '$CI_COMMIT_BRANCH == "niko-local"'
   script:
-  - REGISTRY_IMAGE_ROOT="$CI_REGISTRY_IMAGE" RELEASE_TAG="$CI_COMMIT_SHA" sh scripts/registry/build_and_push_buildkit.sh
+  - BUILD_CONTEXT="$BUILD_CONTEXT" COMPONENT="$COMPONENT" IMAGE_ENV_VAR="$IMAGE_ENV_VAR" sh scripts/registry/build_and_push_kaniko.sh
+  artifacts:
+    expire_in: 30 days
+    paths:
+    - registry-images/$COMPONENT.env
+
+registry_backend_niko:
+  extends: .registry_publish_niko
+  variables:
+    COMPONENT: backend
+    BUILD_CONTEXT: backend
+    IMAGE_ENV_VAR: RAGENODES_BACKEND_IMAGE
+
+registry_bot_niko:
+  extends: .registry_publish_niko
+  variables:
+    COMPONENT: bot
+    BUILD_CONTEXT: bot
+    IMAGE_ENV_VAR: RAGENODES_BOT_IMAGE
+
+registry_oxideproxy_niko:
+  extends: .registry_publish_niko
+  variables:
+    COMPONENT: oxideproxy
+    BUILD_CONTEXT: oxideproxy
+    IMAGE_ENV_VAR: RAGENODES_OXIDEPROXY_IMAGE
+
+registry_oxide_control_panel_niko:
+  extends: .registry_publish_niko
+  variables:
+    COMPONENT: oxide-control-panel
+    BUILD_CONTEXT: oxideproxy/node_panel
+    IMAGE_ENV_VAR: RAGENODES_OXIDE_CONTROL_PANEL_IMAGE
+
+registry_manifest_niko:
+  stage: package
+  image: alpine:3.22.1@sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045fa6c8c44de311d1
+  rules:
+  - if: '$CI_COMMIT_BRANCH == "niko-local"'
+  needs:
+  - job: registry_backend_niko
+    artifacts: true
+  - job: registry_bot_niko
+    artifacts: true
+  - job: registry_oxideproxy_niko
+    artifacts: true
+  - job: registry_oxide_control_panel_niko
+    artifacts: true
+  script:
+  - cat registry-images/backend.env registry-images/bot.env registry-images/oxideproxy.env registry-images/oxide-control-panel.env > registry-release.env
+  - printf 'RAGENODES_RELEASE_REVISION=%s\n' "$CI_COMMIT_SHA" >> registry-release.env
   artifacts:
     expire_in: 30 days
     paths:
