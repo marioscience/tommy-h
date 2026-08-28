@@ -7,10 +7,10 @@ set -Eeuo pipefail
 : "${RAGENODES_OXIDE_CONTROL_PANEL_IMAGE:?Missing RAGENODES_OXIDE_CONTROL_PANEL_IMAGE}"
 : "${RAGENODES_RELEASE_REVISION:?Missing RAGENODES_RELEASE_REVISION}"
 
-case "$RAGENODES_RELEASE_REVISION" in
-  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
-  *) echo "ERROR: invalid registry release revision." >&2; exit 2 ;;
-esac
+if [[ ! "$RAGENODES_RELEASE_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "ERROR: invalid registry release revision." >&2
+  exit 2
+fi
 
 validate_image_ref() {
   local ref="$1" component="$2"
