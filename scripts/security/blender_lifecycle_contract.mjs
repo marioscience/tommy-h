@@ -29,5 +29,8 @@ assert.match(panelSource, /\/blender\/\$\{data\.shortId\}\/\?port=\$\{encodeURIC
 assert.match(proxySource, /OXIDE_BLENDER_PORT_START/);
 assert.match(proxySource, /OXIDE_BLENDER_PORT_END/);
 assert.match(proxySource, /dynamic_backend_addr\(host_without_port, port\)/);
+assert.match(proxySource, /remember_blender_published_port\(short_id, port\)/);
+assert.match(proxySource, /remembered_blender_published_port\(short_id\)/);
+assert.match(proxySource, /MAX_BLENDER_PORT_MAPPINGS/);
 
 console.log('Blender lifecycle contract: OK');
