@@ -1,0 +1,25 @@
+services:
+  backend:
+    image: ${RAGENODES_BACKEND_IMAGE:?Set RAGENODES_BACKEND_IMAGE to a digest-pinned registry reference}
+    build: !reset null
+  worker-backups:
+    image: ${RAGENODES_BACKEND_IMAGE:?Set RAGENODES_BACKEND_IMAGE to a digest-pinned registry reference}
+    build: !reset null
+  worker-docker-events:
+    image: ${RAGENODES_BACKEND_IMAGE:?Set RAGENODES_BACKEND_IMAGE to a digest-pinned registry reference}
+    build: !reset null
+  worker-stats:
+    image: ${RAGENODES_BACKEND_IMAGE:?Set RAGENODES_BACKEND_IMAGE to a digest-pinned registry reference}
+    build: !reset null
+  bot:
+    image: ${RAGENODES_BOT_IMAGE:?Set RAGENODES_BOT_IMAGE to a digest-pinned registry reference}
+    build: !reset null
+  oxide_control_panel:
+    image: ${RAGENODES_OXIDE_CONTROL_PANEL_IMAGE:?Set RAGENODES_OXIDE_CONTROL_PANEL_IMAGE to a digest-pinned registry reference}
+    build: !reset null
+  oxide_game:
+    image: ${RAGENODES_OXIDEPROXY_IMAGE:?Set RAGENODES_OXIDEPROXY_IMAGE to a digest-pinned registry reference}
+    build: !reset null
+  oxide_web:
+    image: ${RAGENODES_OXIDEPROXY_IMAGE:?Set RAGENODES_OXIDEPROXY_IMAGE to a digest-pinned registry reference}
+    build: !reset null

@@ -7,6 +7,7 @@
 stages:
 - test
 - secret-detection
+- package
 workflow:
   rules:
   - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
@@ -106,6 +107,10 @@ compose_validation:
     LEGO_EMAIL: ci@example.invalid
     PDNS_API_KEY: ci-contract-only
     POWERDNS_ZONE: security-test.invalid
+    RAGENODES_BACKEND_IMAGE: registry.gitlab.com/example/ragenodes/backend@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    RAGENODES_BOT_IMAGE: registry.gitlab.com/example/ragenodes/bot@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    RAGENODES_OXIDEPROXY_IMAGE: registry.gitlab.com/example/ragenodes/oxideproxy@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    RAGENODES_OXIDE_CONTROL_PANEL_IMAGE: registry.gitlab.com/example/ragenodes/oxide-control-panel@sha256:0000000000000000000000000000000000000000000000000000000000000000
   before_script:
   - cp .env.example .env
   script:
@@ -114,6 +119,24 @@ compose_validation:
   - docker compose -f docker-compose.yml -f docker-compose.security.yml config --quiet
   - docker compose -f docker-compose.yml -f docker-compose.backup-remote.yml config --quiet
   - docker compose -f docker-compose.yml -f docker-compose.powerdns.yml --profile dns-authority --profile dns-certificate config --quiet
+  - docker compose -f docker-compose.yml -f docker-compose.registry.yml config --quiet
+  - docker compose -f docker-compose.staging.yml -f docker-compose.registry.staging.yml config --quiet
+
+registry_publish_niko:
+  stage: package
+  image: docker:27.5.1-cli
+  variables:
+    DOCKER_BUILDKIT: "1"
+  rules:
+  - if: '$CI_COMMIT_BRANCH == "niko-local"'
+  script:
+  - REGISTRY_IMAGE_ROOT="$CI_REGISTRY_IMAGE" RELEASE_TAG="$CI_COMMIT_SHA" REGISTRY_USER="$CI_REGISTRY_USER" REGISTRY_PASSWORD="$CI_REGISTRY_PASSWORD" sh scripts/registry/build_and_push.sh
+  artifacts:
+    expire_in: 30 days
+    paths:
+    - registry-release.env
+    reports:
+      dotenv: registry-release.env
 
 secret_detection:
   stage: secret-detection

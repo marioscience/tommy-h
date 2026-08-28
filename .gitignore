@@ -7,6 +7,7 @@ node_modules/
 .env.*
 !.env.example
 !.env.local.example
+!.env.registry.example
 *.pem
 *.key
 *.crt
@@ -75,3 +76,4 @@ test_panel.js
 local_windows_data/
 backend/src/services/Untitled-1
 .image-cache/
+registry-release.env
