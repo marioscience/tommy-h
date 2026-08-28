@@ -2,17 +2,40 @@ import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG,
 import { config } from '../../config.js';
 import { prepareGameProxyBindings } from '../gameProxyPolicy.js';
 
+async function normalizeCS2DataOwnership(docker, image, dataPath, serverId) {
+    const helperName = `ragenodes-cs2-permissions-${String(serverId || Date.now()).slice(0, 12)}`;
+    let helper;
+    try {
+        helper = await docker.createContainer({
+            Image: image,
+            name: helperName,
+            User: '0:0',
+            Entrypoint: ['/bin/sh', '-c'],
+            Cmd: ['chown -R 1000:1000 /target'],
+            HostConfig: {
+                Binds: [`${dataPath}:/target`],
+                NetworkMode: 'none',
+                ReadonlyRootfs: true,
+                CapDrop: ['ALL'],
+                CapAdd: ['CHOWN', 'FOWNER', 'DAC_OVERRIDE'],
+                SecurityOpt: ['no-new-privileges:true']
+            }
+        });
+        await helper.start();
+        const result = await helper.wait();
+        if (Number(result?.StatusCode) !== 0) {
+            throw new Error(`el normalizador termino con codigo ${result?.StatusCode}`);
+        }
+    } finally {
+        if (helper) await helper.remove({ force: true }).catch(() => {});
+    }
+}
+
 export async function createCS2Container(opts) {
     const docker = await getNodeConnection(opts.nodeId || 0);
     await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath} && chown -R 1000:1000 ${opts.dataPath}`);
     await cloneFromMasterTemplate('cs2', opts.dataPath, opts.nodeId);
     
-    try {
-        await runRemoteCommand(opts.nodeId || 0, sh`chown -R 1000:1000 ${opts.dataPath}`);
-    } catch (e) {
-        console.warn(`⚠️ [CS2] No se pudo cambiar el owner: ${e.message}`);
-    }
-
     try {
         await docker.getImage(config.cs2BaseImage).inspect();
     } catch (e) {
@@ -22,6 +45,11 @@ export async function createCS2Container(opts) {
             docker.modem.followProgress(stream, (err, res) => err ? reject(err) : resolve(res));
         });
     }
+
+    // La traduccion de UID de Docker rootless convierte un chown del host a
+    // 1000:1000 en root dentro del contenedor. Ejecutarlo dentro del namespace
+    // del daemon produce el propietario correcto sin depender del subuid local.
+    await normalizeCS2DataOwnership(docker, config.cs2BaseImage, opts.dataPath, opts.serverId);
 
     const proxy = prepareGameProxyBindings({
         '27015/tcp': [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort) }],
