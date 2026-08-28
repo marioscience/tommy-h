@@ -120,6 +120,13 @@ async function rollbackCreation({ serverId, containerName, dataPath, nodeId, dbN
   }
 
   try {
+    const docker = await Docker.getNodeConnection(nodeId);
+    await docker.getContainer(`${containerName}-db`).remove({ force: true });
+  } catch (error) {
+    if (error?.statusCode !== 404) console.warn(`[Rollback] No se pudo retirar ${containerName}-db: ${error.message}`);
+  }
+
+  try {
     await Docker.runRemoteCommand(nodeId, Docker.sh`rm -rf -- ${dataPath}`);
   } catch (error) {
     console.warn(`[Rollback] No se pudo retirar ${dataPath}: ${error.message}`);
@@ -212,8 +219,11 @@ export async function createServerForUser(userId, payload = {}) {
     const containerName = `ragenodes-${shortId}`;
     const dataPath = path.join(config.instanceDataRoot, serverId);
     const slug = `${safeName.toLowerCase().replace(/\s+/g, '-')}-${shortId}`;
-    const licenseKey = String(payload.licenseKey || 'changeme');
-    const licenseKeyHint = licenseKey === 'changeme' ? 'hidden' : `***${licenseKey.slice(-4)}`;
+    const licenseKey = String(payload.licenseKey || '').trim();
+    if (template === 'fivem' && (!licenseKey || /^(?:change[_-]?me|hidden|example)$/i.test(licenseKey))) {
+      throw new Error('FiveM requiere una clave de licencia Cfx.re valida antes del despliegue.');
+    }
+    const licenseKeyHint = licenseKey ? `***${licenseKey.slice(-4)}` : 'not-required';
     let txAdminUrl = getPublicEndpointUrl(template === 'fivem' ? txAdminPort : gamePort, { path: '' });
     const blenderPass = generateSecurePassword();
     const needsMariaDatabase = template === 'fivem' || template === 'ark';

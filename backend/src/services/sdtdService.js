@@ -5,6 +5,14 @@ const DEFAULT_CONFIG = {
     ServerName: 'RageNodes 7DTD Server',
     ServerDescription: 'Sobrevive al horda en RageNodes.',
     ServerPassword: '',
+    // 7DTD 2.x no puede iniciar un mundo si estas claves faltan. La imagen
+    // genera el XML antes de instalar el juego, por lo que no podemos depender
+    // de que copie posteriormente el serverconfig.xml oficial.
+    UserDataFolder: '/app/.local/share/7DaysToDie',
+    GameWorld: 'Navezgane',
+    WorldGenSeed: 'RageNodes',
+    WorldGenSize: '6144',
+    GameName: 'RageNodes',
     GameDifficulty: '2',
     DayNightLength: '60',
     BloodMoonFrequency: '7',
@@ -26,6 +34,22 @@ const DEFAULT_CONFIG = {
     TelnetPassword: ''
 };
 
+function escapeXmlAttribute(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('"', '&quot;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+}
+
+function decodeXmlAttribute(value) {
+    return String(value ?? '')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&amp;', '&');
+}
+
 /**
  * Lee la configuración de 7 Days to Die (serverconfig.xml)
  */
@@ -41,7 +65,7 @@ export async function getSDTDConfig(instancePath) {
         while ((match = regex.exec(content)) !== null) {
             const key = match[1];
             if (key in DEFAULT_CONFIG) {
-                config[key] = match[2];
+                config[key] = decodeXmlAttribute(match[2]);
             }
         }
         return config;
@@ -69,7 +93,8 @@ export async function saveSDTDConfig(instancePath, newConfig) {
     // Update or append properties
     const merged = { ...DEFAULT_CONFIG, ...newConfig };
     
-    for (const [key, value] of Object.entries(merged)) {
+    for (const [key, rawValue] of Object.entries(merged)) {
+        const value = escapeXmlAttribute(rawValue);
         const regex = new RegExp(`(<property\\s+name="${key}"\\s+value=")[^"]*(".*?>)`, 'g');
         if (regex.test(content)) {
             content = content.replace(regex, `$1${value}$2`);

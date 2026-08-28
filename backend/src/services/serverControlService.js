@@ -127,6 +127,7 @@ export async function deleteServer(id, userId, isAdmin) {
   await query("UPDATE servers SET status = 'deleting' WHERE id = $1", [s.id]);
 
   await Docker.removeContainer(s.container_name);
+  await Docker.removeContainer(`${s.container_name}-db`);
   await Docker.removeContainer(`ragenodes-blender-${s.id.slice(0,8)}`);
   await query('DELETE FROM servers WHERE id = $1', [s.id]);
   try { await fs.rm(s.data_path, { recursive: true, force: true }); } catch {}

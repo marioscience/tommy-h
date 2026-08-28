@@ -2,6 +2,14 @@ import os from 'os';
 import path from 'node:path';
 import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, applyRageNodesBranding, sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
+import { prepareGameProxyBindings } from '../gameProxyPolicy.js';
+
+const prepareConfiguredProxyBindings = (bindings, proxiedPorts, backendOffset) => prepareGameProxyBindings(bindings, {
+    enabled: config.oxideGameProxyEnabled,
+    proxiedPorts,
+    backendOffset,
+    backendBindIp: config.gameBackendBindIp
+});
 
 export function resolveDataSubdirectory(dataPath, subdir) {
     if (typeof dataPath !== 'string' || !path.posix.isAbsolute(dataPath)) {
@@ -116,29 +124,12 @@ export class BaseGameService {
         const nanoCpus = Math.min(rawNanoCpus, hostCpuCount * 10**9);
         const memoryBytes = opts.plan?.memoryBytes || 4 * 1024 * 1024 * 1024;
 
-        const effectiveBindings = structuredClone(portBindings.bindings || {});
         const proxyBackendPortOffset = Number(portBindings.proxyBackendPortOffset || config.gameBackendPortOffset);
-        if (config.oxideGameProxyEnabled) {
-            const proxiedPorts = new Set(portBindings.proxiedPorts || []);
-            for (const [containerPort, bindings] of Object.entries(effectiveBindings)) {
-                if (!proxiedPorts.has(containerPort)) continue;
-                for (const binding of bindings || []) {
-                    const publicPort = Number(binding.HostPort);
-                    if (!Number.isInteger(publicPort) || publicPort < 1 || publicPort > 55535) {
-                        throw new Error(`Puerto público inválido para proxy de juego: ${binding.HostPort}`);
-                    }
-                    binding.HostIp = config.gameBackendBindIp;
-                    if (!Number.isInteger(proxyBackendPortOffset) || proxyBackendPortOffset < 1 || publicPort + proxyBackendPortOffset > 65535) {
-                        throw new Error(`Offset de backend inválido para proxy de juego: ${proxyBackendPortOffset}`);
-                    }
-                    binding.HostPort = String(publicPort + proxyBackendPortOffset);
-                }
-            }
-        }
+        const proxy = prepareConfiguredProxyBindings(portBindings.bindings || {}, portBindings.proxiedPorts || [], proxyBackendPortOffset);
 
         const hostConfig = {
             Binds: binds,
-            PortBindings: effectiveBindings,
+            PortBindings: proxy.bindings,
             RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: memoryBytes,
             NanoCpus: nanoCpus,
@@ -214,8 +205,7 @@ export class BaseGameService {
             Labels: {
                 "ragenodes.server_id": String(opts.serverId),
                 "ragenodes.game": String(this.gameId),
-                "ragenodes.game_proxy": config.oxideGameProxyEnabled ? "enabled" : "direct",
-                "ragenodes.game_proxy_offset": String(ports.proxyBackendPortOffset || config.gameBackendPortOffset)
+                ...prepareConfiguredProxyBindings(ports.bindings || {}, ports.proxiedPorts || [], ports.proxyBackendPortOffset || config.gameBackendPortOffset).labels
             }
         });
 

@@ -75,17 +75,30 @@ const isTrustedDomainOrigin = (origin) => {
         return false;
     }
 };
-const isPrivateIpOrigin = (origin) => config.nodeEnv !== 'production'
-    && /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|127\.0\.0\.1|localhost)(:\d+)?$/.test(origin);
+const isPrivateIpOrigin = (origin) => /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|127\.0\.0\.1|localhost)(:\d+)?$/.test(origin);
+const originMatchesRequestHost = (req, origin) => {
+    try {
+        const originHost = new URL(origin).host.toLowerCase();
+        const directHost = String(req.get('host') || '').toLowerCase();
+        const forwardedHost = String(req.get('x-forwarded-host') || '').split(',')[0].trim().toLowerCase();
+        return originHost === directHost || (forwardedHost && originHost === forwardedHost);
+    } catch {
+        return false;
+    }
+};
+const isAllowedLocalOrigin = (req, origin) => isPrivateIpOrigin(origin)
+    && (config.nodeEnv !== 'production' || config.allowLocalAdmin)
+    && originMatchesRequestHost(req, origin);
 
-app.use(cors({
-    origin(origin, callback) {
-        if (!origin || allowedOrigins.has(origin) || isTrustedDomainOrigin(origin) || isPrivateIpOrigin(origin)) return callback(null, true);
-        return callback(new Error('Origen CORS no permitido.'));
-    },
-    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-API-Key', 'X-Auth-Mode'],
-    credentials: true
+app.use(cors((req, callback) => {
+    const origin = req.get('origin');
+    const allowed = !origin || allowedOrigins.has(origin) || isTrustedDomainOrigin(origin) || isAllowedLocalOrigin(req, origin);
+    callback(null, {
+        origin: allowed,
+        methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Authorization', 'Content-Type', 'X-API-Key', 'X-Auth-Mode'],
+        credentials: true
+    });
 }));
 app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -113,7 +126,7 @@ app.use('/api', (req, res, next) => {
     const stripScheme = (url) => String(url || '').replace(/^https?:\/\//i, '');
     const originHost = stripScheme(origin);
 
-    if (originHost !== stripScheme(requestOrigin) && originHost !== stripScheme(forwardedOrigin) && !allowedOrigins.has(origin) && !isPrivateIpOrigin(origin) && !isTrustedDomainOrigin(origin)) {
+    if (originHost !== stripScheme(requestOrigin) && originHost !== stripScheme(forwardedOrigin) && !allowedOrigins.has(origin) && !isAllowedLocalOrigin(req, origin) && !isTrustedDomainOrigin(origin)) {
         return res.status(403).json({ error: 'Origen no permitido para modificaciones de estado.' });
     }
     next();
