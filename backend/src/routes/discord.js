@@ -425,6 +425,47 @@ router.get('/servers/routes', verifyApiKey, async (req, res) => {
                     published.add(`${Number(binding.HostPort)}:${transport}`);
                 }
             }
+
+            // Los contenedores nuevos declaran exactamente qué puertos forman
+            // parte del plano de juego. El inventario se deriva de Docker, no
+            // de una lista rígida, para soportar juegos multipuerto y puertos
+            // asignados dinámicamente sin incluir paneles web auxiliares.
+            const declaredPorts = String(inspect?.Config?.Labels?.['ragenodes.game_proxy_ports'] || '')
+                .split(',').map(value => value.trim()).filter(Boolean);
+            if (declaredPorts.length > 0) {
+                const byPublicPort = new Map();
+                for (const containerPort of declaredPorts) {
+                    const transport = String(containerPort).split('/')[1]?.toUpperCase();
+                    if (!['TCP', 'UDP'].includes(transport)) continue;
+                    for (const binding of inspect?.HostConfig?.PortBindings?.[containerPort] || []) {
+                        const backendPort = Number(binding.HostPort);
+                        const publicPort = backendPort - backendOffset;
+                        if (!Number.isInteger(publicPort) || publicPort < 1 || publicPort > 65535) continue;
+                        const entry = byPublicPort.get(publicPort) || { backendPort, protocols: new Set() };
+                        if (entry.backendPort !== backendPort) continue;
+                        entry.protocols.add(transport);
+                        byPublicPort.set(publicPort, entry);
+                    }
+                }
+                for (const [port, entry] of byPublicPort) {
+                    const protocol = entry.protocols.has('TCP') && entry.protocols.has('UDP')
+                        ? 'DUAL'
+                        : [...entry.protocols][0];
+                    if (!protocol) continue;
+                    routes.push({
+                        game_id: port,
+                        name: `auto:${server.container_name}:${port}`,
+                        backend_addr: `127.0.0.1:${entry.backendPort}`,
+                        protocol,
+                        port_range: String(port),
+                        description: `Auto ${String(server.template).toUpperCase()} - ${server.name}`
+                    });
+                }
+                continue;
+            }
+
+            // Compatibilidad de transición con contenedores creados antes de
+            // que existiera la etiqueta de puertos explícitos.
             for (const [offset, protocol] of offsets) {
                 const port = basePort + offset;
                 const backendPort = port + backendOffset;

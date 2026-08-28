@@ -1,11 +1,45 @@
 import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
 import { saveSDTDConfig } from '../sdtdService.js';
+import { prepareGameProxyBindings } from '../gameProxyPolicy.js';
+
+async function normalizeSDTDDataOwnership(docker, image, dataPath, serverId) {
+    const helperName = `ragenodes-sdtd-permissions-${String(serverId || Date.now()).slice(0, 12)}`;
+    let helper;
+    try {
+        helper = await docker.createContainer({
+            Image: image,
+            name: helperName,
+            User: '0:0',
+            Entrypoint: ['/bin/sh', '-c'],
+            Cmd: ['chown -R 1000:1000 /target'],
+            HostConfig: {
+                Binds: [`${dataPath}:/target`],
+                NetworkMode: 'none',
+                ReadonlyRootfs: true,
+                CapDrop: ['ALL'],
+                CapAdd: ['CHOWN', 'FOWNER', 'DAC_OVERRIDE'],
+                SecurityOpt: ['no-new-privileges:true']
+            }
+        });
+        await helper.start();
+        const result = await helper.wait();
+        if (Number(result?.StatusCode) !== 0) {
+            throw new Error(`el normalizador termino con codigo ${result?.StatusCode}`);
+        }
+    } finally {
+        if (helper) await helper.remove({ force: true }).catch(() => {});
+    }
+}
 
 export async function createSDTDContainer(containerName, serverId, gamePort, plan, dataPath, nodeId = 0) {
     const docker = await getNodeConnection(nodeId);
     await runRemoteCommand(nodeId, sh`mkdir -p ${dataPath}`);
-    await cloneFromMasterTemplate('sdtd', dataPath);
+    await cloneFromMasterTemplate('sdtd', dataPath, nodeId);
+    const installed = (await runRemoteCommand(
+        nodeId,
+        sh`if [ -x ${dataPath + '/7dtd/7DaysToDieServer.x86_64'} ]; then printf yes; else printf no; fi`
+    )).trim() === 'yes';
 
     try {
         await docker.getImage(config.sdtdBaseImage).inspect();
@@ -22,7 +56,17 @@ export async function createSDTDContainer(containerName, serverId, gamePort, pla
         ServerPort: String(gamePort),
         TelnetPassword: telnetPassword
     });
+    await runRemoteCommand(nodeId, sh`mkdir -p ${dataPath + '/config/Saves/Navezgane/RageNodes'}`);
+    await normalizeSDTDDataOwnership(docker, config.sdtdBaseImage, dataPath, serverId);
 
+    const publicBindings = {
+        [`${gamePort}/tcp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort) }],
+        [`${gamePort}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort) }],
+        [`${gamePort+1}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort + 1) }],
+        [`${gamePort+2}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort + 2) }],
+        [`${gamePort+3}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort + 3) }]
+    };
+    const proxy = prepareGameProxyBindings(publicBindings, { enabled: config.oxideGameProxyEnabled, backendOffset: config.gameBackendPortOffset, backendBindIp: config.gameBackendBindIp });
     const container = await docker.createContainer({
         Image: config.sdtdBaseImage,
         name: containerName,
@@ -30,7 +74,10 @@ export async function createSDTDContainer(containerName, serverId, gamePort, pla
             `SEVEN_DAYS_TO_DIE_SERVER_PORT=${gamePort}`,
             'SEVEN_DAYS_TO_DIE_TELNET_PORT=8081',
             `SEVEN_DAYS_TO_DIE_TELNET_PASSWORD=${telnetPassword}`,
-            'SEVEN_DAYS_TO_DIE_UPDATE_CHECKING=1',
+            // Una plantilla ya instalada debe arrancar en segundos y mantener
+            // su version. Solo una instancia realmente vacia ejecuta SteamCMD.
+            `SEVEN_DAYS_TO_DIE_START_MODE=${installed ? '2' : '0'}`,
+            'SEVEN_DAYS_TO_DIE_UPDATE_CHECKING=0',
             'SEVEN_DAYS_TO_DIE_CONFIG_FILE=/app/.local/share/7DaysToDie/serverconfig.xml',
             'TZ=Europe/Madrid'
         ],
@@ -48,19 +95,14 @@ export async function createSDTDContainer(containerName, serverId, gamePort, pla
                 `${dataPath}/7dtd:/steamcmd/7dtd`,
                 `${dataPath}/config:/app/.local/share/7DaysToDie`
             ],
-            PortBindings: {
-                [`${gamePort}/tcp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort) }],
-                [`${gamePort}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort) }],
-                [`${gamePort+1}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort + 1) }],
-                [`${gamePort+2}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort + 2) }],
-                [`${gamePort+3}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort + 3) }]
-            },
+            PortBindings: proxy.bindings,
             RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: plan.memoryBytes,
             NanoCpus: plan.nanoCpus, CpuShares: Math.round((plan.nanoCpus / 10**9) * 1024),
             BlkioWeight: config.dockerBlkioWeight,
             ...GAME_SECURITY_CONFIG
-        }
+        },
+        Labels: { 'ragenodes.server_id': String(serverId), 'ragenodes.game': 'sdtd', ...proxy.labels }
     });
 
     await container.start();

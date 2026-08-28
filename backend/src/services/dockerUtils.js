@@ -123,6 +123,36 @@ export async function getNodeConnection(nodeId = 0) {
     }
 }
 
+export async function normalizeBindOwnership(docker, image, dataPath, owner, helperScope = 'service') {
+    const safeScope = String(helperScope || 'service').toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 24);
+    const helperName = `ragenodes-${safeScope}-permissions-${crypto.randomBytes(6).toString('hex')}`;
+    let helper;
+    try {
+        helper = await docker.createContainer({
+            Image: image,
+            name: helperName,
+            User: '0:0',
+            Entrypoint: ['/bin/sh', '-c'],
+            Cmd: [`chown -R ${owner} /target`],
+            HostConfig: {
+                Binds: [`${dataPath}:/target`],
+                NetworkMode: 'none',
+                ReadonlyRootfs: true,
+                CapDrop: ['ALL'],
+                CapAdd: ['CHOWN', 'FOWNER', 'DAC_OVERRIDE'],
+                SecurityOpt: ['no-new-privileges:true']
+            }
+        });
+        await helper.start();
+        const result = await helper.wait();
+        if (Number(result?.StatusCode) !== 0) {
+            throw new Error(`el normalizador de permisos termino con codigo ${result?.StatusCode}`);
+        }
+    } finally {
+        if (helper) await helper.remove({ force: true }).catch(() => {});
+    }
+}
+
 export async function detachMutableTemplatePath(dirPath, nodeId = 0) {
     const tmpPath = dirPath + '.detached-tmp-' + Date.now();
     const oldPath = dirPath + '.detached-old-' + Date.now();
