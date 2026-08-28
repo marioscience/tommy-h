@@ -14,6 +14,7 @@
     <img src="https://img.shields.io/badge/Docker-Hardened%20Hybrid-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
     <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
     <img src="https://img.shields.io/badge/Redis-Cache-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
+    <img src="https://img.shields.io/badge/Base%20Version-0.0.1-6C63FF?style=for-the-badge" alt="Base Version 0.0.1" />
   </p>
 </div>
 
@@ -22,25 +23,38 @@
 # 🇬🇧 English
 
 ## 🚀 Overview
-**RageNodes Ultimate** is an all-in-one, enterprise-grade game server and application orchestration platform. Built with an Object-Oriented **Node.js** backend architecture, an ultra-fast low-latency reverse proxy written in **Rust (`OxideProxy`)**, and hardened **Docker** container isolation.
+**RageNodes Ultimate** is an all-in-one, production-oriented game server and application orchestration platform. It combines an object-oriented **Node.js** backend, a low-latency reverse proxy written in **Rust (`OxideProxy`)**, and hardened **Docker** container isolation.
 
-Whether deploying a large FiveM roleplay community or a multi-node cluster for Rust and Minecraft, RageNodes provides full hardware orchestration with automated zero-trust security and direct public endpoints managed by OxideProxy.
+Whether deploying a large FiveM roleplay community or a multi-node cluster for Rust and Minecraft, RageNodes provides hardware orchestration with defense-in-depth controls and direct public endpoints managed by OxideProxy.
 
 ---
 
 ## 🌟 Key Features
-- **🕹️ 1-Click Game Deployment:** Instant orchestration for FiveM (txAdmin), Rust, Minecraft (Paper/Java), CS2, Palworld, ARK: Survival Ascended, and 7 Days to Die.
+- **🕹️ 1-Click Service Deployment:** Orchestration for FiveM (txAdmin), Rust, Minecraft, CS2, Valheim, Project Zomboid, Palworld, ARK, 7 Days to Die, Discord bots, WordPress, MariaDB and Blender Studio 3D.
 - **🤖 Discord Bot Hosting:** Secure, isolated containers for Node.js and Python bots with automated health monitoring.
-- **⚡ OxideProxy (Rust Core & L7 Control Plane):** Hyper-optimized Layer 4/7 reverse proxy with TLS termination, cryptographic CSP nonces, eBPF-ready networking, 30s token caching, and DDoS mitigation.
-- **🛡️ Dynamic Private IP CORS & CSRF:** Automated Origin matching for private network IPs (`192.168.x.x`, `10.x.x.x`, `172.16-31.x.x`, `127.0.0.1`, `localhost`) enabling seamless state operations.
-- **🐳 Hardened Docker Architecture:** Automated non-root execution (`1000:1000`), minimal capability allowlist, fail-fast volume validations, and Distroless base images.
-- **📊 Real-Time Telemetry & iFrame Auth:** Live CPU, memory heap, and I/O metrics streaming over WebSockets, with JWT token auto-propagation (`authFetch`).
-- **🩺 Production & Staging Diagnostics:** Native `/healthz`, `/readyz` probes, and an adaptive hardware test suite (`stagingHealthTestRunner.js`) generating PDF/HTML diagnostic reports.
-- **📦 Master Image Cache:** FiveM and Blender masters are version-aware, archived locally, refreshed by a hardened systemd timer, and reused by subsequent deployments. Digest-pinned game images are prefetched without replacing active customer containers.
+- **⚡ OxideProxy (Rust Core & L7 Control Plane):** Layer 4/7 reverse proxy with TLS termination, cryptographic CSP nonces, eBPF-ready networking, short-lived authorization caching, and configurable traffic-mitigation controls.
+- **🛡️ Environment-Aware CORS & CSRF:** Production accepts only configured HTTPS origins; private-network and localhost origins are limited to explicit local-development policy.
+- **🐳 Hardened Hybrid Docker Architecture:** A rootful control plane is separated from rootless customer game runtimes; services run non-root where supported, capabilities are restricted per workload, and volume/image validation fails fast before deployment.
+- **📊 Real-Time Telemetry & iFrame Auth:** Live CPU, memory, network and I/O metrics use SSE, WebSockets or bounded polling according to the feature, with authenticated browser requests and token propagation where required.
+- **🩺 Production & Staging Diagnostics:** Native `/healthz`, `/readyz` probes, and an adaptive hardware test suite (`backend/src/services/stagingHealthTestRunner.js`) generating PDF/HTML diagnostic reports.
+- **📦 Complete Base-Image Cache:** Every deployable service has a reusable local base image. FiveM and Blender are version-aware RageNodes masters that are built and archived locally; Minecraft, Rust, Palworld, CS2, Valheim, Project Zomboid, ARK, 7 Days to Die, Discord bots, WordPress and MariaDB use digest-pinned upstream images that are prefetched into the local cache. A hardened systemd timer refreshes the complete manifest without replacing active customer containers, so subsequent deployments normally start from local storage instead of downloading again.
+
+## 🧭 Platform Capability Map
+
+This repository is the control plane for the complete RageNodes service lifecycle, not only a game proxy:
+
+- **Provisioning and lifecycle:** plan-aware placement, dynamic multi-port allocation, creation, start, stop, restart, safe recreation, deletion and rollback across local or remote nodes.
+- **Customer panel:** live resource charts, console streaming, file manager, game configuration editors, scheduled tasks, backups, sub-users, mods, databases and connection details.
+- **Service catalog:** game servers, Discord bots, WordPress with an isolated database, dedicated MariaDB services, Blender Studio 3D and web tools.
+- **Networking:** authenticated OxideProxy L7 routes for HTTPS panels and iframes, plus generated TCP, UDP or dual-protocol L4 routes for every declared service port. Route inventory is reconciled from PostgreSQL and Docker state rather than being limited to a fixed list of games.
+- **Data protection:** persistent volumes, ownership normalization between rootful and rootless Docker, database migrations, backup/restore workflows and preservation of customer containers during platform upgrades.
+- **Operations:** Docker-event and statistics workers, health/readiness probes, SSE/WebSocket streams, audit logs, image-cache refresh, production readiness checks and automatic fast-forward deployment.
+- **Security:** authentication and role checks, admin impersonation controls, CSRF/origin validation, CSP nonces, rate limiting, secret detection, container capability restrictions and isolated staging access.
+- **Commercial administration:** plans and quotas, payments/subscriptions, licenses, marketplace, vendors, invoices and deployment limits.
 
 ### Game ingress rollout
 
-OxideProxy can act as the public TCP/UDP ingress for newly deployed **Minecraft, FiveM game traffic, and Rust** instances. Public ports are owned by the dedicated, host-networked `oxide_game` service, while game containers bind their shifted backend ports to loopback only. Route inventory is generated from authenticated database and Docker state, written atomically, and reloaded automatically. Existing direct-published containers remain compatible and must be migrated individually; txAdmin and other web panels continue through the HTTPS L7 proxy. Set `OXIDE_GAME_PROXY_ENABLED=true` only after the dedicated ingress service is healthy.
+OxideProxy can act as the public ingress for every service that declares routable ports. Depending on the service manifest, a route can be **TCP**, **UDP**, **dual protocol**, or **HTTPS/L7**. Public game ports are owned by the dedicated, host-networked `oxide_game` service, while customer containers bind shifted backend ports to loopback only. The authenticated route inventory is reconciled from PostgreSQL and Docker state, written atomically, and reloaded automatically. This covers single- and multi-port services such as Minecraft, FiveM, Rust, CS2, Valheim, Project Zomboid, 7 Days to Die, Palworld and ARK; txAdmin, Blender, WordPress and other web tools continue through the HTTPS L7 proxy. Existing direct-published containers remain compatible and can be migrated individually. Set `OXIDE_GAME_PROXY_ENABLED=true` only after the dedicated ingress service is healthy.
 
 Minecraft deployments pin the requested edition and version in the server data directory. Automatic healing therefore recreates the same runtime instead of silently upgrading it, and hosted servers remain active while empty so proxy handshakes and paused clients are not disconnected.
 
@@ -50,15 +64,19 @@ Minecraft deployments pin the requested edition and version in the server data d
 
 | Game / Service | Engine / Stack | Status | Environment Ports |
 |---|---|---|---|
-| **FiveM (GTA V)** | FXServer + txAdmin | ✅ Fully Supported | 30120 (Game), 40120 (txAdmin) |
-| **Rust** | Unity / SteamCMD | ✅ Fully Supported | 28015 (Game), 28016 (RCON) |
-| **Minecraft** | Java / Paper / Bedrock | ✅ Fully Supported | 25565 (Default) |
-| **Counter-Strike 2** | Source 2 | ✅ Fully Supported | 27015 (Default) |
-| **Valheim** | Unity | ✅ Fully Supported | 2456-2457 |
-| **Palworld** | Unreal Engine 5 | ✅ Fully Supported | 8211 (Default) |
-| **ARK: Ascended** | Unreal Engine 5 | ✅ Fully Supported | 7777, 27020 |
-| **Discord Bots** | Node.js / Python | ✅ Fully Supported | Internal isolated socket |
-| **Web & Databases** | WordPress / MariaDB / Postgres | ✅ Fully Supported | 8088, 3306, 5432 |
+| **FiveM (GTA V)** | FXServer + txAdmin | ✅ Implemented | Game + txAdmin; TCP/UDP + HTTPS |
+| **Rust** | Unity / SteamCMD | ✅ Implemented | Game, query and RCON |
+| **Minecraft** | Java / Paper / Bedrock | ✅ Implemented | TCP or UDP according to edition |
+| **Counter-Strike 2** | Source 2 | ✅ Implemented | Game, query and RCON |
+| **Valheim** | Unity | ✅ Implemented | Multi-port UDP |
+| **Project Zomboid** | Java / SteamCMD | ✅ Implemented | Multi-port TCP/UDP |
+| **7 Days to Die** | Unity / SteamCMD | ✅ Implemented | Game, query and control ports |
+| **Palworld** | Unreal Engine 5 | ✅ Implemented | Game, query and RCON |
+| **ARK: Survival Ascended** | Unreal Engine 5 | ✅ Implemented | Game, peer and query ports |
+| **Discord Bots** | Node.js / Python | ✅ Implemented | Isolated application runtime |
+| **WordPress** | WordPress + MariaDB | ✅ Implemented | HTTPS route + private database |
+| **Dedicated Database** | MariaDB | ✅ Implemented | Plan-controlled database endpoint |
+| **Blender Studio 3D** | Blender + browser streaming | ✅ Implemented | Authenticated HTTPS iframe |
 
 ---
 
@@ -67,7 +85,27 @@ Minecraft deployments pin the requested edition and version in the server data d
 * **Networking/Proxy:** Rust (`oxideproxy`), TLS termination, dynamic CSP nonces, query caching.
 * **Design Patterns:** *Template Method* (`BaseGameService`), *Factory & Registry* (`GameFactory`), *Observer* (Docker Events), *Strategy* (Backups).
 * **Testing:** Native Node.js test runner (`node:test` and `node:assert/strict`), Adaptive Hardware Health Test Suite.
-* **Frontend:** Vanilla JS, Glassmorphism CSS, WebSockets for live metrics.
+* **Frontend:** Vanilla JS, Glassmorphism CSS, SSE/WebSockets and bounded polling for live state.
+
+## 🗂️ Repository Guide for New Developers
+
+| Path | Responsibility |
+|---|---|
+| `backend/src/routes/` | HTTP API boundaries, authentication and request validation |
+| `backend/src/services/` | Business rules, lifecycle orchestration, plans, backups, telemetry and integrations |
+| `backend/src/services/games/` | Container specification for each game or hosted application |
+| `backend/src/migrations/` | Versioned PostgreSQL schema changes |
+| `backend/test/` and `backend/tests/` | Unit, integration and security regression tests |
+| `frontend/public/` | Landing page, customer/admin panels, static assets and browser controllers |
+| `oxideproxy/` | Rust L4/L7 proxy, TLS, routing, access gate and telemetry |
+| `oxide_web/` | OxideProxy web/control configuration |
+| `blender-web/` | Browser-accessible Blender runtime |
+| `fivem-base/` | Cached and reproducible FiveM base image |
+| `scripts/` | Deployment, image cache, security checks, diagnostics and operational automation |
+| `docker-compose*.yml` | Base, local, staging, production and security overlays |
+| `docs/` | Architecture decisions, readiness checklist and operational documentation |
+
+Start a feature by locating its route, service and tests. Changes to a hosted service normally also require reviewing its game adapter, port manifest, plan policy, proxy reconciliation and backup behavior. Never add a secret to Git; document new variables in the appropriate example environment file.
 
 ---
 
@@ -95,25 +133,25 @@ mkdir -p "$HOME/.local/share/ragenodes-ultimate/data/templates" \
   "$HOME/.local/share/ragenodes-ultimate/backups"
 ```
 
-### 3. Install Dependencies, Migrate Database & Run Tests
+### 3. Install Dependencies & Run Tests
 ```bash
-# Install backend dependencies
+# Install the exact locked backend dependencies
 cd backend
-npm install
+npm ci
 
-# Run database migrations
-npm run db:migrate
-
-# Run the current backend suite (46 tests across 10 suites)
+# Run the current backend suite (the CI report is the source of truth for counts)
 npm test
 cd ..
 ```
 
 ### 4. Start the Local Docker Stack
 ```bash
-# Starts the local stack with direct host access
+# Starts the local stack. The local override is intentionally minimal today and
+# remains the extension point for developer-specific, non-production settings.
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
 ```
+
+The backend applies versioned migrations during startup. For an explicit manual run, wait until PostgreSQL is healthy and then execute `npm --prefix backend run db:migrate` with the configured environment.
 
 ### 5. Local Access URLs
 * **Web Dashboard:** [http://localhost:8088](http://localhost:8088)
@@ -139,9 +177,9 @@ flowchart LR
 1. **Protected Branches (`dev`, `staging`, `main`):**
    - 🚫 **Direct pushes are strictly prohibited.**
 2. **Sequential Promotion:**
-   - Develop on your feature branch -> PR to `dev` -> promote to `staging` -> merge to `main`.
+   - Develop on your feature branch -> Merge Request to `dev` -> promote to `staging` -> merge to `main`.
 3. **Official Releases:**
-   - Tag releases on `main` using semantic versioning (e.g. `v55.9.1`).
+   - This repository starts from base version **`0.0.1`**. Future releases on `main` use semantic versioning.
 
 ---
 
@@ -161,7 +199,7 @@ TLS passthrough does not create certificates. The staging edge must therefore ha
 
 The GitLab pipeline validates tests, security contracts, dependencies, Rust and Compose; it does not connect to production or perform the deployment itself. Promotion remains `feature -> dev -> staging -> main`. On the production host, a local updater polls `origin/main`, accepts only a clean fast-forward update, runs the reviewed deployment script and records success or rollback in its deployment log. This keeps deployment automatic after promotion to `main` without granting the GitLab runner direct production access.
 
-### Master image refresh
+### Complete base-image cache refresh
 
 ```bash
 # Safe manual refresh; active customer containers are not recreated
@@ -230,23 +268,36 @@ npm run security:routes
 # 🇪🇸 Español
 
 ## 🚀 Visión General
-**RageNodes Ultimate** es una plataforma integral y empresarial para la orquestación y administración de servidores de juegos y aplicaciones. Está construida sobre una arquitectura orientada a objetos en **Node.js**, un proxy inverso de ultra-baja latencia en **Rust (`OxideProxy`)**, y aislamiento estricto de contenedores en **Docker**.
+**RageNodes Ultimate** es una plataforma integral, orientada a producción, para la orquestación y administración de servidores de juegos y aplicaciones. Combina una arquitectura orientada a objetos en **Node.js**, un proxy inverso de baja latencia en **Rust (`OxideProxy`)** y aislamiento endurecido de contenedores en **Docker**.
 
-Ya sea para desplegar una comunidad masiva de FiveM o un clúster multi-nodo para Rust y Minecraft, RageNodes proporciona control total del hardware con seguridad *zero-trust* y endpoints públicos directos administrados por OxideProxy.
+Ya sea para desplegar una comunidad de FiveM o un clúster multi-nodo para Rust y Minecraft, RageNodes proporciona orquestación del hardware con controles de defensa en profundidad y endpoints públicos directos administrados por OxideProxy.
 
 ---
 
 ## 🌟 Características Principales
-- **🕹️ Despliegue en 1-Clic:** Orquestación instantánea para FiveM (txAdmin), Rust, Minecraft, CS2, Palworld, ARK: Survival Ascended y 7 Days to Die.
+- **🕹️ Despliegue de Servicios en 1-Clic:** Orquestación para FiveM (txAdmin), Rust, Minecraft, CS2, Valheim, Project Zomboid, Palworld, ARK, 7 Days to Die, bots de Discord, WordPress, MariaDB y Blender Studio 3D.
 - **🤖 Hosting de Bots de Discord:** Contenedores seguros y aislados para bots en Node.js y Python con monitoreo de salud.
-- **⚡ OxideProxy (Núcleo en Rust & L7 Control Plane):** Proxy inverso L4/L7 hiper-optimizado con terminación TLS, nonces criptográficos CSP, caché de tokens de 30s y mitigación DDoS.
+- **⚡ OxideProxy (Núcleo en Rust & L7 Control Plane):** Proxy inverso L4/L7 con terminación TLS, nonces criptográficos CSP, caché breve de autorización y controles configurables de mitigación de tráfico.
 - **🛡️ CORS y CSRF por entorno:** Producción sólo acepta HTTPS y dominios configurados; los orígenes privados se permiten exclusivamente durante desarrollo local.
-- **🐳 Blindaje de Docker:** Ejecución rootless (`1000:1000`), lista de capacidades mínimas, validación fail-fast de volúmenes e imágenes Distroless.
-- **📊 Telemetría en Tiempo Real e iframe Autenticado:** Métricas de CPU, memoria heap e I/O transmitidas por WebSockets, con auto-propagación de tokens JWT (`authFetch`).
-- **🩺 Diagnóstico Adaptativo de Salud:** Sondas nativas `/healthz`, `/readyz` y runner adaptativo en Staging (`stagingHealthTestRunner.js`) con generación de reportes PDF/HTML.
-- **📦 Caché Maestra de Imágenes:** FiveM y Blender se actualizan por versión, se archivan localmente y se reutilizan. Las imágenes fijadas por digest se precargan sin reemplazar contenedores activos de clientes.
+- **🐳 Arquitectura Docker Híbrida Endurecida:** El plano de control rootful está separado de los runtimes rootless de juegos; los servicios se ejecutan sin root cuando lo permiten, las capacidades se restringen por carga y la validación de volúmenes e imágenes falla antes del despliegue.
+- **📊 Telemetría en Tiempo Real e iframe Autenticado:** Métricas de CPU, memoria, red e I/O mediante SSE, WebSockets o polling acotado según la función, con solicitudes autenticadas y propagación de tokens cuando corresponde.
+- **🩺 Diagnóstico Adaptativo de Salud:** Sondas nativas `/healthz`, `/readyz` y runner adaptativo en staging (`backend/src/services/stagingHealthTestRunner.js`) con generación de reportes PDF/HTML.
+- **📦 Caché Completa de Imágenes Base:** Cada servicio desplegable dispone de una imagen base reutilizable en local. FiveM y Blender son imágenes maestras de RageNodes, versionadas, construidas y archivadas localmente; Minecraft, Rust, Palworld, CS2, Valheim, Project Zomboid, ARK, 7 Days to Die, bots de Discord, WordPress y MariaDB usan imágenes externas fijadas por digest que se precargan en la caché local. Un timer systemd endurecido actualiza el manifiesto completo sin reemplazar contenedores activos, permitiendo que los siguientes despliegues se inicien normalmente desde el almacenamiento local sin volver a descargar.
 
 Los despliegues de Minecraft fijan en el directorio de datos la edición y versión solicitadas. El auto-curado recrea exactamente ese runtime, sin actualizarlo de forma silenciosa, y los servidores alojados permanecen activos aunque estén vacíos para no interrumpir handshakes del proxy ni clientes en pausa.
+
+## 🧭 Mapa de Funciones de la Plataforma
+
+Este repositorio contiene el plano de control del ciclo completo de RageNodes; no es únicamente un proxy para juegos:
+
+- **Aprovisionamiento y ciclo de vida:** selección de nodo según plan y recursos, asignación dinámica de varios puertos, creación, inicio, apagado, reinicio, recreación segura, eliminación y rollback en nodos locales o remotos.
+- **Panel del cliente:** gráficas de recursos, consola en vivo, gestor de archivos, editores de configuración por juego, tareas programadas, backups, subusuarios, mods, bases de datos y datos de conexión.
+- **Catálogo de servicios:** servidores de juegos, bots de Discord, WordPress con base aislada, MariaDB dedicada, Blender Studio 3D y herramientas web.
+- **Red:** rutas L7 autenticadas de OxideProxy para paneles e iframes HTTPS y rutas L4 TCP, UDP o duales para cada puerto declarado por un servicio. El inventario se reconcilia desde PostgreSQL y Docker, sin limitarse a una lista fija de juegos.
+- **Protección de datos:** volúmenes persistentes, normalización de permisos entre Docker rootful y rootless, migraciones, flujos de backup/restauración y conservación de contenedores de clientes durante actualizaciones.
+- **Operación:** workers de eventos Docker, estadísticas y backups; sondas de salud; streams SSE/WebSocket; auditoría; actualización de imágenes maestras; verificación de producción y despliegue automático por fast-forward.
+- **Seguridad:** autenticación, roles, controles de suplantación administrativa, validación CSRF/origen, nonces CSP, límites de peticiones, detección de secretos, reducción de capacidades y acceso aislado a staging.
+- **Administración comercial:** planes, cuotas, pagos y suscripciones, licencias, marketplace, vendedores, facturas y límites de despliegue.
 
 ---
 
@@ -254,15 +305,19 @@ Los despliegues de Minecraft fijan en el directorio de datos la edición y versi
 
 | Juego / Servicio | Motor / Stack | Estado | Puertos del Entorno |
 |---|---|---|---|
-| **FiveM (GTA V)** | FXServer + txAdmin | ✅ Soportado al 100% | 30120 (Juego), 40120 (txAdmin) |
-| **Rust** | Unity / SteamCMD | ✅ Soportado al 100% | 28015 (Juego), 28016 (RCON) |
-| **Minecraft** | Java / Paper / Bedrock | ✅ Soportado al 100% | 25565 (Por defecto) |
-| **Counter-Strike 2** | Source 2 | ✅ Soportado al 100% | 27015 (Por defecto) |
-| **Valheim** | Unity | ✅ Soportado al 100% | 2456-2457 |
-| **Palworld** | Unreal Engine 5 | ✅ Soportado al 100% | 8211 (Por defecto) |
-| **ARK: Ascended** | Unreal Engine 5 | ✅ Soportado al 100% | 7777, 27020 |
-| **Bots de Discord** | Node.js / Python | ✅ Soportado al 100% | Socket aislado interno |
-| **Webs y Bases de Datos** | WordPress / MariaDB / Postgres | ✅ Soportado al 100% | 8088, 3306, 5432 |
+| **FiveM (GTA V)** | FXServer + txAdmin | ✅ Implementado | Juego + txAdmin; TCP/UDP + HTTPS |
+| **Rust** | Unity / SteamCMD | ✅ Implementado | Juego, consulta y RCON |
+| **Minecraft** | Java / Paper / Bedrock | ✅ Implementado | TCP o UDP según edición |
+| **Counter-Strike 2** | Source 2 | ✅ Implementado | Juego, consulta y RCON |
+| **Valheim** | Unity | ✅ Implementado | Varios puertos UDP |
+| **Project Zomboid** | Java / SteamCMD | ✅ Implementado | Varios puertos TCP/UDP |
+| **7 Days to Die** | Unity / SteamCMD | ✅ Implementado | Juego, consulta y control |
+| **Palworld** | Unreal Engine 5 | ✅ Implementado | Juego, consulta y RCON |
+| **ARK: Survival Ascended** | Unreal Engine 5 | ✅ Implementado | Juego, peer y consulta |
+| **Bots de Discord** | Node.js / Python | ✅ Implementado | Runtime aislado de aplicación |
+| **WordPress** | WordPress + MariaDB | ✅ Implementado | Ruta HTTPS + base privada |
+| **Base de datos dedicada** | MariaDB | ✅ Implementado | Endpoint controlado por plan |
+| **Blender Studio 3D** | Blender + streaming web | ✅ Implementado | iframe HTTPS autenticado |
 
 ---
 
@@ -271,7 +326,27 @@ Los despliegues de Minecraft fijan en el directorio de datos la edición y versi
 * **Capa de Red & Proxy:** Rust (`oxideproxy`), TLS termination, Nonce CSP, caché de consultas y evaluador de seguridad L7.
 * **Patrones de Diseño:** *Template Method* (`BaseGameService`), *Factory & Registry* (`GameFactory`), *Observer* (Docker Events), *Strategy* (Backups).
 * **Testing:** Test runner nativo de Node.js (`node:test` y `node:assert/strict`) y suite adaptativa de hardware.
-* **Frontend:** Vanilla JS moderno, CSS Glassmorphism, WebSockets para métricas en vivo.
+* **Frontend:** Vanilla JS moderno, CSS Glassmorphism, SSE/WebSockets y polling acotado para estado en vivo.
+
+## 🗂️ Guía del Repositorio para Nuevos Desarrolladores
+
+| Ruta | Responsabilidad |
+|---|---|
+| `backend/src/routes/` | Límites de la API HTTP, autenticación y validación de solicitudes |
+| `backend/src/services/` | Reglas de negocio, ciclo de vida, planes, backups, telemetría e integraciones |
+| `backend/src/services/games/` | Especificación de contenedores para cada juego o aplicación alojada |
+| `backend/src/migrations/` | Cambios versionados del esquema PostgreSQL |
+| `backend/test/` y `backend/tests/` | Pruebas unitarias, de integración y regresiones de seguridad |
+| `frontend/public/` | Landing, paneles de cliente/admin, recursos y controladores del navegador |
+| `oxideproxy/` | Proxy Rust L4/L7, TLS, rutas, puerta de acceso y telemetría |
+| `oxide_web/` | Configuración web y de control de OxideProxy |
+| `blender-web/` | Runtime de Blender accesible desde el navegador |
+| `fivem-base/` | Imagen base de FiveM reproducible y almacenada en caché |
+| `scripts/` | Despliegue, caché de imágenes, seguridad, diagnóstico y automatización operativa |
+| `docker-compose*.yml` | Base y overlays de local, staging, producción y seguridad |
+| `docs/` | Decisiones de arquitectura, checklist de preparación y operación |
+
+Para iniciar una función, localiza su ruta, servicio y pruebas. Un cambio en un servicio alojado normalmente también exige revisar su adaptador, manifiesto de puertos, política de planes, reconciliación del proxy y comportamiento de backups. Nunca añadas secretos a Git; documenta variables nuevas en el archivo de entorno de ejemplo correspondiente.
 
 ---
 
@@ -299,25 +374,25 @@ mkdir -p "$HOME/.local/share/ragenodes-ultimate/data/templates" \
   "$HOME/.local/share/ragenodes-ultimate/backups"
 ```
 
-### 3. Instalar Dependencias, Migrar Base de Datos y Correr Tests
+### 3. Instalar Dependencias y Ejecutar Pruebas
 ```bash
 # En el backend
 cd backend
-npm install
+npm ci
 
-# Ejecutar migraciones de base de datos
-npm run db:migrate
-
-# Ejecutar la suite actual: 46 pruebas en 10 suites
+# Ejecutar la suite actual; el reporte de CI es la fuente de verdad para el total
 npm test
 cd ..
 ```
 
 ### 4. Levantar el Stack Completo en Local
 ```bash
-# Levanta el stack local con acceso directo desde el host
+# Levanta el stack local. El override local es intencionalmente mínimo y queda
+# como punto de extensión para ajustes del desarrollador que no van a producción.
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
 ```
+
+El backend aplica las migraciones versionadas durante el arranque. Para ejecutarlas manualmente, espera a que PostgreSQL esté saludable y usa `npm --prefix backend run db:migrate` con el entorno configurado.
 
 ### 5. Acceso al Panel en Local
 * **Panel de Control Web:** [http://localhost:8088](http://localhost:8088)
@@ -348,7 +423,7 @@ flowchart LR
    - Abre un **Merge Request (MR)** en GitLab hacia la rama **`dev`** para revisión del equipo.
    - Una vez aprobado y probado en `dev`, se promueve a `staging` y posteriormente a `main`.
 3. **Versionado Oficial:**
-   - Cada release oficial en `main` debe ser etiquetado mediante tags semánticos (ej: `v55.9.1`).
+   - El repositorio parte de la versión base **`0.0.1`**. Las futuras releases de `main` seguirán versionado semántico.
 
 ---
 
@@ -375,7 +450,7 @@ pierdan acceso, sin ampliar permisos ni mezclar datos entre entornos.
 
 El pipeline de GitLab valida pruebas, contratos de seguridad, dependencias, Rust y Compose; no se conecta a producción ni ejecuta directamente el despliegue. La promoción sigue `feature -> dev -> staging -> main`. En el host de producción, un actualizador local consulta `origin/main`, acepta únicamente una actualización *fast-forward* con el árbol de trabajo limpio, ejecuta el script de despliegue revisado y registra el éxito o la reversión. Así, la actualización se aplica automáticamente después de promover a `main` sin conceder acceso directo a producción al runner de GitLab.
 
-### Actualización de imágenes maestras
+### Actualización de la caché completa de imágenes base
 
 ```bash
 # Actualización manual segura; no recrea contenedores activos de clientes
@@ -454,7 +529,7 @@ npm run security:routes
 
 ## 🤝 Contributors / Contribuidores
 * [@payniko24](https://gitlab.com/payniko24)
-* [@marioscience](https://github.com/marioscience)
+* Additional contributors are recorded in the private GitLab repository history.
 
 ---
 
