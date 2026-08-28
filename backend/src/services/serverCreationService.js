@@ -212,8 +212,11 @@ export async function createServerForUser(userId, payload = {}) {
     const containerName = `ragenodes-${shortId}`;
     const dataPath = path.join(config.instanceDataRoot, serverId);
     const slug = `${safeName.toLowerCase().replace(/\s+/g, '-')}-${shortId}`;
-    const licenseKey = String(payload.licenseKey || 'changeme');
-    const licenseKeyHint = licenseKey === 'changeme' ? 'hidden' : `***${licenseKey.slice(-4)}`;
+    const licenseKey = String(payload.licenseKey || '').trim();
+    if (template === 'fivem' && (!licenseKey || /^(?:change[_-]?me|hidden|example)$/i.test(licenseKey))) {
+      throw new Error('FiveM requiere una clave de licencia Cfx.re valida antes del despliegue.');
+    }
+    const licenseKeyHint = licenseKey ? `***${licenseKey.slice(-4)}` : 'not-required';
     let txAdminUrl = getPublicEndpointUrl(template === 'fivem' ? txAdminPort : gamePort, { path: '' });
     const blenderPass = generateSecurePassword();
     const needsMariaDatabase = template === 'fivem' || template === 'ark';
