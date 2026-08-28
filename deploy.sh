@@ -36,6 +36,21 @@ if [ "${BACKUP_REMOTE_ENABLED:-false}" = "true" ]; then
   COMPOSE+=(-f docker-compose.backup-remote.yml)
 fi
 
+REGISTRY_DEPLOY=false
+REGISTRY_RELEASE_FILE="${RAGENODES_REGISTRY_RELEASE_FILE:-deploy/registry-release.lock}"
+if [ "${RAGENODES_REGISTRY_DEPLOY_ENABLED:-true}" = "true" ] && [ -f "$REGISTRY_RELEASE_FILE" ]; then
+  load_env_file "$REGISTRY_RELEASE_FILE"
+  if bash ./scripts/registry/prepare_runtime_images.sh; then
+    COMPOSE+=(-f docker-compose.registry.yml)
+    REGISTRY_DEPLOY=true
+  elif [ "${RAGENODES_REGISTRY_REQUIRED:-false}" = "true" ]; then
+    echo "ERROR: Registry deployment is required and the reviewed images are unavailable." >&2
+    exit 1
+  else
+    echo "WARNING: Registry unavailable; falling back to a local application build." >&2
+  fi
+fi
+
 wait_for_service() {
   local service="$1"
   local timeout_seconds="$2"
@@ -97,8 +112,12 @@ wait_for_service redis 60
 echo "==> 🧱 Verificando imágenes base para nuevas instancias..."
 RUNTIME_DOCKER_NETWORK="${DOCKER_NETWORK:-ragenodes_net}" bash ./scripts/ensure_base_images.sh
 
-echo "==> 🚀 Reconstruyendo únicamente los servicios de aplicación..."
-"${COMPOSE[@]}" build "${APP_SERVICES[@]}"
+if [ "$REGISTRY_DEPLOY" = "true" ]; then
+  echo "==> Using precompiled, digest-pinned GitLab Registry images."
+else
+  echo "==> Reconstruyendo unicamente los servicios de aplicacion..."
+  "${COMPOSE[@]}" build "${APP_SERVICES[@]}"
+fi
 
 echo "==> 🌐 Aplicando solo las imágenes o configuraciones que cambiaron..."
 "${COMPOSE[@]}" up -d --no-deps "${APP_SERVICES[@]}"

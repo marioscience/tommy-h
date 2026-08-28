@@ -15,11 +15,15 @@ Digest references are mandatory. Mutable tags such as `latest`, `main` or
 through development, staging and production without recompilation or image
 drift.
 
-## Current safe rollout
+## Active rollout
 
-This first phase does not change the active deployment scripts. Source builds
-remain the default and provide the manual recovery path while the registry path
-is tested on `niko-local`. The registry overlays can be validated with:
+`deploy.sh` and `deploy_staging.sh` load the reviewed
+`deploy/registry-release.lock`, download every application image by immutable
+digest and apply the corresponding Compose overlay. Existing databases,
+customer volumes and game containers are not replaced. A source build remains
+available only as a recovery path when `RAGENODES_REGISTRY_REQUIRED=false`.
+
+The registry overlays can be validated with:
 
 ```bash
 set -a
@@ -30,9 +34,15 @@ docker compose -f docker-compose.yml -f docker-compose.registry.yml config --qui
 docker compose -f docker-compose.staging.yml -f docker-compose.registry.staging.yml config --quiet
 ```
 
-Do not run `up` with the overlays until the release manifest belongs to a
-reviewed commit and the private-registry credentials are installed on the target
-host. The normal production data volumes are not stored in the registry.
+Set `RAGENODES_REGISTRY_REQUIRED=true` after read-only private-registry
+credentials have been installed on a target to prevent silent source-build
+fallback. The normal production data volumes are not stored in the registry.
+
+For every application release, promote the `registry-release.env` artifact
+created by the successful `niko-local` package pipeline to
+`deploy/registry-release.lock` in the reviewed merge request. Never edit a
+digest by hand or point this lock at mutable tags. Staging and production then
+consume the same four digests, preserving build-once semantics.
 
 ## Master game images
 
