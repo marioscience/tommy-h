@@ -2496,7 +2496,11 @@ function toggleSidebar() {
         async function openBlender(id) {
             try {
                 const data = await Nexus.api(`/api/servers/${id}/blender-access`);
-                blenderPendingUrl = `/blender/${data.shortId}/?t=${Date.now()}`;
+                const blenderPort = Number.parseInt(data.port, 10);
+                if (!Number.isInteger(blenderPort) || blenderPort < 1 || blenderPort > 65535) {
+                    throw new Error('Puerto Blender no valido.');
+                }
+                blenderPendingUrl = `/blender/${data.shortId}/?port=${encodeURIComponent(blenderPort)}&t=${Date.now()}`;
 
                 document.getElementById('blender-tab-user').innerText = data.user;
                 document.getElementById('blender-tab-pass').innerText = data.password;

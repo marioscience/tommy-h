@@ -781,9 +781,19 @@ async fn handle_http_request(
         if parts.len() >= 3 {
             let short_id = parts[2];
             if short_id.len() == 8 && short_id.chars().all(|c| c.is_ascii_hexdigit()) {
-                let target_addr = format!("ragenodes-blender-{}:3000", short_id);
+                let blender_start = env_port("OXIDE_BLENDER_PORT_START", 50100);
+                let blender_end = env_port("OXIDE_BLENDER_PORT_END", 59999);
+                let published_port = req.uri().query().and_then(|query| {
+                    url::form_urlencoded::parse(query.as_bytes())
+                        .find(|(key, _)| key == "port")
+                        .and_then(|(_, value)| value.parse::<u16>().ok())
+                        .filter(|port| *port >= blender_start && *port <= blender_end)
+                });
+                let target_addr = published_port
+                    .map(|port| dynamic_backend_addr(host_without_port, port))
+                    .unwrap_or_else(|| format!("ragenodes-blender-{}:3000", short_id));
                 tracing::debug!(
-                    "Enrutando petición Blender al contenedor {}...",
+                    "Enrutando petición Blender al backend validado {}...",
                     target_addr
                 );
                 let mut response = reverse_proxy_request(req, target_addr, None, peer_addr).await?;
