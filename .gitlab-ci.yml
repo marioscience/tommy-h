@@ -127,6 +127,7 @@ registry_publish_niko:
   image: docker:27.5.1-cli
   variables:
     DOCKER_BUILDKIT: "1"
+    DOCKER_HOST: unix:///var/run/docker.sock
   rules:
   - if: '$CI_COMMIT_BRANCH == "niko-local"'
   script:
