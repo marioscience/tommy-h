@@ -21,6 +21,7 @@ const files = Object.fromEntries(await Promise.all([
   'backend/src/services/games/valheim.js',
   'oxideproxy/config/oxide_proxy.yml',
   'oxideproxy/src/config.rs',
+  'oxideproxy/src/access_gate.rs',
   'oxideproxy/src/pipeline/mod.rs',
   'oxideproxy/src/pipeline/http_server.rs',
   'oxideproxy/node_panel/server.js',
@@ -65,6 +66,14 @@ assert(!files['oxideproxy/config/oxide_proxy.yml'].includes('10.5.0.10:9001'), '
 assert(files['oxideproxy/config/oxide_proxy.yml'].includes('default_web_backend: backend:3006'), 'OxideProxy resolves the portable backend network alias');
 assert(files['oxideproxy/src/config.rs'].includes('ProxyConfig::load') || files['oxideproxy/src/config.rs'].includes('pub fn load('), 'OxideProxy exposes a fallible configuration loader');
 assert(!files['oxideproxy/src/config.rs'].includes('pub fn load_or_default'), 'OxideProxy cannot silently fall back after a configuration error');
+for (const composeFile of ['docker-compose.yml', 'docker-compose.staging.yml']) {
+  assert(files[composeFile].includes('ACCESS_GATE_ENABLED=${ACCESS_GATE_ENABLED:-true}'), `${composeFile} keeps the development access gate enabled by default`);
+  assert(files[composeFile].includes('ACCESS_GATE_DOMAIN=${ACCESS_GATE_DOMAIN:-ragenodes.dev}'), `${composeFile} protects the canonical development domain`);
+  assert(files[composeFile].includes('ACCESS_GATE_ALLOWED_EMAIL_DOMAIN=${ACCESS_GATE_ALLOWED_EMAIL_DOMAIN:-ragenodes.com}'), `${composeFile} restricts OTP delivery to the corporate email domain`);
+}
+assert(files['oxideproxy/src/access_gate.rs'].includes('DEFAULT_ALLOWED_EMAIL_DOMAIN: &str = "ragenodes.com"'), 'access gate fails closed to the corporate email domain');
+assert(files['oxideproxy/src/access_gate.rs'].includes('if attempts >= 3'), 'access gate blacklists an IP after three invalid email attempts');
+assert(files['oxideproxy/src/access_gate.rs'].includes('const SESSION_TTL_SECS: u64 = 24 * 60 * 60'), 'access gate grants only a 24-hour verified session');
 const proxyPipeline = files['oxideproxy/src/pipeline/mod.rs'];
 const dedicatedTcpRoute = proxyPipeline.indexOf('if let Some(backend_addr) = specific_backend');
 const tlsDetection = proxyPipeline.indexOf("buffer[0] == 0x16");
