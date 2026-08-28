@@ -13,6 +13,8 @@ import {
 } from './serverService.js';
 import { checkSystemLoad } from './serverCreationService.js';
 import { getFolderSize } from './serverNodeSelection.js';
+import { assertNodeStartCapacity } from './nodeResourcePolicy.js';
+import { getPlanRamGb, resolveServerPlan } from './serverPlanPolicy.js';
 import { GameFactory } from './games/GameFactory.js';
 import { getPublicEndpointUrl } from './publicEndpointService.js';
 const MAINTENANCE_INTERVAL_MS = Math.max(300000, Number(process.env.MAINTENANCE_INTERVAL_MS || 600000));
@@ -37,6 +39,11 @@ export async function controlServer(id, userId, action, isAdmin) {
 
   if (action === 'start') {
       checkSystemLoad();
+      const allocatedRamGb = Number(s.allocated_ram_gb);
+      const requiredRamGb = Number.isFinite(allocatedRamGb) && allocatedRamGb > 0
+          ? allocatedRamGb
+          : getPlanRamGb(resolveServerPlan(s.runtime_plan).plan);
+      await assertNodeStartCapacity(s.node_id, requiredRamGb);
       try {
           await Docker.startContainer(s.container_name);
 
@@ -187,6 +194,11 @@ if (process.env.RAGENODES_ROLE === 'worker-docker-events') setInterval(async () 
                     if (state.exists) {
                         const inspect = state.inspect || await Docker.inspectContainer(s.container_name);
                         const portBindings = inspect.HostConfig.PortBindings || {};
+
+                        if (state.running && ['error', 'offline'].includes(s.status)) {
+                            await query("UPDATE servers SET status = 'running' WHERE id = $1", [s.id]);
+                            s.status = 'running';
+                        }
 
                         // 🛡️ Si el contenedor existe pero está apagado (Exited/Dead), se debe reparar de inmediato
                         if (!state.running) {
