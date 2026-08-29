@@ -203,6 +203,9 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0) {
             } catch (reflinkErr) {
                 console.warn(`⚠️ [${gameName.toUpperCase()}] Reflinks no disponibles (${reflinkErr.message}). Intentando Hard links...`);
                 try {
+                    if (gameName === 'ark') {
+                        throw new Error('ARK requiere una copia independiente para Proton');
+                    }
                     await runRemoteCommand(nodeId, sh`cp -al ${masterPath + '/.'} ${dataPath + '/'}`);
                 } catch (linkErr) {
                     console.warn(`⚠️ [${gameName.toUpperCase()}] Hard links no disponibles (${linkErr.message}). Copiando desde plantilla maestra normal...`);
