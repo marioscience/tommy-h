@@ -3,6 +3,15 @@ import { config } from '../../config.js';
 import { saveSDTDConfig } from '../sdtdService.js';
 import { prepareGameProxyBindings } from '../gameProxyPolicy.js';
 
+export function buildSDTDInstallationCheck(dataPath) {
+    const requiredFiles = [
+        `${dataPath}/7dtd/7DaysToDieServer.x86_64`,
+        `${dataPath}/7dtd/UnityPlayer.so`,
+        `${dataPath}/7dtd/7DaysToDieServer_Data/globalgamemanagers`
+    ];
+    return sh`if [ -x ${requiredFiles[0]} ] && [ -r ${requiredFiles[1]} ] && [ -r ${requiredFiles[2]} ]; then printf yes; else printf no; fi`;
+}
+
 async function normalizeSDTDDataOwnership(docker, image, dataPath, serverId) {
     const helperName = `ragenodes-sdtd-permissions-${String(serverId || Date.now()).slice(0, 12)}`;
     let helper;
@@ -38,8 +47,11 @@ export async function createSDTDContainer(containerName, serverId, gamePort, pla
     await cloneFromMasterTemplate('sdtd', dataPath, nodeId);
     const installed = commandStdout(await runRemoteCommand(
         nodeId,
-        sh`if [ -x ${dataPath + '/7dtd/7DaysToDieServer.x86_64'} ]; then printf yes; else printf no; fi`
+        buildSDTDInstallationCheck(dataPath)
     )).trim() === 'yes';
+    if (!installed) {
+        console.warn('[7DTD] Instalacion ausente o incompleta; SteamCMD la validara antes del primer arranque.');
+    }
 
     try {
         await docker.getImage(config.sdtdBaseImage).inspect();

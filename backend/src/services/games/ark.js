@@ -1,4 +1,4 @@
-import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, detachMutableTemplatePath, deriveServicePassword, sh } from '../dockerUtils.js';
+import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, detachMutableTemplatePath, normalizeBindOwnership, deriveServicePassword, sh } from '../dockerUtils.js';
 import path from 'path';
 import { config } from '../../config.js';
 
@@ -57,6 +57,9 @@ export function buildARKHostConfig(opts, clusterBinds = []) {
         ShmSize: 1024 * 1024 * 1024,
         BlkioWeight: 100,
         ...GAME_SECURITY_CONFIG,
+        // Proton/Wine necesita preparar su prefix con cambios de identidad.
+        // Esta excepcion se limita a ARK; el resto de servicios conserva NNP.
+        SecurityOpt: [],
         CapAdd: ARK_CAPABILITIES,
         PidsLimit: 2048,
         Init: true
@@ -75,6 +78,14 @@ function normalizeArkMapName(value) {
 
 export async function createARKContainer(opts) {
     const docker = await getNodeConnection(opts.nodeId || 0);
+
+    try { await docker.getImage(config.arkBaseImage).inspect(); }
+    catch (e) {
+        console.log(`🚚 [Docker] Descargando imagen ${config.arkBaseImage}...`);
+        const stream = await docker.pull(config.arkBaseImage);
+        await new Promise((resolve, reject) => { docker.modem.followProgress(stream, (err, res) => err ? reject(err) : resolve(res)); });
+    }
+
     await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath} && chown -R 1000:1000 ${opts.dataPath}`);
 
     await cloneFromMasterTemplate('ark', opts.dataPath, opts.nodeId);
@@ -87,7 +98,8 @@ export async function createARKContainer(opts) {
     await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${win64Path}`);
     await detachMutableTemplatePath(path.join(shooterPath, 'Saved'), opts.nodeId);
     await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath + '/compatdata/2430930'}`);
-    await runRemoteCommand(opts.nodeId || 0, sh`chown -R 1000:1000 ${opts.dataPath}`);
+    await runRemoteCommand(opts.nodeId || 0, sh`rm -f ${opts.dataPath + '/compatdata/2430930/pfx.lock'}`);
+    await normalizeBindOwnership(docker, config.arkBaseImage, opts.dataPath, '1000:1000', 'ark');
 
     try {
         const baseAppId = path.join(baseArkPath, 'steam_appid.txt');
@@ -106,13 +118,6 @@ export async function createARKContainer(opts) {
         await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${clusterDir}`).catch(() => {});
         try { await runRemoteCommand(opts.nodeId || 0, sh`chown -R 1000:1000 ${clusterDir}`); } catch (e) {}
         clusterBinds.push(`${clusterDir}:/home/steam/Steam/steamapps/common/ARK Survival Ascended Dedicated Server/ShooterGame/Saved/clusters/${opts.clusterId}`);
-    }
-
-    try { await docker.getImage(config.arkBaseImage).inspect(); }
-    catch (e) {
-        console.log(`🚚 [Docker] Descargando imagen ${config.arkBaseImage}...`);
-        const stream = await docker.pull(config.arkBaseImage);
-        await new Promise((resolve, reject) => { docker.modem.followProgress(stream, (err, res) => err ? reject(err) : resolve(res)); });
     }
 
     let mapName = 'TheIsland_WP';
