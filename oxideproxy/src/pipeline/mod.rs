@@ -358,5 +358,7 @@ pub async fn process_udp_packet_inline(
         return;
     }
 
-    tracing::warn!("Datagrama UDP de {} no coincide con ningun GameID conocido o en crudo ni QUIC. Descartando o enviando a log.", peer_addr);
+    // Un paquete desconocido es ruido de Internet normal. Mantenerlo en debug
+    // evita amplificación de I/O y disco durante escaneos o ataques UDP.
+    tracing::debug!("Datagrama UDP de {} no coincide con ningun GameID conocido o en crudo ni QUIC. Descartando.", peer_addr);
 }

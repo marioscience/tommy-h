@@ -233,7 +233,8 @@ services:
       context: ./oxideproxy
     image: ragenodes/oxideproxy:1.0.0-local
     restart: unless-stopped
-    user: "65532:65532"
+    # Necesario para cargar mapas/programas XDP; cap_drop limita el proceso.
+    user: "0:0"
     network_mode: host
     environment:
       - OXIDE_LOG_DIR=/app/runtime/logs
@@ -253,6 +254,7 @@ services:
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
+    cap_add: [NET_ADMIN, BPF, PERFMON]
 
   oxide_web_staging:
     build:

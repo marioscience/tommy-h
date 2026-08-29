@@ -49,6 +49,7 @@ frontend/public/*_backup.html
 target/
 backend/rust-util/target/
 oxideproxy/target/
+oxideproxy/artifacts/
 
 # Local backup and dump artifacts
 *.before-*

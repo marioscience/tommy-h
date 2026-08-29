@@ -7,6 +7,8 @@ const files = Object.fromEntries(await Promise.all([
   'backend/Dockerfile',
   'fivem-base/Dockerfile',
   'oxideproxy/Dockerfile',
+  'oxideproxy/ebpf/src/main.rs',
+  'oxideproxy/src/ebpf_xdp.rs',
   '.env.example',
   'deploy.sh',
   'deploy_staging.sh',
@@ -64,6 +66,9 @@ assert(files['backend/Dockerfile'].includes('AS backup-remote'), 'rclone is isol
 assert(!/RUN apk add[^\n]*rclone/.test(files['backend/Dockerfile'].split('AS backup-remote')[0]), 'default backend runtime excludes rclone');
 assert(files['docker-compose.backup-remote.yml'].includes('target: backup-remote'), 'remote backup overlay selects the isolated rclone runtime');
 assert(files['oxideproxy/Dockerfile'].includes('USER 65532:65532'), 'OxideProxy image runs as a non-root user');
+assert(files['oxideproxy/Dockerfile'].includes('/app/oxide-ebpf.o'), 'OxideProxy image embeds the compiled XDP object');
+assert(files['oxideproxy/ebpf/src/main.rs'].includes('#[xdp]') && files['oxideproxy/ebpf/src/main.rs'].includes('XDP_DROP'), 'OxideProxy implements a real kernel XDP program');
+assert(files['oxideproxy/src/ebpf_xdp.rs'].includes('Ebpf::load_file') && files['oxideproxy/src/ebpf_xdp.rs'].includes('program.attach'), 'OxideProxy loads and attaches XDP instead of simulating it');
 assert(files['oxideproxy/config/oxide_proxy.yml'].includes('game_servers: []'), 'OxideProxy active config starts without laboratory routes');
 for (const configFile of ['oxideproxy/config/oxide_proxy.yml', 'oxideproxy/game_config/oxide_proxy.yml', 'oxide_web/config/oxide_proxy.yml']) {
   const config = files[configFile];
@@ -155,6 +160,10 @@ const stagingControlPanelOverride = files['docker-compose.staging.yml'].match(/\
 assert(!stagingControlPanelOverride.includes('security_opt:'), 'staging does not duplicate inherited control-panel security options');
 assert(!stagingControlPanelOverride.includes('cap_drop:'), 'staging does not duplicate inherited control-panel capability drops');
 assert(files['docker-compose.yml'].includes('network_mode: host'), 'Oxide Game can bind active public game ports without broad Docker ranges');
+const productionGameProxy = files['docker-compose.yml'].match(/\r?\n  oxide_game:\r?\n([\s\S]*?)(?=\r?\n  oxide_web:)/)?.[1] || '';
+assert(productionGameProxy.includes('user: "0:0"'), 'Oxide Game uses the loader identity required by the kernel');
+assert(productionGameProxy.includes('cap_drop: [ALL]'), 'Oxide Game drops every ambient capability');
+assert(productionGameProxy.includes('cap_add: [NET_ADMIN, BPF, PERFMON]') && !productionGameProxy.includes('SYS_ADMIN'), 'Oxide Game receives only the bounded XDP capabilities');
 assert(files['docker-compose.staging.yml'].includes('OXIDE_GAME_PROXY_ENABLED: ${OXIDE_GAME_PROXY_ENABLED:-false}'), 'staging game proxy migration remains opt-in');
 assert(files['backend/src/routes/discord.js'].includes("ragenodes.game_proxy'] !== 'enabled'"), 'route inventory excludes containers that still occupy public ports');
 assert(!files['oxideproxy/node_panel/server.js'].includes('baseConns ='), 'Oxide telemetry never fabricates active players');

@@ -1,0 +1,30 @@
+ingress:
+  tcp_listen_addr: 0.0.0.0:8443
+  udp_listen_addr: 0.0.0.0:8080
+  max_concurrent_connections: 1000
+  initial_buffer_size: 4096
+routing:
+  default_web_backend: 127.0.0.1:3006
+  game_servers: []
+tls:
+  cert_path: /app/config/certs/cert.pem
+  key_path: /app/config/certs/key.pem
+runtime:
+  worker_threads: 2
+  enable_core_pinning: false
+advanced_tuning:
+  ebpf_xdp:
+    enabled: true
+    interface: eth0
+    ddos_mitigation_mode: STRICT_GAMING
+    max_packet_rate_per_ip: 10000
+  tcp_settings:
+    tcp_nodelay: true
+    keepalive_interval_secs: 30
+    congestion_control: bbr
+  security:
+    rate_limit_conns_per_ip: 50
+    blacklist_enabled: true
+    handshake_timeout_ms: 1500
+    # Docker Desktop publishes host traffic through the default bridge gateway.
+    blacklisted_ips: [172.17.0.1]

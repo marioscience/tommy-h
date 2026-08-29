@@ -76,7 +76,7 @@ fn resolve_backend(backend_addr: &str) -> std::io::Result<SocketAddr> {
     })
 }
 
-pub async fn forward_tcp<S>(mut client_stream: S, buffer: bytes::BytesMut, backend_addr: &str)
+pub async fn forward_tcp<S>(client_stream: S, buffer: bytes::BytesMut, backend_addr: &str)
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {

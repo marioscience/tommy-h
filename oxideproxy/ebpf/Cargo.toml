@@ -1,0 +1,18 @@
+[package]
+name = "oxide-ebpf"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "oxide-ebpf"
+path = "src/main.rs"
+
+[dependencies]
+aya-ebpf = "0.1.1"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = 3
