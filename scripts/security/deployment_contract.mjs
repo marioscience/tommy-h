@@ -69,6 +69,9 @@ assert(!/RUN apk add[^\n]*rclone/.test(files['backend/Dockerfile'].split('AS bac
 assert(files['docker-compose.backup-remote.yml'].includes('target: backup-remote'), 'remote backup overlay selects the isolated rclone runtime');
 assert(files['oxideproxy/Dockerfile'].includes('USER 65532:65532'), 'OxideProxy image runs as a non-root user');
 assert(files['oxideproxy/Dockerfile'].includes('/app/oxide-ebpf.o'), 'OxideProxy image embeds the compiled XDP object');
+assert(files['oxideproxy/Dockerfile'].includes('RUST_NIGHTLY_TOOLCHAIN=nightly-2026-08-29'), 'OxideProxy pins its eBPF Rust nightly for reproducible builds');
+assert(files['oxideproxy/Dockerfile'].includes('while ! RUSTUP_MAX_RETRIES=5 rustup toolchain install'), 'OxideProxy retries interrupted Rust toolchain downloads');
+assert(files['oxideproxy/Dockerfile'].includes('--retry 5 --retry-all-errors'), 'OxideProxy retries verified bpf-linker downloads');
 assert(files['oxideproxy/ebpf/src/main.rs'].includes('#[xdp]') && files['oxideproxy/ebpf/src/main.rs'].includes('XDP_DROP'), 'OxideProxy implements a real kernel XDP program');
 assert(files['oxideproxy/src/ebpf_xdp.rs'].includes('Ebpf::load_file') && files['oxideproxy/src/ebpf_xdp.rs'].includes('program.attach'), 'OxideProxy loads and attaches XDP instead of simulating it');
 assert(files['oxideproxy/config/oxide_proxy.yml'].includes('game_servers: []'), 'OxideProxy active config starts without laboratory routes');
