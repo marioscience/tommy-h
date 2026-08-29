@@ -59,9 +59,18 @@ run_kaniko() {
   fi
 }
 
+reset_kaniko_workspace() {
+  # A failed executor run can leave extracted stages behind. Reusing that
+  # workspace makes the cache-free retry fail on files and symlinks that were
+  # already created by the first attempt (for example node_modules/.bin).
+  # Keep /kaniko/.docker and the executor itself; only discard build state.
+  rm -rf /kaniko/0 /kaniko/stages
+}
+
 if ! run_kaniko true; then
   echo "Kaniko cache build failed; retrying once without cached layers." >&2
   rm -f "$digest_file"
+  reset_kaniko_workspace
   run_kaniko false
 fi
 

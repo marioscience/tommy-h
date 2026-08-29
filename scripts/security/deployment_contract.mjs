@@ -124,6 +124,7 @@ assert(files['scripts/registry/prepare_runtime_images.sh'].includes('grep -Fx "$
 assert(files['scripts/registry/build_and_push_kaniko.sh'].includes('if ! run_kaniko true'), 'Registry builds detect a failed cached Kaniko attempt');
 assert(files['scripts/registry/build_and_push_kaniko.sh'].includes('run_kaniko false'), 'Registry builds retry once without a potentially corrupt cache');
 assert(files['scripts/registry/build_and_push_kaniko.sh'].includes('rm -f "$digest_file"'), 'Kaniko recovery discards a stale digest before retrying');
+assert(files['scripts/registry/build_and_push_kaniko.sh'].includes('rm -rf /kaniko/0 /kaniko/stages'), 'Kaniko recovery clears partial build stages before retrying');
 assert(files['auto_update_staging.sh'].includes('git -c gc.auto=0 fetch'), 'staging updater cannot leak its deployment lock into background Git maintenance');
 assert(files['auto_update_staging.sh'].includes('RUNTIME_CONFIG="oxideproxy/game_config/oxide_proxy.yml"'), 'staging updater identifies the OxideProxy runtime config explicitly');
 assert(files['auto_update_staging.sh'].includes('\":(exclude)$RUNTIME_CONFIG\"'), 'staging updater permits only the generated OxideProxy config outside the clean-worktree guard');
