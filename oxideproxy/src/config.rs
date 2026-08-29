@@ -296,7 +296,12 @@ impl ProxyConfig {
 
         self.routing.default_web_backend_addr = default_web_addr;
         self.routing.game_servers_map = map;
-        self.runtime.enable_core_pinning = detect_core_pinning();
+        // El valor persistido en YAML es la fuente de verdad. Solo una variable
+        // de entorno explicita puede sustituirlo para operaciones de emergencia.
+        if let Ok(value) = std::env::var("OXIDE_CORE_PINNING") {
+            self.runtime.enable_core_pinning =
+                value.eq_ignore_ascii_case("true") || value == "1";
+        }
         Ok(self)
     }
 }
@@ -339,5 +344,17 @@ mod tests {
             protocol: Some("SCTP".into()),
         });
         assert!(config.validate_and_hydrate().is_err());
+    }
+
+    #[test]
+    fn persisted_core_pinning_is_not_overwritten_during_hydration() {
+        std::env::remove_var("OXIDE_CORE_PINNING");
+        let mut enabled = ProxyConfig::default();
+        enabled.runtime.enable_core_pinning = true;
+        assert!(enabled.validate_and_hydrate().unwrap().runtime.enable_core_pinning);
+
+        let mut disabled = ProxyConfig::default();
+        disabled.runtime.enable_core_pinning = false;
+        assert!(!disabled.validate_and_hydrate().unwrap().runtime.enable_core_pinning);
     }
 }
