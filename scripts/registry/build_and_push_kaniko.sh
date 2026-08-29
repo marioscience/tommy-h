@@ -35,15 +35,35 @@ registry_auth="$(printf '%s:%s' "$CI_REGISTRY_USER" "$CI_REGISTRY_PASSWORD" | ba
 printf '{"auths":{"%s":{"auth":"%s"}}}\n' "$CI_REGISTRY" "$registry_auth" > "$docker_config_dir/config.json"
 chmod 600 "$docker_config_dir/config.json"
 
-/kaniko/executor \
-  --context "$CI_PROJECT_DIR/$BUILD_CONTEXT" \
-  --dockerfile "$CI_PROJECT_DIR/$BUILD_CONTEXT/Dockerfile" \
-  --destination "$image_ref" \
-  --cache=true \
-  --cache-repo "$cache_ref" \
-  --digest-file "$digest_file" \
-  --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" \
-  --label "org.opencontainers.image.source=${CI_PROJECT_URL:-local}"
+run_kaniko() {
+  cache_enabled="$1"
+  if [ "$cache_enabled" = "true" ]; then
+    /kaniko/executor \
+      --context "$CI_PROJECT_DIR/$BUILD_CONTEXT" \
+      --dockerfile "$CI_PROJECT_DIR/$BUILD_CONTEXT/Dockerfile" \
+      --destination "$image_ref" \
+      --cache=true \
+      --cache-repo "$cache_ref" \
+      --digest-file "$digest_file" \
+      --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" \
+      --label "org.opencontainers.image.source=${CI_PROJECT_URL:-local}"
+  else
+    /kaniko/executor \
+      --context "$CI_PROJECT_DIR/$BUILD_CONTEXT" \
+      --dockerfile "$CI_PROJECT_DIR/$BUILD_CONTEXT/Dockerfile" \
+      --destination "$image_ref" \
+      --cache=false \
+      --digest-file "$digest_file" \
+      --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" \
+      --label "org.opencontainers.image.source=${CI_PROJECT_URL:-local}"
+  fi
+}
+
+if ! run_kaniko true; then
+  echo "Kaniko cache build failed; retrying once without cached layers." >&2
+  rm -f "$digest_file"
+  run_kaniko false
+fi
 
 digest="$(tr -d '\r\n' < "$digest_file")"
 case "$digest" in
