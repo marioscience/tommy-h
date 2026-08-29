@@ -13,6 +13,7 @@ STAGING_DATA_ROOT="${STAGING_INSTANCE_DATA_ROOT:-/srv/ragenodes-staging-data}"
 mkdir -p "$STAGING_DATA_ROOT/templates"
 
 APP_SERVICES=(
+  phpmyadmin-staging
   backend-staging
   worker-docker-events-staging
   worker-stats-staging

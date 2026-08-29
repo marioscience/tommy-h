@@ -34,6 +34,7 @@ const files = Object.fromEntries(await Promise.all([
   'scripts/ensure_base_images.sh',
   'scripts/update_image_cache.sh',
   'scripts/registry/prepare_runtime_images.sh',
+  'scripts/registry/build_and_push_kaniko.sh',
   'deploy/registry-release.lock',
   'scripts/load_env.sh',
   'scripts/security/production_preflight.sh',
@@ -68,6 +69,9 @@ assert(!/RUN apk add[^\n]*rclone/.test(files['backend/Dockerfile'].split('AS bac
 assert(files['docker-compose.backup-remote.yml'].includes('target: backup-remote'), 'remote backup overlay selects the isolated rclone runtime');
 assert(files['oxideproxy/Dockerfile'].includes('USER 65532:65532'), 'OxideProxy image runs as a non-root user');
 assert(files['oxideproxy/Dockerfile'].includes('/app/oxide-ebpf.o'), 'OxideProxy image embeds the compiled XDP object');
+assert(files['oxideproxy/Dockerfile'].includes('RUST_NIGHTLY_TOOLCHAIN=nightly-2026-08-29'), 'OxideProxy pins its eBPF Rust nightly for reproducible builds');
+assert(files['oxideproxy/Dockerfile'].includes('while ! RUSTUP_MAX_RETRIES=5 rustup toolchain install'), 'OxideProxy retries interrupted Rust toolchain downloads');
+assert(files['oxideproxy/Dockerfile'].includes('--retry 5 --retry-all-errors'), 'OxideProxy retries verified bpf-linker downloads');
 assert(files['oxideproxy/ebpf/src/main.rs'].includes('#[xdp]') && files['oxideproxy/ebpf/src/main.rs'].includes('XDP_DROP'), 'OxideProxy implements a real kernel XDP program');
 assert(files['oxideproxy/src/ebpf_xdp.rs'].includes('Ebpf::load_file') && files['oxideproxy/src/ebpf_xdp.rs'].includes('program.attach'), 'OxideProxy loads and attaches XDP instead of simulating it');
 assert(files['oxideproxy/config/oxide_proxy.yml'].includes('game_servers: []'), 'OxideProxy active config starts without laboratory routes');
@@ -80,6 +84,7 @@ for (const configFile of ['oxideproxy/config/oxide_proxy.yml', 'oxideproxy/game_
 assert(files['oxideproxy/node_panel/public/app.js'].includes('JSON.stringify({ ebpf_xdp, security, runtime })'), 'Firewall controls persist the CPU affinity toggle');
 assert(files['oxideproxy/node_panel/public/app.js'].includes('enabled: true'), 'Applying firewall controls enables the in-memory L4 mitigation engine');
 assert(files['oxideproxy/node_panel/server.js'].includes("typeof runtime.enable_core_pinning === 'boolean'"), 'Oxide control plane validates and stores CPU affinity');
+assert(files['oxideproxy/src/pipeline/http_server.rs'].includes("frame-src 'self' https://ragenodes.app https://*.ragenodes.app https://ragenodes.dev https://*.ragenodes.dev https://ragenodes.com https://*.ragenodes.com"), 'panel CSP permits both RageNodes apex domains and their subdomains');
 assert(!files['oxideproxy/config/oxide_proxy.yml'].includes('10.5.0.10:9001'), 'OxideProxy active config excludes mock game backends');
 assert(files['oxideproxy/config/oxide_proxy.yml'].includes('default_web_backend: backend:3006'), 'OxideProxy resolves the portable backend network alias');
 assert(files['oxideproxy/src/config.rs'].includes('ProxyConfig::load') || files['oxideproxy/src/config.rs'].includes('pub fn load('), 'OxideProxy exposes a fallible configuration loader');
@@ -116,6 +121,9 @@ for (const ref of files['deploy/registry-release.lock'].match(/registry\.gitlab\
 }
 assert(files['scripts/registry/prepare_runtime_images.sh'].includes('docker pull "$ref"'), 'Registry release images are downloaded before application recreation');
 assert(files['scripts/registry/prepare_runtime_images.sh'].includes('grep -Fx "$ref"'), 'downloaded Registry images are verified against the reviewed digest');
+assert(files['scripts/registry/build_and_push_kaniko.sh'].includes('if ! run_kaniko true'), 'Registry builds detect a failed cached Kaniko attempt');
+assert(files['scripts/registry/build_and_push_kaniko.sh'].includes('run_kaniko false'), 'Registry builds retry once without a potentially corrupt cache');
+assert(files['scripts/registry/build_and_push_kaniko.sh'].includes('rm -f "$digest_file"'), 'Kaniko recovery discards a stale digest before retrying');
 assert(files['auto_update_staging.sh'].includes('git -c gc.auto=0 fetch'), 'staging updater cannot leak its deployment lock into background Git maintenance');
 assert(files['auto_update_staging.sh'].includes('RUNTIME_CONFIG="oxideproxy/game_config/oxide_proxy.yml"'), 'staging updater identifies the OxideProxy runtime config explicitly');
 assert(files['auto_update_staging.sh'].includes('\":(exclude)$RUNTIME_CONFIG\"'), 'staging updater permits only the generated OxideProxy config outside the clean-worktree guard');
@@ -208,6 +216,15 @@ for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
 
 assert(files['docker-compose.yml'].includes('oxide_game_runtime_init:'), 'production declares an isolated OxideProxy runtime initializer');
 assert(files['docker-compose.staging.yml'].includes('oxide_game_runtime_init_staging:'), 'staging declares an isolated OxideProxy runtime initializer');
+assert(files['docker-compose.staging.yml'].includes('phpmyadmin-staging:'), 'staging declares its isolated phpMyAdmin service');
+assert(/phpmyadmin-staging:[\s\S]*?aliases:\s*\n\s*- phpmyadmin/.test(files['docker-compose.staging.yml']), 'staging exposes phpMyAdmin through the internal proxy alias');
+assert(files['docker-compose.staging.yml'].includes('STAGING_PUBLIC_BASE_URL:-https://panel.ragenodes.dev'), 'staging phpMyAdmin keeps redirects on the staging panel origin');
+assert(files['deploy_staging.sh'].includes('  phpmyadmin-staging'), 'staging deploys phpMyAdmin automatically');
+for (const composeFile of ['docker-compose.yml', 'docker-compose.staging.yml']) {
+  const compose = files[composeFile];
+  assert(compose.includes('chown -R 0:${APP_GID:-1000} /runtime'), `${composeFile} grants the unprivileged control panel group access to runtime telemetry`);
+  assert(compose.includes('chmod 2750 /runtime /runtime/logs'), `${composeFile} preserves the telemetry group on new metrics and trace files`);
+}
 
 if (failures) {
   console.error(`Deployment security contract failed: ${failures} finding(s).`);
