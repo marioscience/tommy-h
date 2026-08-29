@@ -12,8 +12,8 @@ export function buildSDTDInstallationCheck(dataPath) {
     return sh`if [ -x ${requiredFiles[0]} ] && [ -r ${requiredFiles[1]} ] && [ -r ${requiredFiles[2]} ]; then printf yes; else printf no; fi`;
 }
 
-async function normalizeSDTDDataOwnership(docker, image, dataPath, serverId) {
-    const helperName = `ragenodes-sdtd-permissions-${String(serverId || Date.now()).slice(0, 12)}`;
+async function setOwnership(docker, image, dataPath, serverId, ownership) {
+    const helperName = `ragenodes-sdtd-permissions-${String(serverId || Date.now()).slice(0, 12)}-${Math.floor(Math.random()*10000)}`;
     let helper;
     try {
         helper = await docker.createContainer({
@@ -21,7 +21,7 @@ async function normalizeSDTDDataOwnership(docker, image, dataPath, serverId) {
             name: helperName,
             User: '0:0',
             Entrypoint: ['/bin/sh', '-c'],
-            Cmd: ['chown -R 1000:1000 /target'],
+            Cmd: [`chown -R ${ownership} /target`],
             HostConfig: {
                 Binds: [`${dataPath}:/target`],
                 NetworkMode: 'none',
@@ -63,13 +63,16 @@ export async function createSDTDContainer(containerName, serverId, gamePort, pla
         });
     }
 
+    await setOwnership(docker, config.sdtdBaseImage, dataPath, serverId, '0:0');
+
     const telnetPassword = deriveServicePassword('sdtd-telnet', serverId);
     await saveSDTDConfig(dataPath, {
         ServerPort: String(gamePort),
         TelnetPassword: telnetPassword
     });
     await runRemoteCommand(nodeId, sh`mkdir -p ${dataPath + '/config/Saves/Navezgane/RageNodes'}`);
-    await normalizeSDTDDataOwnership(docker, config.sdtdBaseImage, dataPath, serverId);
+    
+    await setOwnership(docker, config.sdtdBaseImage, dataPath, serverId, '1000:1000');
 
     const publicBindings = {
         [`${gamePort}/tcp`]: [{ HostIp: '0.0.0.0', HostPort: String(gamePort) }],
