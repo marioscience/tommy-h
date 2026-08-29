@@ -270,12 +270,30 @@ services:
     cap_drop: [ALL]
     cpu_shares: 256
 
+  oxide_game_runtime_init:
+    image: alpine:3.22.1@sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045fa6c8c44de311d1
+    user: "0:0"
+    command: ["sh", "-c", "mkdir -p /runtime/logs && chown -R 0:0 /runtime && chmod 0750 /runtime /runtime/logs"]
+    volumes:
+      - oxide_game_runtime_data:/runtime
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=4m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    restart: "no"
+
   oxide_game:
     build:
       context: ./oxideproxy
     image: ragenodes/oxideproxy:1.0.0-local
     restart: unless-stopped
-    user: "65532:65532"
+    # El cargador XDP necesita un proceso uid 0, pero se mantiene confinado:
+    # filesystem de solo lectura y únicamente tres capacidades del kernel.
+    user: "0:0"
     network_mode: host
     environment:
       - OXIDE_LOG_DIR=/app/runtime/logs
@@ -288,6 +306,8 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+      oxide_game_runtime_init:
+        condition: service_completed_successfully
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=32m
@@ -295,6 +315,7 @@ services:
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
+    cap_add: [NET_ADMIN, BPF, PERFMON]
     cpu_shares: 1024
 
   oxide_web:

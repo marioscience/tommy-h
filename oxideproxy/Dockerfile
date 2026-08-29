@@ -1,15 +1,39 @@
 # Etapa 1: Compilación de Alto Rendimiento en Rust
+FROM rust:bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97 AS ebpf-builder
+
+ARG BPF_LINKER_VERSION=v0.11.0
+ARG BPF_LINKER_SHA256=10f62ba9ab7e544d538370552660efcb4f1a19153d5752bbf0f6b51f3bada450
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl ca-certificates zstd \
+    && rm -rf /var/lib/apt/lists/* \
+    && rustup toolchain install nightly --profile minimal --component rust-src \
+    && curl --proto '=https' --tlsv1.2 --http1.1 -fsSL \
+      "https://github.com/aya-rs/bpf-linker/releases/download/${BPF_LINKER_VERSION}/bpf-linker-x86_64-unknown-linux-musl.tar.zst" \
+      -o /tmp/bpf-linker.tar.zst \
+    && printf '%s  %s\n' "${BPF_LINKER_SHA256}" /tmp/bpf-linker.tar.zst | sha256sum --check --status \
+    && tar --zstd -xf /tmp/bpf-linker.tar.zst -C /usr/local/bin \
+    && rm /tmp/bpf-linker.tar.zst
+
+WORKDIR /usr/src/oxide_proxy
+COPY Cargo.toml Cargo.lock ./
+COPY ebpf ./ebpf
+COPY scripts/build-ebpf.sh ./scripts/build-ebpf.sh
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
+    CARGO_NET_RETRY=10 CARGO_HTTP_TIMEOUT=120 CARGO_HTTP_MULTIPLEXING=false ./scripts/build-ebpf.sh
+
 FROM rust:bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97 AS builder
 
 WORKDIR /usr/src/oxide_proxy
 
 # Optimizamos la caché de capas copiando primero solo los manifiestos
 COPY Cargo.toml Cargo.lock ./
+COPY ebpf/Cargo.toml ./ebpf/Cargo.toml
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
-    mkdir -p src/bin && echo "fn main() {}" > src/main.rs && echo "fn main() {}" > src/bin/cert_gen.rs \
+    mkdir -p src/bin ebpf/src && echo "fn main() {}" > src/main.rs && echo "fn main() {}" > src/bin/cert_gen.rs \
+    && echo '#![no_std]' > ebpf/src/main.rs \
     && CARGO_NET_RETRY=10 CARGO_HTTP_TIMEOUT=120 CARGO_HTTP_MULTIPLEXING=false cargo build --release --locked \
-    && rm -rf src
+    && rm -rf src ebpf/src
 
 # Copiamos el código fuente real y configuraciones
 COPY . .
@@ -40,6 +64,7 @@ WORKDIR /app
 
 # Copiamos el binario compilado y los certificados generados
 COPY --from=builder /usr/src/oxide_proxy/target/release/oxide_proxy /app/oxide_proxy
+COPY --from=ebpf-builder /usr/src/oxide_proxy/artifacts/oxide-ebpf.o /app/oxide-ebpf.o
 COPY --from=builder --chown=65532:65532 /usr/src/oxide_proxy/config /app/config
 COPY --from=builder /runtime-root/var/www /var/www
 COPY --from=builder --chown=65532:65532 /runtime-root/app/acme /app/acme

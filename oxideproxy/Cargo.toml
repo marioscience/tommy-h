@@ -5,6 +5,11 @@ edition = "2021"
 authors = ["Antigravity <advanced-engineering@deepmind.com>"]
 description = "OxideProxy: Modern L4/L7 Asynchronous Zero-Copy Proxy for Ultra-Low Latency Gaming & High Traffic"
 
+[workspace]
+members = ["ebpf"]
+default-members = ["."]
+resolver = "2"
+
 [[bin]]
 name = "oxide_proxy"
 path = "src/main.rs"
@@ -45,6 +50,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 redis = { version = "=1.6.0", default-features = false, features = ["tokio-comp", "script"] }
 serde_json = "1.0"
 url = "2.5"
+aya = "0.13.1"
 
 [profile.release]
 opt-level = 3
@@ -52,3 +58,6 @@ lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = true
+
+[profile.dev.package.oxide-ebpf]
+opt-level = 2

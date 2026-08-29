@@ -7,6 +7,8 @@ const files = Object.fromEntries(await Promise.all([
   'backend/Dockerfile',
   'fivem-base/Dockerfile',
   'oxideproxy/Dockerfile',
+  'oxideproxy/ebpf/src/main.rs',
+  'oxideproxy/src/ebpf_xdp.rs',
   '.env.example',
   'deploy.sh',
   'deploy_staging.sh',
@@ -64,6 +66,9 @@ assert(files['backend/Dockerfile'].includes('AS backup-remote'), 'rclone is isol
 assert(!/RUN apk add[^\n]*rclone/.test(files['backend/Dockerfile'].split('AS backup-remote')[0]), 'default backend runtime excludes rclone');
 assert(files['docker-compose.backup-remote.yml'].includes('target: backup-remote'), 'remote backup overlay selects the isolated rclone runtime');
 assert(files['oxideproxy/Dockerfile'].includes('USER 65532:65532'), 'OxideProxy image runs as a non-root user');
+assert(files['oxideproxy/Dockerfile'].includes('/app/oxide-ebpf.o'), 'OxideProxy image embeds the compiled XDP object');
+assert(files['oxideproxy/ebpf/src/main.rs'].includes('#[xdp]') && files['oxideproxy/ebpf/src/main.rs'].includes('XDP_DROP'), 'OxideProxy implements a real kernel XDP program');
+assert(files['oxideproxy/src/ebpf_xdp.rs'].includes('Ebpf::load_file') && files['oxideproxy/src/ebpf_xdp.rs'].includes('program.attach'), 'OxideProxy loads and attaches XDP instead of simulating it');
 assert(files['oxideproxy/config/oxide_proxy.yml'].includes('game_servers: []'), 'OxideProxy active config starts without laboratory routes');
 for (const configFile of ['oxideproxy/config/oxide_proxy.yml', 'oxideproxy/game_config/oxide_proxy.yml', 'oxide_web/config/oxide_proxy.yml']) {
   const config = files[configFile];
@@ -151,10 +156,14 @@ assert(files['scripts/ensure_base_images.sh'].includes('network inspect "$RUNTIM
 assert(files['scripts/ensure_base_images.sh'].includes('network create "$RUNTIME_DOCKER_NETWORK"'), 'missing runtime network is created in the rootless daemon');
 assert(files['deploy_staging.sh'].includes('RUNTIME_DOCKER_NETWORK=ragenodes_net_staging'), 'staging prepares its isolated rootless network');
 assert(files['docker-compose.staging.yml'].match(/PORT_BASE_OFFSET(?::|=)\s*\$\{STAGING_PORT_BASE_OFFSET:-1000\}/g)?.length === 2, 'staging backend and worker share a configurable non-overlapping port offset');
-const stagingControlPanelOverride = files['docker-compose.staging.yml'].match(/\n  oxide_control_panel:\n([\s\S]*?)(?=\n  oxide_game_staging:)/)?.[1] || '';
+const stagingControlPanelOverride = files['docker-compose.staging.yml'].match(/\r?\n  oxide_control_panel:\r?\n([\s\S]*?)(?=\r?\n  oxide_game_runtime_init_staging:)/)?.[1] || '';
 assert(!stagingControlPanelOverride.includes('security_opt:'), 'staging does not duplicate inherited control-panel security options');
 assert(!stagingControlPanelOverride.includes('cap_drop:'), 'staging does not duplicate inherited control-panel capability drops');
 assert(files['docker-compose.yml'].includes('network_mode: host'), 'Oxide Game can bind active public game ports without broad Docker ranges');
+const productionGameProxy = files['docker-compose.yml'].match(/\r?\n  oxide_game:\r?\n([\s\S]*?)(?=\r?\n  oxide_web:)/)?.[1] || '';
+assert(productionGameProxy.includes('user: "0:0"'), 'Oxide Game uses the loader identity required by the kernel');
+assert(productionGameProxy.includes('cap_drop: [ALL]'), 'Oxide Game drops every ambient capability');
+assert(productionGameProxy.includes('cap_add: [NET_ADMIN, BPF, PERFMON]') && !productionGameProxy.includes('SYS_ADMIN'), 'Oxide Game receives only the bounded XDP capabilities');
 assert(files['docker-compose.staging.yml'].includes('OXIDE_GAME_PROXY_ENABLED: ${OXIDE_GAME_PROXY_ENABLED:-false}'), 'staging game proxy migration remains opt-in');
 assert(files['backend/src/routes/discord.js'].includes("ragenodes.game_proxy'] !== 'enabled'"), 'route inventory excludes containers that still occupy public ports');
 assert(!files['oxideproxy/node_panel/server.js'].includes('baseConns ='), 'Oxide telemetry never fabricates active players');
@@ -180,15 +189,21 @@ assert(files['backend/src/services/games/valheim.js'].includes("deriveServiceIde
 for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
   const deploy = files[deployFile];
   const redisService = deployFile === 'deploy.sh' ? 'redis' : 'redis-staging';
+  const runtimeInitService = deployFile === 'deploy.sh' ? 'oxide_game_runtime_init' : 'oxide_game_runtime_init_staging';
   assert(deploy.includes('bash ./scripts/ensure_base_images.sh'), `${deployFile} prepares game images before application services`);
   assert(deploy.indexOf('bash ./scripts/ensure_base_images.sh') < deploy.indexOf('build "${APP_SERVICES[@]}"'), `${deployFile} cannot publish a backend before its game images exist`);
   assert(deploy.includes(`STATE_SERVICES=(\n  ${redisService}\n)`), `${deployFile} declares Redis as required deployment state`);
   assert(deploy.indexOf('up -d "${STATE_SERVICES[@]}"') < deploy.indexOf('up -d --no-deps "${APP_SERVICES[@]}"'), `${deployFile} applies Redis configuration before application services`);
+  assert(deploy.includes(`run --rm --no-deps ${runtimeInitService}`), `${deployFile} prepares the persistent OxideProxy runtime volume`);
+  assert(deploy.indexOf(`run --rm --no-deps ${runtimeInitService}`) < deploy.indexOf('up -d --no-deps "${APP_SERVICES[@]}"'), `${deployFile} prepares OxideProxy storage before application startup`);
   assert(deploy.includes(`wait_for_service ${redisService} 60`), `${deployFile} waits for Redis readiness before application startup`);
   assert(deploy.includes('wait_for_http()'), `${deployFile} waits for HTTP readiness instead of checking only once`);
   assert(/wait_for_http http:\/\/127\.0\.0\.1:\d+\/healthz 90/.test(deploy), `${deployFile} retries the health endpoint during startup`);
   assert(/wait_for_http http:\/\/127\.0\.0\.1:\d+\/readyz 90/.test(deploy), `${deployFile} retries the readiness endpoint during startup`);
 }
+
+assert(files['docker-compose.yml'].includes('oxide_game_runtime_init:'), 'production declares an isolated OxideProxy runtime initializer');
+assert(files['docker-compose.staging.yml'].includes('oxide_game_runtime_init_staging:'), 'staging declares an isolated OxideProxy runtime initializer');
 
 if (failures) {
   console.error(`Deployment security contract failed: ${failures} finding(s).`);

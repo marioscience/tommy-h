@@ -1,58 +1,70 @@
-# 🏗️ OxideProxy (Motor L4/L7 Asíncrono de Ultra-Baja Latencia)
+# OxideProxy — proxy L4/L7 en Rust
 
-**OxideProxy** es un proxy asíncrono moderno de capa 4 y 7, desarrollado 100% en Rust. Está diseñado específicamente para mantener millones de conexiones abiertas simultáneamente con latencia de sub-milisegundos, eliminando los cuellos de botella históricos de arquitecturas en C como NGINX en entornos de alto tráfico y gaming.
+OxideProxy es la entrada TCP, UDP y HTTPS de RageNodes. Enruta puertos dinámicos de juegos, termina o retransmite TLS según la ruta, aplica la puerta de acceso de staging y publica telemetría consumida por el panel administrativo.
 
----
-
-## 🚀 Arquitectura del Motor
+## Flujo de datos
 
 ```mermaid
-graph TD
-    A[Ingress Sockets Crudos] --> B{Inspección L4 con nom}
-    
-    B -->|Paquete Gaming UDP/TCP| C[Enrutamiento Zero-Copy L4]
-    B -->|Tráfico Web / HTTPS| D[Terminación TLS con rustls]
-
-    C --> E[Egress a Backend Gaming]
-    D --> F[Egress a Backend Web]
-
-    subgraph Gestión de Memoria y Runtime
-        G[Tokio Runtime con Core Pinning]
-        H[Búferes Circulares BytesMut O1]
-    end
+flowchart LR
+    NIC[Interfaz de red] --> XDP[eBPF/XDP]
+    XDP -->|descarta| DROP[Blacklist / límite PPS]
+    XDP -->|permite| IO[Tokio + SO_REUSEPORT]
+    IO --> L4[TCP/UDP de juegos]
+    IO --> L7[HTTPS / TLS / CSP]
+    L4 --> BACKENDS[Backends dinámicos]
+    L7 --> BACKENDS
 ```
 
-### 1. El Corazón Asíncrono (Tokio + Core Pinning)
-*   **Runtime Tokio:** Aprovecha el multiplexado de I/O asíncrono líder en la industria, gestionando millones de eventos de red sin bloquear hilos del sistema operativo.
-*   **Afinidad de CPU (Core Pinning):** Configurado para asignar exactamente un hilo de trabajo por núcleo físico del servidor, eliminando la sobrecarga por cambio de contexto del kernel.
+## Capacidades implementadas
 
-### 2. Gestión de Memoria Zero-Copy Absoluta
-*   **Búferes Circulares (`BytesMut`):** Cada conexión asigna un único búfer al nacer. Los paquetes entrantes se escriben una sola vez en memoria.
-*   **Sub-referencias (*Slices*):** El analizador de protocolos (`nom`) no realiza copias ni asignaciones en el montículo (*heap*), devolviendo referencias directas (`&[u8]`) a las secciones del payload.
-*   **Sin Recolección de Basura:** Al cerrarse un socket, Rust libera la memoria en ese mismo microsegundo sin pausas (*GC pauses*), evitando picos de latencia (*lag spikes*) en el juego.
+- Enrutamiento TCP, UDP y dual por cada puerto declarado en el inventario dinámico.
+- Listeners dedicados con `SO_REUSEPORT`, buffers `BytesMut` y runtime Tokio configurable.
+- Terminación TLS con Rustls, passthrough por SNI y políticas CSP con nonce para herramientas web.
+- eBPF/XDP real con Aya para IPv4, IPv6 y hasta dos etiquetas VLAN.
+- Blacklist dinámica y limitación PPS antes de que el tráfico llegue a los sockets.
+- Modo XDP nativo (`driver`) con fallback a XDP genérico (`skb`). Si el kernel no lo admite, el estado se muestra explícitamente como mitigación en memoria; no se presenta como XDP activo.
+- Contadores reales por CPU: paquetes vistos, permitidos, descartados, bloqueos por blacklist, limitación de tasa y errores de análisis.
+- Recarga de política y blacklist sin recompilar ni reiniciar el proxy.
 
-### 3. Pipeline de Procesamiento Modular
-*   **Ingress:** Escucha asíncrona dual en puertos TCP crudos (ej. 8443) y UDP (ej. 8080).
-*   **eBPF / XDP:** Interfaz preparada para cargar filtros a nivel de tarjeta de red (NIC) para descarte instantáneo de ataques DDoS en nanosegundos.
-*   **Inspector L4:** Analizador binario ultrarrápido que evalúa el formato estricto `[2 bytes GameID][2 bytes PayloadLen][Payload]`.
-*   **Terminación TLS:** Integración de `tokio-rustls` para handshakes criptográficos un 30% más rápidos y seguros que OpenSSL.
-*   **Egress:** Reenvío bidireccional transparente hacia los servidores de backend.
+Los descartes XDP evitan el lock y el pipeline de Tokio. Los paquetes desconocidos se registran en nivel `debug` para impedir amplificación de disco durante escaneos UDP.
 
----
+## Compilación reproducible
 
-## 🛠️ Despliegue en VM Linux (Docker & Compose)
+La imagen multietapa compila dos artefactos:
 
-El proyecto incluye una configuración de despliegue optimizada para producción mediante Docker multietapa y modo de red `host`.
+1. `oxide-ebpf.o` para el kernel mediante Rust nightly y `bpf-linker` fijado por versión y SHA-256.
+2. `oxide_proxy` para espacio de usuario mediante Rust estable y `Cargo.lock`.
 
-### Pasos para desplegar:
-1. Clonar o copiar esta carpeta a tu máquina virtual Linux.
-2. Ejecutar Docker Compose para compilar y levantar el motor:
-   ```bash
-   docker compose up -d --build
-   ```
-   *(Durante la compilación, el contenedor generará automáticamente los certificados TLS auto-firmados de prueba en `config/certs/`).*
+El objeto XDP se incluye en `/app/oxide-ebpf.o`; no se descarga en el arranque.
 
-### Verificación de Logs en Tiempo Real:
 ```bash
-docker logs -f oxide_proxy_engine
+docker build -t ragenodes/oxideproxy:local .
 ```
+
+## Permisos mínimos
+
+Solo el servicio `oxide_game`, conectado a la red del host, carga XDP. Se ejecuta con UID 0 porque el kernel lo exige en el modelo actual, pero conserva `cap_drop: ALL`, filesystem de solo lectura y únicamente `NET_ADMIN`, `BPF` y `PERFMON`. El proxy web permanece sin privilegios.
+
+No se requiere `SYS_ADMIN` ni modo privilegiado en producción. El Dev Container sí es privilegiado porque necesita crear interfaces aisladas y ejecutar pruebas eBPF locales.
+
+## Desarrollo y pruebas
+
+Al abrir el repositorio en su Dev Container, `.devcontainer/setup-ebpf.sh` instala `bpftool`, Clang/LLVM, Rust nightly y el `bpf-linker` verificado. Después:
+
+```bash
+cd oxideproxy
+./scripts/build-ebpf.sh
+cargo check --package oxide_proxy --all-targets
+cargo test --package oxide_proxy --all-targets
+```
+
+El fixture `tests/fixtures/xdp-test.yml` usa un límite bajo para verificar que los paquetes excedentes son descartados en XDP y que los contadores publicados coinciden. La prueba local de referencia envió 1.000 datagramas: 100 llegaron a Tokio y 900 fueron descartados en XDP.
+
+## Estados operativos
+
+- `xdp-driver`: programa adjunto en modo nativo por el driver.
+- `xdp-generic`: programa adjunto en modo genérico por el kernel.
+- `memory`: XDP no pudo cargarse y se aplica la protección de respaldo en espacio de usuario.
+- `disabled`: la política está desactivada expresamente.
+
+La telemetría distingue estos estados; una etiqueta `LIVE` significa que el panel recibe muestras recientes, no que XDP esté necesariamente adjunto.

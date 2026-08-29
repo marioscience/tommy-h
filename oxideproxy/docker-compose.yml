@@ -24,7 +24,9 @@ services:
       - ALL
     cap_add:
       - NET_ADMIN
-      - SYS_NICE
+      - BPF
+      - PERFMON
+    user: "0:0"
     security_opt:
       - no-new-privileges:true
     read_only: true
