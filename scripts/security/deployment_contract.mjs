@@ -208,6 +208,11 @@ for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
 
 assert(files['docker-compose.yml'].includes('oxide_game_runtime_init:'), 'production declares an isolated OxideProxy runtime initializer');
 assert(files['docker-compose.staging.yml'].includes('oxide_game_runtime_init_staging:'), 'staging declares an isolated OxideProxy runtime initializer');
+for (const composeFile of ['docker-compose.yml', 'docker-compose.staging.yml']) {
+  const compose = files[composeFile];
+  assert(compose.includes('chown -R 0:${APP_GID:-1000} /runtime'), `${composeFile} grants the unprivileged control panel group access to runtime telemetry`);
+  assert(compose.includes('chmod 2750 /runtime /runtime/logs'), `${composeFile} preserves the telemetry group on new metrics and trace files`);
+}
 
 if (failures) {
   console.error(`Deployment security contract failed: ${failures} finding(s).`);
