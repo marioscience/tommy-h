@@ -275,7 +275,9 @@ services:
       context: ./oxideproxy
     image: ragenodes/oxideproxy:1.0.0-local
     restart: unless-stopped
-    user: "65532:65532"
+    # El cargador XDP necesita un proceso uid 0, pero se mantiene confinado:
+    # filesystem de solo lectura y únicamente tres capacidades del kernel.
+    user: "0:0"
     network_mode: host
     environment:
       - OXIDE_LOG_DIR=/app/runtime/logs
@@ -295,6 +297,7 @@ services:
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
+    cap_add: [NET_ADMIN, BPF, PERFMON]
     cpu_shares: 1024
 
   oxide_web:

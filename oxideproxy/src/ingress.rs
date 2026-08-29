@@ -23,7 +23,11 @@ pub async fn start_ingress(
     let udp_addr = config_arc.ingress.udp_listen_addr;
     let initial_buf_size = config_arc.ingress.initial_buffer_size;
 
-    let mut xdp = XdpFilter::new("eth0");
+    let xdp_interface = config_arc.advanced_tuning.as_ref()
+        .and_then(|advanced| advanced.ebpf_xdp.as_ref())
+        .map(|settings| settings.interface.as_str())
+        .unwrap_or("eth0");
+    let mut xdp = XdpFilter::new(xdp_interface);
     xdp.reload_from_config(&config_path);
     let xdp_enabled = config_arc
         .advanced_tuning
@@ -31,12 +35,26 @@ pub async fn start_ingress(
         .and_then(|advanced| advanced.ebpf_xdp.as_ref())
         .is_some_and(|settings| settings.enabled);
     if xdp_enabled {
-        if xdp.attach().is_ok() {
-            tracing::info!("Política de mitigación L4 en memoria activa para eth0 (sin programa XDP en kernel).");
+        match xdp.attach() {
+            Ok(mode) => crate::metrics::set_xdp_mode(mode),
+            Err(error) => {
+                tracing::error!(
+                    "No se pudo activar XDP real: {}. Se conserva la mitigación L4 en memoria.",
+                    error
+                );
+                crate::metrics::set_xdp_mode(crate::ebpf_xdp::XdpAttachMode::Memory);
+            }
         }
     } else {
-        tracing::info!("Política de mitigación L4 en memoria desactivada por configuración.");
+        crate::metrics::set_xdp_mode(crate::ebpf_xdp::XdpAttachMode::Disabled);
+        tracing::info!("Mitigación L4/XDP desactivada por configuración.");
     }
+    // Cuando XDP está adjunto, el paquete ya fue validado antes de llegar al
+    // socket. Evita un RwLock global en cada paquete/conexión del camino feliz.
+    let kernel_xdp_active = matches!(
+        xdp.attach_mode(),
+        crate::ebpf_xdp::XdpAttachMode::Driver | crate::ebpf_xdp::XdpAttachMode::Generic
+    );
     let xdp_arc = Arc::new(RwLock::new(xdp));
 
     // --- MPSC Fail2Ban Channel ---
@@ -46,8 +64,8 @@ pub async fn start_ingress(
     tokio::spawn(async move {
         tracing::info!("[Fail2Ban] Consumidor MPSC asíncrono iniciado para baneos L7->L4.");
         while let Some(ip) = ban_rx.recv().await {
-            if let Ok(xdp_read) = consumer_xdp_arc.read() {
-                xdp_read.block_ip(ip);
+            if let Ok(mut xdp_write) = consumer_xdp_arc.write() {
+                xdp_write.block_ip(ip);
                 tracing::warn!(
                     "[Mitigación L4] IP {} bloqueada permanentemente (Fail2Ban L7).",
                     ip
@@ -64,6 +82,22 @@ pub async fn start_ingress(
                 tokio::time::sleep(std::time::Duration::from_secs(2)).await;
                 if let Ok(mut xdp_write) = xdp_reload.write() {
                     xdp_write.reload_from_config(&xdp_config_path);
+                }
+            }
+        });
+
+        let xdp_metrics = Arc::clone(&xdp_arc);
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                if let Ok(xdp_read) = xdp_metrics.read() {
+                    crate::metrics::set_xdp_mode(xdp_read.attach_mode());
+                    if matches!(xdp_read.attach_mode(), crate::ebpf_xdp::XdpAttachMode::Driver | crate::ebpf_xdp::XdpAttachMode::Generic) {
+                        match xdp_read.kernel_stats() {
+                            Ok(stats) => crate::metrics::update_xdp_stats(stats),
+                            Err(error) => tracing::warn!("No se pudieron leer métricas XDP: {}", error),
+                        }
+                    }
                 }
             }
         });
@@ -84,7 +118,9 @@ pub async fn start_ingress(
             Ok(listener) => loop {
                 match listener.accept().await {
                     Ok((mut stream, peer_addr)) => {
-                        let allowed = if let Ok(xdp_read) = tcp_xdp.read() {
+                        let allowed = if kernel_xdp_active {
+                            true
+                        } else if let Ok(xdp_read) = tcp_xdp.read() {
                             xdp_read.inspect_and_filter(peer_addr.ip())
                         } else {
                             true
@@ -139,7 +175,9 @@ pub async fn start_ingress(
                 Ok(listener) => loop {
                     match listener.accept().await {
                         Ok((mut stream, peer_addr)) => {
-                            let allowed = if let Ok(xdp_read) = http_xdp.read() {
+                            let allowed = if kernel_xdp_active {
+                                true
+                            } else if let Ok(xdp_read) = http_xdp.read() {
                                 xdp_read.inspect_and_filter(peer_addr.ip())
                             } else {
                                 true
@@ -206,7 +244,9 @@ pub async fn start_ingress(
                         let xdp_ref = Arc::clone(&udp_xdp);
                         match sock.recv_buf_from(&mut buffer).await {
                             Ok((size, peer_addr)) => {
-                                let allowed = if let Ok(xdp_read) = xdp_ref.read() {
+                                let allowed = if kernel_xdp_active {
+                                    true
+                                } else if let Ok(xdp_read) = xdp_ref.read() {
                                     xdp_read.inspect_and_filter(peer_addr.ip())
                                 } else {
                                     true
@@ -277,7 +317,9 @@ pub async fn start_ingress(
                     Ok(listener) => loop {
                         match listener.accept().await {
                             Ok((mut stream, peer_addr)) => {
-                                let allowed = if let Ok(xdp_read) = tcp_xdp.read() {
+                                let allowed = if kernel_xdp_active {
+                                    true
+                                } else if let Ok(xdp_read) = tcp_xdp.read() {
                                     xdp_read.inspect_and_filter(peer_addr.ip())
                                 } else {
                                     true
@@ -363,7 +405,9 @@ pub async fn start_ingress(
                                 let xdp_ref = Arc::clone(&udp_xdp);
                                 match sock.recv_buf_from(&mut buffer).await {
                                     Ok((size, peer_addr)) => {
-                                        let allowed = if let Ok(xdp_read) = xdp_ref.read() {
+                                        let allowed = if kernel_xdp_active {
+                                            true
+                                        } else if let Ok(xdp_read) = xdp_ref.read() {
                                             xdp_read.inspect_and_filter(peer_addr.ip())
                                         } else {
                                             true

@@ -519,8 +519,12 @@ app.get('/api/oxide/metrics/advanced', asyncHandler(async (req, res) => {
         latency_ms: 0
     }));
     const totalPps = globalTcpPps + globalUdpPps;
+    // Latency de forwarding aún no está instrumentada: se reporta cero sin
+    // fabricar un diferencial fijo. XDP y descartes provienen del kernel.
     const l4Latency = "0.000";
-    const ebpfDroppedPps = 0;
+    const ebpfDroppedPps = Number(rate('l4_dropped').toFixed(2));
+    const blockedIpsCount = Number(currentMetrics?.l4_blocked_ips || 0);
+    const xdpMode = String(currentMetrics?.xdp_mode || 'disabled');
     const ebpfConfig = migrated.advanced_tuning?.ebpf_xdp || {};
 
     res.json({
@@ -552,15 +556,23 @@ app.get('/api/oxide/metrics/advanced', asyncHandler(async (req, res) => {
             },
             latency: {
                 l4_p99_ms: parseFloat(l4Latency),
-                l7_tls_ms: globalActiveConns > 0 ? (parseFloat(l4Latency) + 1.25).toFixed(2) : "0.00"
+                l7_tls_ms: "0.00"
             },
             ebpf_mitigation: {
-                status: ebpfConfig.enabled
-                    ? `MEMORY ACTIVE (${ebpfConfig.interface || 'eth0'})`
-                    : 'DISABLED',
+                status: xdpMode === 'xdp-driver'
+                    ? `XDP DRIVER ACTIVE (${ebpfConfig.interface || 'eth0'})`
+                    : xdpMode === 'xdp-generic'
+                        ? `XDP GENERIC ACTIVE (${ebpfConfig.interface || 'eth0'})`
+                        : xdpMode === 'memory'
+                            ? `MEMORY FALLBACK (${ebpfConfig.interface || 'eth0'})`
+                            : 'DISABLED',
                 mode: ebpfConfig.ddos_mitigation_mode || 'STRICT_GAMING',
                 dropped_packets_per_sec: ebpfDroppedPps,
-                blocked_ips_count: 0
+                blocked_ips_count: blockedIpsCount,
+                packets_seen: Number(currentMetrics?.xdp_packets_seen || 0),
+                parse_errors: Number(currentMetrics?.xdp_parse_errors || 0),
+                blacklist_drops: Number(currentMetrics?.xdp_blacklist_drops || 0),
+                rate_limit_drops: Number(currentMetrics?.xdp_rate_limit_drops || 0)
             },
             per_server: perServer
         }
