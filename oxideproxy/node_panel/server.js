@@ -437,7 +437,7 @@ app.get('/api/oxide/firewall', asyncHandler(async (req, res) => {
 
 // 2.6. Actualizar la configuración del Firewall y eBPF en tiempo real
 app.post('/api/oxide/firewall', asyncHandler(async (req, res) => {
-    const { ebpf_xdp, security } = req.body;
+    const { ebpf_xdp, security, runtime } = req.body;
     let configObj = {};
     if (fs.existsSync(CONFIG_PATH)) {
         try { configObj = yaml.load(fs.readFileSync(CONFIG_PATH, 'utf8')) || {}; } catch(e){}
@@ -452,6 +452,9 @@ app.post('/api/oxide/firewall', asyncHandler(async (req, res) => {
         if (!Array.isArray(migrated.advanced_tuning.security.blacklisted_ips)) {
             migrated.advanced_tuning.security.blacklisted_ips = [];
         }
+    }
+    if (runtime && typeof runtime.enable_core_pinning === 'boolean') {
+        migrated.runtime.enable_core_pinning = runtime.enable_core_pinning;
     }
 
     const yamlStr = yaml.dump(migrated);

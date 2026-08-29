@@ -25,6 +25,7 @@ const files = Object.fromEntries(await Promise.all([
   'oxideproxy/src/pipeline/mod.rs',
   'oxideproxy/src/pipeline/http_server.rs',
   'oxideproxy/node_panel/server.js',
+  'oxideproxy/node_panel/public/app.js',
   'scripts/ensure_base_images.sh',
   'scripts/update_image_cache.sh',
   'scripts/registry/prepare_runtime_images.sh',
@@ -62,6 +63,8 @@ assert(!/RUN apk add[^\n]*rclone/.test(files['backend/Dockerfile'].split('AS bac
 assert(files['docker-compose.backup-remote.yml'].includes('target: backup-remote'), 'remote backup overlay selects the isolated rclone runtime');
 assert(files['oxideproxy/Dockerfile'].includes('USER 65532:65532'), 'OxideProxy image runs as a non-root user');
 assert(files['oxideproxy/config/oxide_proxy.yml'].includes('game_servers: []'), 'OxideProxy active config starts without laboratory routes');
+assert(files['oxideproxy/node_panel/public/app.js'].includes('JSON.stringify({ ebpf_xdp, security, runtime })'), 'Firewall controls persist the CPU affinity toggle');
+assert(files['oxideproxy/node_panel/server.js'].includes("typeof runtime.enable_core_pinning === 'boolean'"), 'Oxide control plane validates and stores CPU affinity');
 assert(!files['oxideproxy/config/oxide_proxy.yml'].includes('10.5.0.10:9001'), 'OxideProxy active config excludes mock game backends');
 assert(files['oxideproxy/config/oxide_proxy.yml'].includes('default_web_backend: backend:3006'), 'OxideProxy resolves the portable backend network alias');
 assert(files['oxideproxy/src/config.rs'].includes('ProxyConfig::load') || files['oxideproxy/src/config.rs'].includes('pub fn load('), 'OxideProxy exposes a fallible configuration loader');

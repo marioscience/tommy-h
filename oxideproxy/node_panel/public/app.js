@@ -768,16 +768,22 @@ async function saveFirewallRules() {
         rate_limit_conns_per_ip: parseInt(document.getElementById('fw-sec-conns').value, 10),
         blacklisted_ips: currentFirewall.security.blacklisted_ips || []
     };
+    const runtime = {
+        enable_core_pinning: document.getElementById('core-pinning').checked
+    };
 
     try {
         const res = await authFetch('/api/oxide/firewall', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ebpf_xdp, security })
+            body: JSON.stringify({ ebpf_xdp, security, runtime })
         });
         const data = await res.json();
         if (data.success) {
-            showToast('¡Reglas de Firewall aplicadas en tiempo real al motor!', 'success');
+            if (currentConfig?.runtime) {
+                currentConfig.runtime.enable_core_pinning = runtime.enable_core_pinning;
+            }
+            showToast('¡Firewall y afinidad de CPU guardados en el motor!', 'success');
             fetchAdvancedMetrics(); // Refrescar estado global
         } else {
             showToast(data.error || 'Error al guardar firewall', 'error');
