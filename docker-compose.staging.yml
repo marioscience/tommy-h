@@ -228,6 +228,22 @@ services:
     # security_opt and cap_drop are inherited from docker-compose.yml.
     # Repeating sequence values here makes the merged Compose model invalid.
 
+  oxide_game_runtime_init_staging:
+    image: alpine:3.22.1@sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045fa6c8c44de311d1
+    user: "0:0"
+    command: ["sh", "-c", "mkdir -p /runtime/logs && chown -R 0:0 /runtime && chmod 0750 /runtime /runtime/logs"]
+    volumes:
+      - oxide_game_runtime_data_staging:/runtime
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=4m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    restart: "no"
+
   oxide_game_staging:
     build:
       context: ./oxideproxy
@@ -247,6 +263,8 @@ services:
     depends_on:
       backend-staging:
         condition: service_started
+      oxide_game_runtime_init_staging:
+        condition: service_completed_successfully
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=32m

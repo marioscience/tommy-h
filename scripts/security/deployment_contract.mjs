@@ -189,15 +189,21 @@ assert(files['backend/src/services/games/valheim.js'].includes("deriveServiceIde
 for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
   const deploy = files[deployFile];
   const redisService = deployFile === 'deploy.sh' ? 'redis' : 'redis-staging';
+  const runtimeInitService = deployFile === 'deploy.sh' ? 'oxide_game_runtime_init' : 'oxide_game_runtime_init_staging';
   assert(deploy.includes('bash ./scripts/ensure_base_images.sh'), `${deployFile} prepares game images before application services`);
   assert(deploy.indexOf('bash ./scripts/ensure_base_images.sh') < deploy.indexOf('build "${APP_SERVICES[@]}"'), `${deployFile} cannot publish a backend before its game images exist`);
   assert(deploy.includes(`STATE_SERVICES=(\n  ${redisService}\n)`), `${deployFile} declares Redis as required deployment state`);
   assert(deploy.indexOf('up -d "${STATE_SERVICES[@]}"') < deploy.indexOf('up -d --no-deps "${APP_SERVICES[@]}"'), `${deployFile} applies Redis configuration before application services`);
+  assert(deploy.includes(`run --rm --no-deps ${runtimeInitService}`), `${deployFile} prepares the persistent OxideProxy runtime volume`);
+  assert(deploy.indexOf(`run --rm --no-deps ${runtimeInitService}`) < deploy.indexOf('up -d --no-deps "${APP_SERVICES[@]}"'), `${deployFile} prepares OxideProxy storage before application startup`);
   assert(deploy.includes(`wait_for_service ${redisService} 60`), `${deployFile} waits for Redis readiness before application startup`);
   assert(deploy.includes('wait_for_http()'), `${deployFile} waits for HTTP readiness instead of checking only once`);
   assert(/wait_for_http http:\/\/127\.0\.0\.1:\d+\/healthz 90/.test(deploy), `${deployFile} retries the health endpoint during startup`);
   assert(/wait_for_http http:\/\/127\.0\.0\.1:\d+\/readyz 90/.test(deploy), `${deployFile} retries the readiness endpoint during startup`);
 }
+
+assert(files['docker-compose.yml'].includes('oxide_game_runtime_init:'), 'production declares an isolated OxideProxy runtime initializer');
+assert(files['docker-compose.staging.yml'].includes('oxide_game_runtime_init_staging:'), 'staging declares an isolated OxideProxy runtime initializer');
 
 if (failures) {
   console.error(`Deployment security contract failed: ${failures} finding(s).`);
