@@ -208,6 +208,10 @@ for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
 
 assert(files['docker-compose.yml'].includes('oxide_game_runtime_init:'), 'production declares an isolated OxideProxy runtime initializer');
 assert(files['docker-compose.staging.yml'].includes('oxide_game_runtime_init_staging:'), 'staging declares an isolated OxideProxy runtime initializer');
+assert(files['docker-compose.staging.yml'].includes('phpmyadmin-staging:'), 'staging declares its isolated phpMyAdmin service');
+assert(/phpmyadmin-staging:[\s\S]*?aliases:\s*\n\s*- phpmyadmin/.test(files['docker-compose.staging.yml']), 'staging exposes phpMyAdmin through the internal proxy alias');
+assert(files['docker-compose.staging.yml'].includes('STAGING_PUBLIC_BASE_URL:-https://panel.ragenodes.dev'), 'staging phpMyAdmin keeps redirects on the staging panel origin');
+assert(files['deploy_staging.sh'].includes('  phpmyadmin-staging'), 'staging deploys phpMyAdmin automatically');
 for (const composeFile of ['docker-compose.yml', 'docker-compose.staging.yml']) {
   const compose = files[composeFile];
   assert(compose.includes('chown -R 0:${APP_GID:-1000} /runtime'), `${composeFile} grants the unprivileged control panel group access to runtime telemetry`);
