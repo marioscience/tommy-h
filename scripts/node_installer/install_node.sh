@@ -142,7 +142,7 @@ tls:
   key_path: ""
 runtime:
   worker_threads: 2
-  enable_core_pinning: false
+  enable_core_pinning: true
 advanced_tuning:
   ebpf_xdp:
     enabled: true
@@ -155,7 +155,7 @@ advanced_tuning:
     congestion_control: "bbr"
   security:
     rate_limit_conns_per_ip: 500
-    blacklist_enabled: false
+    blacklist_enabled: true
     handshake_timeout_ms: 1500
 EOF
 

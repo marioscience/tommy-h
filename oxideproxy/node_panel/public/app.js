@@ -761,6 +761,7 @@ function renderBlacklistTable() {
 
 async function saveFirewallRules() {
     const ebpf_xdp = {
+        enabled: true,
         ddos_mitigation_mode: document.getElementById('fw-ebpf-mode').value,
         max_packet_rate_per_ip: parseInt(document.getElementById('fw-ebpf-pps').value, 10)
     };
