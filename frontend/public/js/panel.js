@@ -3219,18 +3219,52 @@ function toggleSidebar() {
         let isDownloadPollingActive = false;
         let isDownloadPollingInFlight = false;
         let wasDownloading = false;
+        let downloadPollingUnavailable = { serverId: null, retryAfter: 0 };
+
+        function stopDownloadPolling() {
+            if (window._downloadInterval) {
+                clearInterval(window._downloadInterval);
+                window._downloadInterval = null;
+            }
+            isDownloadPollingActive = false;
+            isDownloadPollingInFlight = false;
+            downloadPollingUnavailable = { serverId: null, retryAfter: 0 };
+        }
 
         function startDownloadPolling() {
             if (isDownloadPollingActive) return;
             isDownloadPollingActive = true;
 
-            setInterval(async () => {
+            window._downloadInterval = setInterval(async () => {
                 if (!currentServerId || isDownloadPollingInFlight) return;
+                const requestedServerId = currentServerId;
+                if (!globalServersList.some(server => server.id === requestedServerId)) return;
+                if (downloadPollingUnavailable.serverId === requestedServerId
+                    && Date.now() < downloadPollingUnavailable.retryAfter) return;
                 isDownloadPollingInFlight = true;
                 try {
-                    const res = await fetch(`/api/files/download-status?serverId=${currentServerId}`, { credentials: 'same-origin' });
-                    if (res.status === 401) Nexus.logout();
+                    const res = await fetch(`/api/files/download-status?serverId=${requestedServerId}`, { credentials: 'same-origin' });
+                    if (res.status === 401) {
+                        stopDownloadPolling();
+                        Nexus.logout();
+                        return;
+                    }
+                    if (res.status === 404) {
+                        // A server can disappear from the user's scope during account
+                        // impersonation or deletion. Avoid hammering the stale id while
+                        // loadServers refreshes the authoritative selection.
+                        downloadPollingUnavailable = {
+                            serverId: requestedServerId,
+                            retryAfter: Date.now() + 60000
+                        };
+                        renderDownloads([]);
+                        lastDataHash = "";
+                        void loadServers();
+                        return;
+                    }
+                    if (!res.ok) throw new Error(`Download status HTTP ${res.status}`);
                     const data = await res.json();
+                    downloadPollingUnavailable = { serverId: null, retryAfter: 0 };
                     renderDownloads(data.tasks || []);
                 } catch (e) { } finally {
                     isDownloadPollingInFlight = false;
