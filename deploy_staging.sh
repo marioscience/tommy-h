@@ -85,6 +85,8 @@ if [ "$REGISTRY_DEPLOY" = "true" ]; then
 else
   "${COMPOSE[@]}" build "${APP_SERVICES[@]}"
 fi
+echo "Preparing the OxideProxy runtime volume."
+"${COMPOSE[@]}" run --rm --no-deps oxide_game_runtime_init_staging
 "${COMPOSE[@]}" up -d --no-deps "${APP_SERVICES[@]}"
 
 wait_for_service backend-staging 90

@@ -120,6 +120,8 @@ else
 fi
 
 echo "==> 🌐 Aplicando solo las imágenes o configuraciones que cambiaron..."
+echo "==> 🧰 Preparando el volumen de ejecución de OxideProxy..."
+"${COMPOSE[@]}" run --rm --no-deps oxide_game_runtime_init
 "${COMPOSE[@]}" up -d --no-deps "${APP_SERVICES[@]}"
 
 echo "==> 🩺 Esperando servicios críticos..."
