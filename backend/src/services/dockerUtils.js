@@ -72,6 +72,12 @@ export async function runRemoteCommand(nodeId, command) {
     }
 }
 
+export function commandStdout(result) {
+    if (typeof result === 'string') return result;
+    if (result && typeof result.stdout === 'string') return result.stdout;
+    return '';
+}
+
 export async function getNodeConnection(nodeId = 0) {
     if (nodeId === 0 || nodeId === '0') return localDocker;
     if (NODE_CONNECTIONS.has(nodeId)) return NODE_CONNECTIONS.get(nodeId);
@@ -158,7 +164,7 @@ export async function detachMutableTemplatePath(dirPath, nodeId = 0) {
     const oldPath = dirPath + '.detached-old-' + Date.now();
     try {
         const checkCmd = `[ -d "${dirPath}" ] && echo "yes" || echo "no"`;
-        const exists = await runRemoteCommand(nodeId, checkCmd);
+        const exists = commandStdout(await runRemoteCommand(nodeId, checkCmd));
         if (exists.trim() !== 'yes') return;
 
         await runRemoteCommand(nodeId, sh`cp -a ${dirPath} ${tmpPath}`);
@@ -193,14 +199,14 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0) {
             console.log(`⚡ [${gameName.toUpperCase()}] Plantilla maestra detectada en ${masterPath}. Clonando usando BTRFS Copy-on-Write / Hard Links...`);
             await runRemoteCommand(nodeId, sh`mkdir -p ${dataPath}`);
             try {
-                await runRemoteCommand(nodeId, sh`cp --reflink=always -a "${masterPath}/." "${dataPath}/"`);
+                await runRemoteCommand(nodeId, sh`cp --reflink=always -a ${masterPath + '/.'} ${dataPath + '/'}`);
             } catch (reflinkErr) {
                 console.warn(`⚠️ [${gameName.toUpperCase()}] Reflinks no disponibles (${reflinkErr.message}). Intentando Hard links...`);
                 try {
-                    await runRemoteCommand(nodeId, sh`cp -al "${masterPath}/." "${dataPath}/"`);
+                    await runRemoteCommand(nodeId, sh`cp -al ${masterPath + '/.'} ${dataPath + '/'}`);
                 } catch (linkErr) {
                     console.warn(`⚠️ [${gameName.toUpperCase()}] Hard links no disponibles (${linkErr.message}). Copiando desde plantilla maestra normal...`);
-                    await runRemoteCommand(nodeId, sh`cp -a "${masterPath}/." "${dataPath}/"`);
+                    await runRemoteCommand(nodeId, sh`cp -a ${masterPath + '/.'} ${dataPath + '/'}`);
                 }
             }
             console.log(`⚡ [${gameName.toUpperCase()}] Plantilla maestra aplicada con éxito.`);

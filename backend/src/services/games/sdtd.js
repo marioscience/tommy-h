@@ -1,4 +1,4 @@
-import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, sh } from '../dockerUtils.js';
+import { getNodeConnection, runRemoteCommand, commandStdout, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
 import { saveSDTDConfig } from '../sdtdService.js';
 import { prepareGameProxyBindings } from '../gameProxyPolicy.js';
@@ -36,7 +36,7 @@ export async function createSDTDContainer(containerName, serverId, gamePort, pla
     const docker = await getNodeConnection(nodeId);
     await runRemoteCommand(nodeId, sh`mkdir -p ${dataPath}`);
     await cloneFromMasterTemplate('sdtd', dataPath, nodeId);
-    const installed = (await runRemoteCommand(
+    const installed = commandStdout(await runRemoteCommand(
         nodeId,
         sh`if [ -x ${dataPath + '/7dtd/7DaysToDieServer.x86_64'} ]; then printf yes; else printf no; fi`
     )).trim() === 'yes';
