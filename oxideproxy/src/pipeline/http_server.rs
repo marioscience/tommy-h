@@ -74,6 +74,9 @@ struct AllowPhpMyAdminFraming;
 struct AllowRageNodesPanelFraming;
 
 #[derive(Clone)]
+struct AllowFiveMIdentityFrames;
+
+#[derive(Clone)]
 struct AllowBlenderApp;
 
 #[derive(Clone)]
@@ -263,6 +266,37 @@ fn csp_with_frame_ancestors(existing: Option<&str>, ancestors: &str) -> String {
     directives.join("; ")
 }
 
+fn csp_with_frame_source(existing: &str, source: &str) -> String {
+    let mut found = false;
+    let mut directives: Vec<String> = existing
+        .split(';')
+        .map(str::trim)
+        .filter(|directive| !directive.is_empty())
+        .map(|directive| {
+            if directive
+                .split_whitespace()
+                .next()
+                .is_some_and(|name| name.eq_ignore_ascii_case("frame-src"))
+            {
+                found = true;
+                if directive.split_whitespace().any(|item| item == source) {
+                    directive.to_string()
+                } else if directive.split_whitespace().any(|item| item == "'none'") {
+                    format!("frame-src {source}")
+                } else {
+                    format!("{directive} {source}")
+                }
+            } else {
+                directive.to_string()
+            }
+        })
+        .collect();
+    if !found {
+        directives.push(format!("frame-src {source}"));
+    }
+    directives.join("; ")
+}
+
 fn blender_app_csp(ancestors: &str) -> String {
     format!(
         "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors {ancestors}; form-action 'self'; \
@@ -448,6 +482,10 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
         .extensions()
         .get::<AllowRageNodesPanelFraming>()
         .is_some();
+    let allow_fivem_identity_frames = response
+        .extensions()
+        .get::<AllowFiveMIdentityFrames>()
+        .is_some();
     let allow_blender_app = response.extensions().get::<AllowBlenderApp>().is_some();
     let trusted_staging_upstream = response
         .extensions()
@@ -545,7 +583,12 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
         };
         blender_app_csp(&ancestors)
     } else if allow_panel_framing {
-        csp_with_frame_ancestors(upstream_csp.as_deref(), &frame_ancestors_policy())
+        let policy = csp_with_frame_ancestors(upstream_csp.as_deref(), &frame_ancestors_policy());
+        if allow_fivem_identity_frames {
+            csp_with_frame_source(&policy, "https://idms.fivem.net")
+        } else {
+            policy
+        }
     } else if access_gate_page {
         access_gate_csp(std::env::var("ACCESS_GATE_DOMAIN").ok().as_deref())
     } else if let Some(profile) = page_security.as_ref() {
@@ -690,6 +733,7 @@ async fn handle_http_request(
         )
         .await?;
         response.extensions_mut().insert(AllowRageNodesPanelFraming);
+        response.extensions_mut().insert(AllowFiveMIdentityFrames);
         return Ok(response);
     }
 
@@ -743,6 +787,7 @@ async fn handle_http_request(
                 )
                 .await?;
                 response.extensions_mut().insert(AllowRageNodesPanelFraming);
+                response.extensions_mut().insert(AllowFiveMIdentityFrames);
                 return Ok(response);
             }
         }
@@ -1227,8 +1272,9 @@ async fn serve_static_file(
 mod tests {
     use super::{
         access_gate_csp, apply_browser_security_headers, blender_app_csp, csp_with_frame_ancestors,
-        dynamic_proxy_port_for_domains, frame_ancestors_policy, trusted_upstream_csp,
-        AllowBlenderApp, AllowRageNodesPanelFraming, AllowSameOriginFraming,
+        csp_with_frame_source, dynamic_proxy_port_for_domains, frame_ancestors_policy,
+        trusted_upstream_csp, AllowBlenderApp, AllowFiveMIdentityFrames,
+        AllowRageNodesPanelFraming, AllowSameOriginFraming,
         TrustedStagingUpstream,
     };
     use http::{Response, StatusCode};
@@ -1282,6 +1328,38 @@ mod tests {
         assert!(result.contains("object-src 'none'"));
         assert!(result.contains("frame-ancestors https://ragenodes.dev"));
         assert!(!result.contains("frame-ancestors 'self'"));
+    }
+
+    #[test]
+    fn fivem_identity_is_added_only_to_frame_src() {
+        let result = csp_with_frame_source(
+            "default-src 'self'; frame-src 'self' https://*.ragenodes.app; object-src 'none'",
+            "https://idms.fivem.net",
+        );
+        assert!(result.contains(
+            "frame-src 'self' https://*.ragenodes.app https://idms.fivem.net"
+        ));
+        assert!(result.contains("object-src 'none'"));
+        assert!(!result.contains("default-src 'self' https://idms.fivem.net"));
+    }
+
+    #[test]
+    fn txadmin_response_allows_only_the_official_fivem_identity_frame() {
+        let mut response = Response::new(Body::empty());
+        response.headers_mut().insert(
+            "content-security-policy",
+            "default-src 'self'; object-src 'none'; frame-src 'self' https://*.ragenodes.app"
+                .parse()
+                .unwrap(),
+        );
+        response.extensions_mut().insert(AllowRageNodesPanelFraming);
+        response.extensions_mut().insert(AllowFiveMIdentityFrames);
+        apply_browser_security_headers(&mut response, true);
+        let policy = response.headers()["content-security-policy"]
+            .to_str()
+            .unwrap();
+        assert!(policy.contains("https://idms.fivem.net"));
+        assert!(!policy.contains("frame-src https:"));
     }
 
     #[test]
