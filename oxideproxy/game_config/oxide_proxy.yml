@@ -15,10 +15,10 @@ tls:
   key_path: config/certs/key.pem
 runtime:
   worker_threads: null
-  enable_core_pinning: false
+  enable_core_pinning: true
 advanced_tuning:
   ebpf_xdp:
-    enabled: false
+    enabled: true
     interface: eth0
     ddos_mitigation_mode: STRICT_GAMING
     max_packet_rate_per_ip: 25000

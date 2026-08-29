@@ -20,6 +20,8 @@ const files = Object.fromEntries(await Promise.all([
   'backend/src/services/games/cs2.js',
   'backend/src/services/games/valheim.js',
   'oxideproxy/config/oxide_proxy.yml',
+  'oxideproxy/game_config/oxide_proxy.yml',
+  'oxide_web/config/oxide_proxy.yml',
   'oxideproxy/src/config.rs',
   'oxideproxy/src/access_gate.rs',
   'oxideproxy/src/pipeline/mod.rs',
@@ -63,6 +65,12 @@ assert(!/RUN apk add[^\n]*rclone/.test(files['backend/Dockerfile'].split('AS bac
 assert(files['docker-compose.backup-remote.yml'].includes('target: backup-remote'), 'remote backup overlay selects the isolated rclone runtime');
 assert(files['oxideproxy/Dockerfile'].includes('USER 65532:65532'), 'OxideProxy image runs as a non-root user');
 assert(files['oxideproxy/config/oxide_proxy.yml'].includes('game_servers: []'), 'OxideProxy active config starts without laboratory routes');
+for (const configFile of ['oxideproxy/config/oxide_proxy.yml', 'oxideproxy/game_config/oxide_proxy.yml', 'oxide_web/config/oxide_proxy.yml']) {
+  const config = files[configFile];
+  assert(/enable_core_pinning:\s*true/.test(config), `${configFile} enables CPU affinity by default`);
+  assert(/ebpf_xdp:\s*\n\s*enabled:\s*true/.test(config), `${configFile} enables in-memory L4 mitigation by default`);
+  assert(/blacklist_enabled:\s*true/.test(config), `${configFile} enables blacklist enforcement by default`);
+}
 assert(files['oxideproxy/node_panel/public/app.js'].includes('JSON.stringify({ ebpf_xdp, security, runtime })'), 'Firewall controls persist the CPU affinity toggle');
 assert(files['oxideproxy/node_panel/public/app.js'].includes('enabled: true'), 'Applying firewall controls enables the in-memory L4 mitigation engine');
 assert(files['oxideproxy/node_panel/server.js'].includes("typeof runtime.enable_core_pinning === 'boolean'"), 'Oxide control plane validates and stores CPU affinity');
