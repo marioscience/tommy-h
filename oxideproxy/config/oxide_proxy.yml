@@ -13,7 +13,7 @@ tls:
   key_path: config/certs/key.pem
 runtime:
   worker_threads: null
-  enable_core_pinning: false
+  enable_core_pinning: true
 advanced_tuning:
   ebpf_xdp:
     enabled: true
