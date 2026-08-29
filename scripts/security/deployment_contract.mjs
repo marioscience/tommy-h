@@ -80,6 +80,7 @@ for (const configFile of ['oxideproxy/config/oxide_proxy.yml', 'oxideproxy/game_
 assert(files['oxideproxy/node_panel/public/app.js'].includes('JSON.stringify({ ebpf_xdp, security, runtime })'), 'Firewall controls persist the CPU affinity toggle');
 assert(files['oxideproxy/node_panel/public/app.js'].includes('enabled: true'), 'Applying firewall controls enables the in-memory L4 mitigation engine');
 assert(files['oxideproxy/node_panel/server.js'].includes("typeof runtime.enable_core_pinning === 'boolean'"), 'Oxide control plane validates and stores CPU affinity');
+assert(files['oxideproxy/src/pipeline/http_server.rs'].includes("frame-src 'self' https://ragenodes.app https://*.ragenodes.app https://ragenodes.dev https://*.ragenodes.dev https://ragenodes.com https://*.ragenodes.com"), 'panel CSP permits both RageNodes apex domains and their subdomains');
 assert(!files['oxideproxy/config/oxide_proxy.yml'].includes('10.5.0.10:9001'), 'OxideProxy active config excludes mock game backends');
 assert(files['oxideproxy/config/oxide_proxy.yml'].includes('default_web_backend: backend:3006'), 'OxideProxy resolves the portable backend network alias');
 assert(files['oxideproxy/src/config.rs'].includes('ProxyConfig::load') || files['oxideproxy/src/config.rs'].includes('pub fn load('), 'OxideProxy exposes a fallible configuration loader');

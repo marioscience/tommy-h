@@ -593,9 +593,9 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
         access_gate_csp(std::env::var("ACCESS_GATE_DOMAIN").ok().as_deref())
     } else if let Some(profile) = page_security.as_ref() {
         let third_party = match (profile.allows_paypal, profile.allows_internal_frames) {
-            (true, true) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://www.paypal.com https://www.paypalobjects.com; frame-src 'self' https://*.ragenodes.app https://*.ragenodes.dev https://*.ragenodes.com https://www.paypal.com;",
+            (true, true) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://www.paypal.com https://www.paypalobjects.com; frame-src 'self' https://ragenodes.app https://*.ragenodes.app https://ragenodes.dev https://*.ragenodes.dev https://ragenodes.com https://*.ragenodes.com https://www.paypal.com;",
             (true, false) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://www.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com;",
-            (false, true) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss:; frame-src 'self' https://*.ragenodes.app https://*.ragenodes.dev https://*.ragenodes.com;",
+            (false, true) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss:; frame-src 'self' https://ragenodes.app https://*.ragenodes.app https://ragenodes.dev https://*.ragenodes.dev https://ragenodes.com https://*.ragenodes.com;",
             (false, false) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss:; frame-src 'none';",
         };
         format!(
