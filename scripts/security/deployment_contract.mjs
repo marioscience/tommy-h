@@ -12,6 +12,7 @@ const files = Object.fromEntries(await Promise.all([
   '.env.example',
   'deploy.sh',
   'deploy_staging.sh',
+  'auto_update_prod.sh',
   'auto_update_staging.sh',
   'backend/src/services/dockerService.js',
   'backend/src/services/dockerUtils.js',
