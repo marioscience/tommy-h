@@ -3,10 +3,19 @@ FROM rust:bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc04
 
 ARG BPF_LINKER_VERSION=v0.11.0
 ARG BPF_LINKER_SHA256=10f62ba9ab7e544d538370552660efcb4f1a19153d5752bbf0f6b51f3bada450
+ARG RUST_NIGHTLY_TOOLCHAIN=nightly-2026-08-29
+ENV RUST_NIGHTLY_TOOLCHAIN=${RUST_NIGHTLY_TOOLCHAIN}
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl ca-certificates zstd \
     && rm -rf /var/lib/apt/lists/* \
-    && rustup toolchain install nightly --profile minimal --component rust-src \
-    && curl --proto '=https' --tlsv1.2 --http1.1 -fsSL \
+    && attempt=1 \
+    && while ! RUSTUP_MAX_RETRIES=5 rustup toolchain install "${RUST_NIGHTLY_TOOLCHAIN}" --profile minimal --component rust-src; do \
+         if [ "$attempt" -ge 4 ]; then exit 1; fi; \
+         sleep_seconds=$((attempt * 5)); \
+         echo "rustup download failed; retrying in ${sleep_seconds}s (attempt ${attempt}/4)" >&2; \
+         sleep "$sleep_seconds"; \
+         attempt=$((attempt + 1)); \
+       done \
+    && curl --proto '=https' --tlsv1.2 --http1.1 --retry 5 --retry-all-errors --connect-timeout 30 -fsSL \
       "https://github.com/aya-rs/bpf-linker/releases/download/${BPF_LINKER_VERSION}/bpf-linker-x86_64-unknown-linux-musl.tar.zst" \
       -o /tmp/bpf-linker.tar.zst \
     && printf '%s  %s\n' "${BPF_LINKER_SHA256}" /tmp/bpf-linker.tar.zst | sha256sum --check --status \

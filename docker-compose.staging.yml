@@ -33,6 +33,24 @@ services:
         aliases:
           - mariadb
 
+  phpmyadmin-staging:
+    image: phpmyadmin@sha256:6db6e0bc9959eb00395f5d927cc786cb63530a265663950ecb9faf5955419c37
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mariadb
+      PMA_ARBITRARY: 1
+      UPLOAD_LIMIT: 1000M
+      PMA_ABSOLUTE_URI: ${STAGING_PUBLIC_BASE_URL:-https://panel.ragenodes.dev}/pma/
+    volumes:
+      - ./phpmyadmin-config/config.user.inc.php:/etc/phpmyadmin/config.user.inc.php:ro
+    networks:
+      ragenodes_net_staging:
+        aliases:
+          - phpmyadmin
+    depends_on:
+      mariadb-staging:
+        condition: service_started
+
   backend-staging:
     build:
       context: ./backend
@@ -231,7 +249,9 @@ services:
   oxide_game_runtime_init_staging:
     image: alpine:3.22.1@sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045fa6c8c44de311d1
     user: "0:0"
-    command: ["sh", "-c", "mkdir -p /runtime/logs && chown -R 0:0 /runtime && chmod 0750 /runtime /runtime/logs"]
+    # Comparte métricas y trazas en modo lectura con el panel no privilegiado.
+    # setgid conserva APP_GID en los archivos creados posteriormente por XDP.
+    command: ["sh", "-c", "mkdir -p /runtime/logs && chown -R 0:${APP_GID:-1000} /runtime && chmod -R g+rX,o-rwx /runtime && chmod 2750 /runtime /runtime/logs"]
     volumes:
       - oxide_game_runtime_data_staging:/runtime
     network_mode: none
