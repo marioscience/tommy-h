@@ -129,6 +129,8 @@ compose_validation:
     entrypoint: [""]
   rules:
   - if: '$CI_COMMIT_BRANCH == "niko-local"'
+  - if: '$CI_COMMIT_BRANCH == "main"'
+  - if: '$CI_COMMIT_BRANCH == "dev"'
   script:
   - BUILD_CONTEXT="$BUILD_CONTEXT" COMPONENT="$COMPONENT" IMAGE_ENV_VAR="$IMAGE_ENV_VAR" sh scripts/registry/build_and_push_kaniko.sh
   artifacts:
@@ -169,6 +171,8 @@ registry_manifest_niko:
   image: alpine:3.22.1@sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045fa6c8c44de311d1
   rules:
   - if: '$CI_COMMIT_BRANCH == "niko-local"'
+  - if: '$CI_COMMIT_BRANCH == "main"'
+  - if: '$CI_COMMIT_BRANCH == "dev"'
   needs:
   - job: registry_backend_niko
     artifacts: true
