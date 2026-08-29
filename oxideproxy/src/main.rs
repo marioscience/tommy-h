@@ -8,6 +8,10 @@ pub mod pipeline;
 
 use crate::config::ProxyConfig;
 use crate::ingress::start_ingress;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -56,15 +60,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let enable_pinning = config.runtime.enable_core_pinning;
+    let available_cores = if enable_pinning {
+        eligible_cpu_ids()
+    } else {
+        Vec::new()
+    };
+    if enable_pinning && available_cores.is_empty() {
+        tracing::warn!("Core Pinning solicitado, pero el contenedor no expone núcleos elegibles.");
+    }
+    let available_cores = Arc::new(available_cores);
+    let next_core = Arc::new(AtomicUsize::new(0));
+    let thread_cores = Arc::clone(&available_cores);
+    let thread_index = Arc::clone(&next_core);
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(worker_threads)
         .enable_all()
         .on_thread_start(move || {
-            if enable_pinning {
-                // Aquí se configuraría la afinidad de CPU (Core Pinning) mediante core_affinity o APIs del SO.
-                tracing::debug!("Hilo de trabajo de Tokio iniciado con Core Pinning activo.");
+            if enable_pinning && !thread_cores.is_empty() {
+                let index = thread_index.fetch_add(1, Ordering::Relaxed) % thread_cores.len();
+                let core = thread_cores[index];
+                if pin_current_thread(core) {
+                    tracing::debug!("Hilo de Tokio fijado al núcleo {}.", core);
+                } else {
+                    tracing::warn!("No se pudo fijar un hilo de Tokio al núcleo {}.", core);
+                }
             } else {
-                tracing::debug!("Hilo de trabajo de Tokio iniciado (Core Pinning desactivado por entorno virtualizado).");
+                tracing::debug!("Hilo de trabajo de Tokio iniciado sin Core Pinning.");
             }
         })
         .build()?;
@@ -105,4 +126,55 @@ fn num_cpus() -> usize {
     std::thread::available_parallelism()
         .map(|p| p.get())
         .unwrap_or(4)
+}
+
+#[cfg(target_os = "linux")]
+const CPU_SET_WORDS: usize = 16;
+
+#[cfg(target_os = "linux")]
+type CpuSet = [u64; CPU_SET_WORDS];
+
+#[cfg(target_os = "linux")]
+unsafe extern "C" {
+    fn sched_getaffinity(pid: i32, cpusetsize: usize, mask: *mut CpuSet) -> i32;
+    fn sched_setaffinity(pid: i32, cpusetsize: usize, mask: *const CpuSet) -> i32;
+}
+
+#[cfg(target_os = "linux")]
+fn eligible_cpu_ids() -> Vec<usize> {
+    let mut mask: CpuSet = [0; CPU_SET_WORDS];
+    let result = unsafe {
+        sched_getaffinity(0, std::mem::size_of::<CpuSet>(), &mut mask)
+    };
+    if result != 0 {
+        return (0..num_cpus()).collect();
+    }
+    mask.iter()
+        .enumerate()
+        .flat_map(|(word, bits)| {
+            (0..64).filter_map(move |bit| {
+                (bits & (1_u64 << bit) != 0).then_some(word * 64 + bit)
+            })
+        })
+        .collect()
+}
+
+#[cfg(target_os = "linux")]
+fn pin_current_thread(cpu: usize) -> bool {
+    if cpu >= CPU_SET_WORDS * 64 {
+        return false;
+    }
+    let mut mask: CpuSet = [0; CPU_SET_WORDS];
+    mask[cpu / 64] |= 1_u64 << (cpu % 64);
+    unsafe { sched_setaffinity(0, std::mem::size_of::<CpuSet>(), &mask) == 0 }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn eligible_cpu_ids() -> Vec<usize> {
+    (0..num_cpus()).collect()
+}
+
+#[cfg(not(target_os = "linux"))]
+fn pin_current_thread(_cpu: usize) -> bool {
+    false
 }
