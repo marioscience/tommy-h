@@ -12,6 +12,7 @@ const files = Object.fromEntries(await Promise.all([
   '.env.example',
   'deploy.sh',
   'deploy_staging.sh',
+  'auto_update_prod.sh',
   'auto_update_staging.sh',
   'backend/src/services/dockerService.js',
   'backend/src/services/dockerUtils.js',
@@ -119,6 +120,9 @@ assert(files['auto_update_staging.sh'].includes('git -c gc.auto=0 fetch'), 'stag
 assert(files['auto_update_staging.sh'].includes('RUNTIME_CONFIG="oxideproxy/game_config/oxide_proxy.yml"'), 'staging updater identifies the OxideProxy runtime config explicitly');
 assert(files['auto_update_staging.sh'].includes('\":(exclude)$RUNTIME_CONFIG\"'), 'staging updater permits only the generated OxideProxy config outside the clean-worktree guard');
 assert(files['auto_update_staging.sh'].includes('restore_runtime_config'), 'staging updater restores live OxideProxy routes across deploy and rollback');
+assert(files['auto_update_prod.sh'].includes('RUNTIME_CONFIG="oxideproxy/game_config/oxide_proxy.yml"'), 'production updater identifies the OxideProxy runtime config explicitly');
+assert(files['auto_update_prod.sh'].includes('\":(exclude)$RUNTIME_CONFIG\"'), 'production updater permits only the generated OxideProxy config outside the clean-worktree guard');
+assert(files['auto_update_prod.sh'].includes('restore_runtime_config'), 'production updater restores live OxideProxy routes across deploy and rollback');
 assert(files['.env.example'].includes('ALLOW_ROOTFUL_DOCKER_SOCKET=false'), 'rootful Docker exception is disabled by default');
 assert(files['.env.example'].includes('FRONTEND_BIND_IP=127.0.0.1'), 'auxiliary frontend bind is explicitly loopback-only');
 assert(files['.env.example'].includes('DISCORD_API_KEY=') && files['.env.example'].includes('NODE_ENROLLMENT_API_KEY='), 'Discord and node enrollment use separate credentials');
