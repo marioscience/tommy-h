@@ -1,4 +1,10 @@
 services:
+  backend:
+    environment:
+      POWERDNS_ZONE: ${POWERDNS_ZONE:?Set POWERDNS_ZONE}
+      LEGO_EMAIL: ${LEGO_EMAIL:?Set LEGO_EMAIL}
+      LEGO_ACME_SERVER: ${LEGO_ACME_SERVER:-https://acme-staging-v02.api.letsencrypt.org/directory}
+
   powerdns-authoritative:
     image: powerdns/pdns-auth-49:4.9.17@sha256:b554df74bbde1afa7caedad4af9c91378be6d46d05807d089b3c7c443002e684
     profiles: ["dns-authority"]
@@ -67,6 +73,19 @@ services:
       - OXIDE_TLS_KEY_PATH=/var/lib/lego/certificates/${POWERDNS_ZONE:?Set POWERDNS_ZONE}.key
     volumes:
       - lego_certificates:/var/lib/lego:ro
+
+  oxide_control_panel:
+    environment:
+      PDNS_API_URL: http://powerdns-authoritative:8081/api/v1
+      PDNS_API_KEY: ${PDNS_API_KEY:?Set PDNS_API_KEY}
+      PDNS_SERVER_ID: localhost
+      PDNS_MANAGED_ZONES: ${POWERDNS_ZONE:?Set POWERDNS_ZONE}
+      POWERDNS_ZONE: ${POWERDNS_ZONE:?Set POWERDNS_ZONE}
+      OXIDE_ACME_DOMAINS: ${POWERDNS_ZONE:?Set POWERDNS_ZONE},*.${POWERDNS_ZONE:?Set POWERDNS_ZONE}
+      OXIDE_ACME_PRODUCTION: ${OXIDE_ACME_PRODUCTION:-false}
+    networks:
+      - ragenodes_net
+      - ragenodes_dns
 
 networks:
   ragenodes_dns:

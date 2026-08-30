@@ -19,6 +19,7 @@ type HmacSha256 = Hmac<Sha256>;
 const ACCESS_PATH: &str = "/__access";
 const REQUEST_PATH: &str = "/__access/request";
 const VERIFY_PATH: &str = "/__access/verify";
+const RETURN_TARGET_FIELD: &str = "next";
 // La sesión debe compartirse entre el dominio canónico y sus subdominios.
 // El prefijo __Host- prohíbe el atributo Domain y el navegador descartaría
 // la cookie; __Secure- mantiene la exigencia de HTTPS y permite compartirla.
@@ -166,9 +167,7 @@ impl AccessGate {
     ) -> GateOutcome {
         self.cleanup_expired_state();
         let host = normalized_request_host(&req);
-        let gated_subdomain = host
-            .strip_suffix(&format!(".{}", self.domain))
-            .is_some_and(|label| !label.is_empty() && !label.contains('.'));
+        let gated_subdomain = self.is_gated_subdomain(&host);
 
         if host != self.domain && !gated_subdomain {
             if self.shared_edge {
@@ -198,10 +197,10 @@ impl AccessGate {
 
         if self.has_valid_session(&req) {
             if matches!(req.uri().path(), ACCESS_PATH | REQUEST_PATH | VERIFY_PATH) {
-                return GateOutcome::Respond(redirect_response(&format!(
-                    "https://panel.{}/panel",
-                    self.domain
-                )));
+                let return_target = self.return_target_from_query(req.uri().query());
+                return GateOutcome::Respond(redirect_response(
+                    &self.return_target_or_panel(return_target.as_deref()),
+                ));
             }
             return GateOutcome::Allow(req);
         }
@@ -211,17 +210,18 @@ impl AccessGate {
         // se realiza en el host canónico para conservar una validación Origin
         // estricta y evitar formularios válidos en subdominios arbitrarios.
         if gated_subdomain {
-            return GateOutcome::Respond(redirect_response(&format!(
-                "https://{}{}",
-                self.domain, ACCESS_PATH
-            )));
+            let return_target = self.return_target_for_request(&req, &host);
+            return GateOutcome::Respond(redirect_response(
+                &self.access_url(return_target.as_deref()),
+            ));
         }
 
         let path = req.uri().path().to_string();
         let method = req.method().clone();
         match (method, path.as_str()) {
             (Method::GET, ACCESS_PATH) | (Method::GET, "/") => {
-                GateOutcome::Respond(access_page(None, false, None))
+                let return_target = self.return_target_from_query(req.uri().query());
+                GateOutcome::Respond(access_page(None, false, None, return_target.as_deref()))
             }
             (Method::POST, REQUEST_PATH) => {
                 if !self.valid_origin(&req) {
@@ -241,7 +241,7 @@ impl AccessGate {
                 }
                 GateOutcome::Respond(self.verify_code(req, peer_addr.ip(), ban_tx).await)
             }
-            _ => GateOutcome::Respond(access_page(None, false, None)),
+            _ => GateOutcome::Respond(access_page(None, false, None, None)),
         }
     }
 
@@ -255,9 +255,15 @@ impl AccessGate {
             Ok(form) => form,
             Err(response) => return response,
         };
+        let return_target = self.return_target_from_form(&form);
         let email = form.get("email").and_then(|value| normalize_email(value));
         let Some(email) = email else {
-            return access_page(Some("Introduce un correo válido."), false, None);
+            return access_page(
+                Some("Introduce un correo válido."),
+                false,
+                None,
+                return_target.as_deref(),
+            );
         };
 
         if !self.email_is_allowed(&email) {
@@ -275,6 +281,7 @@ impl AccessGate {
                 Some("Si el correo está autorizado, recibirás un código en breve."),
                 true,
                 Some(&email),
+                return_target.as_deref(),
             );
         }
 
@@ -287,6 +294,7 @@ impl AccessGate {
                 Some("Si el correo está autorizado, recibirás un código en breve."),
                 true,
                 Some(&email),
+                return_target.as_deref(),
             );
         }
 
@@ -304,6 +312,7 @@ impl AccessGate {
                 Some("El servicio de acceso no está disponible temporalmente."),
                 false,
                 None,
+                return_target.as_deref(),
             );
         }
 
@@ -327,6 +336,7 @@ impl AccessGate {
             Some("Si el correo está autorizado, recibirás un código en breve."),
             true,
             Some(&email),
+            return_target.as_deref(),
         )
     }
 
@@ -340,13 +350,19 @@ impl AccessGate {
             Ok(form) => form,
             Err(response) => return response,
         };
+        let return_target = self.return_target_from_form(&form);
         let email = form.get("email").and_then(|value| normalize_email(value));
         let code = form
             .get("code")
             .map(|value| value.trim().to_string())
             .unwrap_or_default();
         let Some(email) = email else {
-            return access_page(Some("Código inválido o caducado."), true, None);
+            return access_page(
+                Some("Código inválido o caducado."),
+                true,
+                None,
+                return_target.as_deref(),
+            );
         };
 
         if !self.email_is_allowed(&email) {
@@ -355,7 +371,12 @@ impl AccessGate {
                 let _ = ban_tx.send(ip).await;
                 return text_response(StatusCode::FORBIDDEN, "Acceso bloqueado");
             }
-            return access_page(Some("Código inválido o caducado."), true, Some(&email));
+            return access_page(
+                Some("Código inválido o caducado."),
+                true,
+                Some(&email),
+                return_target.as_deref(),
+            );
         }
 
         let now = unix_now();
@@ -368,6 +389,7 @@ impl AccessGate {
                     Some("El servicio de acceso no está disponible temporalmente."),
                     true,
                     Some(&email),
+                    return_target.as_deref(),
                 );
             }
         };
@@ -385,7 +407,9 @@ impl AccessGate {
                 .consume_otp_challenge(&email, challenge.as_ref().expect("desafío presente"))
                 .await
             {
-                Ok(true) => return self.authorized_response(&email),
+                Ok(true) => {
+                    return self.authorized_response(&email, return_target.as_deref())
+                }
                 Ok(false) => {}
                 Err(error) => {
                     tracing::error!("No se pudo consumir el desafío OTP compartido: {}", error);
@@ -393,6 +417,7 @@ impl AccessGate {
                         Some("El servicio de acceso no está disponible temporalmente."),
                         true,
                         Some(&email),
+                        return_target.as_deref(),
                     );
                 }
             }
@@ -403,7 +428,12 @@ impl AccessGate {
             return text_response(StatusCode::FORBIDDEN, "Acceso bloqueado");
         }
 
-        access_page(Some("Código inválido o caducado."), true, Some(&email))
+        access_page(
+            Some("Código inválido o caducado."),
+            true,
+            Some(&email),
+            return_target.as_deref(),
+        )
     }
 
     async fn send_code(&self, email: &str, code: &str) -> Result<(), String> {
@@ -429,13 +459,86 @@ impl AccessGate {
         Ok(())
     }
 
-    fn authorized_response(&self, email: &str) -> Response<Body> {
+    fn is_gated_subdomain(&self, host: &str) -> bool {
+        host.strip_suffix(&format!(".{}", self.domain))
+            .is_some_and(|label| !label.is_empty() && !label.contains('.'))
+    }
+
+    fn normalize_return_target(&self, value: &str) -> Option<String> {
+        let url = url::Url::parse(value).ok()?;
+        let host = url.host_str()?.trim_end_matches('.').to_ascii_lowercase();
+        let allowed_host = host == self.domain || self.is_gated_subdomain(&host);
+        let internal_access_path = host == self.domain
+            && matches!(url.path(), ACCESS_PATH | REQUEST_PATH | VERIFY_PATH);
+
+        if url.scheme() != "https"
+            || !allowed_host
+            || internal_access_path
+            || url.port_or_known_default() != Some(443)
+            || !url.username().is_empty()
+            || url.password().is_some()
+            || url.fragment().is_some()
+        {
+            return None;
+        }
+
+        Some(url.to_string())
+    }
+
+    fn return_target_from_query(&self, query: Option<&str>) -> Option<String> {
+        query
+            .into_iter()
+            .flat_map(|query| url::form_urlencoded::parse(query.as_bytes()))
+            .find_map(|(key, value)| {
+                (key == RETURN_TARGET_FIELD)
+                    .then(|| self.normalize_return_target(value.as_ref()))
+                    .flatten()
+            })
+    }
+
+    fn return_target_from_form(&self, form: &HashMap<String, String>) -> Option<String> {
+        form.get(RETURN_TARGET_FIELD)
+            .and_then(|value| self.normalize_return_target(value))
+    }
+
+    fn return_target_for_request(&self, req: &Request<Body>, host: &str) -> Option<String> {
+        let path_and_query = req
+            .uri()
+            .path_and_query()
+            .map(|value| value.as_str())
+            .unwrap_or("/");
+        self.normalize_return_target(&format!("https://{host}{path_and_query}"))
+    }
+
+    fn return_target_or_panel(&self, return_target: Option<&str>) -> String {
+        return_target
+            .and_then(|value| self.normalize_return_target(value))
+            .unwrap_or_else(|| format!("https://panel.{}/panel", self.domain))
+    }
+
+    fn access_url(&self, return_target: Option<&str>) -> String {
+        let mut url = url::Url::parse(&format!("https://{}{}", self.domain, ACCESS_PATH))
+            .expect("el dominio de acceso fue validado al inicializar");
+        if let Some(return_target) =
+            return_target.and_then(|value| self.normalize_return_target(value))
+        {
+            url.query_pairs_mut()
+                .append_pair(RETURN_TARGET_FIELD, &return_target);
+        }
+        url.to_string()
+    }
+
+    fn authorized_response(
+        &self,
+        email: &str,
+        return_target: Option<&str>,
+    ) -> Response<Body> {
         let token = self.create_session_token(email);
         let cookie = format!(
             "{SESSION_COOKIE}={token}; Domain={}; Path=/; Max-Age={SESSION_TTL_SECS}; Secure; HttpOnly; SameSite=Strict",
             self.domain
         );
-        let mut response = redirect_response(&format!("https://panel.{}/panel", self.domain));
+        let mut response = redirect_response(&self.return_target_or_panel(return_target));
         if let Ok(value) = HeaderValue::from_str(&cookie) {
             response.headers_mut().insert(SET_COOKIE, value);
         }
@@ -689,18 +792,40 @@ async fn read_form(req: Request<Body>) -> Result<HashMap<String, String>, Respon
         .collect::<HashMap<_, _>>())
 }
 
-fn access_page(message: Option<&str>, show_code: bool, email: Option<&str>) -> Response<Body> {
+fn access_page(
+    message: Option<&str>,
+    show_code: bool,
+    email: Option<&str>,
+    return_target: Option<&str>,
+) -> Response<Body> {
     let message_html = message
         .map(|value| format!("<p class=\"notice\">{}</p>", escape_html(value)))
         .unwrap_or_default();
+    let return_input = return_target
+        .map(|value| {
+            format!(
+                "<input type=\"hidden\" name=\"{RETURN_TARGET_FIELD}\" value=\"{}\">",
+                escape_html(value)
+            )
+        })
+        .unwrap_or_default();
+    let retry_href = return_target
+        .map(|value| {
+            let query = url::form_urlencoded::Serializer::new(String::new())
+                .append_pair(RETURN_TARGET_FIELD, value)
+                .finish();
+            format!("{ACCESS_PATH}?{query}")
+        })
+        .unwrap_or_else(|| ACCESS_PATH.to_string());
     let form = if show_code {
         format!(
-            "<form method=\"post\" action=\"{VERIFY_PATH}\"><input type=\"hidden\" name=\"email\" value=\"{}\"><label for=\"code\">Código de acceso</label><input id=\"code\" name=\"code\" inputmode=\"numeric\" autocomplete=\"one-time-code\" pattern=\"[0-9]{{6}}\" maxlength=\"6\" required autofocus><button type=\"submit\">Verificar código</button></form><a href=\"{ACCESS_PATH}\">Usar otro correo</a>",
-            escape_html(email.unwrap_or_default())
+            "<form method=\"post\" action=\"{VERIFY_PATH}\">{return_input}<input type=\"hidden\" name=\"email\" value=\"{}\"><label for=\"code\">Código de acceso</label><input id=\"code\" name=\"code\" inputmode=\"numeric\" autocomplete=\"one-time-code\" pattern=\"[0-9]{{6}}\" maxlength=\"6\" required autofocus><button type=\"submit\">Verificar código</button></form><a href=\"{}\">Usar otro correo</a>",
+            escape_html(email.unwrap_or_default()),
+            escape_html(&retry_href)
         )
     } else {
         format!(
-            "<form method=\"post\" action=\"{REQUEST_PATH}\"><label for=\"email\">Correo autorizado</label><input id=\"email\" name=\"email\" type=\"email\" autocomplete=\"email\" maxlength=\"254\" required autofocus><button type=\"submit\">Enviar código</button></form>"
+            "<form method=\"post\" action=\"{REQUEST_PATH}\">{return_input}<label for=\"email\">Correo autorizado</label><input id=\"email\" name=\"email\" type=\"email\" autocomplete=\"email\" maxlength=\"254\" required autofocus><button type=\"submit\">Enviar código</button></form>"
         )
     };
     let html = format!(
@@ -955,7 +1080,7 @@ mod tests {
     #[test]
     fn authorized_session_is_secure_shared_and_redirects_to_panel() {
         let gate = test_gate();
-        let response = gate.authorized_response("dev@example.com");
+        let response = gate.authorized_response("dev@example.com", None);
         let cookie = response
             .headers()
             .get(SET_COOKIE)
@@ -974,6 +1099,51 @@ mod tests {
                 .and_then(|value| value.to_str().ok()),
             Some("https://panel.ragenodes.dev/panel")
         );
+    }
+
+    #[test]
+    fn authorized_session_returns_to_the_original_dynamic_panel() {
+        let gate = test_gate();
+        let response = gate.authorized_response(
+            "dev@example.com",
+            Some("https://tx40120.ragenodes.dev/auth?flow=cfx"),
+        );
+
+        assert_eq!(
+            response
+                .headers()
+                .get(LOCATION)
+                .and_then(|value| value.to_str().ok()),
+            Some("https://tx40120.ragenodes.dev/auth?flow=cfx")
+        );
+    }
+
+    #[test]
+    fn return_target_accepts_only_https_staging_hosts() {
+        let gate = test_gate();
+
+        assert_eq!(
+            gate.normalize_return_target("https://tx40120.ragenodes.dev/login?step=1"),
+            Some("https://tx40120.ragenodes.dev/login?step=1".to_string())
+        );
+        assert!(gate
+            .normalize_return_target("https://evil.example/login")
+            .is_none());
+        assert!(gate
+            .normalize_return_target("http://tx40120.ragenodes.dev/login")
+            .is_none());
+        assert!(gate
+            .normalize_return_target("https://user@tx40120.ragenodes.dev/login")
+            .is_none());
+        assert!(gate
+            .normalize_return_target("https://tx40120.ragenodes.dev:444/login")
+            .is_none());
+        assert!(gate
+            .normalize_return_target("https://nested.tx40120.ragenodes.dev/login")
+            .is_none());
+        assert!(gate
+            .normalize_return_target("https://ragenodes.dev/__access")
+            .is_none());
     }
 
     #[test]
@@ -1070,12 +1240,38 @@ mod tests {
             panic!("el subdominio de staging no debe quedar público");
         };
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        let location = response
+            .headers()
+            .get(LOCATION)
+            .and_then(|value| value.to_str().ok())
+            .expect("la puerta debe responder con una ubicación");
+        let redirect = url::Url::parse(location).expect("la ubicación debe ser una URL válida");
+        assert_eq!(redirect.origin().ascii_serialization(), "https://ragenodes.dev");
+        assert_eq!(redirect.path(), ACCESS_PATH);
         assert_eq!(
-            response
-                .headers()
-                .get(LOCATION)
-                .and_then(|value| value.to_str().ok()),
-            Some("https://ragenodes.dev/__access")
+            redirect
+                .query_pairs()
+                .find(|(key, _)| key == RETURN_TARGET_FIELD)
+                .map(|(_, value)| value.into_owned()),
+            Some("https://tx40120.ragenodes.dev/".to_string())
         );
+    }
+
+    #[tokio::test]
+    async fn access_form_preserves_the_validated_return_target() {
+        let response = access_page(
+            None,
+            true,
+            Some("developer@ragenodes.com"),
+            Some("https://tx40120.ragenodes.dev/auth?flow=cfx"),
+        );
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let html = std::str::from_utf8(&body).unwrap();
+
+        assert!(html.contains("name=\"next\""));
+        assert!(html.contains(
+            "value=\"https://tx40120.ragenodes.dev/auth?flow=cfx\""
+        ));
+        assert!(html.contains("/__access?next=https%3A%2F%2Ftx40120.ragenodes.dev%2Fauth%3Fflow%3Dcfx"));
     }
 }

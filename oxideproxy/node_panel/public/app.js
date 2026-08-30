@@ -50,6 +50,7 @@ const dataThroughput = {
 const dataPps = {
     labels: timeLabels,
     datasets: [
+        { label: 'XDP RX (PPS reales)', borderColor: '#00f0ff', backgroundColor: 'rgba(0, 240, 255, 0.08)', data: [], fill: false, tension: 0.25, borderWidth: 3 },
         { label: 'UDP (PPS - ZeroCopy)', borderColor: '#00ff88', backgroundColor: 'rgba(0, 255, 136, 0.1)', data: [], fill: true, tension: 0.4 },
         { label: 'TCP (lecturas/s)', borderColor: '#a855f7', backgroundColor: 'rgba(168, 85, 247, 0.1)', data: [], fill: true, tension: 0.4 }
     ]
@@ -70,6 +71,7 @@ const perServerData = {};
 let activeServerModalGameId = null;
 let consolePaused = false;
 let currentLogFilter = 'ALL';
+let currentDnsZone = '';
 
 function escapeHtml(value) {
     return String(value ?? '')
@@ -118,6 +120,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-add-blacklist').addEventListener('click', addIpToBlacklist);
     fetchFirewallRules();
 
+    document.getElementById('btn-dns-refresh').addEventListener('click', loadDnsStatus);
+    document.getElementById('btn-dns-save').addEventListener('click', saveDnsRecord);
+    document.getElementById('btn-ssl-renew').addEventListener('click', renewManagedCertificate);
+    document.getElementById('dns-zone').addEventListener('change', (event) => {
+        currentDnsZone = event.target.value;
+        loadDnsRecords();
+    });
+
     // Event Listeners para Pestañas Cero Scroll
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -150,6 +160,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const index = parseActionIndex(unblockButton);
             if (index !== null) return removeIpFromBlacklist(index);
         }
+
+        const dnsDeleteButton = event.target.closest('[data-action="dns-delete"]');
+        if (dnsDeleteButton) return deleteDnsRecord(dnsDeleteButton.dataset.name, dnsDeleteButton.dataset.type);
     });
 });
 
@@ -214,6 +227,13 @@ async function fetchAdvancedMetrics() {
         document.getElementById('stat-bandwidth').innerText = ingressMbps > 0 && ingressMbps < 1
             ? `${(ingressMbps * 1000).toFixed(2)} Kbps Ingress`
             : `${ingressMbps.toFixed(2)} Mbps Ingress`;
+        const telemetrySource = String(data.proxy_analytics.throughput.source || 'proxy');
+        const sourceLabel = telemetrySource === 'xdp-driver'
+            ? 'XDP nativo (driver)'
+            : telemetrySource === 'xdp-generic'
+                ? 'XDP genérico'
+                : 'listeners del proxy';
+        document.getElementById('stat-telemetry-source').innerText = `Fuente: ${sourceLabel} • actualizado ahora`;
 
         document.getElementById('stat-sys-load').innerText = `${data.system.memory.usage_pct}% RAM`;
         document.getElementById('stat-cpu-cores').innerText = `Cores: ${data.system.cpu_cores} (${data.system.cpu_model.substring(0, 18)}...)`;
@@ -226,6 +246,7 @@ async function fetchAdvancedMetrics() {
             dataThroughput.datasets[1].data.shift();
             dataPps.datasets[0].data.shift();
             dataPps.datasets[1].data.shift();
+            dataPps.datasets[2].data.shift();
             dataSystem.datasets[0].data.shift();
             dataSystem.datasets[1].data.shift();
         }
@@ -234,8 +255,9 @@ async function fetchAdvancedMetrics() {
         dataThroughput.datasets[0].data.push(data.proxy_analytics.throughput.ingress_mbps);
         dataThroughput.datasets[1].data.push(data.proxy_analytics.throughput.egress_mbps);
 
-        dataPps.datasets[0].data.push(data.proxy_analytics.throughput.udp_pps);
-        dataPps.datasets[1].data.push(data.proxy_analytics.throughput.tcp_pps);
+        dataPps.datasets[0].data.push(data.proxy_analytics.throughput.xdp_pps || 0);
+        dataPps.datasets[1].data.push(data.proxy_analytics.throughput.udp_pps);
+        dataPps.datasets[2].data.push(data.proxy_analytics.throughput.tcp_pps);
 
         dataSystem.datasets[0].data.push(data.proxy_analytics.ebpf_mitigation.dropped_packets_per_sec);
         dataSystem.datasets[1].data.push(data.system.memory.usage_pct);
@@ -276,6 +298,8 @@ async function fetchAdvancedMetrics() {
         const statusText = document.getElementById('nav-status-text');
         if (pulse) pulse.className = 'pulse-dot offline';
         if (statusText) statusText.innerText = 'Reconectando con el Motor...';
+        const source = document.getElementById('stat-telemetry-source');
+        if (source) source.innerText = 'Fuente: telemetría temporalmente no disponible';
     }
 }
 
@@ -859,4 +883,106 @@ function switchTab(tabId) {
             if (chartSystem) chartSystem.resize();
         }, 50);
     }
+    if (tabId === 'tab-dns') loadDnsStatus();
+}
+
+// ==========================================================================
+// 10. PowerDNS & SSL
+// ==========================================================================
+
+async function readApiResponse(response) {
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || `Solicitud rechazada (${response.status})`);
+    return payload;
+}
+
+async function loadDnsStatus() {
+    const status = document.getElementById('dns-status');
+    try {
+        const [dns, ssl] = await Promise.all([
+            authFetch('/api/oxide/dns/status').then(readApiResponse),
+            authFetch('/api/oxide/ssl/status').then(readApiResponse)
+        ]);
+        document.getElementById('ssl-provider').innerText = ssl.provider || 'No configurado';
+        document.getElementById('ssl-mode').innerText = ssl.enabled
+            ? (ssl.production ? 'Activo • producción' : 'Activo • pruebas')
+            : 'Gestionado por certificado montado';
+        document.getElementById('ssl-domains').innerText = (ssl.domains || []).join(', ') || 'Sin dominios ACME internos';
+        const select = document.getElementById('dns-zone');
+        const zones = (dns.zones || []).map(zone => typeof zone === 'string' ? zone : zone.name);
+        select.innerHTML = zones.map(zone => `<option value="${escapeHtml(zone)}">${escapeHtml(zone)}</option>`).join('');
+        currentDnsZone = zones.includes(currentDnsZone) ? currentDnsZone : (zones[0] || '');
+        select.value = currentDnsZone;
+        status.innerText = dns.available ? `${zones.length} zona(s) PowerDNS disponibles.` : (dns.reason || 'PowerDNS no disponible.');
+        if (dns.available && currentDnsZone) await loadDnsRecords();
+        else renderDnsRecords([]);
+    } catch (error) {
+        status.innerText = error.message;
+        renderDnsRecords([]);
+        showToast(error.message, 'error');
+    }
+}
+
+async function loadDnsRecords() {
+    if (!currentDnsZone) return renderDnsRecords([]);
+    try {
+        const data = await authFetch(`/api/oxide/dns/zones/${encodeURIComponent(currentDnsZone)}/records`).then(readApiResponse);
+        renderDnsRecords(data.records || []);
+    } catch (error) {
+        renderDnsRecords([]);
+        showToast(error.message, 'error');
+    }
+}
+
+function renderDnsRecords(records) {
+    const body = document.getElementById('dns-records-body');
+    if (!records.length) {
+        body.innerHTML = '<tr><td colspan="5" class="empty-table-cell">No hay registros para mostrar.</td></tr>';
+        return;
+    }
+    body.innerHTML = records.map(record => `<tr>
+        <td>${escapeHtml(record.name)}</td><td><span class="badge badge-glow">${escapeHtml(record.type)}</span></td>
+        <td>${Number(record.ttl || 0)}</td><td class="dns-values-cell">${(record.records || []).map(escapeHtml).join('<br>')}</td>
+        <td><button class="action-btn delete" data-action="dns-delete" data-name="${escapeHtml(record.name)}" data-type="${escapeHtml(record.type)}" title="Eliminar"><i class="fa-solid fa-trash"></i></button></td>
+    </tr>`).join('');
+}
+
+async function saveDnsRecord() {
+    if (!currentDnsZone) return showToast('No hay una zona PowerDNS seleccionada.', 'error');
+    const name = document.getElementById('dns-name').value.trim();
+    const type = document.getElementById('dns-type').value;
+    const ttl = Number(document.getElementById('dns-ttl').value);
+    let records = document.getElementById('dns-values').value.split('\n').map(value => value.trim()).filter(Boolean);
+    if (type === 'TXT') records = records.map(value => value.startsWith('"') ? value : `"${value.replaceAll('"', '\\"')}"`);
+    try {
+        await authFetch(`/api/oxide/dns/zones/${encodeURIComponent(currentDnsZone)}/records`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, type, ttl, records })
+        }).then(readApiResponse);
+        showToast(`Registro ${type} guardado.`, 'success');
+        await loadDnsRecords();
+    } catch (error) { showToast(error.message, 'error'); }
+}
+
+async function deleteDnsRecord(name, type) {
+    if (!currentDnsZone || !name || !type || !confirm(`¿Eliminar ${type} ${name}?`)) return;
+    try {
+        await authFetch(`/api/oxide/dns/zones/${encodeURIComponent(currentDnsZone)}/records`, {
+            method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, type })
+        }).then(readApiResponse);
+        showToast(`Registro ${type} eliminado.`, 'success');
+        await loadDnsRecords();
+    } catch (error) { showToast(error.message, 'error'); }
+}
+
+async function renewManagedCertificate() {
+    if (!confirm('¿Renovar ahora el certificado de la zona PowerDNS administrada?')) return;
+    const button = document.getElementById('btn-ssl-renew');
+    button.disabled = true;
+    try {
+        const data = await authFetch('/api/oxide/ssl/renew', { method: 'POST' }).then(readApiResponse);
+        showToast(`SSL renovado para ${data.zone}. OxideProxy Web fue recargado.`, 'success');
+        await loadDnsStatus();
+    } catch (error) { showToast(error.message, 'error'); }
+    finally { button.disabled = false; }
 }
