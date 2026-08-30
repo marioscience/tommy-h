@@ -388,6 +388,7 @@ function migrateConfigToV2(config) {
     if (!config.routing) config.routing = {};
     if (!config.tls) config.tls = {};
     if (!config.runtime) config.runtime = {};
+    if (!config.browser_security) config.browser_security = {};
 
     // Ingress defaults
     config.ingress.tcp_listen_addr = config.ingress.tcp_listen_addr || "0.0.0.0:8443";
@@ -450,7 +451,31 @@ function migrateConfigToV2(config) {
     config.runtime.enable_core_pinning = config.runtime.enable_core_pinning !== undefined ? config.runtime.enable_core_pinning : true;
     config.runtime.io_poll_interval_us = config.runtime.io_poll_interval_us || 100;
 
+    // Política de integraciones embebidas. La lista vive en el volumen de
+    // configuración y se aplica reiniciando solo OxideProxy, no la imagen.
+    if (!Array.isArray(config.browser_security.allowed_frame_origins)) {
+        config.browser_security.allowed_frame_origins = ['https://idms.fivem.net'];
+    }
+
     return config;
+}
+
+function normalizeAllowedFrameOrigins(values) {
+    if (!Array.isArray(values)) throw new Error('La lista de orígenes web debe ser un arreglo.');
+    if (values.length > 32) throw new Error('Se permiten como máximo 32 orígenes web.');
+    const normalized = [];
+    for (const rawValue of values) {
+        if (typeof rawValue !== 'string') throw new Error('Cada origen web debe ser texto.');
+        const value = rawValue.trim();
+        if (!value) continue;
+        let parsed;
+        try { parsed = new URL(value); } catch { throw new Error(`Origen web inválido: ${value}`); }
+        if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.pathname !== '/' || parsed.search || parsed.hash) {
+            throw new Error(`Use un origen HTTPS exacto, sin ruta, credenciales ni parámetros: ${value}`);
+        }
+        if (!normalized.includes(parsed.origin)) normalized.push(parsed.origin);
+    }
+    return normalized;
 }
 
 // 1. Obtener la configuración actual de OxideProxy (Migrada a v2.0)
@@ -475,10 +500,30 @@ app.post('/api/oxide/config', asyncHandler(async (req, res) => {
         return res.status(400).json({ error: 'Estructura de configuración inválida.' });
     }
     const cleanConfig = migrateConfigToV2(newConfig);
+    try {
+        cleanConfig.browser_security.allowed_frame_origins = normalizeAllowedFrameOrigins(
+            cleanConfig.browser_security.allowed_frame_origins
+        );
+    } catch (error) {
+        return res.status(400).json({ error: error.message });
+    }
     const yamlStr = yaml.dump(cleanConfig);
     fs.writeFileSync(CONFIG_PATH, yamlStr, 'utf8');
     console.log('[OxideControlPanel] Configuración oxide_proxy.yml actualizada al esquema v2.0 exitosamente.');
     res.json({ success: true, message: 'Configuración guardada correctamente.' });
+}));
+
+app.post('/api/oxide/config/apply', asyncHandler(async (_req, res) => {
+    const response = await axios.post(`${BACKEND_URL}/api/discord/servers/routes/reload-proxy`, {}, {
+        headers: { 'x-api-key': process.env.OXIDE_ROUTE_API_KEY || '' },
+        timeout: 120000,
+        validateStatus: () => true
+    });
+    if (response.status < 200 || response.status >= 300) {
+        return res.status(response.status >= 400 && response.status < 600 ? response.status : 502)
+            .json({ error: response.data?.error || 'No se pudo recargar OxideProxy.' });
+    }
+    res.json({ success: true, message: 'Política aplicada sin reconstruir imágenes.' });
 }));
 
 // 2.5. Obtener la configuración actual del Firewall y eBPF
@@ -643,13 +688,9 @@ app.get('/api/oxide/metrics/advanced', asyncHandler(async (req, res) => {
         promUp = false;
     }
 
-    // Métricas del Sistema Operativo / Contenedor (Reales)
-    const totalMem = os.totalmem();
-    const freeMem = os.freemem();
-    const usedMem = totalMem - freeMem;
-    const memUsagePct = ((usedMem / totalMem) * 100).toFixed(1);
+    // La GUI muestra únicamente recursos del proceso Rust. Los datos globales
+    // del host no se presentan como si pertenecieran a OxideProxy.
     const cpus = os.cpus();
-    const loadAvg = os.loadavg();
 
     // Leemos la configuración actual para obtener la lista de servidores de juego activos
     let configObj = {};
@@ -699,18 +740,22 @@ app.get('/api/oxide/metrics/advanced', asyncHandler(async (req, res) => {
     const ebpfDroppedPps = Number(rate('l4_dropped').toFixed(2));
     const blockedIpsCount = Number(currentMetrics?.l4_blocked_ips || 0);
     const ebpfConfig = migrated.advanced_tuning?.ebpf_xdp || {};
+    const processCpuRate = rate('process_cpu_ticks');
+    const systemCpuRate = rate('system_cpu_ticks');
+    const processCpuPct = systemCpuRate > 0
+        ? Math.max(0, processCpuRate / systemCpuRate * cpus.length * 100)
+        : 0;
+    const processRssBytes = Number(currentMetrics?.process_rss_bytes || 0);
 
     res.json({
         timestamp: new Date().toISOString(),
         system: {
             cpu_cores: cpus.length,
             cpu_model: cpus[0].model,
-            load_average: loadAvg,
-            memory: {
-                total_bytes: totalMem,
-                free_bytes: freeMem,
-                used_bytes: usedMem,
-                usage_pct: parseFloat(memUsagePct)
+            process: {
+                cpu_usage_pct: Number(processCpuPct.toFixed(2)),
+                rss_bytes: processRssBytes,
+                rss_mib: Number((processRssBytes / 1048576).toFixed(2))
             }
         },
         prometheus: {
