@@ -91,11 +91,11 @@
 
                     <div class="glass-card stat-card">
                         <div class="stat-header">
-                            <h3>Carga de CPU & RAM</h3>
+                            <h3>Recursos de OxideProxy</h3>
                             <i class="fa-solid fa-microchip stat-icon"></i>
                         </div>
-                        <div class="stat-value" id="stat-sys-load">0.0% RAM</div>
-                        <div class="stat-subtext" id="stat-cpu-cores">Cores: 4</div>
+                        <div class="stat-value" id="stat-sys-load">0.0 MiB RAM</div>
+                        <div class="stat-subtext" id="stat-cpu-cores">0.0% CPU del proxy</div>
                     </div>
                 </section>
 
@@ -400,6 +400,19 @@
                     <div class="glass-card routes-card dns-records-card">
                         <div class="card-header"><div class="header-title"><i class="fa-solid fa-list"></i><h2>Registros DNS</h2></div></div>
                         <div class="table-container"><table class="glass-table"><thead><tr><th>Nombre</th><th>Tipo</th><th>TTL</th><th>Valores</th><th>Acciones</th></tr></thead><tbody id="dns-records-body"><tr><td colspan="5" class="empty-table-cell">Selecciona una zona.</td></tr></tbody></table></div>
+                    </div>
+                    <div class="glass-card routes-card dns-records-card">
+                        <div class="card-header">
+                            <div class="header-title"><i class="fa-solid fa-window-restore"></i><h2>Integraciones web permitidas</h2></div>
+                            <button id="btn-apply-browser-security" class="btn btn-primary glow-btn small-btn"><i class="fa-solid fa-shield-halved"></i> Guardar y aplicar</button>
+                        </div>
+                        <div class="dns-form">
+                            <div class="form-group">
+                                <label for="allowed-frame-origins">Orígenes HTTPS exactos (uno por línea)</label>
+                                <textarea id="allowed-frame-origins" class="glass-input dns-values" placeholder="https://idms.fivem.net"></textarea>
+                                <p class="stat-subtext">Autoriza servicios externos dentro de paneles embebidos. No admite comodines, rutas ni HTTP. Aplicar reinicia únicamente OxideProxy y no recompila imágenes.</p>
+                            </div>
+                        </div>
                     </div>
                 </section>
             </div>

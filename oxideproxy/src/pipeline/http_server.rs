@@ -468,6 +468,27 @@ fn is_disallowed_static_path(path: &str) -> bool {
     })
 }
 
+#[derive(Clone, Debug)]
+struct AllowedFrameOrigins(Vec<String>);
+
+fn internal_frame_sources(origins: &[String]) -> String {
+    let mut sources = vec![
+        "'self'".to_string(),
+        "https://ragenodes.app".to_string(),
+        "https://*.ragenodes.app".to_string(),
+        "https://ragenodes.dev".to_string(),
+        "https://*.ragenodes.dev".to_string(),
+        "https://ragenodes.com".to_string(),
+        "https://*.ragenodes.com".to_string(),
+    ];
+    for origin in origins {
+        if !sources.contains(origin) {
+            sources.push(origin.clone());
+        }
+    }
+    sources.join(" ")
+}
+
 fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool) {
     let is_html_document = response
         .headers()
@@ -497,6 +518,11 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
         .get::<TrustedStagingUpstream>()
         .is_some();
     let access_gate_page = response.extensions().get::<AccessGatePage>().is_some();
+    let allowed_frame_origins = response
+        .extensions()
+        .get::<AllowedFrameOrigins>()
+        .map(|value| value.0.clone())
+        .unwrap_or_default();
     let headers = response.headers_mut();
     let upstream_csp = headers
         .get("content-security-policy")
@@ -615,11 +641,12 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
     } else if access_gate_page {
         access_gate_csp(std::env::var("ACCESS_GATE_DOMAIN").ok().as_deref())
     } else if let Some(profile) = page_security.as_ref() {
+        let frame_sources = internal_frame_sources(&allowed_frame_origins);
         let third_party = match (profile.allows_paypal, profile.allows_internal_frames) {
-            (true, true) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://www.paypal.com https://www.paypalobjects.com; frame-src 'self' https://ragenodes.app https://*.ragenodes.app https://ragenodes.dev https://*.ragenodes.dev https://ragenodes.com https://*.ragenodes.com https://www.paypal.com;",
-            (true, false) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://www.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com;",
-            (false, true) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss:; frame-src 'self' https://ragenodes.app https://*.ragenodes.app https://ragenodes.dev https://*.ragenodes.dev https://ragenodes.com https://*.ragenodes.com;",
-            (false, false) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss:; frame-src 'none';",
+            (true, true) => format!("img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://www.paypal.com https://www.paypalobjects.com; frame-src {frame_sources} https://www.paypal.com;"),
+            (true, false) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://www.paypal.com https://www.paypalobjects.com; frame-src https://www.paypal.com;".to_string(),
+            (false, true) => format!("img-src 'self' data: blob: https:; connect-src 'self' ws: wss:; frame-src {frame_sources};"),
+            (false, false) => "img-src 'self' data: blob: https:; connect-src 'self' ws: wss:; frame-src 'none';".to_string(),
         };
         format!(
             "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'nonce-{}' 'strict-dynamic' 'self' https://www.paypal.com; script-src-attr 'none'; style-src 'self'; style-src-elem 'self' 'nonce-{}'; style-src-attr 'unsafe-inline'; font-src 'self' data:; {} worker-src 'self' blob:; manifest-src 'self'",
@@ -650,7 +677,11 @@ pub async fn serve_http_connection<S>(
         let cfg = Arc::clone(&config);
         let tx = ban_tx.clone();
         async move {
+            let allowed_frame_origins = cfg.browser_security.allowed_frame_origins.clone();
             let mut response = handle_http_request(req, cfg, peer_addr, tx, is_https).await?;
+            response
+                .extensions_mut()
+                .insert(AllowedFrameOrigins(allowed_frame_origins));
             apply_browser_security_headers(&mut response, is_https);
             Ok::<_, Infallible>(response)
         }
