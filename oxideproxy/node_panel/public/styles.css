@@ -548,6 +548,15 @@ input:checked + .slider:before { background-color: var(--text-dark); transform: 
 
 .action-btn.chart-btn { color: var(--cyan-glow); }
 .action-btn.chart-btn:hover { color: var(--emerald-glow); transform: scale(1.1); }
+.dns-grid { grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); }
+.dns-form, .ssl-summary { padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+.dns-values { min-height: 90px; resize: vertical; font-family: 'Fira Code', monospace; }
+.ssl-summary > div { display: flex; justify-content: space-between; gap: 1rem; padding-bottom: 0.85rem; border-bottom: 1px solid var(--glass-border); }
+.ssl-summary span { color: var(--text-muted); }
+.ssl-summary strong { color: var(--cyan-glow); text-align: right; overflow-wrap: anywhere; }
+.dns-records-card { margin-top: 1.5rem; }
+.dns-values-cell { max-width: 420px; overflow-wrap: anywhere; }
+@media (max-width: 1100px) { .dns-grid { grid-template-columns: 1fr; } }
 /* CSP-safe layout utilities: presentation stays in stylesheets, never attributes. */
 .full-width { width: 100%; }
 .no-margin { margin: 0; }

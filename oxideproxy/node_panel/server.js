@@ -4,6 +4,7 @@ const path = require('path');
 const yaml = require('js-yaml');
 const axios = require('axios');
 const os = require('os');
+const net = require('net');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,8 +15,66 @@ const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || '';
 const METRICS_PATH = process.env.OXIDE_METRICS_PATH || '/app/runtime/game_metrics.json';
 const LOG_DIR = process.env.OXIDE_LOG_DIR || '/app/runtime/logs';
 const DEFAULT_WEB_BACKEND = process.env.OXIDE_DEFAULT_WEB_BACKEND || '';
+const PDNS_API_URL = String(process.env.PDNS_API_URL || '').replace(/\/$/, '');
+const PDNS_API_KEY = process.env.PDNS_API_KEY || '';
+const PDNS_SERVER_ID = process.env.PDNS_SERVER_ID || 'localhost';
+const PDNS_MANAGED_ZONES = String(process.env.PDNS_MANAGED_ZONES || process.env.POWERDNS_ZONE || '')
+    .split(',').map(value => value.trim().replace(/\.$/, '').toLowerCase()).filter(Boolean);
 const METRICS_WINDOW_MS = Math.max(5000, Number(process.env.OXIDE_METRICS_WINDOW_MS || 15000));
 const metricsSamples = [];
+
+function normalizedManagedZone(value) {
+    const zone = String(value || '').trim().replace(/\.$/, '').toLowerCase();
+    return PDNS_MANAGED_ZONES.includes(zone) ? zone : '';
+}
+
+function validRecordName(name, zone) {
+    const normalized = String(name || '').trim().replace(/\.$/, '').toLowerCase();
+    if (!normalized || normalized.length > 253) return '';
+    if (normalized !== zone && !normalized.endsWith(`.${zone}`)) return '';
+    const labels = normalized.split('.');
+    if (labels.some((label, index) => {
+        if (label === '*') return index !== 0;
+        if (!label || label.length > 63 || !/^[a-z0-9_-]+$/.test(label)) return true;
+        return label.startsWith('-') || label.endsWith('-');
+    })) return '';
+    return normalized;
+}
+
+function validHostname(value) {
+    const normalized = String(value || '').trim().replace(/\.$/, '').toLowerCase();
+    if (!normalized || normalized.length > 253) return false;
+    return normalized.split('.').every(label => label.length > 0 && label.length <= 63
+        && /^[a-z0-9_-]+$/.test(label) && !label.startsWith('-') && !label.endsWith('-'));
+}
+
+function validRecordContent(type, value) {
+    const content = String(value || '').trim();
+    if (!content || content.length > 1024 || /[\r\n\0]/.test(content)) return false;
+    if (type === 'A') return net.isIP(content) === 4;
+    if (type === 'AAAA') return net.isIP(content) === 6;
+    if (type === 'CNAME') return validHostname(content);
+    if (type === 'TXT') return /^"(?:[^"\\]|\\.)*"$/.test(content);
+    if (type === 'MX') return /^(?:0|[1-9]\d{0,4})\s+\S+$/.test(content)
+        && validHostname(content.replace(/^\d+\s+/, ''));
+    if (type === 'SRV') {
+        const match = content.match(/^(\d{1,5})\s+(\d{1,5})\s+(\d{1,5})\s+(\S+)$/);
+        return Boolean(match && match.slice(1, 4).every(valuePart => Number(valuePart) <= 65535)
+            && validHostname(match[4]));
+    }
+    if (type === 'CAA') return /^(?:0|[1-9]\d{0,2})\s+(?:issue|issuewild|iodef)\s+"[^"\r\n]+"$/.test(content);
+    return false;
+}
+
+function powerDnsClient() {
+    if (!PDNS_API_URL || !PDNS_API_KEY || PDNS_MANAGED_ZONES.length === 0) return null;
+    return axios.create({
+        baseURL: `${PDNS_API_URL}/servers/${encodeURIComponent(PDNS_SERVER_ID)}`,
+        headers: { 'X-API-Key': PDNS_API_KEY },
+        timeout: 5000,
+        validateStatus: () => true
+    });
+}
 
 function readNativeMetricsSnapshot() {
     try {
@@ -463,6 +522,113 @@ app.post('/api/oxide/firewall', asyncHandler(async (req, res) => {
     res.json({ success: true, message: 'Reglas de firewall guardadas correctamente.' });
 }));
 
+// 2.7. DNS autoritativo. La clave PowerDNS permanece en este proceso y nunca
+// se devuelve al navegador. Solo se admiten zonas declaradas explícitamente.
+app.get('/api/oxide/dns/status', asyncHandler(async (_req, res) => {
+    const client = powerDnsClient();
+    if (!client) {
+        return res.json({ available: false, zones: PDNS_MANAGED_ZONES, reason: 'PowerDNS no configurado' });
+    }
+    const response = await client.get('/zones');
+    if (response.status !== 200 || !Array.isArray(response.data)) {
+        return res.status(502).json({ error: 'PowerDNS no respondió correctamente.' });
+    }
+    const zones = response.data
+        .map(zone => ({
+            name: String(zone.name || '').replace(/\.$/, ''),
+            kind: zone.kind || 'Native',
+            dnssec: Boolean(zone.dnssec),
+            serial: Number(zone.serial || 0)
+        }))
+        .filter(zone => PDNS_MANAGED_ZONES.includes(zone.name.toLowerCase()));
+    res.json({ available: true, zones });
+}));
+
+app.get('/api/oxide/dns/zones/:zone/records', asyncHandler(async (req, res) => {
+    const zone = normalizedManagedZone(req.params.zone);
+    const client = powerDnsClient();
+    if (!zone) return res.status(400).json({ error: 'Zona DNS no autorizada.' });
+    if (!client) return res.status(503).json({ error: 'PowerDNS no configurado.' });
+    const response = await client.get(`/zones/${encodeURIComponent(`${zone}.`)}`);
+    if (response.status !== 200) return res.status(502).json({ error: 'No se pudo consultar la zona DNS.' });
+    const records = (response.data?.rrsets || []).map(rrset => ({
+        name: String(rrset.name || '').replace(/\.$/, ''),
+        type: rrset.type,
+        ttl: rrset.ttl,
+        records: (rrset.records || []).filter(record => !record.disabled).map(record => record.content)
+    }));
+    res.json({ zone, records });
+}));
+
+app.put('/api/oxide/dns/zones/:zone/records', asyncHandler(async (req, res) => {
+    const zone = normalizedManagedZone(req.params.zone);
+    const client = powerDnsClient();
+    if (!zone) return res.status(400).json({ error: 'Zona DNS no autorizada.' });
+    if (!client) return res.status(503).json({ error: 'PowerDNS no configurado.' });
+    const name = validRecordName(req.body?.name, zone);
+    const type = String(req.body?.type || '').toUpperCase();
+    const ttl = Number(req.body?.ttl || 300);
+    const allowedTypes = new Set(['A', 'AAAA', 'CNAME', 'TXT', 'MX', 'SRV', 'CAA']);
+    const values = Array.isArray(req.body?.records)
+        ? req.body.records.map(value => String(value).trim()).filter(Boolean)
+        : [];
+    if (!name || !allowedTypes.has(type) || !Number.isInteger(ttl) || ttl < 30 || ttl > 86400) {
+        return res.status(400).json({ error: 'Nombre, tipo o TTL de registro no válido.' });
+    }
+    if (values.length === 0 || values.length > 32 || values.some(value => !validRecordContent(type, value))) {
+        return res.status(400).json({ error: 'Contenido del registro no válido.' });
+    }
+    const response = await client.patch(`/zones/${encodeURIComponent(`${zone}.`)}`, {
+        rrsets: [{
+            name: `${name}.`, type, ttl, changetype: 'REPLACE',
+            records: values.map(content => ({ content, disabled: false }))
+        }]
+    });
+    if (response.status !== 204) return res.status(502).json({ error: 'PowerDNS rechazó el registro.' });
+    res.json({ success: true, zone, name, type });
+}));
+
+app.delete('/api/oxide/dns/zones/:zone/records', asyncHandler(async (req, res) => {
+    const zone = normalizedManagedZone(req.params.zone);
+    const client = powerDnsClient();
+    const name = validRecordName(req.body?.name, zone);
+    const type = String(req.body?.type || '').toUpperCase();
+    if (!zone || !name || !/^(A|AAAA|CNAME|TXT|MX|SRV|CAA)$/.test(type)) {
+        return res.status(400).json({ error: 'Registro DNS no válido.' });
+    }
+    if (!client) return res.status(503).json({ error: 'PowerDNS no configurado.' });
+    const response = await client.patch(`/zones/${encodeURIComponent(`${zone}.`)}`, {
+        rrsets: [{ name: `${name}.`, type, changetype: 'DELETE' }]
+    });
+    if (response.status !== 204) return res.status(502).json({ error: 'PowerDNS rechazó la eliminación.' });
+    res.json({ success: true });
+}));
+
+app.get('/api/oxide/ssl/status', asyncHandler(async (_req, res) => {
+    const domains = String(process.env.OXIDE_ACME_DOMAINS || '')
+        .split(',').map(value => value.trim()).filter(Boolean);
+    res.json({
+        enabled: String(process.env.OXIDE_ACME_ENABLED || '').toLowerCase() === 'true',
+        production: String(process.env.OXIDE_ACME_PRODUCTION || '').toLowerCase() === 'true',
+        domains,
+        provider: PDNS_MANAGED_ZONES.length > 0 ? 'PowerDNS / ACME DNS-01' : 'OxideProxy ACME TLS-ALPN-01',
+        managed_zones: PDNS_MANAGED_ZONES
+    });
+}));
+
+app.post('/api/oxide/ssl/renew', asyncHandler(async (_req, res) => {
+    if (!PDNS_MANAGED_ZONES.length) return res.status(503).json({ error: 'PowerDNS/ACME no configurado.' });
+    const response = await axios.post(`${BACKEND_URL}/api/discord/oxide/certificate/renew`, {}, {
+        headers: { 'x-api-key': process.env.OXIDE_ROUTE_API_KEY || '' }, timeout: 180000,
+        validateStatus: () => true
+    });
+    if (response.status < 200 || response.status >= 300) {
+        return res.status(response.status >= 400 && response.status < 600 ? response.status : 502)
+            .json({ error: response.data?.error || 'No se pudo renovar el certificado.' });
+    }
+    res.json(response.data);
+}));
+
 // 3. Telemetría Nativa Avanzada (Producción Real)
 app.get('/api/oxide/metrics/advanced', asyncHandler(async (req, res) => {
     // Consultamos el pulso de Prometheus (Real)
@@ -500,8 +666,10 @@ app.get('/api/oxide/metrics/advanced', asyncHandler(async (req, res) => {
     // por eso se suman aperturas y lecturas adicionales como actividad TCP.
     const globalTcpPps = Number((rate('tcp_events_in') + rate('tcp_reads_in')).toFixed(2));
     const globalUdpPps = Math.round(rate('udp_packets_in'));
-    const globalIngressMbps = (rate('tcp_bytes_in') + rate('udp_bytes_in')) * 8 / 1_000_000;
+    const proxyIngressMbps = (rate('tcp_bytes_in') + rate('udp_bytes_in')) * 8 / 1_000_000;
     const globalEgressMbps = (rate('tcp_bytes_out') + rate('udp_bytes_out')) * 8 / 1_000_000;
+    const xdpPps = Number(rate('xdp_packets_seen').toFixed(2));
+    const xdpIngressMbps = rate('xdp_bytes_seen') * 8 / 1_000_000;
 
     // La instrumentación actual es global. No se inventan jugadores, latencia
     // ni tráfico por servidor cuando el motor no los proporciona.
@@ -518,13 +686,18 @@ app.get('/api/oxide/metrics/advanced', asyncHandler(async (req, res) => {
         egress_mbps: 0,
         latency_ms: 0
     }));
-    const totalPps = globalTcpPps + globalUdpPps;
+    const xdpMode = String(currentMetrics?.xdp_mode || 'disabled');
+    const xdpActive = xdpMode === 'xdp-driver' || xdpMode === 'xdp-generic';
+    // XDP observa el RX completo antes de que el tráfico llegue al proxy. Cuando
+    // está activo es la fuente global autoritativa; sumar ambos duplicaría los
+    // paquetes que después también atraviesan los listeners TCP/UDP.
+    const totalPps = xdpActive ? xdpPps : globalTcpPps + globalUdpPps;
+    const globalIngressMbps = xdpActive ? xdpIngressMbps : proxyIngressMbps;
     // Latency de forwarding aún no está instrumentada: se reporta cero sin
     // fabricar un diferencial fijo. XDP y descartes provienen del kernel.
     const l4Latency = "0.000";
     const ebpfDroppedPps = Number(rate('l4_dropped').toFixed(2));
     const blockedIpsCount = Number(currentMetrics?.l4_blocked_ips || 0);
-    const xdpMode = String(currentMetrics?.xdp_mode || 'disabled');
     const ebpfConfig = migrated.advanced_tuning?.ebpf_xdp || {};
 
     res.json({
@@ -550,9 +723,11 @@ app.get('/api/oxide/metrics/advanced', asyncHandler(async (req, res) => {
             throughput: {
                 tcp_pps: globalTcpPps,
                 udp_pps: globalUdpPps,
+                xdp_pps: xdpPps,
                 total_pps: totalPps,
                 ingress_mbps: parseFloat(globalIngressMbps.toFixed(4)),
-                egress_mbps: parseFloat(globalEgressMbps.toFixed(4))
+                egress_mbps: parseFloat(globalEgressMbps.toFixed(4)),
+                source: xdpActive ? xdpMode : 'proxy'
             },
             latency: {
                 l4_p99_ms: parseFloat(l4Latency),
@@ -570,6 +745,7 @@ app.get('/api/oxide/metrics/advanced', asyncHandler(async (req, res) => {
                 dropped_packets_per_sec: ebpfDroppedPps,
                 blocked_ips_count: blockedIpsCount,
                 packets_seen: Number(currentMetrics?.xdp_packets_seen || 0),
+                bytes_seen: Number(currentMetrics?.xdp_bytes_seen || 0),
                 parse_errors: Number(currentMetrics?.xdp_parse_errors || 0),
                 blacklist_drops: Number(currentMetrics?.xdp_blacklist_drops || 0),
                 rate_limit_drops: Number(currentMetrics?.xdp_rate_limit_drops || 0)

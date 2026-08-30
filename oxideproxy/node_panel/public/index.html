@@ -34,6 +34,9 @@
                 <button class="tab-btn" data-tab="tab-config">
                     <i class="fa-solid fa-route"></i> Ruteo & Ingress
                 </button>
+                <button class="tab-btn" data-tab="tab-dns">
+                    <i class="fa-solid fa-globe"></i> DNS & SSL
+                </button>
                 <button class="tab-btn" data-tab="tab-console">
                     <i class="fa-solid fa-terminal"></i> Consola en Vivo
                 </button>
@@ -60,7 +63,7 @@
                 <section class="metrics-grid">
                     <div class="glass-card stat-card">
                         <div class="stat-header">
-                            <h3>Mitigación L4 en memoria</h3>
+                            <h3>Mitigación L4 / XDP</h3>
                             <i class="fa-solid fa-shield-virus stat-icon"></i>
                         </div>
                         <div class="stat-value status-online" id="stat-ebpf-status">MEMORY ACTIVE (eth0)</div>
@@ -83,6 +86,7 @@
                         </div>
                         <div class="stat-value" id="stat-total-pps">0 PPS</div>
                         <div class="stat-subtext" id="stat-bandwidth">0.00 Mbps Ingress</div>
+                        <div class="stat-subtext" id="stat-telemetry-source">Fuente: esperando telemetría</div>
                     </div>
 
                     <div class="glass-card stat-card">
@@ -102,7 +106,7 @@
                         <div class="card-header">
                             <div class="header-title">
                                 <i class="fa-solid fa-chart-area"></i>
-                                <h2>Ancho de Banda & Conexiones</h2>
+                                <h2>Ancho de Banda Global</h2>
                             </div>
                             <span class="live-badge"><i class="fa-solid fa-circle live-dot"></i> LIVE</span>
                         </div>
@@ -111,12 +115,12 @@
                         </div>
                     </div>
 
-                    <!-- Gráfico 2: Rendimiento L4/L7 (TCP vs UDP PPS) -->
+                    <!-- Gráfico 2: tráfico XDP total y actividad reenviada TCP/UDP -->
                     <div class="glass-card chart-card">
                         <div class="card-header">
                             <div class="header-title">
                                 <i class="fa-solid fa-wave-square"></i>
-                                <h2>Rendimiento L4/L7 (PPS)</h2>
+                                <h2>Tráfico XDP & Proxy (PPS)</h2>
                             </div>
                             <span class="live-badge"><i class="fa-solid fa-circle live-dot"></i> LIVE</span>
                         </div>
@@ -358,7 +362,49 @@
                 </section>
             </div>
 
-            <!-- ================= PESTAÑA 4: CONSOLA EN VIVO ================= -->
+            <!-- ================= PESTAÑA 4: DNS & SSL ================= -->
+            <div class="tab-pane" id="tab-dns">
+                <section class="config-section full-width">
+                    <div class="config-grid dns-grid">
+                        <div class="glass-card config-card">
+                            <div class="card-header">
+                                <div class="header-title"><i class="fa-solid fa-globe"></i><h2>PowerDNS autoritativo</h2></div>
+                                <button id="btn-dns-refresh" class="btn btn-secondary glass-btn small-btn"><i class="fa-solid fa-rotate"></i> Actualizar</button>
+                            </div>
+                            <div class="dns-form">
+                                <div class="form-group">
+                                    <label for="dns-zone">Zona administrada</label>
+                                    <select id="dns-zone" class="glass-input"></select>
+                                </div>
+                                <div class="form-group-row">
+                                    <div class="form-group"><label for="dns-name">Nombre completo</label><input id="dns-name" class="glass-input" placeholder="play.ragenodes.dev"></div>
+                                    <div class="form-group"><label for="dns-type">Tipo</label><select id="dns-type" class="glass-input"><option>A</option><option>AAAA</option><option>CNAME</option><option>TXT</option><option>MX</option><option>SRV</option><option>CAA</option></select></div>
+                                    <div class="form-group"><label for="dns-ttl">TTL</label><input id="dns-ttl" type="number" min="30" max="86400" value="300" class="glass-input"></div>
+                                </div>
+                                <div class="form-group"><label for="dns-values">Valores (uno por línea)</label><textarea id="dns-values" class="glass-input dns-values" placeholder="192.0.2.10"></textarea></div>
+                                <button id="btn-dns-save" class="btn btn-primary glow-btn"><i class="fa-solid fa-floppy-disk"></i> Guardar registro</button>
+                                <p id="dns-status" class="stat-subtext">Consultando PowerDNS…</p>
+                            </div>
+                        </div>
+                        <div class="glass-card config-card">
+                            <div class="card-header"><div class="header-title"><i class="fa-solid fa-certificate"></i><h2>Estado SSL</h2></div></div>
+                            <div class="ssl-summary">
+                                <div><span>Proveedor</span><strong id="ssl-provider">Consultando…</strong></div>
+                                <div><span>Modo ACME</span><strong id="ssl-mode">—</strong></div>
+                                <div><span>Dominios</span><strong id="ssl-domains">—</strong></div>
+                                <p class="stat-subtext">Los certificados de ragenodes.com continúan bajo Cloudflare. Este módulo solo administra las zonas PowerDNS configuradas.</p>
+                                <button id="btn-ssl-renew" class="btn btn-primary glow-btn"><i class="fa-solid fa-arrows-rotate"></i> Renovar SSL administrado</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass-card routes-card dns-records-card">
+                        <div class="card-header"><div class="header-title"><i class="fa-solid fa-list"></i><h2>Registros DNS</h2></div></div>
+                        <div class="table-container"><table class="glass-table"><thead><tr><th>Nombre</th><th>Tipo</th><th>TTL</th><th>Valores</th><th>Acciones</th></tr></thead><tbody id="dns-records-body"><tr><td colspan="5" class="empty-table-cell">Selecciona una zona.</td></tr></tbody></table></div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- ================= PESTAÑA 5: CONSOLA EN VIVO ================= -->
             <div class="tab-pane" id="tab-console">
                 <!-- Fila 5: Consola de Trazas en Vivo (Live Terminal & Log Filtering) -->
                 <section class="live-console-section full-width no-margin">
