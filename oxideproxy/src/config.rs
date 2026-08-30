@@ -27,7 +27,27 @@ pub struct ProxyConfig {
     pub routing: RoutingConfig,
     pub tls: TlsConfig,
     pub runtime: RuntimeConfig,
+    #[serde(default)]
+    pub browser_security: BrowserSecurityConfig,
     pub advanced_tuning: Option<AdvancedTuningConfig>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BrowserSecurityConfig {
+    #[serde(default = "default_allowed_frame_origins")]
+    pub allowed_frame_origins: Vec<String>,
+}
+
+impl Default for BrowserSecurityConfig {
+    fn default() -> Self {
+        Self {
+            allowed_frame_origins: default_allowed_frame_origins(),
+        }
+    }
+}
+
+fn default_allowed_frame_origins() -> Vec<String> {
+    vec!["https://idms.fivem.net".to_string()]
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -166,6 +186,7 @@ impl Default for ProxyConfig {
                 worker_threads: None, // Auto-detect physical cores
                 enable_core_pinning: detect_core_pinning(),
             },
+            browser_security: BrowserSecurityConfig::default(),
             advanced_tuning: Some(AdvancedTuningConfig {
                 ebpf_xdp: Some(EbpfXdpConfig {
                     enabled: true,
@@ -204,6 +225,35 @@ impl ProxyConfig {
     }
 
     fn validate_and_hydrate(mut self) -> Result<Self, ConfigError> {
+        if self.browser_security.allowed_frame_origins.len() > 32 {
+            return Err(ConfigError::Invalid(
+                "browser_security.allowed_frame_origins admite un maximo de 32 origenes".into(),
+            ));
+        }
+        let mut normalized_origins = Vec::new();
+        for value in &self.browser_security.allowed_frame_origins {
+            let parsed = url::Url::parse(value).map_err(|_| {
+                ConfigError::Invalid(format!("origen web invalido: {value}"))
+            })?;
+            if parsed.scheme() != "https"
+                || parsed.host_str().is_none()
+                || !parsed.username().is_empty()
+                || parsed.password().is_some()
+                || parsed.query().is_some()
+                || parsed.fragment().is_some()
+                || parsed.path() != "/"
+            {
+                return Err(ConfigError::Invalid(format!(
+                    "el origen web debe ser HTTPS y no incluir ruta, credenciales, consulta ni fragmento: {value}"
+                )));
+            }
+            let origin = parsed.origin().ascii_serialization();
+            if !normalized_origins.contains(&origin) {
+                normalized_origins.push(origin);
+            }
+        }
+        self.browser_security.allowed_frame_origins = normalized_origins;
+
         let default_web_addr = self
             .routing
             .default_web_backend
@@ -356,5 +406,29 @@ mod tests {
         let mut disabled = ProxyConfig::default();
         disabled.runtime.enable_core_pinning = false;
         assert!(!disabled.validate_and_hydrate().unwrap().runtime.enable_core_pinning);
+    }
+
+    #[test]
+    fn browser_frame_origins_require_exact_https_origins() {
+        let mut config = ProxyConfig::default();
+        config.browser_security.allowed_frame_origins = vec![
+            "http://idms.fivem.net".into(),
+            "https://example.com/path".into(),
+        ];
+        assert!(config.validate_and_hydrate().is_err());
+    }
+
+    #[test]
+    fn browser_frame_origins_are_normalized_and_deduplicated() {
+        let mut config = ProxyConfig::default();
+        config.browser_security.allowed_frame_origins = vec![
+            "https://idms.fivem.net".into(),
+            "https://idms.fivem.net:443".into(),
+        ];
+        let hydrated = config.validate_and_hydrate().unwrap();
+        assert_eq!(
+            hydrated.browser_security.allowed_frame_origins,
+            vec!["https://idms.fivem.net"]
+        );
     }
 }
