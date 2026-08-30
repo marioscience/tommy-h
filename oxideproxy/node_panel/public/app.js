@@ -60,7 +60,7 @@ const dataSystem = {
     labels: timeLabels,
     datasets: [
         { label: 'Bloqueado L4 (PPS)', borderColor: '#ff3366', backgroundColor: 'rgba(255, 51, 102, 0.1)', data: [], fill: true, tension: 0.4 },
-        { label: 'RAM Usada (%)', borderColor: '#ffbb00', backgroundColor: 'rgba(255, 187, 0, 0.1)', data: [], fill: true, tension: 0.4 }
+        { label: 'OxideProxy RAM (MiB)', borderColor: '#ffbb00', backgroundColor: 'rgba(255, 187, 0, 0.1)', data: [], fill: true, tension: 0.4 }
     ]
 };
 
@@ -123,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-dns-refresh').addEventListener('click', loadDnsStatus);
     document.getElementById('btn-dns-save').addEventListener('click', saveDnsRecord);
     document.getElementById('btn-ssl-renew').addEventListener('click', renewManagedCertificate);
+    document.getElementById('btn-apply-browser-security').addEventListener('click', saveAndApplyBrowserSecurity);
     document.getElementById('dns-zone').addEventListener('change', (event) => {
         currentDnsZone = event.target.value;
         loadDnsRecords();
@@ -217,7 +218,7 @@ async function fetchAdvancedMetrics() {
         
         // Actualizar Tarjetas de Estado Rápidas
         document.getElementById('nav-pulse').className = 'pulse-dot online';
-        document.getElementById('nav-status-text').innerText = `Tokio Engine • Carga: ${data.system.load_average[0].toFixed(2)}`;
+        document.getElementById('nav-status-text').innerText = `Tokio Engine • CPU: ${data.system.process.cpu_usage_pct.toFixed(2)}%`;
         
         document.getElementById('stat-ebpf-status').innerText = data.proxy_analytics.ebpf_mitigation.status;
         document.getElementById('stat-ebpf-mode').innerText = `Modo: ${data.proxy_analytics.ebpf_mitigation.mode}`;
@@ -235,8 +236,8 @@ async function fetchAdvancedMetrics() {
                 : 'listeners del proxy';
         document.getElementById('stat-telemetry-source').innerText = `Fuente: ${sourceLabel} • actualizado ahora`;
 
-        document.getElementById('stat-sys-load').innerText = `${data.system.memory.usage_pct}% RAM`;
-        document.getElementById('stat-cpu-cores').innerText = `Cores: ${data.system.cpu_cores} (${data.system.cpu_model.substring(0, 18)}...)`;
+        document.getElementById('stat-sys-load').innerText = `${data.system.process.rss_mib.toFixed(2)} MiB RAM`;
+        document.getElementById('stat-cpu-cores').innerText = `${data.system.process.cpu_usage_pct.toFixed(2)}% CPU del proxy`;
 
         // Actualizar Gráficos Globales
         const now = new Date().toLocaleTimeString();
@@ -260,7 +261,7 @@ async function fetchAdvancedMetrics() {
         dataPps.datasets[2].data.push(data.proxy_analytics.throughput.tcp_pps);
 
         dataSystem.datasets[0].data.push(data.proxy_analytics.ebpf_mitigation.dropped_packets_per_sec);
-        dataSystem.datasets[1].data.push(data.system.memory.usage_pct);
+        dataSystem.datasets[1].data.push(data.system.process.rss_mib);
 
         chartThroughput.update('none');
         chartPps.update('none');
@@ -352,6 +353,9 @@ function populateConfigUI() {
     if (currentConfig.runtime) {
         document.getElementById('core-pinning').checked = currentConfig.runtime.enable_core_pinning !== undefined ? currentConfig.runtime.enable_core_pinning : true;
     }
+
+    const allowedOrigins = currentConfig.browser_security?.allowed_frame_origins || [];
+    document.getElementById('allowed-frame-origins').value = allowedOrigins.join('\n');
 
     document.getElementById('stat-tcp-cc').innerText = document.getElementById('tcp-cc').value.toUpperCase();
 
@@ -501,7 +505,7 @@ function deleteRoute(index) {
     }
 }
 
-async function saveConfig() {
+async function saveConfig(options = {}) {
     if (!currentConfig) return;
 
     // Actualizar currentConfig con valores del DOM
@@ -534,6 +538,9 @@ async function saveConfig() {
 
     if (!currentConfig.runtime) currentConfig.runtime = {};
     currentConfig.runtime.enable_core_pinning = document.getElementById('core-pinning').checked;
+    if (!currentConfig.browser_security) currentConfig.browser_security = {};
+    currentConfig.browser_security.allowed_frame_origins = document.getElementById('allowed-frame-origins').value
+        .split('\n').map(value => value.trim()).filter(Boolean);
 
     try {
         const res = await authFetch('/api/oxide/config', {
@@ -542,16 +549,36 @@ async function saveConfig() {
             body: JSON.stringify(currentConfig)
         });
 
-        const data = await res.json();
-        if (data.success) {
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success) {
             showToast('¡Configuración guardada en oxide_proxy.yml!', 'success');
             populateConfigUI();
+            return true;
         } else {
-            showToast(data.error || 'Error al guardar la configuración', 'error');
+            const error = new Error(data.error || `Error al guardar la configuración (${res.status})`);
+            if (options.throwOnError) throw error;
+            showToast(error.message, 'error');
+            return false;
         }
     } catch (error) {
         console.error('Error saving config:', error);
+        if (options.throwOnError) throw error;
         showToast('Error de red al guardar la configuración', 'error');
+        return false;
+    }
+}
+
+async function saveAndApplyBrowserSecurity() {
+    const button = document.getElementById('btn-apply-browser-security');
+    button.disabled = true;
+    try {
+        await saveConfig({ throwOnError: true });
+        await authFetch('/api/oxide/config/apply', { method: 'POST' }).then(readApiResponse);
+        showToast('Política web aplicada. OxideProxy se está recargando sin recompilar imágenes.', 'success');
+    } catch (error) {
+        showToast(error.message || 'No se pudo aplicar la política web.', 'error');
+    } finally {
+        button.disabled = false;
     }
 }
 

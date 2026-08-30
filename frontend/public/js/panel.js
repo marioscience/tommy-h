@@ -166,6 +166,7 @@ function toggleSidebar() {
 
                 if (data.success) {
                     showToast(data.message || 'Descarga iniciada en segundo plano', 'info');
+                    startDownloadPolling();
                 } else {
                     throw new Error(data.error);
                 }
@@ -1039,6 +1040,7 @@ function toggleSidebar() {
             } else if (viewId === 'editor') {
                 document.getElementById('page-sub').innerText = "Navega, sube y edita la configuración";
                 document.getElementById('view-editor').classList.remove('hidden'); loadFolder('/');
+                startDownloadPolling();
                 setTimeout(() => { if (editorInstance) editorInstance.layout(); }, 150);
             } else if (viewId === 'logs') {
                 document.getElementById('page-sub').innerText = "Visualiza el arranque y errores";
@@ -3262,10 +3264,22 @@ function toggleSidebar() {
                         void loadServers();
                         return;
                     }
+                    if ([502, 503, 504].includes(res.status)) {
+                        downloadPollingUnavailable = {
+                            serverId: requestedServerId,
+                            retryAfter: Date.now() + 30000
+                        };
+                        return;
+                    }
                     if (!res.ok) throw new Error(`Download status HTTP ${res.status}`);
                     const data = await res.json();
                     downloadPollingUnavailable = { serverId: null, retryAfter: 0 };
-                    renderDownloads(data.tasks || []);
+                    const tasks = data.tasks || [];
+                    renderDownloads(tasks);
+                    if (!tasks.some(task => ['queued', 'retry', 'running'].includes(task.status))) {
+                        setTimeout(() => renderDownloads([]), 3000);
+                        stopDownloadPolling();
+                    }
                 } catch (e) { } finally {
                     isDownloadPollingInFlight = false;
                 }
@@ -3558,7 +3572,6 @@ function toggleSidebar() {
         // La carga inicial debe seguir el mismo camino que volver desde otra vista:
         // primero hace visible el dashboard y después solicita/renderiza los datos.
         switchView('servers', document.getElementById('nav-servers'));
-        startDownloadPolling();
         // 🚀 TURBO MODE: Actualizaciones rápidas (1.5s) aprovechando el motor Rust
         window.panelPollRate = 1500;
         window.serverPollInterval = setInterval(loadServers, window.panelPollRate);
