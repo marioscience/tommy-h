@@ -7,6 +7,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use http::header::{
     HeaderName, HeaderValue, ACCEPT_ENCODING, CACHE_CONTROL, CONTENT_ENCODING, CONTENT_TYPE, ETAG,
+    SET_COOKIE,
 };
 use http::{Request, Response, StatusCode};
 use hyper::{service::service_fn, Body};
@@ -297,6 +298,39 @@ fn csp_with_frame_source(existing: &str, source: &str) -> String {
     directives.join("; ")
 }
 
+fn embedded_txadmin_cookie(value: &HeaderValue) -> Option<HeaderValue> {
+    let raw = value.to_str().ok()?;
+    let mut attributes: Vec<&str> = raw
+        .split(';')
+        .map(str::trim)
+        .filter(|part| {
+            let lower = part.to_ascii_lowercase();
+            lower != "secure"
+                && lower != "partitioned"
+                && !lower.starts_with("samesite=")
+        })
+        .collect();
+    if attributes.is_empty() || !attributes[0].contains('=') {
+        return None;
+    }
+    attributes.extend(["SameSite=None", "Secure", "Partitioned"]);
+    HeaderValue::from_str(&attributes.join("; ")).ok()
+}
+
+fn allow_embedded_txadmin_cookies(headers: &mut http::HeaderMap) {
+    let cookies: Vec<HeaderValue> = headers.get_all(SET_COOKIE).iter().cloned().collect();
+    if cookies.is_empty() {
+        return;
+    }
+    headers.remove(SET_COOKIE);
+    for cookie in cookies {
+        headers.append(
+            SET_COOKIE,
+            embedded_txadmin_cookie(&cookie).unwrap_or(cookie),
+        );
+    }
+}
+
 fn blender_app_csp(ancestors: &str) -> String {
     format!(
         "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors {ancestors}; form-action 'self'; \
@@ -524,6 +558,12 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
         .map(|value| value.0.clone())
         .unwrap_or_default();
     let headers = response.headers_mut();
+    if allow_fivem_identity_frames && is_https {
+        // txAdmin se ejecuta dentro del panel de RageNodes. CHIPS mantiene la
+        // sesión aislada por sitio superior aun cuando Chrome bloquee cookies
+        // de terceros, mientras SameSite=None conserva compatibilidad.
+        allow_embedded_txadmin_cookies(headers);
+    }
     let upstream_csp = headers
         .get("content-security-policy")
         .and_then(|value| value.to_str().ok())
@@ -1332,7 +1372,7 @@ mod tests {
         TrustedStagingUpstream,
     };
     use http::{Response, StatusCode};
-    use hyper::{header::HeaderValue, Body};
+    use hyper::{header::{HeaderValue, SET_COOKIE}, Body};
 
     #[test]
     fn dynamic_hosts_only_resolve_inside_the_allowed_range_and_domain() {
@@ -1443,6 +1483,34 @@ mod tests {
             response.headers()["cache-control"],
             "public, max-age=31536000, immutable"
         );
+    }
+
+    #[test]
+    fn txadmin_session_cookies_support_secure_partitioned_iframes() {
+        let mut response = Response::new(Body::empty());
+        response.headers_mut().append(
+            SET_COOKIE,
+            HeaderValue::from_static("txAdmin-token=abc; Path=/; HttpOnly; SameSite=Lax"),
+        );
+        response.headers_mut().append(
+            SET_COOKIE,
+            HeaderValue::from_static("txAdmin-state=xyz; Path=/; Secure"),
+        );
+        response.extensions_mut().insert(AllowFiveMIdentityFrames);
+        apply_browser_security_headers(&mut response, true);
+
+        let cookies: Vec<&str> = response
+            .headers()
+            .get_all(SET_COOKIE)
+            .iter()
+            .map(|value| value.to_str().unwrap())
+            .collect();
+        assert_eq!(cookies.len(), 2);
+        assert!(cookies.iter().all(|cookie| cookie.contains("SameSite=None")));
+        assert!(cookies.iter().all(|cookie| cookie.contains("Secure")));
+        assert!(cookies.iter().all(|cookie| cookie.contains("Partitioned")));
+        assert!(cookies[0].contains("HttpOnly"));
+        assert!(!cookies[0].contains("SameSite=Lax"));
     }
 
     #[test]
