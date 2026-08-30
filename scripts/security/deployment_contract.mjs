@@ -85,7 +85,9 @@ for (const configFile of ['oxideproxy/config/oxide_proxy.yml', 'oxideproxy/game_
 assert(files['oxideproxy/node_panel/public/app.js'].includes('JSON.stringify({ ebpf_xdp, security, runtime })'), 'Firewall controls persist the CPU affinity toggle');
 assert(files['oxideproxy/node_panel/public/app.js'].includes('enabled: true'), 'Applying firewall controls enables the in-memory L4 mitigation engine');
 assert(files['oxideproxy/node_panel/server.js'].includes("typeof runtime.enable_core_pinning === 'boolean'"), 'Oxide control plane validates and stores CPU affinity');
-assert(files['oxideproxy/src/pipeline/http_server.rs'].includes("frame-src 'self' https://ragenodes.app https://*.ragenodes.app https://ragenodes.dev https://*.ragenodes.dev https://ragenodes.com https://*.ragenodes.com"), 'panel CSP permits both RageNodes apex domains and their subdomains');
+assert(files['oxideproxy/src/pipeline/http_server.rs'].includes('internal_frame_sources') && files['oxideproxy/src/pipeline/http_server.rs'].includes('https://*.ragenodes.com'), 'panel CSP permits both RageNodes apex domains and their subdomains');
+assert(files['oxideproxy/src/config.rs'].includes('default_allowed_frame_origins') && files['oxideproxy/src/config.rs'].includes('https://idms.fivem.net'), 'panel CSP permits the official FiveM identity provider through validated runtime configuration');
+assert(files['oxideproxy/node_panel/server.js'].includes('normalizeAllowedFrameOrigins') && files['oxideproxy/node_panel/server.js'].includes('/api/oxide/config/apply'), 'Oxide control plane validates and applies frame origins without rebuilding images');
 assert(files['frontend/public/js/panel.js'].includes('window._downloadInterval = setInterval'), 'panel owns a single cancellable download-status poller');
 assert(files['frontend/public/js/panel.js'].includes('downloadPollingUnavailable') && files['frontend/public/js/panel.js'].includes('res.status === 404'), 'panel backs off when a server leaves the current file-access scope');
 assert(!files['oxideproxy/config/oxide_proxy.yml'].includes('10.5.0.10:9001'), 'OxideProxy active config excludes mock game backends');

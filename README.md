@@ -199,6 +199,8 @@ TLS passthrough does not create certificates. The staging edge must therefore ha
 
 The authenticated **DNS & SSL** area in the Oxide control panel manages records through the PowerDNS API without exposing its API key to the browser. It is fail-closed: only zones listed in `PDNS_MANAGED_ZONES` (or `POWERDNS_ZONE`) and validated A, AAAA, CNAME, TXT, MX, SRV and CAA records can be changed. The panel also reports the active ACME provider, mode and domains. Enable this integration with `docker-compose.powerdns.yml`; keep `ragenodes.com` outside the managed-zone list while Cloudflare remains its public SSL edge.
 
+The same area manages an exact HTTPS allowlist for embedded web integrations. Changes are validated, persisted in `oxide_proxy.yml`, and applied by restarting only the OxideProxy data plane—no image rebuild is required. The telemetry cards report the Rust process CPU and resident memory separately from host-wide resource usage.
+
 | Environment | Public endpoint | Docker policy | Data and ports |
 |---|---|---|---|
 | Local | `http://localhost:8088` | Rootful exception permitted only in development | Developer-owned paths and local ports |
@@ -463,6 +465,8 @@ Cuando staging está detrás del borde de producción, producción configura `ST
 El passthrough TLS no genera certificados. El borde de staging debe disponer de un certificado público válido para cada nombre de `OXIDE_ACME_DOMAINS`, o de un certificado wildcard emitido mediante DNS-01. El certificado autofirmado incluido para desarrollo nunca debe exponerse públicamente.
 
 La sección autenticada **DNS & SSL** del panel de Oxide administra registros mediante la API de PowerDNS sin entregar su clave al navegador. Opera con cierre seguro: únicamente permite modificar las zonas declaradas en `PDNS_MANAGED_ZONES` (o `POWERDNS_ZONE`) y valida registros A, AAAA, CNAME, TXT, MX, SRV y CAA. También muestra el proveedor ACME, el modo y los dominios activos. La integración se habilita con `docker-compose.powerdns.yml`; mientras Cloudflare siga siendo el borde SSL público de `ragenodes.com`, ese dominio debe permanecer fuera de la lista de zonas administradas.
+
+La misma sección administra una lista exacta de orígenes HTTPS permitidos para integraciones web embebidas. Los cambios se validan, persisten en `oxide_proxy.yml` y se aplican reiniciando únicamente el plano de datos de OxideProxy, sin recompilar imágenes. Las tarjetas de telemetría muestran por separado la CPU y la memoria residente del proceso Rust, sin confundirlas con el consumo global del host.
 
 | Entorno | Endpoint público | Política Docker | Aislamiento |
 |---|---|---|---|
