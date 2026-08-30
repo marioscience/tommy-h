@@ -197,6 +197,8 @@ When staging sits behind the production edge, production must set `STAGING_UPSTR
 
 TLS passthrough does not create certificates. The staging edge must therefore have a publicly trusted certificate for every name listed in `OXIDE_ACME_DOMAINS`, or use a wildcard certificate provisioned through DNS-01. Never expose the embedded self-signed development certificate on a public endpoint.
 
+The authenticated **DNS & SSL** area in the Oxide control panel manages records through the PowerDNS API without exposing its API key to the browser. It is fail-closed: only zones listed in `PDNS_MANAGED_ZONES` (or `POWERDNS_ZONE`) and validated A, AAAA, CNAME, TXT, MX, SRV and CAA records can be changed. The panel also reports the active ACME provider, mode and domains. Enable this integration with `docker-compose.powerdns.yml`; keep `ragenodes.com` outside the managed-zone list while Cloudflare remains its public SSL edge.
+
 | Environment | Public endpoint | Docker policy | Data and ports |
 |---|---|---|---|
 | Local | `http://localhost:8088` | Rootful exception permitted only in development | Developer-owned paths and local ports |
@@ -459,6 +461,8 @@ La plataforma expone OxideProxy y los puertos de juego directamente, sin depende
 Cuando staging está detrás del borde de producción, producción configura `STAGING_UPSTREAM` para HTTP y `STAGING_TLS_UPSTREAM` para passthrough TLS en crudo. `STAGING_TLS_DOMAINS` restringe el reenvío SNI a la zona de preproducción, permitiendo subdominios dinámicos como `tx41120.ragenodes.dev` sin compartir claves privadas ni debilitar TLS.
 
 El passthrough TLS no genera certificados. El borde de staging debe disponer de un certificado público válido para cada nombre de `OXIDE_ACME_DOMAINS`, o de un certificado wildcard emitido mediante DNS-01. El certificado autofirmado incluido para desarrollo nunca debe exponerse públicamente.
+
+La sección autenticada **DNS & SSL** del panel de Oxide administra registros mediante la API de PowerDNS sin entregar su clave al navegador. Opera con cierre seguro: únicamente permite modificar las zonas declaradas en `PDNS_MANAGED_ZONES` (o `POWERDNS_ZONE`) y valida registros A, AAAA, CNAME, TXT, MX, SRV y CAA. También muestra el proveedor ACME, el modo y los dominios activos. La integración se habilita con `docker-compose.powerdns.yml`; mientras Cloudflare siga siendo el borde SSL público de `ragenodes.com`, ese dominio debe permanecer fuera de la lista de zonas administradas.
 
 | Entorno | Endpoint público | Política Docker | Aislamiento |
 |---|---|---|---|

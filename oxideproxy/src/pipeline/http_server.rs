@@ -469,6 +469,11 @@ fn is_disallowed_static_path(path: &str) -> bool {
 }
 
 fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool) {
+    let is_html_document = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.to_ascii_lowercase().starts_with("text/html"));
     let page_security = response.extensions().get::<StaticPageSecurity>().cloned();
     let allow_same_origin_framing = response
         .extensions()
@@ -511,6 +516,24 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
     headers.remove("cross-origin-resource-policy");
     headers.remove("cross-origin-embedder-policy");
     headers.remove("cross-origin-opener-policy");
+    // txAdmin mantiene estado de autenticación dentro de su aplicación. Evitar
+    // cachear únicamente sus documentos HTML impide que el navegador conserve
+    // una CSP o una pantalla "Session Expired" anterior tras un despliegue. Los
+    // assets versionados siguen usando la política de caché del upstream.
+    if allow_fivem_identity_frames && is_html_document {
+        headers.insert(
+            HeaderName::from_static("cache-control"),
+            HeaderValue::from_static("no-store, private, max-age=0"),
+        );
+        headers.insert(
+            HeaderName::from_static("pragma"),
+            HeaderValue::from_static("no-cache"),
+        );
+        headers.insert(
+            HeaderName::from_static("expires"),
+            HeaderValue::from_static("0"),
+        );
+    }
     headers.insert(
         HeaderName::from_static("x-content-type-options"),
         HeaderValue::from_static("nosniff"),
@@ -1278,7 +1301,7 @@ mod tests {
         TrustedStagingUpstream,
     };
     use http::{Response, StatusCode};
-    use hyper::Body;
+    use hyper::{header::HeaderValue, Body};
 
     #[test]
     fn dynamic_hosts_only_resolve_inside_the_allowed_range_and_domain() {
@@ -1347,6 +1370,10 @@ mod tests {
     fn txadmin_response_allows_only_the_official_fivem_identity_frame() {
         let mut response = Response::new(Body::empty());
         response.headers_mut().insert(
+            "content-type",
+            HeaderValue::from_static("text/html; charset=utf-8"),
+        );
+        response.headers_mut().insert(
             "content-security-policy",
             "default-src 'self'; object-src 'none'; frame-src 'self' https://*.ragenodes.app"
                 .parse()
@@ -1360,6 +1387,31 @@ mod tests {
             .unwrap();
         assert!(policy.contains("https://idms.fivem.net"));
         assert!(!policy.contains("frame-src https:"));
+        assert_eq!(
+            response.headers()["cache-control"],
+            "no-store, private, max-age=0"
+        );
+        assert_eq!(response.headers()["pragma"], "no-cache");
+    }
+
+    #[test]
+    fn txadmin_versioned_assets_keep_their_upstream_cache_policy() {
+        let mut response = Response::new(Body::empty());
+        response.headers_mut().insert(
+            "content-type",
+            HeaderValue::from_static("application/javascript"),
+        );
+        response.headers_mut().insert(
+            "cache-control",
+            HeaderValue::from_static("public, max-age=31536000, immutable"),
+        );
+        response.extensions_mut().insert(AllowRageNodesPanelFraming);
+        response.extensions_mut().insert(AllowFiveMIdentityFrames);
+        apply_browser_security_headers(&mut response, true);
+        assert_eq!(
+            response.headers()["cache-control"],
+            "public, max-age=31536000, immutable"
+        );
     }
 
     #[test]

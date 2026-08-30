@@ -9,6 +9,8 @@ const router = express.Router();
 
 // 🐳 Conexión al motor del sistema de servidores
 const motorServidores = new Docker({ socketPath: config.dockerSocket });
+const LEGO_IMAGE = 'goacme/lego:v5.3.1@sha256:f4fd80df0ef94d2f536cc2e7fb5bdbd090fb0aa81b3595226b9fe814bb9a2bfe';
+let certificateRenewalInFlight = false;
 
 // 🛡️ MIDDLEWARE DE SEGURIDAD ESTRICTA
 const verifyApiKey = (req, res, next) => {
@@ -509,6 +511,69 @@ router.post('/servers/routes/reload-proxy', verifyApiKey, async (req, res) => {
     } catch (error) {
         console.error('❌ Error recargando Oxide Game:', error);
         res.status(500).json({ error: 'No se pudo recargar el proxy de juego' });
+    }
+});
+
+// Renovación ACME DNS-01 acotada a la zona configurada. Los nombres de zona,
+// red, volumen, imagen y servicio se descubren desde el despliegue y nunca se
+// aceptan desde el navegador.
+router.post('/oxide/certificate/renew', verifyApiKey, async (_req, res) => {
+    if (certificateRenewalInFlight) return res.status(409).json({ error: 'Ya hay una renovación en curso.' });
+    if (!config.powerDnsZone || !config.legoEmail) {
+        return res.status(503).json({ error: 'POWERDNS_ZONE o LEGO_EMAIL no configurados.' });
+    }
+    certificateRenewalInFlight = true;
+    let job;
+    try {
+        const [pdnsContainers, webContainers] = await Promise.all([
+            motorServidores.listContainers({ all: true, filters: { label: ['com.docker.compose.service=powerdns-authoritative'] } }),
+            motorServidores.listContainers({ all: true, filters: { label: ['com.docker.compose.service=oxide_web'] } })
+        ]);
+        if (pdnsContainers.length !== 1 || webContainers.length !== 1) {
+            return res.status(503).json({ error: 'PowerDNS u Oxide Web no están disponibles de forma inequívoca.' });
+        }
+        const [pdnsInfo, webInfo] = await Promise.all([
+            motorServidores.getContainer(pdnsContainers[0].Id).inspect(),
+            motorServidores.getContainer(webContainers[0].Id).inspect()
+        ]);
+        if (!pdnsInfo.State.Running) return res.status(503).json({ error: 'PowerDNS no está activo.' });
+        const dnsNetwork = Object.keys(pdnsInfo.NetworkSettings.Networks || {}).find(name => name === 'ragenodes_dns');
+        const certificateMount = (webInfo.Mounts || []).find(mount => mount.Destination === '/var/lib/lego' && mount.Type === 'volume');
+        const pdnsApiKey = (pdnsInfo.Config.Env || []).find(value => value.startsWith('PDNS_AUTH_API_KEY='))?.slice(18);
+        if (!dnsNetwork || !certificateMount?.Name || !pdnsApiKey) {
+            return res.status(503).json({ error: 'La integración PowerDNS/ACME no está completamente instalada.' });
+        }
+        job = await motorServidores.createContainer({
+            Image: LEGO_IMAGE,
+            Env: ['PDNS_API_URL=http://powerdns-authoritative:8081/api/v1', `PDNS_API_KEY=${pdnsApiKey}`],
+            Cmd: ['--accept-tos', `--server=${config.legoAcmeServer}`, `--email=${config.legoEmail}`, '--dns=pdns',
+                `--domains=${config.powerDnsZone}`, `--domains=*.${config.powerDnsZone}`, '--path=/var/lib/lego', 'run'],
+            HostConfig: {
+                NetworkMode: dnsNetwork,
+                ReadonlyRootfs: true,
+                SecurityOpt: ['no-new-privileges:true'],
+                CapDrop: ['ALL'],
+                Mounts: [{ Type: 'volume', Source: certificateMount.Name, Target: '/var/lib/lego' }],
+                Tmpfs: { '/tmp': 'rw,noexec,nosuid,nodev,size=32m' },
+                PidsLimit: 64
+            },
+            Labels: { 'com.ragenodes.role': 'oxide-certificate-renewal' }
+        });
+        await job.start();
+        const result = await job.wait();
+        const logs = String(await job.logs({ stdout: true, stderr: true, tail: 80 })).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
+        if (Number(result.StatusCode) !== 0) {
+            console.error('❌ Renovación ACME rechazada:', logs.slice(-4000));
+            return res.status(502).json({ error: 'La autoridad ACME rechazó la renovación.' });
+        }
+        await motorServidores.getContainer(webContainers[0].Id).restart({ t: 10 });
+        res.json({ ok: true, zone: config.powerDnsZone, service: 'oxide_web' });
+    } catch (error) {
+        console.error('❌ Error renovando el certificado Oxide:', error);
+        res.status(500).json({ error: 'No se pudo renovar el certificado.' });
+    } finally {
+        if (job) await job.remove({ force: true }).catch(() => {});
+        certificateRenewalInFlight = false;
     }
 });
 
