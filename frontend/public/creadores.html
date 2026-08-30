@@ -1009,7 +1009,7 @@
 
 
 
-  <script src="js/common.js?v=2026081899"></script>
+  <script src="js/common.js?v=2026083003"></script>
 
 
 
@@ -1086,6 +1086,7 @@
       // ==========================================
 
       async function openLogin() {
+          if (window.redirectPublicLoginToPanelApp?.('/?login=1')) return;
           const user = await Nexus.session();
           if (user) {
              window.location.href = user.role === 'admin' ? '/admin' : '/panel';
