@@ -28,10 +28,11 @@ if ! command -v bpf-linker >/dev/null 2>&1; then
     "https://github.com/aya-rs/bpf-linker/releases/download/${bpf_linker_version}/bpf-linker-x86_64-unknown-linux-musl.tar.zst" \
     -o "$archive"
   printf '%s  %s\n' "$bpf_linker_sha256" "$archive" | sha256sum --check --status
-  mkdir -p "$HOME/.local/bin"
-  tar --zstd -xf "$archive" -C "$HOME/.local/bin"
+  extract_dir="$(mktemp -d)"
+  tar --zstd -xf "$archive" -C "$extract_dir"
+  sudo install -m 0755 "$extract_dir/bpf-linker" /usr/local/bin/bpf-linker
+  rm -rf "$extract_dir"
   rm -f "$archive"
-  export PATH="$HOME/.local/bin:$PATH"
 fi
 
 printf '%s\n' 'eBPF/XDP development toolchain ready.'

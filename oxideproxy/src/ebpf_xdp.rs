@@ -17,6 +17,7 @@ struct PolicyConfig { window_ns: u64, max_pps: u32, enabled: u32, _reserved: [u3
 #[derive(Clone, Copy, Debug, Default)]
 pub struct XdpStats {
     pub packets_seen: u64,
+    pub bytes_seen: u64,
     pub packets_passed: u64,
     pub packets_dropped: u64,
     pub blacklist_drops: u64,
@@ -188,6 +189,7 @@ impl XdpFilter {
             .get(&0, 0).map_err(|error| format!("no se pudo leer STATS: {error}"))?;
         Ok(stats.iter().fold(XdpStats::default(), |mut total, cpu| {
             total.packets_seen = total.packets_seen.saturating_add(cpu.packets_seen);
+            total.bytes_seen = total.bytes_seen.saturating_add(cpu.bytes_seen);
             total.packets_passed = total.packets_passed.saturating_add(cpu.packets_passed);
             total.packets_dropped = total.packets_dropped.saturating_add(cpu.packets_dropped);
             total.blacklist_drops = total.blacklist_drops.saturating_add(cpu.blacklist_drops);

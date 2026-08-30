@@ -38,6 +38,7 @@ pub struct RateWindow {
 #[derive(Clone, Copy)]
 pub struct XdpStats {
     pub packets_seen: u64,
+    pub bytes_seen: u64,
     pub packets_passed: u64,
     pub packets_dropped: u64,
     pub blacklist_drops: u64,
@@ -77,7 +78,11 @@ pub fn oxide_xdp(ctx: XdpContext) -> u32 {
 }
 
 fn try_oxide_xdp(ctx: &XdpContext) -> Result<u32, ()> {
-    update_stats(|stats| stats.packets_seen = stats.packets_seen.saturating_add(1));
+    let frame_len = ctx.data_end().saturating_sub(ctx.data()) as u64;
+    update_stats(|stats| {
+        stats.packets_seen = stats.packets_seen.saturating_add(1);
+        stats.bytes_seen = stats.bytes_seen.saturating_add(frame_len);
+    });
     let policy = POLICY.get(POLICY_INDEX);
     let Some(policy) = policy else {
         return pass();

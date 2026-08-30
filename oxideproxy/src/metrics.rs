@@ -17,6 +17,7 @@ static L4_DROPPED: AtomicU64 = AtomicU64::new(0);
 static L4_BLOCKED_IPS: AtomicU64 = AtomicU64::new(0);
 static XDP_MODE: AtomicU64 = AtomicU64::new(0);
 static XDP_PACKETS_SEEN: AtomicU64 = AtomicU64::new(0);
+static XDP_BYTES_SEEN: AtomicU64 = AtomicU64::new(0);
 static XDP_PARSE_ERRORS: AtomicU64 = AtomicU64::new(0);
 static XDP_BLACKLIST_DROPS: AtomicU64 = AtomicU64::new(0);
 static XDP_RATE_LIMIT_DROPS: AtomicU64 = AtomicU64::new(0);
@@ -38,6 +39,7 @@ struct Snapshot {
     l4_blocked_ips: u64,
     xdp_mode: &'static str,
     xdp_packets_seen: u64,
+    xdp_bytes_seen: u64,
     xdp_parse_errors: u64,
     xdp_blacklist_drops: u64,
     xdp_rate_limit_drops: u64,
@@ -93,6 +95,7 @@ pub fn set_xdp_mode(mode: crate::ebpf_xdp::XdpAttachMode) {
 
 pub fn update_xdp_stats(stats: crate::ebpf_xdp::XdpStats) {
     XDP_PACKETS_SEEN.store(stats.packets_seen, Ordering::Relaxed);
+    XDP_BYTES_SEEN.store(stats.bytes_seen, Ordering::Relaxed);
     XDP_PARSE_ERRORS.store(stats.parse_errors, Ordering::Relaxed);
     XDP_BLACKLIST_DROPS.store(stats.blacklist_drops, Ordering::Relaxed);
     XDP_RATE_LIMIT_DROPS.store(stats.rate_limit_drops, Ordering::Relaxed);
@@ -126,6 +129,7 @@ pub async fn write_snapshots(path: String) {
             l4_blocked_ips: L4_BLOCKED_IPS.load(Ordering::Relaxed),
             xdp_mode: xdp_mode_name(),
             xdp_packets_seen: XDP_PACKETS_SEEN.load(Ordering::Relaxed),
+            xdp_bytes_seen: XDP_BYTES_SEEN.load(Ordering::Relaxed),
             xdp_parse_errors: XDP_PARSE_ERRORS.load(Ordering::Relaxed),
             xdp_blacklist_drops: XDP_BLACKLIST_DROPS.load(Ordering::Relaxed),
             xdp_rate_limit_drops: XDP_RATE_LIMIT_DROPS.load(Ordering::Relaxed),
