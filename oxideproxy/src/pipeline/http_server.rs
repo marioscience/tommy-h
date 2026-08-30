@@ -1301,7 +1301,7 @@ mod tests {
         TrustedStagingUpstream,
     };
     use http::{Response, StatusCode};
-    use hyper::Body;
+    use hyper::{header::HeaderValue, Body};
 
     #[test]
     fn dynamic_hosts_only_resolve_inside_the_allowed_range_and_domain() {
