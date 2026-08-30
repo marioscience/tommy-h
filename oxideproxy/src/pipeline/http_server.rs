@@ -313,21 +313,33 @@ fn embedded_txadmin_cookie(value: &HeaderValue) -> Option<HeaderValue> {
     if attributes.is_empty() || !attributes[0].contains('=') {
         return None;
     }
-    attributes.extend(["SameSite=None", "Secure", "Partitioned"]);
+    // El popup OAuth y el iframe viven en hosts distintos pero bajo el mismo
+    // sitio registrable (panel/tx*.ragenodes.app o .dev). Una cookie CHIPS
+    // quedaría ligada al sitio superior del popup y no sería visible desde el
+    // iframe. Mantenerla sin particionar permite transferir la sesión de forma
+    // segura entre ambos contextos del mismo sitio.
+    attributes.extend(["SameSite=Lax", "Secure"]);
     HeaderValue::from_str(&attributes.join("; ")).ok()
 }
 
 fn allow_embedded_txadmin_cookies(headers: &mut http::HeaderMap) {
     let cookies: Vec<HeaderValue> = headers.get_all(SET_COOKIE).iter().cloned().collect();
-    if cookies.is_empty() {
-        return;
-    }
     headers.remove(SET_COOKIE);
     for cookie in cookies {
         headers.append(
             SET_COOKIE,
             embedded_txadmin_cookie(&cookie).unwrap_or(cookie),
         );
+    }
+    // Elimina únicamente las variantes CHIPS creadas por versiones anteriores.
+    // `Partitioned` forma un almacén distinto, por lo que estas expiraciones no
+    // afectan la nueva sesión no particionada establecida arriba.
+    for name in ["txAdmin-token", "txAdmin-state"] {
+        if let Ok(value) = HeaderValue::from_str(&format!(
+            "{name}=; Path=/; Max-Age=0; SameSite=None; Secure; Partitioned"
+        )) {
+            headers.append(SET_COOKIE, value);
+        }
     }
 }
 
@@ -559,9 +571,9 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
         .unwrap_or_default();
     let headers = response.headers_mut();
     if allow_fivem_identity_frames && is_https {
-        // txAdmin se ejecuta dentro del panel de RageNodes. CHIPS mantiene la
-        // sesión aislada por sitio superior aun cuando Chrome bloquee cookies
-        // de terceros, mientras SameSite=None conserva compatibilidad.
+        // txAdmin se ejecuta bajo el mismo sitio registrable que el panel. La
+        // sesión creada por el popup OAuth debe seguir disponible en el iframe,
+        // por lo que se normaliza como cookie segura y no particionada.
         allow_embedded_txadmin_cookies(headers);
     }
     let upstream_csp = headers
@@ -1486,7 +1498,7 @@ mod tests {
     }
 
     #[test]
-    fn txadmin_session_cookies_support_secure_partitioned_iframes() {
+    fn txadmin_popup_session_is_reused_by_the_same_site_iframe() {
         let mut response = Response::new(Body::empty());
         response.headers_mut().append(
             SET_COOKIE,
@@ -1505,12 +1517,17 @@ mod tests {
             .iter()
             .map(|value| value.to_str().unwrap())
             .collect();
-        assert_eq!(cookies.len(), 2);
-        assert!(cookies.iter().all(|cookie| cookie.contains("SameSite=None")));
-        assert!(cookies.iter().all(|cookie| cookie.contains("Secure")));
-        assert!(cookies.iter().all(|cookie| cookie.contains("Partitioned")));
-        assert!(cookies[0].contains("HttpOnly"));
-        assert!(!cookies[0].contains("SameSite=Lax"));
+        assert_eq!(cookies.len(), 4);
+        let active = &cookies[..2];
+        let legacy_removals = &cookies[2..];
+        assert!(active.iter().all(|cookie| cookie.contains("SameSite=Lax")));
+        assert!(active.iter().all(|cookie| cookie.contains("Secure")));
+        assert!(active.iter().all(|cookie| !cookie.contains("Partitioned")));
+        assert!(active[0].contains("HttpOnly"));
+        assert!(!active[0].contains("SameSite=None"));
+        assert!(legacy_removals
+            .iter()
+            .all(|cookie| cookie.contains("Max-Age=0") && cookie.contains("Partitioned")));
     }
 
     #[test]

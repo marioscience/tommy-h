@@ -174,6 +174,8 @@ assert(files['scripts/ensure_base_images.sh'].includes('network inspect "$RUNTIM
 assert(files['scripts/ensure_base_images.sh'].includes('network create "$RUNTIME_DOCKER_NETWORK"'), 'missing runtime network is created in the rootless daemon');
 assert(files['deploy_staging.sh'].includes('RUNTIME_DOCKER_NETWORK=ragenodes_net_staging'), 'staging prepares its isolated rootless network');
 assert(files['docker-compose.staging.yml'].match(/PORT_BASE_OFFSET(?::|=)\s*\$\{STAGING_PORT_BASE_OFFSET:-1000\}/g)?.length === 2, 'staging backend and worker share a configurable non-overlapping port offset');
+assert(files['docker-compose.yml'].includes('PORT_SCAN_LIMIT: ${PRODUCTION_PORT_SCAN_LIMIT:-999}'), 'production allocation stays inside its 1000-port band');
+assert(files['docker-compose.staging.yml'].includes('PORT_SCAN_LIMIT: ${STAGING_PORT_SCAN_LIMIT:-999}'), 'staging allocation stays inside its shifted 1000-port band');
 const stagingControlPanelOverride = files['docker-compose.staging.yml'].match(/\r?\n  oxide_control_panel:\r?\n([\s\S]*?)(?=\r?\n  oxide_game_runtime_init_staging:)/)?.[1] || '';
 assert(!stagingControlPanelOverride.includes('security_opt:'), 'staging does not duplicate inherited control-panel security options');
 assert(!stagingControlPanelOverride.includes('cap_drop:'), 'staging does not duplicate inherited control-panel capability drops');
