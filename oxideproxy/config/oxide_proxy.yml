@@ -14,6 +14,11 @@ tls:
 runtime:
   worker_threads: null
   enable_core_pinning: true
+browser_security:
+  # Origenes HTTPS exactos autorizados para integraciones dentro del panel.
+  # Se administran desde la GUI de OxideProxy sin reconstruir la imagen.
+  allowed_frame_origins:
+    - https://idms.fivem.net
 advanced_tuning:
   ebpf_xdp:
     enabled: true

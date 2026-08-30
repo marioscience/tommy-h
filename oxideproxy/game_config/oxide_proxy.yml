@@ -16,6 +16,9 @@ tls:
 runtime:
   worker_threads: null
   enable_core_pinning: true
+browser_security:
+  allowed_frame_origins:
+    - https://idms.fivem.net
 advanced_tuning:
   ebpf_xdp:
     enabled: true

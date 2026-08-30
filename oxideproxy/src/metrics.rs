@@ -43,6 +43,45 @@ struct Snapshot {
     xdp_parse_errors: u64,
     xdp_blacklist_drops: u64,
     xdp_rate_limit_drops: u64,
+    process_cpu_ticks: u64,
+    system_cpu_ticks: u64,
+    process_rss_bytes: u64,
+}
+
+#[cfg(target_os = "linux")]
+fn process_resource_usage() -> (u64, u64, u64) {
+    let process_ticks = std::fs::read_to_string("/proc/self/stat")
+        .ok()
+        .and_then(|stat| stat.rsplit_once(')').map(|(_, fields)| fields.to_string()))
+        .and_then(|fields| {
+            let values: Vec<&str> = fields.split_whitespace().collect();
+            Some(values.get(11)?.parse::<u64>().ok()? + values.get(12)?.parse::<u64>().ok()?)
+        })
+        .unwrap_or(0);
+    let system_ticks = std::fs::read_to_string("/proc/stat")
+        .ok()
+        .and_then(|stat| stat.lines().next().map(str::to_string))
+        .map(|line| {
+            line.split_whitespace().skip(1)
+                .filter_map(|value| value.parse::<u64>().ok())
+                .sum()
+        })
+        .unwrap_or(0);
+    let rss_bytes = std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|status| {
+            status.lines().find_map(|line| line.strip_prefix("VmRSS:"))
+                .and_then(|value| value.split_whitespace().next())
+                .and_then(|value| value.parse::<u64>().ok())
+        })
+        .unwrap_or(0)
+        .saturating_mul(1024);
+    (process_ticks, system_ticks, rss_bytes)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn process_resource_usage() -> (u64, u64, u64) {
+    (0, 0, 0)
 }
 
 pub fn tcp_open(initial_bytes: usize) {
@@ -113,6 +152,7 @@ fn xdp_mode_name() -> &'static str {
 
 pub async fn write_snapshots(path: String) {
     loop {
+        let (process_cpu_ticks, system_cpu_ticks, process_rss_bytes) = process_resource_usage();
         let snapshot = Snapshot {
             timestamp_ms: SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
             tcp_active: TCP_ACTIVE.load(Ordering::Relaxed),
@@ -133,6 +173,9 @@ pub async fn write_snapshots(path: String) {
             xdp_parse_errors: XDP_PARSE_ERRORS.load(Ordering::Relaxed),
             xdp_blacklist_drops: XDP_BLACKLIST_DROPS.load(Ordering::Relaxed),
             xdp_rate_limit_drops: XDP_RATE_LIMIT_DROPS.load(Ordering::Relaxed),
+            process_cpu_ticks,
+            system_cpu_ticks,
+            process_rss_bytes,
         };
         if let Ok(encoded) = serde_json::to_vec(&snapshot) {
             let temporary = format!("{}.tmp", path);
