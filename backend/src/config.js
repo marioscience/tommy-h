@@ -53,6 +53,9 @@ export const config = {
   oxideGameProxyService: process.env.OXIDE_GAME_PROXY_SERVICE || 'oxide_game',
   allowRootfulDockerSocket: process.env.ALLOW_ROOTFUL_DOCKER_SOCKET === 'true',
   allowInsecureDockerNodes: process.env.ALLOW_INSECURE_DOCKER_NODES === 'true',
+  powerDnsZone: String(process.env.POWERDNS_ZONE || '').trim().replace(/\.$/, '').toLowerCase(),
+  legoEmail: String(process.env.LEGO_EMAIL || '').trim(),
+  legoAcmeServer: String(process.env.LEGO_ACME_SERVER || 'https://acme-staging-v02.api.letsencrypt.org/directory').trim(),
 
   // 📦 BACKUPS
   backupRoot: process.env.BACKUP_ROOT || '/srv/ragenodes-backups',
