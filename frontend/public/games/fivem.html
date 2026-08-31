@@ -90,7 +90,7 @@
         }
     </style>
     <div id="view-txadmin" class="hidden view-fullscreen">
-        <div style="display: grid; grid-template-rows: auto 1fr; height: 100%; border-radius: 12px; overflow: hidden; background: #000; border: 1px solid var(--line);">
+        <div style="display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 560px; border-radius: 12px; overflow: hidden; background: #121214; border: 1px solid var(--line);">
 
 
             <div style="background: #1a1a1e; padding: 12px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); flex-wrap:wrap; gap:10px; z-index:20;">
@@ -99,13 +99,7 @@
                     <span style="font-weight:600; color:white; font-size:1.05rem;">txAdmin Web</span>
                 </div>
 
-                <div style="display: flex; gap: 15px; align-items: center; flex-wrap:wrap; margin-left:auto;">
-                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">Host: <strong style="color:white">host.docker.internal</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar Host" data-rn-onclick="priv_0182"></i></div>
-                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">DB: <strong style="color:white" id="tx-top-db">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar DB" data-rn-onclick="priv_0183"></i></div>
-                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">User: <strong style="color:white" id="tx-top-user">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar Usuario" data-rn-onclick="priv_0184"></i></div>
-                    <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">Pass: <strong style="color:var(--warning)" id="tx-top-pass">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar Contraseña" data-rn-onclick="priv_0185"></i></div>
-
-                    <button class="btn-ghost" style="padding:6px 12px; margin-left:15px;" data-rn-onclick="priv_0186" title="Recargar Panel"><i class="fa-solid fa-rotate-right"></i></button>
+                <div style="display: flex; align-items: center; margin-left:auto;">
                     <button class="btn-ghost" style="padding:6px 12px;" data-rn-onclick="priv_0187" title="Pantalla Completa"><i class="fa-solid fa-expand"></i></button>
                 </div>
             </div>
@@ -136,11 +130,18 @@
                     <p class="muted">Inicia tu servidor para acceder a txAdmin.</p>
                 </div>
 
-                <div style="width:100%; min-height:420px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:40px; text-align:center; background:#121214;">
+                <div style="width:100%; height:100%; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:clamp(32px, 6vh, 72px) 32px; text-align:center; background:#121214;">
                     <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:3rem; color:var(--primary);"></i>
                     <h3 style="color:white; font-size:1.4rem;">txAdmin se abre en una pestaña independiente</h3>
                     <p class="muted" style="max-width:560px; line-height:1.6;">Así el inicio de sesión de Cfx.re, el PIN y la contraseña de respaldo funcionan sin restricciones de iframe.</p>
                     <button class="btn-success" style="padding:12px 22px;" data-rn-onclick="priv_0175"><i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir txAdmin</button>
+
+                    <div style="width:min(100%, 980px); margin-top:18px; padding-top:22px; border-top:1px solid var(--line); display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:14px 28px;">
+                        <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">Host: <strong style="color:white">host.docker.internal</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar Host" data-rn-onclick="priv_0182"></i></div>
+                        <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">BD: <strong style="color:white" id="tx-top-db">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar BD" data-rn-onclick="priv_0183"></i></div>
+                        <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">Usuario: <strong style="color:white" id="tx-top-user">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar usuario" data-rn-onclick="priv_0184"></i></div>
+                        <div class="mono" style="display:flex; align-items:center; gap:8px; color:var(--muted);">Contraseña: <strong style="color:var(--warning)" id="tx-top-pass">...</strong><i class="fa-regular fa-copy" style="cursor:pointer; color:var(--primary);" title="Copiar contraseña" data-rn-onclick="priv_0185"></i></div>
+                    </div>
                 </div>
             </div>
         </div>
