@@ -404,7 +404,7 @@
     {
       "id": "priv_0081",
       "event": "click",
-      "source": "switchView('txadmin', this)"
+      "source": "openTxAdminTab()"
     },
     {
       "id": "priv_0082",
@@ -874,7 +874,7 @@
     {
       "id": "priv_0175",
       "event": "click",
-      "source": "openTxAdminPopup()"
+      "source": "openTxAdminTab()"
     },
     {
       "id": "priv_0176",
@@ -929,17 +929,17 @@
     {
       "id": "priv_0186",
       "event": "click",
-      "source": "refreshTxAdmin()"
+      "source": "openTxAdminTab()"
     },
     {
       "id": "priv_0187",
       "event": "click",
-      "source": "document.getElementById('txadmin-iframe').requestFullscreen()"
+      "source": "openTxAdminTab()"
     },
     {
       "id": "priv_0188",
       "event": "click",
-      "source": "hideAuthOverlay()"
+      "source": "openTxAdminTab()"
     },
     {
       "id": "priv_0189",

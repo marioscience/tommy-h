@@ -62,6 +62,17 @@ app.use((req, res, next) => {
     next();
 });
 app.use(requestLogger);
+const PANEL_APP_ORIGIN = 'https://panel.ragenodes.app';
+const PUBLIC_MARKETING_HOSTS = new Set(['ragenodes.com', 'www.ragenodes.com']);
+const panelAppPaths = new Set(['/panel', '/admin']);
+
+app.use((req, res, next) => {
+    if (!['GET', 'HEAD'].includes(req.method) || !panelAppPaths.has(req.path)) return next();
+    const forwardedHost = String(req.get('x-forwarded-host') || '').split(',')[0].trim();
+    const hostname = String(forwardedHost || req.get('host') || '').split(':')[0].toLowerCase();
+    if (!PUBLIC_MARKETING_HOSTS.has(hostname)) return next();
+    return res.redirect(308, `${PANEL_APP_ORIGIN}${req.originalUrl}`);
+});
 const allowedOrigins = new Set(
     String(config.corsOrigin || '').split(',').map(origin => origin.trim()).filter(Boolean)
 );

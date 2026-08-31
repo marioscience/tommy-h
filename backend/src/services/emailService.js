@@ -22,7 +22,7 @@ export async function sendWelcomeEmail(toEmail, username) {
                     <h2 style="color: #6366f1;">¡Hola, ${username}! Bienvenido a RageNodes.</h2>
                     <p style="color: #a1a1aa; font-size: 16px; line-height: 1.5;">Tu cuenta ha sido creada exitosamente. Ya puedes acceder a tu panel de control y desplegar tu servidor FiveM en cuestión de segundos.</p>
                     <div style="text-align: center; margin-top: 30px;">
-                        <a href="https://ragenodes.com/panel" style="background: #6366f1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Acceder al Panel</a>
+                        <a href="https://panel.ragenodes.app/panel" style="background: #6366f1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Acceder al Panel</a>
                     </div>
                 </div>
             `
@@ -111,7 +111,7 @@ export async function sendTeamInviteEmail(toEmail, username, password, serverNam
                     </div>
                     <p style="color: #a1a1aa; font-size: 14px;">Te recomendamos cambiar tu contraseña desde los ajustes del panel una vez inicies sesión.</p>
                     <div style="text-align: center; margin-top: 35px;">
-                        <a href="https://ragenodes.com/panel" style="background: #38bdf8; color: #000; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Acceder al Panel de Control</a>
+                        <a href="https://panel.ragenodes.app/panel" style="background: #38bdf8; color: #000; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Acceder al Panel de Control</a>
                     </div>
                 </div>
             `

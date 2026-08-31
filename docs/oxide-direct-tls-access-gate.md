@@ -22,6 +22,12 @@ STAGING_UPSTREAM=192.168.1.106:80
 ACCESS_GATE_SHARED_EDGE=true
 ```
 
+Cuando `ACCESS_GATE_SHARED_EDGE=true` y `STAGING_UPSTREAM` está configurado, el
+borde de producción delega la puerta de acceso por completo a staging. Esto
+garantiza que exista una sola sesión OTP y evita bucles causados por dos claves
+de firma diferentes. El borde continúa limitando el passthrough TLS mediante
+`STAGING_TLS_DOMAINS`.
+
 En la VPS de staging debe mantenerse `STAGING_MODE=true` y
 `ACCESS_GATE_SHARED_EDGE=false`. La IP privada anterior
 es solo el ejemplo de esta instalación y debe ajustarse si cambia la red. No se
