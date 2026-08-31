@@ -686,6 +686,10 @@ fn apply_browser_security_headers(response: &mut Response<Body>, is_https: bool)
     } else if allow_panel_framing {
         let policy = csp_with_frame_ancestors(upstream_csp.as_deref(), &frame_ancestors_policy());
         if allow_fivem_identity_frames {
+            // txAdmin's modern setup page embeds its own legacy setup route.
+            // Preserve that same-origin frame while also allowing the official
+            // FiveM identity provider used during account linking.
+            let policy = csp_with_frame_source(&policy, "'self'");
             csp_with_frame_source(&policy, "https://idms.fivem.net")
         } else {
             policy
@@ -1458,7 +1462,7 @@ mod tests {
         );
         response.headers_mut().insert(
             "content-security-policy",
-            "default-src 'self'; object-src 'none'; frame-src 'self' https://*.ragenodes.app"
+            "default-src 'self'; object-src 'none'; frame-src https://*.ragenodes.app"
                 .parse()
                 .unwrap(),
         );
@@ -1468,8 +1472,16 @@ mod tests {
         let policy = response.headers()["content-security-policy"]
             .to_str()
             .unwrap();
+        assert!(policy
+            .contains("frame-src https://*.ragenodes.app 'self' https://idms.fivem.net"));
         assert!(policy.contains("https://idms.fivem.net"));
-        assert!(!policy.contains("frame-src https:"));
+        let frame_sources = policy
+            .split(';')
+            .find(|directive| directive.trim_start().starts_with("frame-src "))
+            .unwrap();
+        assert!(!frame_sources
+            .split_whitespace()
+            .any(|source| source == "https:"));
         assert_eq!(
             response.headers()["cache-control"],
             "no-store, private, max-age=0"
