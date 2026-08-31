@@ -210,6 +210,8 @@ assert(files['backend/src/services/games/minecraft.js'].includes("'ONLINE_MODE=T
 assert(files['backend/src/services/games/minecraft.js'].includes("'PAUSE_WHEN_EMPTY_SECONDS=-1'"), 'Minecraft stays active while empty');
 assert(files['backend/src/services/serverControlService.js'].includes("process.env.RAGENODES_ROLE === 'worker-docker-events'"), 'game maintenance has a single worker owner');
 assert(files['backend/src/services/serverControlService.js'].includes("hasFatalLog && containerHealth === 'unhealthy'"), 'stale fatal log text cannot recreate a healthy game server');
+assert(!files['backend/src/services/serverControlService.js'].includes("sameSite:\\\"lax\\\"/sameSite:\\\"none\\\",secure:true,partitioned:true"), 'FiveM startup cannot force txAdmin OAuth cookies into a partitioned store');
+assert(files['backend/src/services/serverControlService.js'].includes("SameSite=None;Secure;Partitioned/SameSite=Lax"), 'FiveM startup repairs legacy partitioned txAdmin bundles');
 assert(files['backend/src/services/games/rust.js'].includes("deriveServiceIdentifier('rust'"), 'Rust identity is unique per server');
 assert(files['backend/src/services/games/cs2.js'].includes("'SRCDS_TICKRATE=64'"), 'CS2 uses the standard beginner-friendly tickrate');
 assert(files['backend/src/services/games/valheim.js'].includes("deriveServiceIdentifier('world'"), 'Valheim world names are unique per server');

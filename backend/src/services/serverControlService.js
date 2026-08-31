@@ -22,7 +22,12 @@ const MAINTENANCE_CHUNK_SIZE = Math.max(1, Number(process.env.MAINTENANCE_CHUNK_
 
 function scheduleEmbeddedTxAdminCookieRepair(server) {
   const monitorRoot = '/opt/fivem/alpine/opt/cfx-server/citizen/system_resources/monitor';
-  const repair = `docker exec -u 0 ${server.container_name} sh -c "find ${monitorRoot}/core ${monitorRoot}/panel -type f -name '*.js' -exec sed -i -e 's/sameSite:\\"lax\\"/sameSite:\\"none\\",secure:true,partitioned:true/g' -e 's/SameSite=Lax/SameSite=None;Secure;Partitioned/g' {} +"`;
+  // Versiones anteriores alteraban el bundle de txAdmin para usar cookies
+  // CHIPS. Eso separa el estado del popup del estado que necesita el callback
+  // OAuth y puede devolver al usuario antes de crear la clave de respaldo.
+  // OxideProxy ya normaliza las cabeceras Set-Cookie en el borde, por lo que
+  // aquí solo deshacemos el parche heredado en instancias existentes.
+  const repair = `docker exec -u 0 ${server.container_name} sh -c "find ${monitorRoot}/core ${monitorRoot}/panel -type f -name '*.js' -exec sed -i -e 's/sameSite:\\"none\\",secure:true,partitioned:true/sameSite:\\"lax\\"/g' -e 's/SameSite=None;Secure;Partitioned/SameSite=Lax/g' {} +"`;
   setTimeout(async () => {
     try {
       await Docker.runRemoteCommand(server.node_id, repair);
@@ -60,13 +65,7 @@ export async function controlServer(id, userId, action, isAdmin) {
       try {
           await Docker.startContainer(s.container_name);
 
-          if (s.template === 'fivem') {
-              setTimeout(() => {
-                  Docker.runRemoteCommand(s.node_id, `docker exec -u 0 ${s.container_name} sh -c "cat /opt/fivem/alpine/opt/cfx-server/citizen/system_resources/monitor/core/index.js | sed 's/sameSite:\\"lax\\"/sameSite:\\"none\\",secure:true,partitioned:true/g' > /tmp/index.js && cp /tmp/index.js /opt/fivem/alpine/opt/cfx-server/citizen/system_resources/monitor/core/index.js" || true`);
-                  Docker.runRemoteCommand(s.node_id, `docker exec -u 0 ${s.container_name} sh -c "cat /opt/fivem/alpine/opt/cfx-server/citizen/system_resources/monitor/panel/index-*.js | sed 's/SameSite=Lax/SameSite=None;Secure;Partitioned/g' > /tmp/panel.js && cp /tmp/panel.js /opt/fivem/alpine/opt/cfx-server/citizen/system_resources/monitor/panel/\\$(ls /opt/fivem/alpine/opt/cfx-server/citizen/system_resources/monitor/panel | grep index-.*\\\\.js | head -n 1)" || true`);
-                  setTimeout(() => { Docker.runRemoteCommand(s.node_id, `docker restart ${s.container_name}`); }, 2000);
-              }, 5000);
-          }
+          if (s.template === 'fivem') scheduleEmbeddedTxAdminCookieRepair(s);
           await query("UPDATE servers SET status = 'running' WHERE id = $1", [s.id]);
       } catch (err) {
           if (err.message.includes('No such container') || err.message.includes('404')) {
