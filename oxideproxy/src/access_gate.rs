@@ -535,7 +535,11 @@ impl AccessGate {
     ) -> Response<Body> {
         let token = self.create_session_token(email);
         let cookie = format!(
-            "{SESSION_COOKIE}={token}; Domain={}; Path=/; Max-Age={SESSION_TTL_SECS}; Secure; HttpOnly; SameSite=Strict",
+            // El acceso sigue siendo una cookie segura, HttpOnly y firmada. Lax
+            // permite únicamente que una navegación superior GET (como el
+            // callback OAuth de Cfx.re) conserve la sesión al volver desde un
+            // sitio externo; Strict hacía que el callback pareciera anónimo.
+            "{SESSION_COOKIE}={token}; Domain={}; Path=/; Max-Age={SESSION_TTL_SECS}; Secure; HttpOnly; SameSite=Lax",
             self.domain
         );
         let mut response = redirect_response(&self.return_target_or_panel(return_target));
@@ -1091,7 +1095,8 @@ mod tests {
         assert!(cookie.contains("Domain=ragenodes.dev"));
         assert!(cookie.contains("Secure"));
         assert!(cookie.contains("HttpOnly"));
-        assert!(cookie.contains("SameSite=Strict"));
+        assert!(cookie.contains("SameSite=Lax"));
+        assert!(!cookie.contains("SameSite=Strict"));
         assert_eq!(
             response
                 .headers()
