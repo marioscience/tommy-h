@@ -1290,7 +1290,13 @@ function toggleSidebar() {
             const timer = setInterval(() => {
                 if (popup.closed) {
                     clearInterval(timer);
-                    hideAuthOverlay();
+                    // Cerrar el popup no demuestra que el OAuth haya terminado:
+                    // después del PIN, Cfx.re puede pedir autorización y la
+                    // contraseña de respaldo antes de volver al callback de
+                    // txAdmin. Conservamos el asistente visible y refrescamos el
+                    // iframe para que el usuario confirme únicamente al final.
+                    refreshTxAdmin();
+                    showToast('Ventana de FiveM cerrada. Confirma abajo solo después de completar la autorización y volver a txAdmin.', 'info');
                 }
             }, 1000);
         }
