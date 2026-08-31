@@ -77,4 +77,27 @@ describe('Politica central de planes y despliegue', () => {
       range: 1
     });
   });
+
+  it('mantiene todos los juegos dentro de la banda aislada de cada entorno', () => {
+    const expectedRanges = {
+      fivem: 1,
+      minecraft: 1,
+      rust: 3,
+      palworld: 3,
+      cs2: 1,
+      valheim: 3,
+      zomboid: 2,
+      ark: 14,
+      sdtd: 4,
+      discordbot: 1,
+      wordpress: 1,
+      database: 1
+    };
+
+    for (const [template, expectedRange] of Object.entries(expectedRanges)) {
+      const policy = getPortAllocationPolicy(template, config);
+      assert.equal(policy.range, expectedRange, `${template} debe reservar su bloque completo`);
+      assert.ok(policy.range <= 1000, `${template} no puede invadir la banda del otro entorno`);
+    }
+  });
 });

@@ -1,5 +1,23 @@
 localStorage.removeItem('nexus_token');
 
+const RAGENODES_PANEL_ORIGIN = 'https://panel.ragenodes.app';
+
+window.redirectPublicLoginToPanelApp = function redirectPublicLoginToPanelApp(path = '/') {
+  const hostname = window.location.hostname.toLowerCase();
+  if (hostname !== 'ragenodes.com' && hostname !== 'www.ragenodes.com') return false;
+  const target = new URL(path, RAGENODES_PANEL_ORIGIN);
+  window.location.assign(target.toString());
+  return true;
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  if (window.location.hostname.toLowerCase() === 'panel.ragenodes.app' && params.get('login') === '1') {
+    window.history.replaceState({}, document.title, '/');
+    window.openLogin?.();
+  }
+});
+
 let paypalSdkPromise = null;
 const pageScriptNonce = document.currentScript?.nonce || '';
 

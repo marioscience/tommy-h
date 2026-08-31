@@ -76,6 +76,7 @@ services:
       - "${GAME_DATA_GID:-1000}"
     env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
+      PORT_SCAN_LIMIT: ${PRODUCTION_PORT_SCAN_LIMIT:-999}
       PUBLIC_ENDPOINT_HOST: ${PUBLIC_ENDPOINT_HOST:-ragenodes.app}
       PUBLIC_ENDPOINT_SCHEME: ${PUBLIC_ENDPOINT_SCHEME:-https}
       PUBLIC_ENDPOINT_MODE: ${PUBLIC_ENDPOINT_MODE:-subdomain}

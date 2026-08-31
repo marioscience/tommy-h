@@ -32,6 +32,8 @@ const files = Object.fromEntries(await Promise.all([
   'oxideproxy/node_panel/server.js',
   'oxideproxy/node_panel/public/app.js',
   'frontend/public/js/panel.js',
+  'frontend/public/games/fivem.html',
+  'frontend/public/games/fivem_v3.html',
   'scripts/ensure_base_images.sh',
   'scripts/update_image_cache.sh',
   'scripts/registry/prepare_runtime_images.sh',
@@ -90,6 +92,13 @@ assert(files['oxideproxy/src/config.rs'].includes('default_allowed_frame_origins
 assert(files['oxideproxy/node_panel/server.js'].includes('normalizeAllowedFrameOrigins') && files['oxideproxy/node_panel/server.js'].includes('/api/oxide/config/apply'), 'Oxide control plane validates and applies frame origins without rebuilding images');
 assert(files['frontend/public/js/panel.js'].includes('window._downloadInterval = setInterval'), 'panel owns a single cancellable download-status poller');
 assert(files['frontend/public/js/panel.js'].includes('downloadPollingUnavailable') && files['frontend/public/js/panel.js'].includes('res.status === 404'), 'panel backs off when a server leaves the current file-access scope');
+assert(!/if \(popup\.closed\) \{[\s\S]{0,500}hideAuthOverlay\(\)/.test(files['frontend/public/js/panel.js']), 'closing the FiveM popup cannot mark an incomplete OAuth flow as linked');
+for (const template of ['frontend/public/games/fivem.html', 'frontend/public/games/fivem_v3.html']) {
+  assert(!/<iframe[^>]+id=["']txadmin-iframe["']/i.test(files[template]), `${template} cannot embed txAdmin in an iframe`);
+  assert(files[template].includes('txAdmin se abre en una pestaña independiente'), `${template} explains the independent txAdmin tab`);
+  assert(files[template].includes('Completé toda la autorización'), `${template} waits for the complete FiveM authorization flow`);
+  assert(files[template].includes('contraseña de respaldo'), `${template} documents the optional FiveM backup-password step`);
+}
 assert(!files['oxideproxy/config/oxide_proxy.yml'].includes('10.5.0.10:9001'), 'OxideProxy active config excludes mock game backends');
 assert(files['oxideproxy/config/oxide_proxy.yml'].includes('default_web_backend: backend:3006'), 'OxideProxy resolves the portable backend network alias');
 assert(files['oxideproxy/src/config.rs'].includes('ProxyConfig::load') || files['oxideproxy/src/config.rs'].includes('pub fn load('), 'OxideProxy exposes a fallible configuration loader');
@@ -102,6 +111,8 @@ for (const composeFile of ['docker-compose.yml', 'docker-compose.staging.yml']) 
 assert(files['oxideproxy/src/access_gate.rs'].includes('DEFAULT_ALLOWED_EMAIL_DOMAIN: &str = "ragenodes.com"'), 'access gate fails closed to the corporate email domain');
 assert(files['oxideproxy/src/access_gate.rs'].includes('if attempts >= 3'), 'access gate blacklists an IP after three invalid email attempts');
 assert(files['oxideproxy/src/access_gate.rs'].includes('const SESSION_TTL_SECS: u64 = 24 * 60 * 60'), 'access gate grants only a 24-hour verified session');
+assert(files['oxideproxy/src/access_gate.rs'].includes('Secure; HttpOnly; SameSite=Lax'), 'access gate preserves its session across top-level OAuth callbacks');
+assert(!files['oxideproxy/src/access_gate.rs'].includes('Secure; HttpOnly; SameSite=Strict'), 'access gate cannot hide its session from OAuth callbacks');
 const proxyPipeline = files['oxideproxy/src/pipeline/mod.rs'];
 const dedicatedTcpRoute = proxyPipeline.indexOf('if let Some(backend_addr) = specific_backend');
 const tlsDetection = proxyPipeline.indexOf("buffer[0] == 0x16");
@@ -174,6 +185,8 @@ assert(files['scripts/ensure_base_images.sh'].includes('network inspect "$RUNTIM
 assert(files['scripts/ensure_base_images.sh'].includes('network create "$RUNTIME_DOCKER_NETWORK"'), 'missing runtime network is created in the rootless daemon');
 assert(files['deploy_staging.sh'].includes('RUNTIME_DOCKER_NETWORK=ragenodes_net_staging'), 'staging prepares its isolated rootless network');
 assert(files['docker-compose.staging.yml'].match(/PORT_BASE_OFFSET(?::|=)\s*\$\{STAGING_PORT_BASE_OFFSET:-1000\}/g)?.length === 2, 'staging backend and worker share a configurable non-overlapping port offset');
+assert(files['docker-compose.yml'].includes('PORT_SCAN_LIMIT: ${PRODUCTION_PORT_SCAN_LIMIT:-999}'), 'production allocation stays inside its 1000-port band');
+assert(files['docker-compose.staging.yml'].includes('PORT_SCAN_LIMIT: ${STAGING_PORT_SCAN_LIMIT:-999}'), 'staging allocation stays inside its shifted 1000-port band');
 const stagingControlPanelOverride = files['docker-compose.staging.yml'].match(/\r?\n  oxide_control_panel:\r?\n([\s\S]*?)(?=\r?\n  oxide_game_runtime_init_staging:)/)?.[1] || '';
 assert(!stagingControlPanelOverride.includes('security_opt:'), 'staging does not duplicate inherited control-panel security options');
 assert(!stagingControlPanelOverride.includes('cap_drop:'), 'staging does not duplicate inherited control-panel capability drops');
@@ -201,6 +214,8 @@ assert(files['backend/src/services/games/minecraft.js'].includes("'ONLINE_MODE=T
 assert(files['backend/src/services/games/minecraft.js'].includes("'PAUSE_WHEN_EMPTY_SECONDS=-1'"), 'Minecraft stays active while empty');
 assert(files['backend/src/services/serverControlService.js'].includes("process.env.RAGENODES_ROLE === 'worker-docker-events'"), 'game maintenance has a single worker owner');
 assert(files['backend/src/services/serverControlService.js'].includes("hasFatalLog && containerHealth === 'unhealthy'"), 'stale fatal log text cannot recreate a healthy game server');
+assert(!files['backend/src/services/serverControlService.js'].includes("sameSite:\\\"lax\\\"/sameSite:\\\"none\\\",secure:true,partitioned:true"), 'FiveM startup cannot force txAdmin OAuth cookies into a partitioned store');
+assert(files['backend/src/services/serverControlService.js'].includes("SameSite=None;Secure;Partitioned/SameSite=Lax"), 'FiveM startup repairs legacy partitioned txAdmin bundles');
 assert(files['backend/src/services/games/rust.js'].includes("deriveServiceIdentifier('rust'"), 'Rust identity is unique per server');
 assert(files['backend/src/services/games/cs2.js'].includes("'SRCDS_TICKRATE=64'"), 'CS2 uses the standard beginner-friendly tickrate');
 assert(files['backend/src/services/games/valheim.js'].includes("deriveServiceIdentifier('world'"), 'Valheim world names are unique per server');
