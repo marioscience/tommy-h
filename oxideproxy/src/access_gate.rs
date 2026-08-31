@@ -104,6 +104,22 @@ impl AccessGate {
             return Ok(None);
         }
 
+        let shared_edge = env_flag("ACCESS_GATE_SHARED_EDGE");
+        let staging_upstream = std::env::var("STAGING_UPSTREAM").ok();
+        let delegates_staging =
+            delegates_access_gate_to_staging(shared_edge, staging_upstream.as_deref());
+        if delegates_staging {
+            // El borde de producción solo transporta los dominios .dev hacia
+            // staging. Aplicar aquí una segunda puerta crea dos sesiones
+            // firmadas con secretos distintos y un bucle de redirecciones.
+            // Staging conserva la única validación OTP tanto para el panel
+            // como para los hosts dinámicos recibidos por TLS passthrough.
+            tracing::info!(
+                "Puerta de acceso delegada al upstream de staging; el borde compartido no valida sesiones"
+            );
+            return Ok(None);
+        }
+
         let domain = required_env("ACCESS_GATE_DOMAIN")?
             .trim_end_matches('.')
             .to_ascii_lowercase();
@@ -128,7 +144,6 @@ impl AccessGate {
 
         let resend_api_key = required_env("RESEND_API_KEY")?;
         let otp_redis = redis::Client::open(required_env("ACCESS_GATE_REDIS_URL")?)?;
-        let shared_edge = env_flag("ACCESS_GATE_SHARED_EDGE");
         let from_email = std::env::var("ACCESS_GATE_FROM_EMAIL")
             .unwrap_or_else(|_| "RageNodes Access <info@ragenodes.com>".to_string());
         let http_client = reqwest::Client::builder()
@@ -1043,6 +1058,10 @@ fn env_flag(name: &str) -> bool {
         .unwrap_or(false)
 }
 
+fn delegates_access_gate_to_staging(shared_edge: bool, staging_upstream: Option<&str>) -> bool {
+    shared_edge && staging_upstream.is_some_and(|value| !value.trim().is_empty())
+}
+
 fn required_env(name: &str) -> Result<String, Box<dyn Error>> {
     let value = std::env::var(name).unwrap_or_default().trim().to_string();
     if value.is_empty() {
@@ -1082,6 +1101,20 @@ mod tests {
         let decoded = decode_otp_challenge(&encode_otp_challenge(&challenge)).unwrap();
         assert_eq!(decoded.digest, challenge.digest);
         assert_eq!(decoded.expires_at, challenge.expires_at);
+    }
+
+    #[test]
+    fn production_edge_delegates_only_when_staging_upstream_is_configured() {
+        assert!(delegates_access_gate_to_staging(
+            true,
+            Some("192.168.1.106:80")
+        ));
+        assert!(!delegates_access_gate_to_staging(true, Some("  ")));
+        assert!(!delegates_access_gate_to_staging(true, None));
+        assert!(!delegates_access_gate_to_staging(
+            false,
+            Some("192.168.1.106:80")
+        ));
     }
 
     #[test]
