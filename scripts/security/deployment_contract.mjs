@@ -32,6 +32,8 @@ const files = Object.fromEntries(await Promise.all([
   'oxideproxy/node_panel/server.js',
   'oxideproxy/node_panel/public/app.js',
   'frontend/public/js/panel.js',
+  'frontend/public/games/fivem.html',
+  'frontend/public/games/fivem_v3.html',
   'scripts/ensure_base_images.sh',
   'scripts/update_image_cache.sh',
   'scripts/registry/prepare_runtime_images.sh',
@@ -90,6 +92,11 @@ assert(files['oxideproxy/src/config.rs'].includes('default_allowed_frame_origins
 assert(files['oxideproxy/node_panel/server.js'].includes('normalizeAllowedFrameOrigins') && files['oxideproxy/node_panel/server.js'].includes('/api/oxide/config/apply'), 'Oxide control plane validates and applies frame origins without rebuilding images');
 assert(files['frontend/public/js/panel.js'].includes('window._downloadInterval = setInterval'), 'panel owns a single cancellable download-status poller');
 assert(files['frontend/public/js/panel.js'].includes('downloadPollingUnavailable') && files['frontend/public/js/panel.js'].includes('res.status === 404'), 'panel backs off when a server leaves the current file-access scope');
+assert(!/if \(popup\.closed\) \{[\s\S]{0,500}hideAuthOverlay\(\)/.test(files['frontend/public/js/panel.js']), 'closing the FiveM popup cannot mark an incomplete OAuth flow as linked');
+for (const template of ['frontend/public/games/fivem.html', 'frontend/public/games/fivem_v3.html']) {
+  assert(files[template].includes('Completé toda la autorización'), `${template} waits for the complete FiveM authorization flow`);
+  assert(files[template].includes('contraseña de respaldo'), `${template} documents the optional FiveM backup-password step`);
+}
 assert(!files['oxideproxy/config/oxide_proxy.yml'].includes('10.5.0.10:9001'), 'OxideProxy active config excludes mock game backends');
 assert(files['oxideproxy/config/oxide_proxy.yml'].includes('default_web_backend: backend:3006'), 'OxideProxy resolves the portable backend network alias');
 assert(files['oxideproxy/src/config.rs'].includes('ProxyConfig::load') || files['oxideproxy/src/config.rs'].includes('pub fn load('), 'OxideProxy exposes a fallible configuration loader');
