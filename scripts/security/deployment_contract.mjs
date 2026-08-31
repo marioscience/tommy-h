@@ -94,6 +94,8 @@ assert(files['frontend/public/js/panel.js'].includes('window._downloadInterval =
 assert(files['frontend/public/js/panel.js'].includes('downloadPollingUnavailable') && files['frontend/public/js/panel.js'].includes('res.status === 404'), 'panel backs off when a server leaves the current file-access scope');
 assert(!/if \(popup\.closed\) \{[\s\S]{0,500}hideAuthOverlay\(\)/.test(files['frontend/public/js/panel.js']), 'closing the FiveM popup cannot mark an incomplete OAuth flow as linked');
 for (const template of ['frontend/public/games/fivem.html', 'frontend/public/games/fivem_v3.html']) {
+  assert(!/<iframe[^>]+id=["']txadmin-iframe["']/i.test(files[template]), `${template} cannot embed txAdmin in an iframe`);
+  assert(files[template].includes('txAdmin se abre en una pestaña independiente'), `${template} explains the independent txAdmin tab`);
   assert(files[template].includes('Completé toda la autorización'), `${template} waits for the complete FiveM authorization flow`);
   assert(files[template].includes('contraseña de respaldo'), `${template} documents the optional FiveM backup-password step`);
 }
