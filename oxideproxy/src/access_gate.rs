@@ -20,12 +20,14 @@ const ACCESS_PATH: &str = "/__access";
 const REQUEST_PATH: &str = "/__access/request";
 const VERIFY_PATH: &str = "/__access/verify";
 const RETURN_TARGET_FIELD: &str = "next";
+const BOOTSTRAP_FIELD: &str = "rn_access_ticket";
 // La sesión debe compartirse entre el dominio canónico y sus subdominios.
 // El prefijo __Host- prohíbe el atributo Domain y el navegador descartaría
 // la cookie; __Secure- mantiene la exigencia de HTTPS y permite compartirla.
 const SESSION_COOKIE: &str = "__Secure-rn_staging_access";
 const OTP_TTL_SECS: u64 = 10 * 60;
 const SESSION_TTL_SECS: u64 = 24 * 60 * 60;
+const BOOTSTRAP_TTL_SECS: u64 = 60;
 const DEFAULT_ALLOWED_EMAIL_DOMAIN: &str = "ragenodes.com";
 const UNKNOWN_WINDOW: Duration = Duration::from_secs(60 * 60);
 const RESEND_COOLDOWN: Duration = Duration::from_secs(60);
@@ -193,6 +195,16 @@ impl AccessGate {
                 "https://{}{}",
                 self.domain, path
             )));
+        }
+
+        // La cookie emitida por el dominio canónico puede ser descartada por
+        // algunos navegadores o intermediarios al saltar a un subdominio. Un
+        // ticket firmado, breve y ligado al host permite que el destino cree
+        // su propia cookie HttpOnly antes de servir la aplicación.
+        if gated_subdomain {
+            if let Some(response) = self.redeem_bootstrap(&req, &host) {
+                return GateOutcome::Respond(response);
+            }
         }
 
         if self.has_valid_session(&req) {
@@ -407,9 +419,7 @@ impl AccessGate {
                 .consume_otp_challenge(&email, challenge.as_ref().expect("desafío presente"))
                 .await
             {
-                Ok(true) => {
-                    return self.authorized_response(&email, return_target.as_deref())
-                }
+                Ok(true) => return self.authorized_response(&email, return_target.as_deref()),
                 Ok(false) => {}
                 Err(error) => {
                     tracing::error!("No se pudo consumir el desafío OTP compartido: {}", error);
@@ -468,8 +478,8 @@ impl AccessGate {
         let url = url::Url::parse(value).ok()?;
         let host = url.host_str()?.trim_end_matches('.').to_ascii_lowercase();
         let allowed_host = host == self.domain || self.is_gated_subdomain(&host);
-        let internal_access_path = host == self.domain
-            && matches!(url.path(), ACCESS_PATH | REQUEST_PATH | VERIFY_PATH);
+        let internal_access_path =
+            host == self.domain && matches!(url.path(), ACCESS_PATH | REQUEST_PATH | VERIFY_PATH);
 
         if url.scheme() != "https"
             || !allowed_host
@@ -528,11 +538,7 @@ impl AccessGate {
         url.to_string()
     }
 
-    fn authorized_response(
-        &self,
-        email: &str,
-        return_target: Option<&str>,
-    ) -> Response<Body> {
+    fn authorized_response(&self, email: &str, return_target: Option<&str>) -> Response<Body> {
         let token = self.create_session_token(email);
         let cookie = format!(
             // El acceso sigue siendo una cookie segura, HttpOnly y firmada. Lax
@@ -542,11 +548,108 @@ impl AccessGate {
             "{SESSION_COOKIE}={token}; Domain={}; Path=/; Max-Age={SESSION_TTL_SECS}; Secure; HttpOnly; SameSite=Lax",
             self.domain
         );
-        let mut response = redirect_response(&self.return_target_or_panel(return_target));
+        let target = self.return_target_or_panel(return_target);
+        let location = self.bootstrap_target(&target).unwrap_or(target);
+        let mut response = redirect_response(&location);
         if let Ok(value) = HeaderValue::from_str(&cookie) {
             response.headers_mut().insert(SET_COOKIE, value);
         }
         response
+    }
+
+    fn bootstrap_target(&self, target: &str) -> Option<String> {
+        let mut url = url::Url::parse(target).ok()?;
+        let host = url.host_str()?.trim_end_matches('.').to_ascii_lowercase();
+        if !self.is_gated_subdomain(&host) {
+            return None;
+        }
+        let ticket = self.create_bootstrap_token(&host);
+        url.query_pairs_mut().append_pair(BOOTSTRAP_FIELD, &ticket);
+        Some(url.to_string())
+    }
+
+    fn create_bootstrap_token(&self, host: &str) -> String {
+        let expires_at = unix_now().saturating_add(BOOTSTRAP_TTL_SECS);
+        let mut nonce = [0u8; 16];
+        getrandom::getrandom(&mut nonce).expect("el sistema debe proporcionar aleatoriedad segura");
+        let payload = format!(
+            "v1|{}|{}|{}",
+            expires_at,
+            host,
+            URL_SAFE_NO_PAD.encode(nonce)
+        );
+        let signature = self.sign(payload.as_bytes());
+        format!(
+            "{}.{}",
+            URL_SAFE_NO_PAD.encode(payload.as_bytes()),
+            URL_SAFE_NO_PAD.encode(signature)
+        )
+    }
+
+    fn verify_bootstrap_token(&self, token: &str, expected_host: &str) -> bool {
+        let Some((payload_b64, signature_b64)) = token.split_once('.') else {
+            return false;
+        };
+        let Ok(payload) = URL_SAFE_NO_PAD.decode(payload_b64) else {
+            return false;
+        };
+        let Ok(signature) = URL_SAFE_NO_PAD.decode(signature_b64) else {
+            return false;
+        };
+        let mut mac = HmacSha256::new_from_slice(&self.session_secret)
+            .expect("HMAC admite secretos de cualquier tamaño");
+        mac.update(&payload);
+        if mac.verify_slice(&signature).is_err() {
+            return false;
+        }
+        let Ok(payload_text) = std::str::from_utf8(&payload) else {
+            return false;
+        };
+        let mut fields = payload_text.split('|');
+        fields.next() == Some("v1")
+            && fields
+                .next()
+                .and_then(|value| value.parse::<u64>().ok())
+                .is_some_and(|expires_at| expires_at >= unix_now())
+            && fields.next() == Some(expected_host)
+            && fields.next().is_some()
+            && fields.next().is_none()
+    }
+
+    fn redeem_bootstrap(&self, req: &Request<Body>, host: &str) -> Option<Response<Body>> {
+        let ticket = req.uri().query().and_then(|query| {
+            url::form_urlencoded::parse(query.as_bytes())
+                .find(|(key, _)| key == BOOTSTRAP_FIELD)
+                .map(|(_, value)| value.into_owned())
+        })?;
+        if !self.verify_bootstrap_token(&ticket, host) {
+            return None;
+        }
+
+        let clean_query = req.uri().query().map(|query| {
+            let mut serializer = url::form_urlencoded::Serializer::new(String::new());
+            for (key, value) in url::form_urlencoded::parse(query.as_bytes()) {
+                if key != BOOTSTRAP_FIELD {
+                    serializer.append_pair(&key, &value);
+                }
+            }
+            serializer.finish()
+        });
+        let mut location = req.uri().path().to_string();
+        if let Some(query) = clean_query.filter(|query| !query.is_empty()) {
+            location.push('?');
+            location.push_str(&query);
+        }
+
+        let token = self.create_session_token("bootstrap@ragenodes.internal");
+        let cookie = format!(
+            "{SESSION_COOKIE}={token}; Path=/; Max-Age={SESSION_TTL_SECS}; Secure; HttpOnly; SameSite=Lax"
+        );
+        let mut response = redirect_response(&location);
+        if let Ok(value) = HeaderValue::from_str(&cookie) {
+            response.headers_mut().insert(SET_COOKIE, value);
+        }
+        Some(response)
     }
 
     fn has_valid_session(&self, req: &Request<Body>) -> bool {
@@ -1097,13 +1200,18 @@ mod tests {
         assert!(cookie.contains("HttpOnly"));
         assert!(cookie.contains("SameSite=Lax"));
         assert!(!cookie.contains("SameSite=Strict"));
-        assert_eq!(
-            response
-                .headers()
-                .get(LOCATION)
-                .and_then(|value| value.to_str().ok()),
-            Some("https://panel.ragenodes.dev/panel")
-        );
+        let location = response
+            .headers()
+            .get(LOCATION)
+            .and_then(|value| value.to_str().ok())
+            .expect("la respuesta debe redirigir al panel");
+        let redirect = url::Url::parse(location).unwrap();
+        assert_eq!(redirect.host_str(), Some("panel.ragenodes.dev"));
+        assert_eq!(redirect.path(), "/panel");
+        assert!(redirect
+            .query_pairs()
+            .any(|(key, value)| key == BOOTSTRAP_FIELD
+                && gate.verify_bootstrap_token(&value, "panel.ragenodes.dev")));
     }
 
     #[test]
@@ -1114,12 +1222,60 @@ mod tests {
             Some("https://tx40120.ragenodes.dev/auth?flow=cfx"),
         );
 
+        let location = response
+            .headers()
+            .get(LOCATION)
+            .and_then(|value| value.to_str().ok())
+            .unwrap();
+        let redirect = url::Url::parse(location).unwrap();
+        assert_eq!(redirect.host_str(), Some("tx40120.ragenodes.dev"));
+        assert_eq!(redirect.path(), "/auth");
         assert_eq!(
-            response
-                .headers()
-                .get(LOCATION)
-                .and_then(|value| value.to_str().ok()),
-            Some("https://tx40120.ragenodes.dev/auth?flow=cfx")
+            redirect
+                .query_pairs()
+                .find(|(key, _)| key == "flow")
+                .map(|(_, value)| value.into_owned()),
+            Some("cfx".to_string())
+        );
+        assert!(redirect
+            .query_pairs()
+            .any(|(key, value)| key == BOOTSTRAP_FIELD
+                && gate.verify_bootstrap_token(&value, "tx40120.ragenodes.dev")));
+    }
+
+    #[test]
+    fn bootstrap_ticket_is_bound_to_its_destination_host() {
+        let gate = test_gate();
+        let ticket = gate.create_bootstrap_token("panel.ragenodes.dev");
+        assert!(gate.verify_bootstrap_token(&ticket, "panel.ragenodes.dev"));
+        assert!(!gate.verify_bootstrap_token(&ticket, "tx40120.ragenodes.dev"));
+    }
+
+    #[test]
+    fn bootstrap_redemption_sets_a_host_cookie_and_removes_ticket() {
+        let gate = test_gate();
+        let ticket = gate.create_bootstrap_token("panel.ragenodes.dev");
+        let request = Request::builder()
+            .uri(format!("/panel?view=games&{BOOTSTRAP_FIELD}={ticket}"))
+            .header(HOST, "panel.ragenodes.dev")
+            .body(Body::empty())
+            .unwrap();
+        let response = gate
+            .redeem_bootstrap(&request, "panel.ragenodes.dev")
+            .expect("el ticket debe canjearse");
+        let cookie = response
+            .headers()
+            .get(SET_COOKIE)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(cookie.starts_with("__Secure-rn_staging_access="));
+        assert!(!cookie.contains("Domain="));
+        assert!(cookie.contains("Secure"));
+        assert!(cookie.contains("HttpOnly"));
+        assert_eq!(
+            response.headers().get(LOCATION).unwrap(),
+            "/panel?view=games"
         );
     }
 
@@ -1251,7 +1407,10 @@ mod tests {
             .and_then(|value| value.to_str().ok())
             .expect("la puerta debe responder con una ubicación");
         let redirect = url::Url::parse(location).expect("la ubicación debe ser una URL válida");
-        assert_eq!(redirect.origin().ascii_serialization(), "https://ragenodes.dev");
+        assert_eq!(
+            redirect.origin().ascii_serialization(),
+            "https://ragenodes.dev"
+        );
         assert_eq!(redirect.path(), ACCESS_PATH);
         assert_eq!(
             redirect
@@ -1274,9 +1433,9 @@ mod tests {
         let html = std::str::from_utf8(&body).unwrap();
 
         assert!(html.contains("name=\"next\""));
-        assert!(html.contains(
-            "value=\"https://tx40120.ragenodes.dev/auth?flow=cfx\""
-        ));
-        assert!(html.contains("/__access?next=https%3A%2F%2Ftx40120.ragenodes.dev%2Fauth%3Fflow%3Dcfx"));
+        assert!(html.contains("value=\"https://tx40120.ragenodes.dev/auth?flow=cfx\""));
+        assert!(
+            html.contains("/__access?next=https%3A%2F%2Ftx40120.ragenodes.dev%2Fauth%3Fflow%3Dcfx")
+        );
     }
 }
