@@ -246,7 +246,7 @@
       switchView('backups', this)
     },
     "priv_0081": function (event) {
-      switchView('txadmin', this)
+      openTxAdminTab()
     },
     "priv_0082": function (event) {
       switchView('wpadmin', this)
@@ -528,7 +528,7 @@
       saveDiscordEnvFile()
     },
     "priv_0175": function (event) {
-      openTxAdminPopup()
+      openTxAdminTab()
     },
     "priv_0176": function (event) {
       this.style.transform='translateY(-2px)'; this.style.boxShadow='0 0 30px rgba(99,102,241,0.6)'
@@ -561,13 +561,13 @@
       Nexus.copyToClipboard(document.getElementById('tx-top-pass').innerText); showToast('Copiado','success');
     },
     "priv_0186": function (event) {
-      refreshTxAdmin()
+      openTxAdminTab()
     },
     "priv_0187": function (event) {
-      document.getElementById('txadmin-iframe').requestFullscreen()
+      openTxAdminTab()
     },
     "priv_0188": function (event) {
-      hideAuthOverlay()
+      openTxAdminTab()
     },
     "priv_0189": function (event) {
       Nexus.copyToClipboard(document.getElementById('blender-tab-pass').innerText); showToast('Copiado','success');

@@ -826,8 +826,6 @@ function toggleSidebar() {
         let lastDataHash = "";
         let isBlenderIframeLoaded = false;
         let txTargetUrl = "";
-        let txFallbackUrl = "";
-        let txLoadTimer = null;
 
         function isPrivatePanelHost(hostname) {
             return hostname === 'localhost' ||
@@ -880,54 +878,6 @@ function toggleSidebar() {
             };
         }
 
-        function hideTxAdminConnectOverlay() {
-            const overlay = document.getElementById('txadmin-connect-overlay');
-            if (overlay) overlay.classList.add('hidden');
-        }
-
-        function showTxAdminConnectOverlay(message) {
-            const overlay = document.getElementById('txadmin-connect-overlay');
-            const text = document.getElementById('txadmin-connect-message');
-            const fallbackBtn = document.getElementById('txadmin-fallback-btn');
-            if (text) text.textContent = message || 'La URL de txAdmin no respondió a tiempo.';
-            if (fallbackBtn) fallbackBtn.style.display = txFallbackUrl ? 'inline-flex' : 'none';
-            if (overlay) {
-                overlay.classList.remove('hidden');
-                overlay.classList.remove('opacity-0');
-                overlay.classList.remove('pointer-events-none');
-            }
-        }
-
-        function armTxAdminLoadWatch() {
-            clearTimeout(txLoadTimer);
-            txLoadTimer = setTimeout(() => {
-                showTxAdminConnectOverlay('La URL pública de txAdmin no respondió. Puedes abrirlo fuera del iframe o probar la ruta alternativa.');
-            }, 12000);
-        }
-
-        function loadTxAdminFrame(url) {
-            const iframe = document.getElementById('txadmin-iframe');
-            if (!iframe || !url) return;
-            hideTxAdminConnectOverlay();
-            iframe.onload = () => {
-                clearTimeout(txLoadTimer);
-                hideTxAdminConnectOverlay();
-            };
-            iframe.onerror = () => {
-                clearTimeout(txLoadTimer);
-                showTxAdminConnectOverlay('No se pudo cargar txAdmin desde esta ruta.');
-            };
-            iframe.src = url;
-            armTxAdminLoadWatch();
-        }
-
-        function useTxAdminFallback() {
-            if (!txFallbackUrl) return openTxAdminPopup();
-            const nextUrl = txFallbackUrl;
-            txFallbackUrl = txTargetUrl;
-            txTargetUrl = nextUrl;
-            loadTxAdminFrame(txTargetUrl);
-        }
         let globalBackupLimit = 1;
 
         require.config({ paths: { 'vs': '/vendor/monaco/vs' } });
@@ -1048,9 +998,6 @@ function toggleSidebar() {
             } else if (viewId === 'wpadmin') {
                 document.getElementById('page-sub').innerText = "Interfaz Web";
                 document.getElementById('view-wpadmin').classList.remove('hidden');
-            } else if (viewId === 'txadmin') {
-                document.getElementById('page-sub').innerText = "Administración de FiveM";
-                document.getElementById('view-txadmin').classList.remove('hidden');
             } else if (viewId === 'database') {
                 document.getElementById('page-sub').innerText = "Gestión de tablas MySQL";
                 document.getElementById('view-database').classList.remove('hidden');
@@ -1271,51 +1218,17 @@ function toggleSidebar() {
             }
         }
 
-        function openTxAdminPopup() {
-            let publicTarget = txTargetUrl;
-            if (currentServer) {
-                publicTarget = buildTxAdminTargets(currentServer).primary;
+        function openTxAdminTab() {
+            if (!currentServer || currentServer.status !== 'running') {
+                return showToast("El servidor debe estar encendido para abrir txAdmin", "warning");
             }
+            let publicTarget = txTargetUrl;
+            publicTarget = buildTxAdminTargets(currentServer).primary;
             if (!publicTarget) return showToast("El servidor no está iniciado", "warning");
             txTargetUrl = publicTarget;
-
-            const w = 600; const h = 750;
-            const left = (screen.width / 2) - (w / 2);
-            const top = (screen.height / 2) - (h / 2);
-
-            const popup = window.open(publicTarget, 'txAdminAuth', `width=${w},height=${h},top=${top},left=${left},toolbar=no,menubar=no,scrollbars=yes`);
-
-            if (!popup) return showToast('El navegador bloqueó la ventana emergente. Por favor, permítela.', 'danger');
-
-            const timer = setInterval(() => {
-                if (popup.closed) {
-                    clearInterval(timer);
-                    // Cerrar el popup no demuestra que el OAuth haya terminado:
-                    // después del PIN, Cfx.re puede pedir autorización y la
-                    // contraseña de respaldo antes de volver al callback de
-                    // txAdmin. Conservamos el asistente visible y refrescamos el
-                    // iframe para que el usuario confirme únicamente al final.
-                    refreshTxAdmin();
-                    showToast('Ventana de FiveM cerrada. Confirma abajo solo después de completar la autorización y volver a txAdmin.', 'info');
-                }
-            }, 1000);
-        }
-
-        function hideAuthOverlay() {
-            document.getElementById('txadmin-auth-overlay').style.display = 'none';
-            if (currentServerId) {
-                sessionStorage.setItem('txLinked_' + currentServerId, 'true');
-            }
-            refreshTxAdmin();
-        }
-
-        function refreshTxAdmin() {
-            if (txTargetUrl) {
-                showToast('Recargando txAdmin...', 'info');
-                loadTxAdminFrame(txTargetUrl);
-            } else {
-                showToast('El servidor debe estar encendido para recargar.', 'warning');
-            }
+            const txTab = window.open(publicTarget, '_blank');
+            if (!txTab) return showToast('El navegador bloqueó la nueva pestaña. Permite ventanas emergentes para RageNodes.', 'danger');
+            txTab.opener = null;
         }
 
         let isStatsHistoryInFlight = false;
@@ -1587,86 +1500,16 @@ function toggleSidebar() {
                         if (wpIframe) wpIframe.src = 'about:blank';
                     }
                 }
-                const txIframe = document.getElementById('txadmin-iframe');
-                const txOffline = document.getElementById('txadmin-offline-overlay');
-                const txAuthOverlay = document.getElementById('txadmin-auth-overlay');
-
                 if (s.template === 'fivem') {
                     if (isRunning) {
                         const txTargets = buildTxAdminTargets(s);
                         txTargetUrl = txTargets.primary;
-                        txFallbackUrl = txTargets.fallback;
-
-                        if (txOffline) txOffline.style.display = 'none';
-                        if (!sessionStorage.getItem('txLinked_' + s.id)) {
-                            if (txAuthOverlay) {
-                                txAuthOverlay.style.display = 'flex';
-                                const btn = document.getElementById('tx-btn-vincular');
-                                if (!window.txRouteVerified) window.txRouteVerified = {};
-                                if (!window.txPingActive) window.txPingActive = {};
-
-                                if (!window.txRouteVerified[s.id]) {
-                                    if (btn) {
-                                        btn.style.opacity = '0.5';
-                                        btn.style.pointerEvents = 'none';
-                                        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Conectando Túnel...';
-                                    }
-                                    if (!window.txPingActive[s.id]) {
-                                        window.txPingActive[s.id] = true;
-                                        const pingTunnel = () => {
-                                            if(window.txRouteVerified[s.id]) return;
-                                            const img = new Image();
-                                            img.onload = () => {
-                                                window.txRouteVerified[s.id] = true;
-                                                window.txPingActive[s.id] = false;
-                                                if (currentServerId === s.id && btn) {
-                                                    btn.style.opacity = '1';
-                                                    btn.style.pointerEvents = 'auto';
-                                                    btn.innerHTML = '<i class="fa-solid fa-key"></i> Vincular PIN (Popup)';
-                                                }
-                                            };
-                                            img.onerror = () => {
-                                                if(!window.txRouteVerified[s.id]) setTimeout(pingTunnel, 3000);
-                                            };
-                                            img.src = txTargetUrl.replace(/\/$/, '') + '/favicon_default.svg?_t=' + Date.now();
-                                        };
-                                        pingTunnel();
-                                    }
-                                } else {
-                                    if (btn) {
-                                        btn.style.opacity = '1';
-                                        btn.style.pointerEvents = 'auto';
-                                        btn.innerHTML = '<i class="fa-solid fa-key"></i> Vincular PIN (Popup)';
-                                    }
-                                }
-                            }
-                        } else {
-                            if (txAuthOverlay) txAuthOverlay.style.display = 'none';
-                        }
-
-                        const currentIframeSrc = txIframe ? txIframe.src.replace(/\/$/, '') : "";
-                        const newTargetUrl = txTargetUrl.replace(/\/$/, '');
-
-                        if (txIframe && currentIframeSrc !== newTargetUrl) {
-                            loadTxAdminFrame(txTargetUrl);
-                        }
                     } else {
-                        if (txOffline) txOffline.style.display = 'flex';
-                        if (txAuthOverlay) txAuthOverlay.style.display = 'none';
                         txTargetUrl = "";
-                        txFallbackUrl = "";
-                        hideTxAdminConnectOverlay();
-                        if (txIframe && txIframe.src !== 'about:blank' && txIframe.src !== window.location.href) {
-                            txIframe.src = 'about:blank';
-                        }
                     }
                 } else {
-                    // Limpiar para otros juegos
-                    if (txOffline) txOffline.style.display = 'none';
-                    if (txAuthOverlay) txAuthOverlay.style.display = 'none';
-                    txFallbackUrl = "";
-                    hideTxAdminConnectOverlay();
-                    if (txIframe) txIframe.src = 'about:blank';
+                    // Limpiar la URL al cambiar a otro juego.
+                    txTargetUrl = "";
                 }
 
                 const safeId = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
