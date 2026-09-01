@@ -133,6 +133,8 @@ assert(files['deploy_staging.sh'].includes('worker-backups-staging'), 'staging d
 assert(files['docker-compose.staging.yml'].includes('RAGENODES_ROLE=worker-backups'), 'staging defines the isolated backup scheduler');
 assert(files['docker-compose.registry.staging.yml'].includes('worker-backups-staging:'), 'staging backup scheduler uses the reviewed backend image');
 assert(files['backend/src/services/backupService.js'].includes('normalizeSharedDataPermissions(container, config.gameContainerSharedGid)'), 'backups repair private game-runtime directories through the bounded shared group');
+assert(files['backend/src/services/backupService.js'].includes('{ maintenanceResume: true }'), 'backup restore resumes its already-admitted server after maintenance');
+assert(files['backend/src/services/serverControlService.js'].includes('if (!options.maintenanceResume)'), 'normal server starts retain node capacity admission');
 for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
   assert(files[deployFile].includes('prepare_runtime_images.sh'), `${deployFile} prefers reviewed Registry images`);
   assert(files[deployFile].includes('RAGENODES_REGISTRY_REQUIRED'), `${deployFile} supports fail-closed Registry deployment`);
