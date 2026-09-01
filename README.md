@@ -209,6 +209,10 @@ The same area manages an exact HTTPS allowlist for embedded web integrations. Ch
 
 The GitLab pipeline validates tests, security contracts, dependencies, Rust and Compose; it does not connect to production or perform the deployment itself. Promotion remains `feature -> dev -> staging -> main`. On the production host, a local updater polls `origin/main`, accepts only a clean fast-forward update, runs the reviewed deployment script and records success or rollback in its deployment log. This keeps deployment automatic after promotion to `main` without granting the GitLab runner direct production access.
 
+Deployments are transactional at the host level. Before advancing Git, each updater atomically records the previous and target commits. A configurable 30-minute deadline (`RAGENODES_DEPLOY_TIMEOUT_SECS`, minimum 60 seconds) prevents a stalled Compose operation from holding the environment indefinitely. Success clears the marker; a validation failure rolls back to the previous commit. If the updater or host is interrupted after Git advances, the next timer run detects the durable marker and reruns the idempotent deployment and health/readiness checks instead of incorrectly treating `HEAD == origin` as complete. Runtime-generated OxideProxy routes are backed up and restored across update, retry and rollback; other tracked local changes remain fail-closed.
+
+Release synchronization is content-based: `dev`, `staging` and `main` may have different merge commits and `deploy/registry-release.lock` revisions, but their application build contexts must remain identical. Only already-merged, non-protected topic branches may be removed; never delete `dev`, `staging`, `main` or a branch containing commits absent from all three protected branches.
+
 The `niko-local` integration branch builds the backend, bot, OxideProxy and
 Oxide control-panel containers once and publishes them to the private GitLab
 Container Registry. A reviewed release promotes exact `sha256` references into
@@ -482,6 +486,10 @@ valores separados evita que el gestor de archivos y los editores de configuraci�
 pierdan acceso, sin ampliar permisos ni mezclar datos entre entornos.
 
 El pipeline de GitLab valida pruebas, contratos de seguridad, dependencias, Rust y Compose; no se conecta a producción ni ejecuta directamente el despliegue. La promoción sigue `feature -> dev -> staging -> main`. En el host de producción, un actualizador local consulta `origin/main`, acepta únicamente una actualización *fast-forward* con el árbol de trabajo limpio, ejecuta el script de despliegue revisado y registra el éxito o la reversión. Así, la actualización se aplica automáticamente después de promover a `main` sin conceder acceso directo a producción al runner de GitLab.
+
+Los despliegues son transaccionales en cada host. Antes de avanzar Git, el actualizador registra de forma atómica los commits anterior y objetivo. Un límite configurable de 30 minutos (`RAGENODES_DEPLOY_TIMEOUT_SECS`, mínimo 60 segundos) impide que una operación Compose bloqueada deje el entorno indefinidamente a medias. El éxito elimina el marcador y un fallo de validación revierte al commit anterior. Si el proceso o el host se interrumpe después de avanzar Git, el siguiente ciclo detecta el marcador persistente y repite el despliegue idempotente y las sondas de salud, en lugar de interpretar erróneamente `HEAD == origin` como terminado. Las rutas runtime de OxideProxy se respaldan y restauran durante actualización, reintento y rollback; cualquier otro cambio local rastreado mantiene el cierre preventivo.
+
+La sincronización de releases se verifica por contenido: `dev`, `staging` y `main` pueden tener commits de merge y versiones de `deploy/registry-release.lock` diferentes, pero sus contextos de compilación deben ser idénticos. Solo se eliminan ramas de trabajo no protegidas que ya estén fusionadas; nunca se borran `dev`, `staging`, `main` ni ramas con commits ausentes de las tres ramas protegidas.
 
 La rama de integración `niko-local` construye una sola vez los contenedores de
 backend, bot, OxideProxy y panel de control de Oxide, y los publica en el GitLab
