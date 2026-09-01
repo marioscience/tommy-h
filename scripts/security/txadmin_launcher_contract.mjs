@@ -18,6 +18,8 @@ for (const template of [
   assert.match(source, /id="tx-top-user"/);
   assert.match(source, /id="tx-top-pass"/);
   assert.match(source, /Abrir txAdmin/);
+  assert.match(source, /id="txadmin-offline-notice"/);
+  assert.doesNotMatch(source, /id="txadmin-offline-overlay"/);
   assert.doesNotMatch(source, /<iframe[^>]+txadmin/i);
 }
 
