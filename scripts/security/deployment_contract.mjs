@@ -145,9 +145,17 @@ assert(files['auto_update_staging.sh'].includes('git -c gc.auto=0 fetch'), 'stag
 assert(files['auto_update_staging.sh'].includes('RUNTIME_CONFIG="oxideproxy/game_config/oxide_proxy.yml"'), 'staging updater identifies the OxideProxy runtime config explicitly');
 assert(files['auto_update_staging.sh'].includes('\":(exclude)$RUNTIME_CONFIG\"'), 'staging updater permits only the generated OxideProxy config outside the clean-worktree guard');
 assert(files['auto_update_staging.sh'].includes('restore_runtime_config'), 'staging updater restores live OxideProxy routes across deploy and rollback');
+assert(files['auto_update_staging.sh'].includes('ragenodes_pending_staging_deploy'), 'staging updater persists an interrupted-deployment marker');
+assert(files['auto_update_staging.sh'].includes('Despliegue interrumpido detectado'), 'staging updater resumes an interrupted deployment');
+assert(files['auto_update_staging.sh'].includes('timeout --foreground --signal=TERM --kill-after=60'), 'staging updater bounds deployment execution time');
+assert(files['auto_update_staging.sh'].indexOf('write_pending_deploy "$LOCAL" "$REMOTE"') < files['auto_update_staging.sh'].indexOf('git merge --ff-only "$REMOTE"'), 'staging records pending state before advancing Git');
 assert(files['auto_update_prod.sh'].includes('RUNTIME_CONFIG="oxideproxy/game_config/oxide_proxy.yml"'), 'production updater identifies the OxideProxy runtime config explicitly');
 assert(files['auto_update_prod.sh'].includes('\":(exclude)$RUNTIME_CONFIG\"'), 'production updater permits only the generated OxideProxy config outside the clean-worktree guard');
 assert(files['auto_update_prod.sh'].includes('restore_runtime_config'), 'production updater restores live OxideProxy routes across deploy and rollback');
+assert(files['auto_update_prod.sh'].includes('ragenodes_pending_prod_deploy'), 'production updater persists an interrupted-deployment marker');
+assert(files['auto_update_prod.sh'].includes('Despliegue interrumpido detectado'), 'production updater resumes an interrupted deployment');
+assert(files['auto_update_prod.sh'].includes('timeout --foreground --signal=TERM --kill-after=60'), 'production updater bounds deployment execution time');
+assert(files['auto_update_prod.sh'].indexOf('write_pending_deploy "$LOCAL" "$REMOTE"') < files['auto_update_prod.sh'].indexOf('git merge --ff-only "$REMOTE"'), 'production records pending state before advancing Git');
 assert(files['.env.example'].includes('ALLOW_ROOTFUL_DOCKER_SOCKET=false'), 'rootful Docker exception is disabled by default');
 assert(files['.env.example'].includes('FRONTEND_BIND_IP=127.0.0.1'), 'auxiliary frontend bind is explicitly loopback-only');
 assert(files['.env.example'].includes('DISCORD_API_KEY=') && files['.env.example'].includes('NODE_ENROLLMENT_API_KEY='), 'Discord and node enrollment use separate credentials');
