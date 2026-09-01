@@ -2,6 +2,9 @@ services:
   backend-staging:
     image: ${RAGENODES_BACKEND_IMAGE:?Set RAGENODES_BACKEND_IMAGE to a digest-pinned registry reference}
     build: !reset null
+  worker-backups-staging:
+    image: ${RAGENODES_BACKEND_IMAGE:?Set RAGENODES_BACKEND_IMAGE to a digest-pinned registry reference}
+    build: !reset null
   worker-docker-events-staging:
     image: ${RAGENODES_BACKEND_IMAGE:?Set RAGENODES_BACKEND_IMAGE to a digest-pinned registry reference}
     build: !reset null
