@@ -998,6 +998,9 @@ function toggleSidebar() {
             } else if (viewId === 'wpadmin') {
                 document.getElementById('page-sub').innerText = "Interfaz Web";
                 document.getElementById('view-wpadmin').classList.remove('hidden');
+            } else if (viewId === 'txadmin') {
+                document.getElementById('page-sub').innerText = "Acceso y credenciales de txAdmin";
+                document.getElementById('view-txadmin').classList.remove('hidden');
             } else if (viewId === 'database') {
                 document.getElementById('page-sub').innerText = "Gestión de tablas MySQL";
                 document.getElementById('view-database').classList.remove('hidden');

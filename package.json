@@ -12,6 +12,7 @@
     "security:delegated-actions": "node scripts/security/delegated_action_contract.mjs",
     "security:server-state": "node scripts/security/server_state_contract.mjs",
     "security:panel-render": "node scripts/security/panel_server_render_contract.mjs",
+    "security:txadmin-launcher": "node scripts/security/txadmin_launcher_contract.mjs",
     "security:secrets": "node scripts/security/secret_contract.mjs",
     "security:deployment": "node scripts/security/deployment_contract.mjs",
     "security:migrate-dynamic-handlers": "node scripts/security/migrate_dynamic_template_handlers.mjs",
