@@ -340,7 +340,7 @@ export async function restoreBackup(id, filename, userId, isAdmin) {
           }
         }
 
-        await controlServer(s.id, userId, 'start', isAdmin);
+        await controlServer(s.id, userId, 'start', isAdmin, { maintenanceResume: true });
         await fs.rm(previousPath, { recursive: true, force: true });
         await fs.unlink(rollbackDbDump).catch(() => {});
         await logAudit(userId, 'SERVER.BACKUP.RESTORE', { serverId: s.id, filename: safeFilename });
@@ -382,7 +382,9 @@ export async function restoreBackup(id, filename, userId, isAdmin) {
         }
 
         await fs.unlink(rollbackDbDump).catch(() => {});
-        await controlServer(s.id, userId, 'start', isAdmin).catch(() => {});
+        await controlServer(s.id, userId, 'start', isAdmin, { maintenanceResume: true }).catch((restartError) => {
+            console.error('Fallo al reanudar el servidor despues del rollback:', restartError);
+        });
         throw new Error('No se pudo restaurar la copia de seguridad.');
     }
 }
