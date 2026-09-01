@@ -998,6 +998,9 @@ function toggleSidebar() {
             } else if (viewId === 'wpadmin') {
                 document.getElementById('page-sub').innerText = "Interfaz Web";
                 document.getElementById('view-wpadmin').classList.remove('hidden');
+            } else if (viewId === 'txadmin') {
+                document.getElementById('page-sub').innerText = "Acceso y credenciales de txAdmin";
+                document.getElementById('view-txadmin').classList.remove('hidden');
             } else if (viewId === 'database') {
                 document.getElementById('page-sub').innerText = "Gestión de tablas MySQL";
                 document.getElementById('view-database').classList.remove('hidden');
@@ -1218,8 +1221,13 @@ function toggleSidebar() {
             }
         }
 
+        function isServerRunning(server) {
+            const status = String(server && server.status || '').trim().toLowerCase();
+            return ['running', 'online', 'healthy', 'started', 'up'].includes(status);
+        }
+
         function openTxAdminTab() {
-            if (!currentServer || currentServer.status !== 'running') {
+            if (!currentServer || !isServerRunning(currentServer)) {
                 return showToast("El servidor debe estar encendido para abrir txAdmin", "warning");
             }
             let publicTarget = txTargetUrl;
@@ -1486,7 +1494,7 @@ function toggleSidebar() {
                     }
                 }
 
-                const isRunning = s.status === 'running';
+                const isRunning = isServerRunning(s);
 
                 // 🧠 Lógica para txAdmin (SOLO para FiveM)
                 const wpIframe = document.getElementById('wpadmin-iframe');
@@ -1529,6 +1537,8 @@ function toggleSidebar() {
                 const isDatabase = s.template === 'database';
                 const isDiscordBot = s.template === 'discord';
                 const isNonFivem = isMC || isRust || isPalworld || isCS2 || isValheim || isZomboid || isARK || isSDTD || isWordPress || isDatabase || isDiscordBot;
+
+                safeDisplay('txadmin-offline-notice', s.template === 'fivem' && !isRunning ? 'block' : 'none');
 
                 safeDisplay('nav-editor', 'flex');
                 safeDisplay('nav-logs', 'flex');

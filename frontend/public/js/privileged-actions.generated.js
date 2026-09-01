@@ -246,7 +246,7 @@
       switchView('backups', this)
     },
     "priv_0081": function (event) {
-      openTxAdminTab()
+      switchView('txadmin', this)
     },
     "priv_0082": function (event) {
       switchView('wpadmin', this)

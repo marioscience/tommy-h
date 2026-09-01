@@ -404,7 +404,7 @@
     {
       "id": "priv_0081",
       "event": "click",
-      "source": "openTxAdminTab()"
+      "source": "switchView('txadmin', this)"
     },
     {
       "id": "priv_0082",
