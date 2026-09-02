@@ -15,6 +15,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm \
 
 COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node server.js ./
+COPY --chown=node:node routeReconciliation.js ./
 COPY --chown=node:node public ./public
 RUN mkdir -p /app/rust_config && chown -R node:node /app
 
