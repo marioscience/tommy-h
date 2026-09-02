@@ -5,6 +5,10 @@ const panel = fs.readFileSync('frontend/public/js/panel.js', 'utf8');
 
 assert.ok(!panel.includes('event.currentTarget'), 'panel.js must not depend on delegated event.currentTarget');
 assert.ok(!panel.includes('window.event'), 'panel.js must not depend on the browser global event');
+assert.ok(
+  panel.includes("target.closest('#fm-dynamic-menu, .action-gear')"),
+  'file-manager menu must not be closed by the same delegated click that opens it'
+);
 assert.match(
   panel,
   /selectDiskPack\(\(p\.id\), \(p\.paypal_plan_id\), \(p\.gb_amount\), element\)/,
