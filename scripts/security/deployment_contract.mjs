@@ -32,6 +32,7 @@ const files = Object.fromEntries(await Promise.all([
   'oxideproxy/src/pipeline/mod.rs',
   'oxideproxy/src/pipeline/http_server.rs',
   'oxideproxy/node_panel/server.js',
+  'oxideproxy/node_panel/Dockerfile',
   'oxideproxy/node_panel/routeReconciliation.js',
   'oxideproxy/node_panel/public/app.js',
   'frontend/public/js/panel.js',
@@ -58,6 +59,11 @@ function assert(condition, message) {
     console.error(`FAIL ${message}`);
   }
 }
+
+assert(
+  files['oxideproxy/node_panel/Dockerfile'].includes('COPY --chown=node:node routeReconciliation.js ./'),
+  'Oxide control-panel image includes the route reconciliation runtime module'
+);
 
 for (const composeFile of ['docker-compose.yml', 'docker-compose.staging.yml']) {
   const compose = files[composeFile];
