@@ -6,6 +6,8 @@ import { config } from '../config.js';
 import { getServerByIdForUser, controlServer } from './serverService.js';
 import { logAudit, query } from '../db.js';
 import { hasManagedDatabase } from './backupPolicy.js';
+import { getNodeConnection } from './dockerUtils.js';
+import { normalizeSharedDataPermissions } from './games/BaseGameService.js';
 
 const MAX_ERROR_LOG_BYTES = 1024 * 1024;
 
@@ -80,6 +82,18 @@ async function createArchive(sourceDirectory, destination) {
     }
 }
 
+async function prepareBackupReadAccess(server) {
+    if (!server?.container_name) return;
+
+    try {
+        const docker = await getNodeConnection(server.node_id || 0);
+        const container = docker.getContainer(server.container_name);
+        await normalizeSharedDataPermissions(container, config.gameContainerSharedGid);
+    } catch (error) {
+        console.warn(`[Backup] No se pudieron normalizar los permisos de ${server.id}: ${error.message}`);
+    }
+}
+
 function getBackupPathForServer(serverId, filename) {
     const shortId = serverId.slice(0, 8);
     const safeFilename = path.basename(filename || '');
@@ -145,6 +159,11 @@ export async function createFullBackup(id, userId, isAdmin, customName = null) {
     const dbDumpFile = path.join(s.data_path, 'database_dump.sql');
 
     try {
+        // Algunos motores crean carpetas privadas (0700) durante la ejecución.
+        // El contenedor del juego puede normalizarlas sin elevar privilegios en
+        // el worker, que conserva únicamente acceso por el grupo compartido.
+        await prepareBackupReadAccess(s);
+
         if (includesDatabase) {
             await runProcess('mariadb-dump', [
                 '--skip-ssl',
@@ -321,7 +340,7 @@ export async function restoreBackup(id, filename, userId, isAdmin) {
           }
         }
 
-        await controlServer(s.id, userId, 'start', isAdmin);
+        await controlServer(s.id, userId, 'start', isAdmin, { maintenanceResume: true });
         await fs.rm(previousPath, { recursive: true, force: true });
         await fs.unlink(rollbackDbDump).catch(() => {});
         await logAudit(userId, 'SERVER.BACKUP.RESTORE', { serverId: s.id, filename: safeFilename });
@@ -363,7 +382,9 @@ export async function restoreBackup(id, filename, userId, isAdmin) {
         }
 
         await fs.unlink(rollbackDbDump).catch(() => {});
-        await controlServer(s.id, userId, 'start', isAdmin).catch(() => {});
+        await controlServer(s.id, userId, 'start', isAdmin, { maintenanceResume: true }).catch((restartError) => {
+            console.error('Fallo al reanudar el servidor despues del rollback:', restartError);
+        });
         throw new Error('No se pudo restaurar la copia de seguridad.');
     }
 }

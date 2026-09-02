@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 const files = Object.fromEntries(await Promise.all([
   'docker-compose.yml',
   'docker-compose.staging.yml',
+  'docker-compose.registry.staging.yml',
   'docker-compose.backup-remote.yml',
   'backend/Dockerfile',
   'fivem-base/Dockerfile',
@@ -16,6 +17,7 @@ const files = Object.fromEntries(await Promise.all([
   'auto_update_staging.sh',
   'backend/src/services/dockerService.js',
   'backend/src/services/dockerUtils.js',
+  'backend/src/services/backupService.js',
   'backend/src/services/serverControlService.js',
   'backend/src/routes/discord.js',
   'backend/src/services/games/minecraft.js',
@@ -127,6 +129,12 @@ assert(files['.env.example'].includes('DOCKER_SOCKET=/run/user/1000/docker.sock'
 assert(files['.env.example'].includes('STAGING_GAME_DATA_GID='), 'staging documents the remapped rootless game-data group');
 assert(files['docker-compose.staging.yml'].includes('STAGING_GAME_DATA_GID:-${GAME_DATA_GID:-1000}'), 'staging control services use their dedicated remapped game-data group');
 assert(files['deploy_staging.sh'].includes('worker-stats-staging'), 'staging deploys its metrics worker on every release');
+assert(files['deploy_staging.sh'].includes('worker-backups-staging'), 'staging deploys its backup scheduler on every release');
+assert(files['docker-compose.staging.yml'].includes('RAGENODES_ROLE=worker-backups'), 'staging defines the isolated backup scheduler');
+assert(files['docker-compose.registry.staging.yml'].includes('worker-backups-staging:'), 'staging backup scheduler uses the reviewed backend image');
+assert(files['backend/src/services/backupService.js'].includes('normalizeSharedDataPermissions(container, config.gameContainerSharedGid)'), 'backups repair private game-runtime directories through the bounded shared group');
+assert(files['backend/src/services/backupService.js'].includes('{ maintenanceResume: true }'), 'backup restore resumes its already-admitted server after maintenance');
+assert(files['backend/src/services/serverControlService.js'].includes('if (!options.maintenanceResume)'), 'normal server starts retain node capacity admission');
 for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
   assert(files[deployFile].includes('prepare_runtime_images.sh'), `${deployFile} prefers reviewed Registry images`);
   assert(files[deployFile].includes('RAGENODES_REGISTRY_REQUIRED'), `${deployFile} supports fail-closed Registry deployment`);
@@ -192,7 +200,7 @@ assert(files['fivem-base/Dockerfile'].includes('https://runtime.fivem.net/artifa
 assert(files['scripts/ensure_base_images.sh'].includes('network inspect "$RUNTIME_DOCKER_NETWORK"'), 'runtime network is verified in the rootless daemon');
 assert(files['scripts/ensure_base_images.sh'].includes('network create "$RUNTIME_DOCKER_NETWORK"'), 'missing runtime network is created in the rootless daemon');
 assert(files['deploy_staging.sh'].includes('RUNTIME_DOCKER_NETWORK=ragenodes_net_staging'), 'staging prepares its isolated rootless network');
-assert(files['docker-compose.staging.yml'].match(/PORT_BASE_OFFSET(?::|=)\s*\$\{STAGING_PORT_BASE_OFFSET:-1000\}/g)?.length === 2, 'staging backend and worker share a configurable non-overlapping port offset');
+assert(files['docker-compose.staging.yml'].match(/PORT_BASE_OFFSET(?::|=)\s*\$\{STAGING_PORT_BASE_OFFSET:-1000\}/g)?.length === 3, 'staging backend and operational workers share a configurable non-overlapping port offset');
 assert(files['docker-compose.yml'].includes('PORT_SCAN_LIMIT: ${PRODUCTION_PORT_SCAN_LIMIT:-999}'), 'production allocation stays inside its 1000-port band');
 assert(files['docker-compose.staging.yml'].includes('PORT_SCAN_LIMIT: ${STAGING_PORT_SCAN_LIMIT:-999}'), 'staging allocation stays inside its shifted 1000-port band');
 const stagingControlPanelOverride = files['docker-compose.staging.yml'].match(/\r?\n  oxide_control_panel:\r?\n([\s\S]*?)(?=\r?\n  oxide_game_runtime_init_staging:)/)?.[1] || '';

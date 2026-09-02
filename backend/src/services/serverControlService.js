@@ -38,7 +38,7 @@ function scheduleEmbeddedTxAdminCookieRepair(server) {
   }, 5000);
 }
 
-export async function controlServer(id, userId, action, isAdmin) {
+export async function controlServer(id, userId, action, isAdmin, options = {}) {
   const s = await getServerByIdForUser(id, userId, isAdmin);
   if (!s) throw new Error("No encontrado");
 
@@ -61,7 +61,13 @@ export async function controlServer(id, userId, action, isAdmin) {
       const requiredRamGb = Number.isFinite(allocatedRamGb) && allocatedRamGb > 0
           ? allocatedRamGb
           : getPlanRamGb(resolveServerPlan(s.runtime_plan).plan);
-      await assertNodeStartCapacity(s.node_id, requiredRamGb);
+      // Una restauracion detiene temporalmente un contenedor ya admitido. Al
+      // reanudar exactamente ese mismo contenedor no se esta asignando RAM
+      // adicional, por lo que repetir la admision puede dejarlo apagado si el
+      // host esta por debajo de su reserva durante el mantenimiento.
+      if (!options.maintenanceResume) {
+          await assertNodeStartCapacity(s.node_id, requiredRamGb);
+      }
       try {
           await Docker.startContainer(s.container_name);
 

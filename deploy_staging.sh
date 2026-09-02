@@ -15,6 +15,7 @@ mkdir -p "$STAGING_DATA_ROOT/templates"
 APP_SERVICES=(
   phpmyadmin-staging
   backend-staging
+  worker-backups-staging
   worker-docker-events-staging
   worker-stats-staging
   oxide_control_panel
