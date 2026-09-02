@@ -32,6 +32,7 @@ const files = Object.fromEntries(await Promise.all([
   'oxideproxy/src/pipeline/mod.rs',
   'oxideproxy/src/pipeline/http_server.rs',
   'oxideproxy/node_panel/server.js',
+  'oxideproxy/node_panel/routeReconciliation.js',
   'oxideproxy/node_panel/public/app.js',
   'frontend/public/js/panel.js',
   'frontend/public/games/fivem.html',
@@ -125,6 +126,8 @@ assert(proxyPipeline.includes('forward_udp(socket, payload, peer_addr, &backend_
 assert((files['oxideproxy/src/pipeline/http_server.rs'].match(/"keep-alive"/g) || []).length >= 2, 'reverse proxy strips HTTP/2 hop-by-hop headers in both directions');
 assert(!files['oxideproxy/node_panel/server.js'].includes("health: hasActivity ? 'HEALTHY"), 'Oxide control panel does not fabricate backend health');
 assert(files['oxideproxy/node_panel/server.js'].includes("health: 'UNVERIFIED'"), 'Oxide control panel labels unprobed backends explicitly');
+assert(files['oxideproxy/node_panel/server.js'].includes('reconcileAutomaticRoutes'), 'Oxide route sync tolerates partial inventory snapshots');
+assert(files['oxideproxy/node_panel/routeReconciliation.js'].includes('count < requiredConfirmations'), 'Oxide retains a missing route until consecutive failures confirm its removal');
 assert(files['.env.example'].includes('DOCKER_SOCKET=/run/user/1000/docker.sock'), 'production example uses a rootless Docker socket');
 assert(files['.env.example'].includes('STAGING_GAME_DATA_GID='), 'staging documents the remapped rootless game-data group');
 assert(files['docker-compose.staging.yml'].includes('STAGING_GAME_DATA_GID:-${GAME_DATA_GID:-1000}'), 'staging control services use their dedicated remapped game-data group');

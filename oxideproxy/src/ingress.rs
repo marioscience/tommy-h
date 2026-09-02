@@ -1,5 +1,6 @@
 use crate::config::ProxyConfig;
 use crate::ebpf_xdp::XdpFilter;
+use crate::egress::{forward_udp_resolved, resolve_backend};
 use crate::pipeline::tls_quic::TlsRuntime;
 use crate::pipeline::{process_tcp_stream, process_udp_packet_inline};
 use bytes::BytesMut;
@@ -7,6 +8,7 @@ use socket2::{Domain, Protocol, Socket, Type};
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use tokio::net::{TcpListener, UdpSocket};
+use tokio::sync::Semaphore;
 
 pub async fn start_ingress(
     config: ProxyConfig,
@@ -23,7 +25,9 @@ pub async fn start_ingress(
     let udp_addr = config_arc.ingress.udp_listen_addr;
     let initial_buf_size = config_arc.ingress.initial_buffer_size;
 
-    let xdp_interface = config_arc.advanced_tuning.as_ref()
+    let xdp_interface = config_arc
+        .advanced_tuning
+        .as_ref()
         .and_then(|advanced| advanced.ebpf_xdp.as_ref())
         .map(|settings| settings.interface.as_str())
         .unwrap_or("eth0");
@@ -92,10 +96,16 @@ pub async fn start_ingress(
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                 if let Ok(xdp_read) = xdp_metrics.read() {
                     crate::metrics::set_xdp_mode(xdp_read.attach_mode());
-                    if matches!(xdp_read.attach_mode(), crate::ebpf_xdp::XdpAttachMode::Driver | crate::ebpf_xdp::XdpAttachMode::Generic) {
+                    if matches!(
+                        xdp_read.attach_mode(),
+                        crate::ebpf_xdp::XdpAttachMode::Driver
+                            | crate::ebpf_xdp::XdpAttachMode::Generic
+                    ) {
                         match xdp_read.kernel_stats() {
                             Ok(stats) => crate::metrics::update_xdp_stats(stats),
-                            Err(error) => tracing::warn!("No se pudieron leer métricas XDP: {}", error),
+                            Err(error) => {
+                                tracing::warn!("No se pudieron leer métricas XDP: {}", error)
+                            }
                         }
                     }
                 }
@@ -380,68 +390,101 @@ pub async fn start_ingress(
         }
 
         if proto == "UDP" || proto == "DUAL" {
-            for i in 0..worker_threads {
-                let udp_cfg = Arc::clone(&config_arc);
-                let udp_xdp = Arc::clone(&xdp_arc);
-                let r_name = route_name.clone();
-                let backend = backend_addr.clone();
-                let h = tokio::spawn(async move {
-                    match create_reuseport_udp_socket(custom_addr) {
-                        Ok(socket) => {
-                            let socket_arc = Arc::new(socket);
-                            tracing::debug!(
-                                "Bucle UDP Dedicado #{} para [{}] vinculado en {}",
-                                i,
-                                r_name,
-                                custom_addr
-                            );
-                            let mut buffer = BytesMut::with_capacity(64 * 1024);
-                            loop {
-                                if buffer.capacity() < initial_buf_size {
-                                    buffer.reserve(64 * 1024);
-                                }
-                                let sock = Arc::clone(&socket_arc);
-                                let cfg = Arc::clone(&udp_cfg);
-                                let xdp_ref = Arc::clone(&udp_xdp);
-                                match sock.recv_buf_from(&mut buffer).await {
-                                    Ok((size, peer_addr)) => {
-                                        let allowed = if kernel_xdp_active {
-                                            true
-                                        } else if let Ok(xdp_read) = xdp_ref.read() {
-                                            xdp_read.inspect_and_filter(peer_addr.ip())
-                                        } else {
-                                            true
-                                        };
-                                        if !allowed {
-                                            let _ = buffer.split_to(size);
-                                            continue;
-                                        }
-                                        let packet_data = buffer.split_to(size).freeze();
-                                        crate::metrics::udp_ingress(size);
-                                        process_udp_packet_inline(
-                                            sock,
-                                            packet_data,
-                                            peer_addr,
-                                            cfg,
-                                            Some(backend.clone()),
-                                        )
-                                        .await;
+            let resolved_backend = match resolve_backend(&backend_addr) {
+                Ok(addr) => Some(addr),
+                Err(e) => {
+                    tracing::error!(
+                        "Fallo al resolver backend UDP dedicado {}: {}",
+                        backend_addr,
+                        e
+                    );
+                    None
+                }
+            };
+            // Limita trabajo concurrente por ruta. Esto permite que los bucles
+            // sigan recibiendo mientras send_to espera, sin tareas ilimitadas.
+            let inflight = Arc::new(Semaphore::new(
+                worker_threads.saturating_mul(1024).max(1024),
+            ));
+            if let Some(resolved_backend) = resolved_backend {
+                for i in 0..worker_threads {
+                    let udp_xdp = Arc::clone(&xdp_arc);
+                    let r_name = route_name.clone();
+                    let backend = backend_addr.clone();
+                    let route_inflight = Arc::clone(&inflight);
+                    let h = tokio::spawn(async move {
+                        match create_reuseport_udp_socket(custom_addr) {
+                            Ok(socket) => {
+                                let socket_arc = Arc::new(socket);
+                                tracing::debug!(
+                                    "Bucle UDP Dedicado #{} para [{}] vinculado en {}",
+                                    i,
+                                    r_name,
+                                    custom_addr
+                                );
+                                let mut buffer = BytesMut::with_capacity(64 * 1024);
+                                loop {
+                                    if buffer.capacity() < initial_buf_size {
+                                        buffer.reserve(64 * 1024);
                                     }
-                                    Err(e) => {
-                                        tracing::error!("Error en bucle UDP Dedicado #{}: {}", i, e)
+                                    let sock = Arc::clone(&socket_arc);
+                                    let xdp_ref = Arc::clone(&udp_xdp);
+                                    match sock.recv_buf_from(&mut buffer).await {
+                                        Ok((size, peer_addr)) => {
+                                            let allowed = if kernel_xdp_active {
+                                                true
+                                            } else if let Ok(xdp_read) = xdp_ref.read() {
+                                                xdp_read.inspect_and_filter(peer_addr.ip())
+                                            } else {
+                                                true
+                                            };
+                                            if !allowed {
+                                                let _ = buffer.split_to(size);
+                                                continue;
+                                            }
+                                            let packet_data = buffer.split_to(size).freeze();
+                                            crate::metrics::udp_ingress(size);
+                                            let permit = match Arc::clone(&route_inflight)
+                                                .acquire_owned()
+                                                .await
+                                            {
+                                                Ok(permit) => permit,
+                                                Err(_) => break,
+                                            };
+                                            let response_socket = Arc::clone(&sock);
+                                            let backend_label = backend.clone();
+                                            tokio::spawn(async move {
+                                                let _permit = permit;
+                                                forward_udp_resolved(
+                                                    response_socket,
+                                                    packet_data,
+                                                    peer_addr,
+                                                    resolved_backend,
+                                                    &backend_label,
+                                                )
+                                                .await;
+                                            });
+                                        }
+                                        Err(e) => {
+                                            tracing::error!(
+                                                "Error en bucle UDP Dedicado #{}: {}",
+                                                i,
+                                                e
+                                            )
+                                        }
                                     }
                                 }
                             }
+                            Err(e) => tracing::error!(
+                                "Fallo al vincular Ingress UDP Dedicado #{} en {}: {}",
+                                i,
+                                custom_addr,
+                                e
+                            ),
                         }
-                        Err(e) => tracing::error!(
-                            "Fallo al vincular Ingress UDP Dedicado #{} en {}: {}",
-                            i,
-                            custom_addr,
-                            e
-                        ),
-                    }
-                });
-                handles.push(h);
+                    });
+                    handles.push(h);
+                }
             }
         }
     }

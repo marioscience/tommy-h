@@ -5,6 +5,7 @@ const yaml = require('js-yaml');
 const axios = require('axios');
 const os = require('os');
 const net = require('net');
+const { reconcileAutomaticRoutes } = require('./routeReconciliation');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -121,6 +122,7 @@ nativeMetricsTimer.unref();
 let discoveredBackends = [];
 let consecutiveEmptyRouteSnapshots = 0;
 const EMPTY_ROUTE_CONFIRMATIONS = Math.max(2, Number(process.env.OXIDE_EMPTY_ROUTE_CONFIRMATIONS || 3));
+const missingAutomaticRoutes = new Map();
 
 async function syncDockerGameServers() {
     try {
@@ -158,10 +160,17 @@ async function syncDockerGameServers() {
         } else {
             consecutiveEmptyRouteSnapshots = 0;
         }
-        const nextRoutes = manualRoutes.concat(managedRoutes.map(route => ({
+        const discoveredAutomaticRoutes = managedRoutes.map(route => ({
             ...route,
             health_check: { enabled: false, interval_secs: 10, timeout_secs: 2 }
-        })));
+        }));
+        const reconciledAutomaticRoutes = reconcileAutomaticRoutes(
+            currentAutomaticRoutes,
+            discoveredAutomaticRoutes,
+            missingAutomaticRoutes,
+            EMPTY_ROUTE_CONFIRMATIONS
+        );
+        const nextRoutes = manualRoutes.concat(reconciledAutomaticRoutes);
         discoveredBackends = managedRoutes.map(route => ({
             id: route.game_id,
             name: route.description || route.name,
