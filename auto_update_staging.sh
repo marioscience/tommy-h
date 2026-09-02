@@ -89,6 +89,12 @@ if ! git diff --cached --quiet \
   exit 1
 fi
 
+# An idle poll must not rewrite the live route file. Even identical content
+# wakes OxideProxy's config watcher and interrupts active game sessions.
+if [ "$LOCAL" = "$REMOTE" ] && [ ! -f "$PENDING_DEPLOY_FILE" ]; then
+  exit 0
+fi
+
 preserve_runtime_config_if_modified
 restore_runtime_config
 
