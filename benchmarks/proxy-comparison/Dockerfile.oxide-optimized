@@ -1,0 +1,3 @@
+FROM ragenodes/oxideproxy:1.0.0-local
+
+COPY --chown=65532:65532 oxideproxy/target/release/oxide_proxy /app/oxide_proxy

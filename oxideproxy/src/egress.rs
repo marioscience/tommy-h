@@ -10,7 +10,25 @@ use std::time::{Duration, Instant};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpStream, UdpSocket};
 
-type UdpSessionMap = DashMap<SocketAddr, (Arc<UdpSocket>, Instant), BuildHasherDefault<FxHasher>>;
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct UdpSessionKey {
+    client: SocketAddr,
+    backend: SocketAddr,
+    ingress: SocketAddr,
+}
+
+impl UdpSessionKey {
+    fn new(client: SocketAddr, backend: SocketAddr, ingress: SocketAddr) -> Self {
+        Self {
+            client,
+            backend,
+            ingress,
+        }
+    }
+}
+
+type UdpSessionMap =
+    DashMap<UdpSessionKey, (Arc<UdpSocket>, Instant), BuildHasherDefault<FxHasher>>;
 
 #[derive(Clone, Copy)]
 enum TrafficDirection {
@@ -67,7 +85,7 @@ fn udp_sessions() -> &'static UdpSessionMap {
     SESSIONS.get_or_init(|| DashMap::default())
 }
 
-fn resolve_backend(backend_addr: &str) -> std::io::Result<SocketAddr> {
+pub(crate) fn resolve_backend(backend_addr: &str) -> std::io::Result<SocketAddr> {
     backend_addr.to_socket_addrs()?.next().ok_or_else(|| {
         std::io::Error::new(
             std::io::ErrorKind::NotFound,
@@ -159,18 +177,49 @@ pub async fn forward_udp(
         }
     };
 
+    forward_udp_resolved(
+        ingress_socket,
+        payload,
+        client_addr,
+        resolved_backend,
+        backend_addr,
+    )
+    .await;
+}
+
+/// Fast path for dedicated game listeners. The backend is resolved once when
+/// the listener starts instead of executing DNS resolution for every packet.
+pub async fn forward_udp_resolved(
+    ingress_socket: Arc<UdpSocket>,
+    payload: Bytes,
+    client_addr: SocketAddr,
+    resolved_backend: SocketAddr,
+    backend_label: &str,
+) {
     tracing::debug!(
         "Reenviando datagrama UDP ({} bytes) de {} a backend {} ({})",
         payload.len(),
         client_addr,
-        backend_addr,
+        backend_label,
         resolved_backend
     );
 
     let sessions = udp_sessions();
+    let ingress_addr = match ingress_socket.local_addr() {
+        Ok(addr) => addr,
+        Err(e) => {
+            tracing::error!(
+                "No se pudo obtener el listener UDP de {}: {}",
+                client_addr,
+                e
+            );
+            return;
+        }
+    };
+    let session_key = UdpSessionKey::new(client_addr, resolved_backend, ingress_addr);
 
     let ephemeral_sock = {
-        if let Some(mut entry) = sessions.get_mut(&client_addr) {
+        if let Some(mut entry) = sessions.get_mut(&session_key) {
             let (ref sock, ref mut last_active) = *entry;
             *last_active = Instant::now();
             Some(sock.clone())
@@ -187,7 +236,7 @@ pub async fn forward_udp(
                     let sock = Arc::new(sock);
                     let now = Instant::now();
 
-                    let entry = sessions.entry(client_addr).or_insert_with(|| {
+                    let entry = sessions.entry(session_key).or_insert_with(|| {
                     let ephemeral_clone = sock.clone();
                     let ingress_clone = ingress_socket.clone();
 
@@ -198,7 +247,7 @@ pub async fn forward_udp(
                                 Ok(Ok((len, from_addr))) => {
                                     if from_addr == resolved_backend {
                                         {
-                                            if let Some(mut s_entry) = udp_sessions().get_mut(&client_addr) {
+                                            if let Some(mut s_entry) = udp_sessions().get_mut(&session_key) {
                                                 s_entry.value_mut().1 = Instant::now();
                                             }
                                         }
@@ -209,7 +258,7 @@ pub async fn forward_udp(
                                 Ok(Err(_)) => break,
                                 Err(_) => {
                                     let is_active = {
-                                        if let Some(s_entry) = udp_sessions().get(&client_addr) {
+                                        if let Some(s_entry) = udp_sessions().get(&session_key) {
                                             Instant::now().duration_since(s_entry.value().1) < Duration::from_secs(60)
                                         } else {
                                             false
@@ -222,7 +271,7 @@ pub async fn forward_udp(
                                 }
                             }
                         }
-                        udp_sessions().remove_if(&client_addr, |_, (_, last_active)| {
+                        udp_sessions().remove_if(&session_key, |_, (_, last_active)| {
                             Instant::now().duration_since(*last_active) >= Duration::from_secs(60)
                         });
                     });
@@ -250,14 +299,33 @@ pub async fn forward_udp(
         Ok(sent) => tracing::debug!(
             "Enviados {} bytes UDP a {} ({})",
             sent,
-            backend_addr,
+            backend_label,
             resolved_backend
         ),
         Err(e) => tracing::error!(
             "Error reenviando UDP a {} ({}): {}",
-            backend_addr,
+            backend_label,
             resolved_backend,
             e
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::UdpSessionKey;
+
+    #[test]
+    fn udp_sessions_are_isolated_by_backend_and_public_listener() {
+        let client = "127.0.0.1:40000".parse().unwrap();
+        let backend_a = "127.0.0.1:30120".parse().unwrap();
+        let backend_b = "127.0.0.1:25565".parse().unwrap();
+        let listener_a = "0.0.0.0:30120".parse().unwrap();
+        let listener_b = "0.0.0.0:31120".parse().unwrap();
+
+        let base = UdpSessionKey::new(client, backend_a, listener_a);
+        assert_ne!(base, UdpSessionKey::new(client, backend_b, listener_a));
+        assert_ne!(base, UdpSessionKey::new(client, backend_a, listener_b));
+        assert_eq!(base, UdpSessionKey::new(client, backend_a, listener_a));
     }
 }

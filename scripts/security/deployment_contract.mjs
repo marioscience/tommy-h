@@ -32,6 +32,8 @@ const files = Object.fromEntries(await Promise.all([
   'oxideproxy/src/pipeline/mod.rs',
   'oxideproxy/src/pipeline/http_server.rs',
   'oxideproxy/node_panel/server.js',
+  'oxideproxy/node_panel/Dockerfile',
+  'oxideproxy/node_panel/routeReconciliation.js',
   'oxideproxy/node_panel/public/app.js',
   'frontend/public/js/panel.js',
   'frontend/public/games/fivem.html',
@@ -57,6 +59,11 @@ function assert(condition, message) {
     console.error(`FAIL ${message}`);
   }
 }
+
+assert(
+  files['oxideproxy/node_panel/Dockerfile'].includes('COPY --chown=node:node routeReconciliation.js ./'),
+  'Oxide control-panel image includes the route reconciliation runtime module'
+);
 
 for (const composeFile of ['docker-compose.yml', 'docker-compose.staging.yml']) {
   const compose = files[composeFile];
@@ -125,6 +132,8 @@ assert(proxyPipeline.includes('forward_udp(socket, payload, peer_addr, &backend_
 assert((files['oxideproxy/src/pipeline/http_server.rs'].match(/"keep-alive"/g) || []).length >= 2, 'reverse proxy strips HTTP/2 hop-by-hop headers in both directions');
 assert(!files['oxideproxy/node_panel/server.js'].includes("health: hasActivity ? 'HEALTHY"), 'Oxide control panel does not fabricate backend health');
 assert(files['oxideproxy/node_panel/server.js'].includes("health: 'UNVERIFIED'"), 'Oxide control panel labels unprobed backends explicitly');
+assert(files['oxideproxy/node_panel/server.js'].includes('reconcileAutomaticRoutes'), 'Oxide route sync tolerates partial inventory snapshots');
+assert(files['oxideproxy/node_panel/routeReconciliation.js'].includes('count < requiredConfirmations'), 'Oxide retains a missing route until consecutive failures confirm its removal');
 assert(files['.env.example'].includes('DOCKER_SOCKET=/run/user/1000/docker.sock'), 'production example uses a rootless Docker socket');
 assert(files['.env.example'].includes('STAGING_GAME_DATA_GID='), 'staging documents the remapped rootless game-data group');
 assert(files['docker-compose.staging.yml'].includes('STAGING_GAME_DATA_GID:-${GAME_DATA_GID:-1000}'), 'staging control services use their dedicated remapped game-data group');
@@ -156,6 +165,7 @@ assert(files['auto_update_staging.sh'].includes('restore_runtime_config'), 'stag
 assert(files['auto_update_staging.sh'].includes('ragenodes_pending_staging_deploy'), 'staging updater persists an interrupted-deployment marker');
 assert(files['auto_update_staging.sh'].includes('Despliegue interrumpido detectado'), 'staging updater resumes an interrupted deployment');
 assert(files['auto_update_staging.sh'].includes('timeout --foreground --signal=TERM --kill-after=60'), 'staging updater bounds deployment execution time');
+assert(files['auto_update_staging.sh'].indexOf('[ "$LOCAL" = "$REMOTE" ] && [ ! -f "$PENDING_DEPLOY_FILE" ]') < files['auto_update_staging.sh'].indexOf('\npreserve_runtime_config_if_modified\n'), 'staging idle polls do not rewrite the live OxideProxy config');
 assert(files['auto_update_staging.sh'].indexOf('write_pending_deploy "$LOCAL" "$REMOTE"') < files['auto_update_staging.sh'].indexOf('git merge --ff-only "$REMOTE"'), 'staging records pending state before advancing Git');
 assert(files['auto_update_prod.sh'].includes('RUNTIME_CONFIG="oxideproxy/game_config/oxide_proxy.yml"'), 'production updater identifies the OxideProxy runtime config explicitly');
 assert(files['auto_update_prod.sh'].includes('\":(exclude)$RUNTIME_CONFIG\"'), 'production updater permits only the generated OxideProxy config outside the clean-worktree guard');
@@ -163,6 +173,7 @@ assert(files['auto_update_prod.sh'].includes('restore_runtime_config'), 'product
 assert(files['auto_update_prod.sh'].includes('ragenodes_pending_prod_deploy'), 'production updater persists an interrupted-deployment marker');
 assert(files['auto_update_prod.sh'].includes('Despliegue interrumpido detectado'), 'production updater resumes an interrupted deployment');
 assert(files['auto_update_prod.sh'].includes('timeout --foreground --signal=TERM --kill-after=60'), 'production updater bounds deployment execution time');
+assert(files['auto_update_prod.sh'].indexOf('[ "$LOCAL" = "$REMOTE" ] && [ ! -f "$PENDING_DEPLOY_FILE" ]') < files['auto_update_prod.sh'].indexOf('\npreserve_runtime_config_if_modified\n'), 'production idle polls do not rewrite the live OxideProxy config');
 assert(files['auto_update_prod.sh'].indexOf('write_pending_deploy "$LOCAL" "$REMOTE"') < files['auto_update_prod.sh'].indexOf('git merge --ff-only "$REMOTE"'), 'production records pending state before advancing Git');
 assert(files['.env.example'].includes('ALLOW_ROOTFUL_DOCKER_SOCKET=false'), 'rootful Docker exception is disabled by default');
 assert(files['.env.example'].includes('FRONTEND_BIND_IP=127.0.0.1'), 'auxiliary frontend bind is explicitly loopback-only');
