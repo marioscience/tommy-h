@@ -1,0 +1,18 @@
+{
+  "date": "2026-09-02",
+  "rounds": 3,
+  "operations_per_proxy": 270000,
+  "errors_or_losses": { "nginx": 0, "oxide": 0 },
+  "nginx": {
+    "http": { "throughput_per_sec": 18424.61, "p50_ms": 6.650, "p95_ms": 9.010, "p99_ms": 11.203 },
+    "tcp": { "throughput_per_sec": 27851.57, "p50_ms": 3.827, "p95_ms": 7.680, "p99_ms": 8.573 },
+    "udp": { "throughput_per_sec": 25395.19, "p50_ms": 4.777, "p95_ms": 7.007, "p99_ms": 9.290 },
+    "resources": { "cpu_mean_percent": 72.84, "cpu_peak_percent": 108.44, "memory_peak_percent_of_512_mib": 23.20 }
+  },
+  "oxide": {
+    "http": { "throughput_per_sec": 17195.35, "p50_ms": 7.030, "p95_ms": 9.770, "p99_ms": 12.007 },
+    "tcp": { "throughput_per_sec": 28943.16, "p50_ms": 3.630, "p95_ms": 7.320, "p99_ms": 8.583 },
+    "udp": { "throughput_per_sec": 4400.00, "p50_ms": 30.350, "p95_ms": 36.083, "p99_ms": 39.500 },
+    "resources": { "cpu_mean_percent": 74.66, "cpu_peak_percent": 105.28, "memory_peak_percent_of_512_mib": 4.36 }
+  }
+}

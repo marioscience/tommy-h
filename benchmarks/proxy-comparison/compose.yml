@@ -1,0 +1,48 @@
+services:
+  backend:
+    image: node:24-alpine
+    container_name: proxy-bench-backend
+    command: ["node", "/bench/backend.mjs"]
+    volumes:
+      - ./backend.mjs:/bench/backend.mjs:ro
+    networks: [bench]
+    cpus: 2
+    mem_limit: 512m
+
+  nginx:
+    image: nginx:1.31.4-alpine
+    container_name: proxy-bench-nginx
+    depends_on: [backend]
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "127.0.0.1:18081:8081"
+      - "127.0.0.1:11001:10001/tcp"
+      - "127.0.0.1:11001:10001/udp"
+    networks: [bench]
+    cpus: 2
+    mem_limit: 512m
+    ulimits:
+      nofile: { soft: 1048576, hard: 1048576 }
+
+  oxide:
+    image: ${OXIDE_BENCH_IMAGE:-ragenodes/oxideproxy:0.1.0-udp-optimized-local}
+    container_name: proxy-bench-oxide
+    depends_on: [backend]
+    environment:
+      RUST_LOG: warn
+    volumes:
+      - ./oxide_proxy.yml:/app/config/oxide_proxy.yml:ro
+    ports:
+      - "127.0.0.1:18082:${OXIDE_HTTP_CONTAINER_PORT:-8082}"
+      - "127.0.0.1:11002:10002/tcp"
+      - "127.0.0.1:11002:10002/udp"
+    networks: [bench]
+    cpus: 2
+    mem_limit: 512m
+    ulimits:
+      nofile: { soft: 1048576, hard: 1048576 }
+
+networks:
+  bench:
+    name: proxy-benchmark-isolated

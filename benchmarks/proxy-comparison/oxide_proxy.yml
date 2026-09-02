@@ -1,0 +1,40 @@
+ingress:
+  tcp_listen_addr: 0.0.0.0:8443
+  udp_listen_addr: 0.0.0.0:8080
+  game_listen_ip: 0.0.0.0
+  http_listen_addrs:
+    - 0.0.0.0:8082
+  max_concurrent_connections: 131072
+  initial_buffer_size: 4096
+routing:
+  default_web_backend: backend:9000
+  game_servers:
+    - game_id: 10002
+      backend_addr: backend:9001
+      description: Benchmark TCP/UDP echo route
+      port_range: "10002"
+      name: benchmark-game
+      protocol: DUAL
+tls:
+  cert_path: config/certs/cert.pem
+  key_path: config/certs/key.pem
+runtime:
+  worker_threads: 2
+  enable_core_pinning: false
+browser_security:
+  allowed_frame_origins: []
+advanced_tuning:
+  ebpf_xdp:
+    enabled: false
+    interface: eth0
+    ddos_mitigation_mode: STRICT_GAMING
+    max_packet_rate_per_ip: 1000000
+  tcp_settings:
+    tcp_nodelay: true
+    keepalive_interval_secs: 30
+    congestion_control: cubic
+  security:
+    rate_limit_conns_per_ip: 1000000
+    blacklist_enabled: false
+    handshake_timeout_ms: 2000
+    blacklisted_ips: []
