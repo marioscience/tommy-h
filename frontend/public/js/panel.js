@@ -44,7 +44,11 @@ function toggleSidebar() {
             if (existing) existing.remove();
         }
 
-        document.addEventListener('click', closeFmMenu);
+        document.addEventListener('click', (event) => {
+            const target = event.target;
+            if (target instanceof Element && target.closest('#fm-dynamic-menu, .action-gear')) return;
+            closeFmMenu();
+        });
 
         function openFmMenu(e, path, name, type) {
             e.stopPropagation();
@@ -78,11 +82,15 @@ function toggleSidebar() {
             document.body.appendChild(menu);
 
             const rect = menu.getBoundingClientRect();
-            let top = e.clientY;
-            let left = e.clientX - rect.width;
+            let top = Math.max(8, e.clientY);
+            let left = Math.max(8, e.clientX - rect.width);
 
             if (top + rect.height > window.innerHeight) {
-                top -= rect.height;
+                top = Math.max(8, window.innerHeight - rect.height - 8);
+            }
+
+            if (left + rect.width > window.innerWidth) {
+                left = Math.max(8, window.innerWidth - rect.width - 8);
             }
 
             menu.style.top = `${top}px`;
