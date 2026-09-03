@@ -1,0 +1,67 @@
+<template class="game-module-rcon">
+    <div id="rcon-panel-palworld" class="hidden">
+        <div class="pal-panel-card">
+            <div class="pal-section-header">
+                <div class="pal-icon-box">
+                    <i class="fa-solid fa-paw"></i>
+                </div>
+                <div class="pal-section-title">
+                    <h4>Multiplicadores & Config</h4>
+                    <span>Configura las reglas del mundo de Palworld</span>
+                </div>
+                <button class="btn btn-primary" data-rn-onclick="priv_0197"><i class="fa-solid fa-save"></i> Guardar</button>
+            </div>
+
+            <div class="pal-multipliers-grid">
+                <div class="pal-multiplier-card">
+                    <label class="form-label">
+                        <span><i class="fa-solid fa-arrow-up-right-dots"></i> Exp Rate</span>
+                        <span id="pal-val-exp" class="ark-val ark-val-exp">x1.0</span>
+                    </label>
+                    <input type="range" id="pal-exp" min="0.1" max="20" step="0.1" value="1.0" data-rn-oninput="priv_0198">
+                </div>
+
+                <div class="pal-multiplier-card">
+                    <label class="form-label">
+                        <span><i class="fa-solid fa-bullseye"></i> Catch Rate</span>
+                        <span id="pal-val-catch" class="ark-val ark-val-catch">x1.0</span>
+                    </label>
+                    <input type="range" id="pal-catch" min="0.1" max="10" step="0.1" value="1.0" data-rn-oninput="priv_0199">
+                </div>
+
+                <div class="pal-multiplier-card">
+                    <label class="form-label">
+                        <span><i class="fa-solid fa-skull"></i> Death Penalty</span>
+                    </label>
+                    <select id="pal-death" class="input">
+                        <option value="All">Perder Todo (Items y Pals)</option>
+                        <option value="Item">Solo perder Items</option>
+                        <option value="ItemAndEquipment">Perder Items y Equipamiento</option>
+                        <option value="None">Sin Penalización (Conservar todo)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="pal-broadcast-section">
+                <h4 class="pal-broadcast-title"><i class="fa-solid fa-bullhorn"></i> Broadcast Global</h4>
+                <p class="muted">Envía un mensaje a todos los jugadores online en este momento. <strong class="pal-warning-text">(El servidor debe estar encendido)</strong></p>
+
+                <div class="pal-broadcast-row">
+                    <input type="text" id="palworld-broadcast-msg" class="input" placeholder="Ej. El servidor se reiniciará en 5 minutos.">
+                    <button class="btn btn-warning pal-broadcast-btn" data-rn-onclick="priv_0200">
+                        <i class="fa-solid fa-paper-plane"></i> Enviar Mensaje
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <link rel="stylesheet" href="palworld.css">
+    <script>
+        (function() {
+            if (window.__palworldScriptLoaded) return;
+            window.__palworldScriptLoaded = true;
+            const s = document.createElement('script');
+            s.src = 'palworld.js';
+            document.head.appendChild(s);
+        })();
+    </script>
+</template>

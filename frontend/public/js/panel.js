@@ -5382,7 +5382,7 @@ function toggleSidebar() {
 
             if (window._loadedGameTemplates !== t) {
                 try {
-                    let fetchFile = t; if (t === "fivem") fetchFile = "fivem_v3"; const res = await fetch(`/games/${fetchFile}.html?v=${Date.now()}`);
+                    let fetchFile = t; if (t === "fivem") fetchFile = "fivem_v3"; const res = await fetch(`/games/${fetchFile}/${fetchFile}.html?v=${Date.now()}`);
                     if (res.ok) {
                         const html = await res.text();
 

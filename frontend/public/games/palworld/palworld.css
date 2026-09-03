@@ -1,0 +1,156 @@
+#rcon-panel-palworld .pal-panel-card {
+    background: rgba(15, 15, 18, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 30px;
+    margin-top: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+#rcon-panel-palworld .pal-section-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 25px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 15px;
+}
+
+#rcon-panel-palworld .pal-icon-box {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 45px;
+    height: 45px;
+    border-radius: 12px;
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+#rcon-panel-palworld .pal-icon-box i {
+    font-size: 1.2rem;
+    color: #38bdf8;
+}
+
+#rcon-panel-palworld .pal-section-title {
+    flex-grow: 1;
+}
+
+#rcon-panel-palworld .pal-section-title h4 {
+    margin: 0;
+    color: white;
+    font-weight: 800;
+    font-size: 1.2rem;
+}
+
+#rcon-panel-palworld .pal-section-title span {
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+#rcon-panel-palworld .pal-section-header .btn {
+    padding: 8px 16px;
+    font-size: 0.85rem;
+}
+
+#rcon-panel-palworld .pal-multipliers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 25px;
+    margin-bottom: 30px;
+}
+
+#rcon-panel-palworld .pal-multiplier-card {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 15px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+#rcon-panel-palworld .pal-multiplier-card label {
+    color: white;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+}
+
+#rcon-panel-palworld .ark-val {
+    font-weight: bold;
+}
+
+#rcon-panel-palworld .ark-val-exp {
+    color: #38bdf8;
+}
+
+#rcon-panel-palworld .ark-val-catch {
+    color: #22c55e;
+}
+
+#rcon-panel-palworld .pal-multiplier-card .fa-skull {
+    color: #ef4444;
+    margin-right: 5px;
+}
+
+#rcon-panel-palworld .pal-broadcast-title {
+    color: white;
+    font-size: 1.1rem;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#rcon-panel-palworld .pal-broadcast-title .fa-bullhorn {
+    color: #fbbf24;
+    margin-right: 8px;
+}
+
+#rcon-panel-palworld .pal-warning-text {
+    color: #fbbf24;
+}
+
+#rcon-panel-palworld .pal-broadcast-btn {
+    padding: 10px 20px;
+    color: black;
+}
+
+#rcon-panel-palworld .pal-multiplier-card input[type="range"] {
+    width: 100%;
+}
+
+#rcon-panel-palworld .pal-multiplier-card .input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#rcon-panel-palworld .pal-broadcast-section {
+    margin-top: 40px;
+    padding-top: 30px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    text-align: left;
+}
+
+#rcon-panel-palworld .pal-broadcast-title {
+    color: white;
+    font-size: 1.1rem;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#rcon-panel-palworld .pal-broadcast-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+#rcon-panel-palworld .pal-broadcast-row .input {
+    background: rgba(0, 0, 0, 0.4);
+    flex-grow: 1;
+    min-width: 200px;
+}

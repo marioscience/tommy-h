@@ -1,0 +1,37 @@
+<template class="game-module-rcon">
+    <div id="rcon-panel-sdtd" class="hidden">
+        <div class="sdtd-panel-card">
+            <div class="sdtd-section-header">
+                <div class="sdtd-icon-box sdtd-icon-luna">
+                    <i class="fa-solid fa-moon"></i>
+                </div>
+                <div class="sdtd-section-title">
+                    <h4>Alerta Luna Roja</h4>
+                    <span>Gestión de hordas en vivo</span>
+                </div>
+            </div>
+            <div class="sdtd-alert-box">
+                <div class="sdtd-alert-icon">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <div class="sdtd-alert-text">
+                    Próxima Horda: Día <span id="sdtd-horde-day">7</span>
+                </div>
+                <div class="muted">El reinicio de optimización automático está programado 1 hora antes de la noche de horda.</div>
+                <button class="btn sdtd-btn-announce" data-rn-onclick="priv_0212" data-rn-onmouseover="priv_0213" data-rn-onmouseout="priv_0214">
+                    <i class="fa-solid fa-bullhorn"></i> Anunciar en Juego
+                </button>
+            </div>
+        </div>
+    </div>
+    <link rel="stylesheet" href="sdtd.css">
+    <script>
+        (function() {
+            if (window.__sdtdScriptLoaded) return;
+            window.__sdtdScriptLoaded = true;
+            const s = document.createElement('script');
+            s.src = 'sdtd.js';
+            document.head.appendChild(s);
+        })();
+    </script>
+</template>

@@ -1,0 +1,55 @@
+<template class="game-module-rcon">
+    <div id="rcon-panel-discordbot" class="hidden">
+        <div class="discord-panel-card">
+            <div class="discord-section-header">
+                <div class="discord-icon-box">
+                    <i class="fa-brands fa-discord"></i>
+                </div>
+                <div class="discord-section-title">
+                    <h4>Panel de Control del Bot</h4>
+                    <span>Instala dependencias y edita variables de entorno</span>
+                </div>
+            </div>
+
+            <div class="discord-content-grid">
+                <div class="discord-section">
+                    <h5 class="discord-section-title-small"><i class="fa-solid fa-box-open discord-icon-npm"></i> Gestor de Paquetes</h5>
+                    <p class="muted">Instala automáticamente los paquetes necesarios para que tu bot funcione. <strong class="discord-warning-text">(Requiere que el bot esté encendido)</strong></p>
+
+                    <div class="discord-install-buttons">
+                        <button class="btn discord-btn-npm" data-rn-onclick="priv_0167" data-rn-onmouseover="priv_0168" data-rn-onmouseout="priv_0169">
+                            <i class="fa-brands fa-npm"></i> <strong>Instalar con NPM</strong> <span class="discord-btn-subtitle">(Node.js / package.json)</span>
+                        </button>
+                        <button class="btn discord-btn-pip" data-rn-onclick="priv_0170" data-rn-onmouseover="priv_0171" data-rn-onmouseout="priv_0172">
+                            <i class="fa-brands fa-python"></i> <strong>Instalar con PIP</strong> <span class="discord-btn-subtitle">(Python / requirements.txt)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="discord-section">
+                    <h5 class="discord-section-title-small"><i class="fa-solid fa-key discord-icon-env"></i> Archivo de Entorno</h5>
+                    <p class="muted">Edita rápidamente el archivo <code>.env</code> o <code>config.json</code> principal de tu bot.</p>
+
+                    <div class="discord-env-row">
+                        <input type="text" id="discord-env-filename" class="input" value=".env">
+                        <button class="btn" data-rn-onclick="priv_0173"><i class="fa-solid fa-folder-open"></i> Abrir</button>
+                    </div>
+
+                    <textarea id="discord-env-content" class="input" placeholder="Aquí aparecerá el contenido de tu archivo..."></textarea>
+
+                    <button class="btn btn-primary discord-save-btn" data-rn-onclick="priv_0174"><i class="fa-solid fa-save"></i> Guardar Archivo</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <link rel="stylesheet" href="discordbot.css">
+    <script>
+        (function() {
+            if (window.__discordbotScriptLoaded) return;
+            window.__discordbotScriptLoaded = true;
+            const s = document.createElement('script');
+            s.src = 'discordbot.js';
+            document.head.appendChild(s);
+        })();
+    </script>
+</template>

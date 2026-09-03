@@ -1,0 +1,67 @@
+<template class="game-module-rcon">
+    <!-- Panel WordPress -->
+    <div id="rcon-panel-wordpress" class="game-panel-header">
+        <div class="wordpress-header-inner">
+            <div class="wordpress-icon-box">
+                <i class="fa-brands fa-wordpress"></i>
+            </div>
+            <div class="wordpress-header-text">
+                <h2>Panel WordPress</h2>
+                <p>Gestiona tu CMS y accede a tu panel de administración.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="wordpress-content-grid">
+
+        <div class="wordpress-config-card">
+            <div class="wordpress-card-header">
+                <i class="fa-solid fa-globe wordpress-icon-globe"></i>
+                <div>
+                    <h4>Acceso a la Web</h4>
+                    <span>Tu sitio de WordPress está corriendo en el puerto HTTP dinámico de Docker.</span>
+                </div>
+            </div>
+            <div class="wordpress-card-body">
+                <p>Tu sitio de WordPress está corriendo en el puerto HTTP dinámico de Docker.</p>
+                <div id="wp-url-display" class="wordpress-url-display">
+                    Cargando IP...
+                </div>
+                <div class="wordpress-button-row">
+                    <button class="btn btn-primary wordpress-btn-visit" data-rn-onclick="priv_0216"><i class="fa-solid fa-external-link-alt"></i> Visitar Sitio</button>
+                    <button class="btn wordpress-btn-admin" data-rn-onclick="priv_0217"><i class="fa-brands fa-wordpress"></i> Panel wp-admin</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="wordpress-config-card">
+            <div class="wordpress-card-header">
+                <i class="fa-solid fa-database wordpress-icon-db"></i>
+                <div>
+                    <h4>Base de Datos (MySQL)</h4>
+                    <span>Tu WordPress cuenta con una base de datos MySQL enlazada localmente.</span>
+                </div>
+            </div>
+            <div class="wordpress-card-body">
+                <p>Tu WordPress cuenta con una base de datos MySQL enlazada localmente.</p>
+                
+                <label class="form-label">Base de Datos WP</label>
+                <input type="text" class="form-input" id="wp-db-name" readonly>
+                
+                <label class="form-label">Usuario WP</label>
+                <input type="text" class="form-input" id="wp-db-user" readonly>
+            </div>
+        </div>
+
+    </div>
+    <link rel="stylesheet" href="wordpress.css">
+    <script>
+        (function() {
+            if (window.__wordpressScriptLoaded) return;
+            window.__wordpressScriptLoaded = true;
+            const s = document.createElement('script');
+            s.src = 'wordpress.js';
+            document.head.appendChild(s);
+        })();
+    </script>
+</template>

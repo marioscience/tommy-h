@@ -1,0 +1,119 @@
+<template class="game-module-rcon">
+    <div id="rcon-panel-fivem" class="hidden">
+        <div class="fivem-panel-card">
+            <div class="fivem-glow-orb"></div>
+            <div class="fivem-icon-circle">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <h3>Administración Avanzada</h3>
+            <p>La gestión de jugadores, comandos y reportes para servidores de <strong>FiveM</strong> se administra de forma nativa a través del panel premium de <strong>txAdmin</strong>.</p>
+            <button class="btn fivem-btn-txadmin" data-rn-onclick="priv_0175" data-rn-onmouseover="priv_0176" data-rn-onmouseout="priv_0177">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir txAdmin
+            </button>
+
+            <div class="fivem-resource-section">
+                <h4 class="fivem-resource-title"><i class="fa-solid fa-boxes-stacked"></i> Control de Recursos en Vivo</h4>
+                <p class="muted">Inicia, detiene o reinicia recursos sin necesidad de abrir la consola ni txAdmin. <strong class="fivem-warning-text">(El servidor debe estar encendido)</strong></p>
+
+                <div class="fivem-resource-row">
+                    <input type="text" id="fivem-resource-name" class="input" placeholder="Ej. qb-core">
+                    <button class="btn btn-success" data-rn-onclick="priv_0178"><i class="fa-solid fa-play"></i> Start</button>
+                    <button class="btn btn-danger" data-rn-onclick="priv_0179"><i class="fa-solid fa-stop"></i> Stop</button>
+                    <button class="btn btn-warning" data-rn-onclick="priv_0180"><i class="fa-solid fa-rotate-right"></i> Restart</button>
+                    <button class="btn btn-info" data-rn-onclick="priv_0181"><i class="fa-solid fa-check-double"></i> Ensure</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <link rel="stylesheet" href="fivem.css">
+    <script>
+        (function() {
+            if (window.__fivemScriptLoaded) return;
+            window.__fivemScriptLoaded = true;
+            const s = document.createElement('script');
+            s.src = 'fivem.js';
+            document.head.appendChild(s);
+        })();
+    </script>
+</template>
+
+<template class="game-module-views">
+    <div id="view-txadmin" class="hidden view-fullscreen">
+        <div class="fivem-view-container">
+            <div class="fivem-view-header">
+                <div class="fivem-view-brand">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <span>txAdmin Web</span>
+                </div>
+                <div>
+                    <button class="btn-ghost" data-rn-onclick="priv_0187" title="Pantalla Completa"><i class="fa-solid fa-expand"></i></button>
+                </div>
+            </div>
+
+            <div id="txadmin-external-container" class="fivem-external-container">
+                <div id="txadmin-auth-overlay" class="fivem-auth-overlay">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <h3>Vinculación de txAdmin</h3>
+                    <p class="muted">Completa todo el proceso oficial de FiveM en la ventana emergente. No termina al introducir el PIN.</p>
+
+                    <div class="fivem-auth-steps">
+                        <div class="fivem-auth-step"><strong class="fivem-step-number">1.</strong> Abre la ventana flotante con el botón inferior.</div>
+                        <div class="fivem-auth-step"><strong class="fivem-step-number">2.</strong> Introduce el PIN que aparece en Consola Live.</div>
+                        <div class="fivem-auth-step"><strong class="fivem-step-number">3.</strong> Inicia sesión en Cfx.re y pulsa <strong>Continue</strong> para autorizar txAdmin.</div>
+                        <div class="fivem-auth-step"><strong class="fivem-step-number">4.</strong> Si FiveM la solicita, introduce tu contraseña de respaldo.</div>
+                        <div class="fivem-auth-step"><strong class="fivem-step-number">5.</strong> Espera hasta regresar a txAdmin; después cierra el popup y confirma aquí.</div>
+                    </div>
+
+                    <div class="fivem-auth-actions">
+                        <button class="btn-success" data-rn-onclick="priv_0175"><i class="fa-solid fa-key"></i> Vincular PIN (Popup)</button>
+                        <button class="btn-ghost" data-rn-onclick="priv_0188"><i class="fa-solid fa-check"></i> Completé toda la autorización</button>
+                    </div>
+                </div>
+
+                <div class="fivem-offline-content">
+                    <div id="txadmin-offline-notice" class="fivem-offline-notice">
+                        <i class="fa-solid fa-power-off"></i> El servidor figura apagado. Las credenciales siguen disponibles; inicia el servidor para abrir txAdmin.
+                    </div>
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    <h3>txAdmin se abre en una pestaña independiente</h3>
+                    <p class="muted">Así el inicio de sesión de Cfx.re, el PIN y la contraseña de respaldo funcionan sin restricciones de iframe.</p>
+                    <button class="btn-success" data-rn-onclick="priv_0175"><i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir txAdmin</button>
+
+                    <div class="fivem-credentials-box">
+                        <div class="fivem-credentials-title">Credenciales MariaDB para configurar txAdmin</div>
+                        <div class="fivem-credentials-row">
+                      <div class="mono"><span class="fivem-cred-label">Host: </span><strong class="fivem-cred-value">host.docker.internal</strong><i class="fa-regular fa-copy fivem-copy-icon" title="Copiar Host" data-rn-onclick="priv_0182"></i></div>
+                      <div class="mono"><span class="fivem-cred-label">BD: </span><strong class="fivem-cred-value" id="tx-top-db">...</strong><i class="fa-regular fa-copy fivem-copy-icon" title="Copiar BD" data-rn-onclick="priv_0183"></i></div>
+                      <div class="mono"><span class="fivem-cred-label">Usuario: </span><strong class="fivem-cred-value" id="tx-top-user">...</strong><i class="fa-regular fa-copy fivem-copy-icon" title="Copiar usuario" data-rn-onclick="priv_0184"></i></div>
+                      <div class="mono"><span class="fivem-cred-label">Contraseña: </span><strong class="fivem-cred-value fivem-pass-text" id="tx-top-pass">...</strong><i class="fa-regular fa-copy fivem-copy-icon" title="Copiar contraseña" data-rn-onclick="priv_0185"></i></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template class="game-module-views">
+    <div id="view-blender" class="hidden view-fullscreen">
+        <div class="fivem-blender-container">
+            <div class="fivem-blender-header">
+                <div class="fivem-blender-brand">
+                    <i class="fa-solid fa-cube"></i>
+                    <span>Editor 3D</span>
+                </div>
+                <div class="fivem-blender-actions">
+                    <div class="mono"><span class="fivem-cred-label">User: </span><strong class="fivem-cred-value" id="blender-tab-user">admin</strong></div>
+                    <div class="mono"><span class="fivem-cred-label">Pass: </span><strong class="fivem-cred-value fivem-pass-text" id="blender-tab-pass">...</strong><i class="fa-regular fa-copy fivem-copy-icon fivem-copy-white" data-rn-onclick="priv_0189"></i></div>
+                    <div class="fivem-blender-buttons">
+                        <button class="btn-ghost" data-rn-onclick="priv_0190"><i class="fa-solid fa-expand"></i> Pantalla Completa</button>
+                        <button class="btn-danger" data-rn-onclick="priv_0191"><i class="fa-solid fa-power-off"></i> Cerrar Entorno</button>
+                    </div>
+                </div>
+            </div>
+            <div id="blender-iframe-container" class="fivem-blender-iframe-wrap">
+                <iframe id="blender-iframe" src="about:blank" class="fivem-blender-iframe"></iframe>
+            </div>
+        </div>
+    </div>
+</template>

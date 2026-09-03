@@ -1,0 +1,33 @@
+<template class="game-module-rcon">
+    <div id="rcon-panel-cs2" class="hidden">
+        <h4 class="cs2-title"><i class="fa-solid fa-gamepad"></i> Live Matchpad</h4>
+        <div class="cs2-controls-grid">
+            <button class="btn cs2-btn-pause" data-rn-onclick="priv_0162">
+                <i class="fa-solid fa-pause"></i> Pausar
+            </button>
+            <button class="btn cs2-btn-play" data-rn-onclick="priv_0163">
+                <i class="fa-solid fa-play"></i> Reanudar
+            </button>
+            <button class="btn cs2-btn-restart" data-rn-onclick="priv_0164">
+                <i class="fa-solid fa-rotate-left"></i> Reiniciar Partido
+            </button>
+        </div>
+        <h5 class="cs2-subtitle">Cambiar Mapa</h5>
+        <div class="cs2-map-row">
+            <input type="text" id="cs2-map-input" class="input" placeholder="de_dust2, de_mirage...">
+            <button class="btn cs2-btn-change" data-rn-onclick="priv_0165">
+                <i class="fa-solid fa-map"></i> Cambiar
+            </button>
+        </div>
+    </div>
+    <link rel="stylesheet" href="cs2.css">
+    <script>
+        (function() {
+            if (window.__cs2ScriptLoaded) return;
+            window.__cs2ScriptLoaded = true;
+            const s = document.createElement('script');
+            s.src = 'cs2.js';
+            document.head.appendChild(s);
+        })();
+    </script>
+</template>

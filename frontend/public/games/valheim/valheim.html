@@ -1,0 +1,37 @@
+<template class="game-module-rcon">
+    <div id="rcon-panel-valheim" class="hidden">
+        <div class="valheim-panel-card">
+            <div class="valheim-section-header">
+                <div class="valheim-icon-box valheim-icon-lists">
+                    <i class="fa-solid fa-list-check"></i>
+                </div>
+                <div class="valheim-section-title">
+                    <h4>Listas de Acceso</h4>
+                    <span>Gestión de baneos y whitelist</span>
+                </div>
+            </div>
+            <div class="valheim-controls-row">
+                <select id="valheim-list-type" class="input">
+                    <option value="permittedlist">Whitelist (Permitted)</option>
+                    <option value="bannedlist">Baneados (Banned)</option>
+                    <option value="adminlist">Administradores</option>
+                </select>
+                <input type="text" id="valheim-list-input" class="input" placeholder="SteamID...">
+                <button class="btn valheim-btn-add" data-rn-onclick="priv_0215">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
+            </div>
+            <div id="valheim-lists-box" class="valheim-lists-box"></div>
+        </div>
+    </div>
+    <link rel="stylesheet" href="valheim.css">
+    <script>
+        (function() {
+            if (window.__valheimScriptLoaded) return;
+            window.__valheimScriptLoaded = true;
+            const s = document.createElement('script');
+            s.src = 'valheim.js';
+            document.head.appendChild(s);
+        })();
+    </script>
+</template>

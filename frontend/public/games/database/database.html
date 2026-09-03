@@ -1,0 +1,62 @@
+<template class="game-module-rcon">
+    <div id="rcon-panel-database" class="hidden">
+        <div class="db-panel-header">
+            <div class="db-header-inner">
+                <div class="db-icon-box">
+                    <i class="fa-solid fa-database"></i>
+                </div>
+                <div class="db-header-text">
+                    <h2>Base de Datos MySQL</h2>
+                    <p>Credenciales y conexión a tu servidor MariaDB dedicado.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="db-content-grid">
+            <div class="db-config-card">
+                <div class="db-card-header">
+                    <i class="fa-solid fa-link"></i> Datos de Conexión
+                </div>
+                <div class="db-card-body">
+                    <p>Usa estos datos para conectarte desde Navicat, DBeaver o tu propia aplicación externa.</p>
+
+                    <label class="form-label">Host / IP</label>
+                    <input type="text" class="form-input" id="db-host" readonly>
+
+                    <label class="form-label">Puerto</label>
+                    <input type="text" class="form-input" id="db-port" readonly>
+                </div>
+            </div>
+
+            <div class="db-config-card">
+                <div class="db-card-header">
+                    <i class="fa-solid fa-key"></i> Credenciales Privadas
+                </div>
+                <div class="db-card-body">
+                    <label class="form-label">Base de Datos</label>
+                    <input type="text" class="form-input" id="db-name" readonly>
+
+                    <label class="form-label">Usuario</label>
+                    <input type="text" class="form-input" id="db-user" readonly>
+
+                    <label class="form-label">Contraseña</label>
+                    <div class="db-password-row">
+                        <input type="password" class="form-input" id="db-pass" readonly>
+                        <button class="btn" data-rn-onclick="priv_0166"><i class="fa-solid fa-eye"></i></button>
+                    </div>
+                    <p class="muted"><i class="fa-solid fa-triangle-exclamation"></i> Otorga estos datos únicamente a personas de confianza.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <link rel="stylesheet" href="database.css">
+    <script>
+        (function() {
+            if (window.__databaseScriptLoaded) return;
+            window.__databaseScriptLoaded = true;
+            const s = document.createElement('script');
+            s.src = 'database.js';
+            document.head.appendChild(s);
+        })();
+    </script>
+</template>

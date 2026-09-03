@@ -1,0 +1,107 @@
+<template class="game-module-rcon">
+    <div id="rcon-panel-rust" class="hidden">
+        <div class="rust-panel-card">
+            <div class="rust-content-grid">
+                <div class="rust-section">
+                    <div class="rust-section-header">
+                        <div class="rust-icon-box rust-icon-wipe">
+                            <i class="fa-solid fa-bomb"></i>
+                        </div>
+                        <div class="rust-section-title">
+                            <h4>Wipe Central</h4>
+                            <span>Borrado de progresos (Requiere servidor apagado)</span>
+                        </div>
+                    </div>
+                    <div class="rust-button-group">
+                        <button class="btn rust-btn-wipe-map" data-rn-onclick="priv_0201" data-rn-onmouseover="priv_0202" data-rn-onmouseout="priv_0203">
+                            <i class="fa-solid fa-map"></i> <strong>Wipe de Mapa</strong> <span>(Borra construcciones)</span>
+                        </button>
+                        <button class="btn rust-btn-wipe-blueprints" data-rn-onclick="priv_0204" data-rn-onmouseover="priv_0205" data-rn-onmouseout="priv_0206">
+                            <i class="fa-solid fa-scroll"></i> <strong>Wipe de Blueprints</strong> <span>(Borra aprendizaje)</span>
+                        </button>
+                        <button class="btn rust-btn-wipe-full" data-rn-onclick="priv_0207" data-rn-onmouseover="priv_0208" data-rn-onmouseout="priv_0209">
+                            <i class="fa-solid fa-skull"></i> <strong>Full Wipe</strong> <span>(Borra mapa y BPs)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="rust-section">
+                    <div class="rust-section-header">
+                        <div class="rust-icon-box rust-icon-identity">
+                            <i class="fa-solid fa-id-card"></i>
+                        </div>
+                        <div class="rust-section-title">
+                            <h4>Identidad del Servidor</h4>
+                            <span>Variables de server.cfg</span>
+                        </div>
+                        <button class="btn btn-primary" data-rn-onclick="priv_0210"><i class="fa-solid fa-save"></i> Guardar</button>
+                    </div>
+
+                    <div class="rust-form-group">
+                        <div class="rust-form-field">
+                            <label class="form-label">Hostname (Nombre)</label>
+                            <input type="text" id="rust-hostname" class="input">
+                        </div>
+                        <div class="rust-input-row">
+                            <div class="rust-form-field">
+                                <label class="form-label">Seed (Semilla)</label>
+                                <input type="number" id="rust-seed" class="input" placeholder="Ej. 1337">
+                            </div>
+                            <div class="rust-form-field">
+                                <label class="form-label">Map Size (Tamaño)</label>
+                                <input type="number" id="rust-mapsize" class="input" placeholder="Ej. 3500">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="rust-killfeed-section">
+                <div class="rust-section-header">
+                    <div class="rust-icon-box rust-icon-killfeed">
+                        <i class="fa-solid fa-skull-crossbones"></i>
+                    </div>
+                    <div class="rust-section-title">
+                        <h4>Kill Feed en Vivo</h4>
+                        <span>Registro de muertes recientes (Requiere Rust activo)</span>
+                    </div>
+                </div>
+                <div id="rust-killfeed-list" class="rust-killfeed-list"></div>
+            </div>
+
+        </div>
+
+        <div class="rust-plugin-card">
+            <div class="rust-section-header">
+                <div class="rust-icon-box rust-icon-plugins">
+                    <i class="fa-solid fa-puzzle-piece"></i>
+                </div>
+                <div class="rust-section-title">
+                    <h4>Gestor de Plugins (uMod)</h4>
+                    <span>Busca e instala plugins en un clic</span>
+                </div>
+            </div>
+            
+            <div class="rust-search-group">
+                <input type="text" id="rust-plugin-search" class="input" placeholder="Ej: Gather Manager, Kits, NTeleportation...">
+                <button class="btn btn-primary" data-rn-onclick="priv_0211"><i class="fa-solid fa-search"></i> Buscar</button>
+            </div>
+            
+            <div id="rust-plugins-results" class="rust-plugin-results">
+                <div class="rust-placeholder-text">Busca un plugin para comenzar...</div>
+            </div>
+        </div>
+
+    </div>
+    <link rel="stylesheet" href="rust.css">
+    <script>
+        (function() {
+            if (window.__rustScriptLoaded) return;
+            window.__rustScriptLoaded = true;
+            const s = document.createElement('script');
+            s.src = 'rust.js';
+            document.head.appendChild(s);
+        })();
+    </script>
+</template>

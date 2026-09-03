@@ -1,0 +1,94 @@
+#rcon-panel-sdtd .sdtd-panel-card {
+    background: rgba(15, 15, 18, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 30px;
+    margin-top: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+#rcon-panel-sdtd .sdtd-section-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 25px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 15px;
+}
+
+#rcon-panel-sdtd .sdtd-icon-box {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 45px;
+    height: 45px;
+    border-radius: 12px;
+    border: 1px solid;
+}
+
+#rcon-panel-sdtd .sdtd-icon-box i {
+    font-size: 1.2rem;
+}
+
+#rcon-panel-sdtd .sdtd-section-title h4 {
+    margin: 0;
+    color: white;
+    font-weight: 800;
+    font-size: 1.2rem;
+}
+
+#rcon-panel-sdtd .sdtd-section-title span {
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+#rcon-panel-sdtd .sdtd-alert-box {
+    padding: 20px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 12px;
+    text-align: center;
+}
+
+#rcon-panel-sdtd .sdtd-alert-icon {
+    font-size: 2.5rem;
+    color: #ef4444;
+    margin-bottom: 15px;
+    filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.5));
+}
+
+#rcon-panel-sdtd .sdtd-alert-text {
+    font-weight: bold;
+    color: #fca5a5;
+    font-size: 1.2rem;
+    margin-bottom: 5px;
+}
+
+#rcon-panel-sdtd .sdtd-alert-text span {
+    color: white;
+    font-size: 1.4rem;
+}
+
+#rcon-panel-sdtd .sdtd-btn-announce {
+    background: #ef4444;
+    color: #fff;
+    width: 100%;
+    border: none;
+    padding: 12px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+#rcon-panel-sdtd .sdtd-btn-announce i {
+    margin-right: 8px;
+}
+
+#rcon-panel-sdtd .sdtd-icon-luna {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}

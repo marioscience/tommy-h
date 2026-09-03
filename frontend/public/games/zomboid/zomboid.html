@@ -1,0 +1,70 @@
+<template class="game-module-rcon">
+    <div id="rcon-panel-zomboid" class="hidden">
+        <div>
+            <div>
+                <div>
+                    <i class="fa-solid fa-biohazard"></i>
+                </div>
+                <div>
+                    <h4>Gestor de Mods & Config</h4>
+                    <span>Instalador de Steam Workshop y Variables del Mundo</span>
+                </div>
+                <div>
+                    <button class="btn" data-rn-onclick="priv_0218"><i class="fa-solid fa-save"></i> Guardar</button>
+                </div>
+            </div>
+
+            <div>
+                <div>
+                    <h5><i class="fa-brands fa-steam"></i> Steam Workshop</h5>
+
+                    <label for="zomboid-workshop">Workshop IDs (Separados por punto y coma `;`)</label>
+                    <textarea id="zomboid-workshop" class="input" placeholder="Ej. 2818323120;2925344840" autocomplete="off"></textarea>
+
+                    <label for="zomboid-mods">Mod IDs (Separados por punto y coma `;`)</label>
+                    <textarea id="zomboid-mods" class="input" placeholder="Ej. mod_name1;mod_name2" autocomplete="off"></textarea>
+
+                    <p class="muted"><i class="fa-solid fa-circle-info"></i> Ambos campos son requeridos por Project Zomboid para descargar y cargar los mods correctamente.</p>
+                </div>
+
+                <div>
+                    <h5><i class="fa-solid fa-sliders"></i> Server Settings</h5>
+
+                    <div class="settings-column">
+                        <div>
+                            <label for="zomboid-name">Public Name</label>
+                            <input type="text" id="zomboid-name" class="input" autocomplete="off">
+                        </div>
+                        <div>
+                            <label for="zomboid-password">Password (Contraseña para entrar)</label>
+                            <input type="password" id="zomboid-password" class="input" autocomplete="current-password">
+                        </div>
+                        <div class="settings-row">
+                            <div class="settings-field">
+                                <label for="zomboid-maxplayers">Max Players</label>
+                                <input type="number" id="zomboid-maxplayers" class="input">
+                            </div>
+                            <div class="settings-field">
+                                <label for="zomboid-pvp">PVP</label>
+                                <select id="zomboid-pvp" class="input">
+                                    <option value="true">Activado</option>
+                                    <option value="false">Desactivado</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <link rel="stylesheet" href="zomboid/zomboid.css">
+    <script>
+        (function() {
+            if (window.__zomboidScriptLoaded) return;
+            window.__zomboidScriptLoaded = true;
+            const s = document.createElement('script');
+            s.src = 'zomboid/zomboid.js';
+            document.head.appendChild(s);
+        })();
+    </script>
+</template>

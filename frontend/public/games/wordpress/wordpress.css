@@ -1,0 +1,47 @@
+#rcon-panel-wordpress .wordpress-url-display {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 10px;
+    border-radius: 6px;
+    font-family: monospace;
+    color: #10b981;
+    margin-bottom: 15px;
+}
+
+#rcon-panel-wordpress .wordpress-button-row {
+    display: flex;
+    gap: 10px;
+}
+
+#rcon-panel-wordpress .wordpress-card-body .form-label {
+    color: white;
+    margin-bottom: 5px;
+    display: block;
+    font-size: 0.85rem;
+}
+
+#rcon-panel-wordpress .wordpress-card-body .form-input {
+    margin-bottom: 10px;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#rcon-panel-wordpress .wordpress-btn-visit {
+    flex: 1;
+}
+
+#rcon-panel-wordpress .wordpress-btn-admin {
+    flex: 1;
+    background: rgba(33, 117, 155, 0.2);
+    color: #21759b;
+}
+
+#rcon-panel-wordpress .wordpress-icon-globe {
+    color: #10b981;
+    font-size: 1.2rem;
+}
+
+#rcon-panel-wordpress .wordpress-icon-db {
+    color: #f29111;
+    font-size: 1.2rem;
+}

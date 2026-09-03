@@ -1,0 +1,388 @@
+#rcon-panel-fivem .fivem-panel-card {
+    background: rgba(15, 15, 18, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 40px 30px;
+    text-align: center;
+    margin-top: 20px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+#rcon-panel-fivem .fivem-glow-orb {
+    position: absolute;
+    top: -50px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    height: 100px;
+    background: var(--primary);
+    filter: blur(80px);
+    opacity: 0.15;
+    border-radius: 50%;
+}
+
+#rcon-panel-fivem .fivem-icon-circle {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    margin-bottom: 20px;
+    box-shadow: 0 0 30px rgba(99, 102, 241, 0.2);
+}
+
+#rcon-panel-fivem .fivem-icon-circle i {
+    font-size: 32px;
+    color: var(--primary);
+    text-shadow: 0 0 15px var(--primary);
+}
+
+#rcon-panel-fivem h3 {
+    color: white;
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin-bottom: 15px;
+    letter-spacing: -0.5px;
+}
+
+#rcon-panel-fivem p {
+    color: #94a3b8;
+    font-size: 1.05rem;
+    max-width: 500px;
+    margin: 0 auto 30px;
+    line-height: 1.6;
+}
+
+#rcon-panel-fivem .fivem-btn-txadmin {
+    background: var(--primary);
+    color: white;
+    border: none;
+    font-size: 1.05rem;
+    font-weight: 600;
+    padding: 12px 30px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+}
+
+#rcon-panel-fivem .fivem-resource-section {
+    margin-top: 40px;
+    padding-top: 30px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    text-align: left;
+}
+
+#rcon-panel-fivem .fivem-resource-title {
+    color: white;
+    font-size: 1.1rem;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#rcon-panel-fivem .fivem-resource-title .fa-boxes-stacked {
+    color: #6366f1;
+    margin-right: 8px;
+}
+
+#rcon-panel-fivem .fivem-warning-text {
+    color: #fbbf24;
+}
+
+#rcon-panel-fivem .fivem-resource-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+#rcon-panel-fivem .fivem-resource-row .input {
+    background: rgba(0, 0, 0, 0.4);
+    flex-grow: 1;
+    min-width: 200px;
+}
+
+#rcon-panel-fivem .fivem-resource-row .btn {
+    padding: 10px 20px;
+}
+
+#view-txadmin .fivem-step-number {
+    color: var(--info);
+}
+
+#view-txadmin .fivem-offline-notice i {
+    margin-right: 8px;
+}
+
+#view-txadmin .fivem-cred-label {
+    color: var(--muted);
+}
+
+#view-txadmin .fivem-cred-value {
+    color: white;
+}
+
+#view-txadmin .fivem-pass-text {
+    color: var(--warning);
+}
+
+#view-txadmin .fivem-copy-icon {
+    cursor: pointer;
+    color: var(--primary);
+    margin-left: 4px;
+}
+
+#view-txadmin .fivem-copy-white {
+    color: white;
+}
+
+#view-txadmin.fivem-view-container {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: 100%;
+    min-height: 560px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #121214;
+    border: 1px solid var(--line);
+}
+
+#view-txadmin .fivem-view-header {
+    background: #1a1a1e;
+    padding: 12px 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+    gap: 10px;
+    z-index: 20;
+}
+
+#view-txadmin .fivem-view-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#view-txadmin .fivem-view-brand i {
+    color: var(--primary);
+    font-size: 1.2rem;
+}
+
+#view-txadmin .fivem-view-brand span {
+    font-weight: 600;
+    color: white;
+    font-size: 1.05rem;
+}
+
+#view-txadmin .fivem-external-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+#view-txadmin .fivem-auth-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #121214;
+    z-index: 15;
+}
+
+#view-txadmin .fivem-auth-overlay i {
+    font-size: 3.5rem;
+    color: var(--primary);
+    margin-bottom: 20px;
+    opacity: 0.8;
+}
+
+#view-txadmin .fivem-auth-overlay h3 {
+    color: white;
+    font-size: 1.4rem;
+    margin-bottom: 10px;
+}
+
+#view-txadmin .fivem-auth-overlay .muted {
+    max-width: 520px;
+    text-align: center;
+    margin-bottom: 25px;
+    line-height: 1.5;
+}
+
+#view-txadmin .fivem-auth-steps {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 20px 25px;
+    border-radius: 8px;
+    margin-bottom: 25px;
+    text-align: left;
+    width: 100%;
+    max-width: 420px;
+}
+
+#view-txadmin .fivem-auth-step {
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+    color: #e2e8f0;
+}
+
+#view-txadmin .fivem-auth-actions {
+    display: flex;
+    gap: 15px;
+}
+
+#view-txadmin .fivem-offline-content {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: clamp(32px, 6vh, 72px) 32px;
+    text-align: center;
+    background: #121214;
+}
+
+#view-txadmin .fivem-offline-notice {
+    display: none;
+    width: min(100%, 980px);
+    padding: 12px 16px;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    border-radius: 10px;
+    background: rgba(239, 68, 68, 0.08);
+    color: #fecaca;
+}
+
+#view-txadmin .fivem-offline-content i {
+    font-size: 3rem;
+    color: var(--primary);
+}
+
+#view-txadmin .fivem-offline-content h3 {
+    color: white;
+    font-size: 1.4rem;
+}
+
+#view-txadmin .fivem-offline-content .muted {
+    max-width: 560px;
+    line-height: 1.6;
+}
+
+#view-txadmin .fivem-offline-content .btn-success {
+    padding: 12px 22px;
+}
+
+#view-txadmin .fivem-credentials-box {
+    width: min(100%, 980px);
+    margin-top: 18px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+}
+
+#view-txadmin .fivem-credentials-title {
+    color: white;
+    font-weight: 700;
+    margin-bottom: 16px;
+}
+
+#view-txadmin .fivem-credentials-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 14px 28px;
+}
+
+#view-blender.fivem-blender-container {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    height: 100%;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #000;
+    border: 1px solid var(--line);
+}
+
+#view-blender .fivem-blender-header {
+    background: #1a1a1e;
+    padding: 12px 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+#view-blender .fivem-blender-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#view-blender .fivem-blender-brand i {
+    color: var(--success);
+    font-size: 1.2rem;
+}
+
+#view-blender .fivem-blender-brand span {
+    font-weight: 600;
+    color: white;
+    font-size: 1.05rem;
+}
+
+#view-blender .fivem-blender-actions {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+#view-blender .fivem-blender-buttons {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+#view-blender .fivem-blender-iframe-wrap {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+#view-blender .fivem-blender-iframe {
+    width: 100%;
+    height: 100%;
+    flex-grow: 1;
+    border: none;
+    display: none;
+}

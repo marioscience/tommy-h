@@ -1,0 +1,135 @@
+#rcon-panel-zomboid > div {
+    background: rgba(15, 15, 18, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 30px;
+    margin-top: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+#rcon-panel-zomboid > div > div:first-child {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 25px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 15px;
+}
+
+#rcon-panel-zomboid > div > div:first-child > div:first-child {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 45px;
+    height: 45px;
+    border-radius: 12px;
+    background: rgba(168, 85, 247, 0.1);
+    border: 1px solid rgba(168, 85, 247, 0.2);
+}
+
+#rcon-panel-zomboid > div > div:first-child > div:first-child i {
+    font-size: 1.2rem;
+    color: #a855f7;
+}
+
+#rcon-panel-zomboid > div > div:first-child > div:nth-child(2) {
+    flex-grow: 1;
+}
+
+#rcon-panel-zomboid > div > div:first-child > div:nth-child(2) h4 {
+    margin: 0;
+    color: white;
+    font-weight: 800;
+    font-size: 1.2rem;
+}
+
+#rcon-panel-zomboid > div > div:first-child > div:nth-child(2) span {
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+#rcon-panel-zomboid > div > div:first-child > div:last-child {
+    display: flex;
+    justify-content: flex-end;
+}
+
+#rcon-panel-zomboid > div > div:first-child button {
+    padding: 8px 16px;
+    font-size: 0.85rem;
+}
+
+#rcon-panel-zomboid > div > div:last-child {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 30px;
+}
+
+#rcon-panel-zomboid h5 {
+    color: white;
+    margin-bottom: 15px;
+    font-size: 1.05rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#rcon-panel-zomboid label {
+    color: white;
+    margin-bottom: 5px;
+    display: block;
+    font-size: 0.85rem;
+}
+
+#rcon-panel-zomboid textarea,
+#rcon-panel-zomboid input[type="text"],
+#rcon-panel-zomboid input[type="password"] {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.4);
+}
+
+#rcon-panel-zomboid textarea {
+    min-height: 80px;
+    margin-bottom: 15px;
+}
+
+#rcon-panel-zomboid p {
+    font-size: 0.75rem;
+    margin-top: 10px;
+}
+
+#rcon-panel-zomboid p i {
+    margin-right: 4px;
+}
+
+#rcon-panel-zomboid .settings-column {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#rcon-panel-zomboid .settings-row {
+    display: flex;
+    gap: 15px;
+}
+
+#rcon-panel-zomboid .settings-field {
+    flex: 1;
+}
+
+#rcon-panel-zomboid .settings-field input,
+#rcon-panel-zomboid .settings-field select {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.4);
+}
+
+#rcon-panel-zomboid input[type="number"] {
+    -moz-appearance: textfield;
+}
+
+#rcon-panel-zomboid input[type="number"]::-webkit-outer-spin-button,
+#rcon-panel-zomboid input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}

@@ -1,0 +1,57 @@
+#rcon-panel-cs2 .cs2-title {
+    margin-bottom: 15px;
+    color: #3b82f6;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#rcon-panel-cs2 .cs2-controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+#rcon-panel-cs2 .cs2-btn-pause {
+    background: rgba(59, 130, 246, 0.2);
+    border: 1px solid #3b82f6;
+    color: #fff;
+}
+
+#rcon-panel-cs2 .cs2-btn-play {
+    background: rgba(59, 130, 246, 0.2);
+    border: 1px solid #3b82f6;
+    color: #fff;
+}
+
+#rcon-panel-cs2 .cs2-btn-restart {
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid #ef4444;
+    color: #fff;
+    grid-column: span 2;
+}
+
+#rcon-panel-cs2 .cs2-subtitle {
+    margin-bottom: 8px;
+    color: #93c5fd;
+    font-size: 0.85rem;
+}
+
+#rcon-panel-cs2 .cs2-map-row {
+    display: flex;
+    gap: 10px;
+}
+
+#rcon-panel-cs2 .cs2-map-row .input {
+    margin: 0;
+    padding: 8px;
+    flex-grow: 1;
+}
+
+#rcon-panel-cs2 .cs2-btn-change {
+    background: #3b82f6;
+    color: #fff;
+    padding: 8px 15px;
+}

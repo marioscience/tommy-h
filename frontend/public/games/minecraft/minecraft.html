@@ -1,0 +1,97 @@
+<template class="game-module-rcon">
+    <div id="rcon-panel-minecraft" class="hidden">
+        <div class="mc-panel-card">
+            <div class="mc-section-header">
+                <div class="mc-icon-box">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+                <div class="mc-section-title">
+                    <h4>Administrador de Jugadores</h4>
+                    <span>Gestiona Whitelist y Operadores (OP)</span>
+                </div>
+            </div>
+
+            <div class="mc-player-row">
+                <input type="text" id="mc-player-name" class="input" placeholder="Nombre del jugador...">
+                <button class="btn mc-btn-whitelist" data-rn-onclick="priv_0192">
+                    <i class="fa-solid fa-check"></i> Whitelist
+                </button>
+                <button class="btn mc-btn-op" data-rn-onclick="priv_0193">
+                    <i class="fa-solid fa-crown"></i> Dar OP
+                </button>
+                <button class="btn mc-btn-ban" data-rn-onclick="priv_0194">
+                    <i class="fa-solid fa-gavel"></i> Banear
+                </button>
+            </div>
+
+            <div class="mc-section-header">
+                <div class="mc-icon-box mc-icon-settings">
+                    <i class="fa-solid fa-sliders"></i>
+                </div>
+                <div class="mc-section-title">
+                    <h4>Server Properties</h4>
+                    <span>Configuración visual del servidor</span>
+                </div>
+                <button class="btn btn-primary" data-rn-onclick="priv_0195"><i class="fa-solid fa-save"></i> Guardar</button>
+            </div>
+
+            <div class="mc-properties-grid">
+                <div class="mc-form-field">
+                    <label class="form-label">Online Mode (Premium)</label>
+                    <select id="mc-online-mode" class="input">
+                        <option value="true">Activado (Solo Premium)</option>
+                        <option value="false">Desactivado (No Premium)</option>
+                    </select>
+                </div>
+                <div class="mc-form-field">
+                    <label class="form-label">Dificultad</label>
+                    <select id="mc-difficulty" class="input">
+                        <option value="peaceful">Pacífico</option>
+                        <option value="easy">Fácil</option>
+                        <option value="normal">Normal</option>
+                        <option value="hard">Difícil</option>
+                    </select>
+                </div>
+                <div class="mc-form-field">
+                    <label class="form-label">Max Players</label>
+                    <input type="number" id="mc-max-players" class="input">
+                </div>
+                <div class="mc-form-field mc-full-width">
+                    <label class="form-label">Mensaje del Día (MOTD)</label>
+                    <input type="text" id="mc-motd" class="input">
+                </div>
+            </div>
+        </div>
+
+        <div class="mc-plugin-card">
+            <div class="mc-section-header">
+                <div class="mc-icon-box mc-icon-plugins">
+                    <i class="fa-solid fa-puzzle-piece"></i>
+                </div>
+                <div class="mc-section-title">
+                    <h4>Gestor de Plugins (Spiget/Spigot)</h4>
+                    <span>Busca e instala plugins `.jar` en un clic</span>
+                </div>
+            </div>
+
+            <div class="mc-search-row">
+                <input type="text" id="mc-plugin-search" class="input" placeholder="Ej: ClearLag, EssentialsX, Vault...">
+                <button class="btn btn-primary" data-rn-onclick="priv_0196"><i class="fa-solid fa-search"></i> Buscar</button>
+            </div>
+
+            <div id="mc-plugins-results" class="mc-plugin-results">
+                <div class="mc-placeholder-text">Busca un plugin para comenzar...</div>
+            </div>
+        </div>
+    </div>
+    <link rel="stylesheet" href="minecraft.css">
+    <script>
+        (function() {
+            if (window.__minecraftScriptLoaded) return;
+            window.__minecraftScriptLoaded = true;
+            const s = document.createElement('script');
+            s.src = 'minecraft.js';
+            document.head.appendChild(s);
+        })();
+    </script>
+</template>

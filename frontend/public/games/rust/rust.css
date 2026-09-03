@@ -1,0 +1,242 @@
+#rcon-panel-rust .rust-panel-card {
+    background: rgba(15, 15, 18, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 30px;
+    margin-top: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+#rcon-panel-rust .rust-content-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 30px;
+}
+
+#rcon-panel-rust .rust-section-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 25px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 15px;
+}
+
+#rcon-panel-rust .rust-icon-box {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 45px;
+    height: 45px;
+    border-radius: 12px;
+    border: 1px solid;
+}
+
+#rcon-panel-rust .rust-icon-box i {
+    font-size: 1.2rem;
+}
+
+#rcon-panel-rust .rust-section-title h4 {
+    margin: 0;
+    color: white;
+    font-weight: 800;
+    font-size: 1.2rem;
+}
+
+#rcon-panel-rust .rust-section-title span {
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+#rcon-panel-rust .rust-button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#rcon-panel-rust .rust-button-group .btn {
+    width: 100%;
+    text-align: left;
+    padding: 12px;
+    transition: all 0.3s;
+}
+
+#rcon-panel-rust .rust-button-group .btn i {
+    width: 25px;
+}
+
+#rcon-panel-rust .rust-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#rcon-panel-rust .rust-input-row {
+    display: flex;
+    gap: 10px;
+}
+
+#rcon-panel-rust .rust-form-field {
+    flex: 1;
+}
+
+#rcon-panel-rust .rust-form-field label {
+    color: white;
+    margin-bottom: 5px;
+    display: block;
+    font-size: 0.85rem;
+}
+
+#rcon-panel-rust .rust-form-field .input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#rcon-panel-rust .rust-killfeed-section {
+    margin-top: 40px;
+}
+
+#rcon-panel-rust .rust-killfeed-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+#rcon-panel-rust .rust-plugin-card {
+    background: rgba(15, 15, 18, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 30px;
+    margin-top: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+#rcon-panel-rust .rust-plugin-card .rust-section-header {
+    margin-bottom: 25px;
+}
+
+#rcon-panel-rust .rust-search-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+#rcon-panel-rust .rust-search-group .input {
+    flex-grow: 1;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#rcon-panel-rust .rust-plugin-results {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 15px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+#rcon-panel-rust .plugin-card {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#rcon-panel-rust .plugin-card-header {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+#rcon-panel-rust .plugin-card-header img {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+}
+
+#rcon-panel-rust .plugin-card-header h5 {
+    margin: 0;
+    font-size: 1rem;
+    color: white;
+}
+
+#rcon-panel-rust .plugin-card-header span {
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+#rcon-panel-rust .plugin-card-body p {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    margin: 0;
+    flex-grow: 1;
+}
+
+#rcon-panel-rust .plugin-card-body .btn {
+    width: 100%;
+}
+
+#rcon-panel-rust .rust-placeholder-text {
+    color: var(--muted);
+    padding: 20px;
+    text-align: center;
+    grid-column: 1 / -1;
+}
+
+#rcon-panel-rust .rust-btn-wipe-map {
+    background: rgba(239, 68, 68, 0.1);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+#rcon-panel-rust .rust-btn-wipe-blueprints {
+    background: rgba(249, 115, 22, 0.1);
+    color: #fdba74;
+    border: 1px solid rgba(249, 115, 22, 0.3);
+}
+
+#rcon-panel-rust .rust-btn-wipe-full {
+    background: rgba(185, 28, 28, 0.2);
+    color: #fecaca;
+    border: 1px solid rgba(185, 28, 28, 0.5);
+}
+
+#rcon-panel-rust .rust-button-group .btn span {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin-left: 5px;
+}
+
+#rcon-panel-rust .rust-icon-wipe {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+
+#rcon-panel-rust .rust-icon-identity {
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    color: #38bdf8;
+}
+
+#rcon-panel-rust .rust-icon-killfeed {
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.2);
+    color: #fbbf24;
+}
+
+#rcon-panel-rust .rust-icon-plugins {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    color: #10b981;
+}

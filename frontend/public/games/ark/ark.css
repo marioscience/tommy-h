@@ -1,0 +1,137 @@
+#rcon-panel-ark .ark-panel-card {
+    background: rgba(15, 15, 18, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 30px;
+    margin-top: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+#rcon-panel-ark .ark-section-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 25px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 15px;
+}
+
+#rcon-panel-ark .ark-icon-box {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 45px;
+    height: 45px;
+    border-radius: 12px;
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+#rcon-panel-ark .ark-icon-box i {
+    font-size: 1.2rem;
+    color: #22c55e;
+}
+
+#rcon-panel-ark .ark-section-title {
+    flex-grow: 1;
+}
+
+#rcon-panel-ark .ark-section-title h4 {
+    margin: 0;
+    color: white;
+    font-weight: 800;
+    font-size: 1.2rem;
+}
+
+#rcon-panel-ark .ark-section-title span {
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+#rcon-panel-ark .ark-section-header .btn {
+    padding: 8px 16px;
+    font-size: 0.85rem;
+}
+
+#rcon-panel-ark .ark-multipliers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 25px;
+    margin-bottom: 30px;
+}
+
+#rcon-panel-ark .ark-multiplier-card {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 15px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+#rcon-panel-ark .ark-multiplier-card label {
+    color: white;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+}
+
+#rcon-panel-ark .ark-multiplier-card input[type="range"] {
+    width: 100%;
+}
+
+#rcon-panel-ark .ark-identity-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+#rcon-panel-ark .ark-form-field label {
+    color: white;
+    margin-bottom: 5px;
+    display: block;
+    font-size: 0.85rem;
+}
+
+#rcon-panel-ark .ark-form-field .input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.4);
+}
+
+#rcon-panel-ark .ark-icon-taming {
+    color: #fbbf24;
+    margin-right: 5px;
+}
+
+#rcon-panel-ark .ark-val {
+    font-weight: bold;
+}
+
+#rcon-panel-ark .ark-val-taming {
+    color: #fbbf24;
+}
+
+#rcon-panel-ark .ark-val-harvest {
+    color: #22c55e;
+}
+
+#rcon-panel-ark .ark-val-xp {
+    color: #38bdf8;
+}
+
+#rcon-panel-ark .ark-icon-harvest {
+    color: #22c55e;
+    margin-right: 5px;
+}
+
+#rcon-panel-ark .ark-icon-xp {
+    color: #38bdf8;
+    margin-right: 5px;
+}
+
+#rcon-panel-ark .ark-form-field label {
+    color: white;
+    margin-bottom: 5px;
+    display: block;
+    font-size: 0.85rem;
+}
