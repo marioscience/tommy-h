@@ -658,6 +658,9 @@
     },
     "priv_0218": function (event) {
       saveZomboidSettings()
+    },
+    "priv_0219": function (event) {
+      handleConsoleKey(event)
     }
   });
 
