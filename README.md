@@ -152,12 +152,66 @@ cd ..
 
 ### 4. Start the Local Docker Stack
 ```bash
-# Starts the local stack. The local override is intentionally minimal today and
-# remains the extension point for developer-specific, non-production settings.
+# Build the RageNodes-only images before starting the stack. These names are
+# local build targets and are intentionally not pulled from Docker Hub.
+docker compose -f docker-compose.yml -f docker-compose.local.yml build \
+  oxide_control_panel oxide_game oxide_web
+
+# Start the complete local stack.
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
 ```
 
 The backend applies versioned migrations during startup. For an explicit manual run, wait until PostgreSQL is healthy and then execute `npm --prefix backend run db:migrate` with the configured environment.
+
+#### Linux and WSL troubleshooting: `pull access denied`
+
+`ragenodes/oxide-control-panel:1.0.0-local` and `ragenodes/oxideproxy:1.0.0-local` are local image names declared with `build:` in `docker-compose.yml`; they are not public Docker Hub repositories. Do not run `docker compose pull` or `docker compose up --pull always` for the local stack. If Docker reports `pull access denied`, run the explicit `build` command above and then start the stack again.
+
+On WSL 2, Docker Desktop must be running and **Settings → Resources → WSL Integration** must be enabled for the developer's distribution. On native Linux, the Docker daemon must be running and the user must have permission to access it. Verify the environment before starting:
+
+```bash
+docker version
+docker compose version
+docker compose -f docker-compose.yml -f docker-compose.local.yml config --quiet
+docker image inspect ragenodes/oxide-control-panel:1.0.0-local >/dev/null
+docker image inspect ragenodes/oxideproxy:1.0.0-local >/dev/null
+```
+
+If a private, prebuilt GitLab image is intentionally required instead, use the registry-specific Compose overlay and authenticate with GitLab's registry. That is a separate deployment workflow; `docker login` is not required for the normal source-based local workflow.
+
+#### Start only the component being developed
+
+The same commands work on native Linux, WSL 2 and inside the Development Container. Compose starts the declared dependencies of the selected service, but it does not start unrelated workers, the bot or game services.
+
+```bash
+# Backend API plus PostgreSQL and MariaDB
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build backend
+
+# Web dashboard/proxy plus its required backend, control panel, databases and Redis
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build oxide_web
+
+# OxideProxy control panel plus the backend and databases
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build oxide_control_panel
+
+# Game traffic proxy/XDP plus the backend and its runtime initializer (Linux only)
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build oxide_game
+
+# Discord bot plus the backend and databases
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build bot
+
+# Individual background workers
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-backups
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-stats
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-docker-events
+
+# Databases/cache only, or phpMyAdmin plus MariaDB
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d postgres mariadb redis
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d phpmyadmin
+```
+
+For a service whose dependencies are already running, add `--no-deps` to rebuild/restart only that service. For example: `docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build --no-deps backend`. Do not use `--no-deps` on the first start. Frontend files under `frontend/public` are bind-mounted into `oxide_web`, so ordinary static-file edits are visible without rebuilding the image; refresh the browser. Use `docker compose -f docker-compose.yml -f docker-compose.local.yml logs -f <service>` to follow one component and `docker compose -f docker-compose.yml -f docker-compose.local.yml stop <service>` to stop only that component.
+
+Inside the Development Container, run these commands from the repository root after creating `.env` as described above. Its Docker daemon is isolated from the host. `oxide_game` requires Linux/XDP capabilities and may be used for build and integration checks inside the container, but real NIC/XDP validation must be performed on a suitable Linux host.
 
 ### 5. Local Access URLs
 * **Web Dashboard:** [http://localhost:8088](http://localhost:8088)
@@ -420,12 +474,66 @@ cd ..
 
 ### 4. Levantar el Stack Completo en Local
 ```bash
-# Levanta el stack local. El override local es intencionalmente mínimo y queda
-# como punto de extensión para ajustes del desarrollador que no van a producción.
+# Construye primero las imágenes propias de RageNodes. Estos nombres son
+# destinos locales y no deben descargarse desde Docker Hub.
+docker compose -f docker-compose.yml -f docker-compose.local.yml build \
+  oxide_control_panel oxide_game oxide_web
+
+# Levanta el stack local completo.
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
 ```
 
 El backend aplica las migraciones versionadas durante el arranque. Para ejecutarlas manualmente, espera a que PostgreSQL esté saludable y usa `npm --prefix backend run db:migrate` con el entorno configurado.
+
+#### Solución en Linux y WSL: `pull access denied`
+
+`ragenodes/oxide-control-panel:1.0.0-local` y `ragenodes/oxideproxy:1.0.0-local` son nombres de imágenes locales declaradas con `build:` en `docker-compose.yml`; no son repositorios públicos de Docker Hub. No ejecutes `docker compose pull` ni `docker compose up --pull always` para el entorno local. Si Docker muestra `pull access denied`, ejecuta primero el comando explícito de `build` anterior y vuelve a levantar el stack.
+
+En WSL 2, Docker Desktop debe estar abierto y la distribución del desarrollador debe estar habilitada en **Settings → Resources → WSL Integration**. En Linux nativo, el daemon de Docker debe estar activo y el usuario debe tener permisos para utilizarlo. Antes de iniciar, se puede validar el entorno con:
+
+```bash
+docker version
+docker compose version
+docker compose -f docker-compose.yml -f docker-compose.local.yml config --quiet
+docker image inspect ragenodes/oxide-control-panel:1.0.0-local >/dev/null
+docker image inspect ragenodes/oxideproxy:1.0.0-local >/dev/null
+```
+
+Si se quieren usar deliberadamente imágenes privadas precompiladas de GitLab, se debe utilizar el overlay de Compose específico del registro e iniciar sesión en el registro de GitLab. Ese es otro flujo de despliegue; el desarrollo local normal desde el código fuente no necesita `docker login`.
+
+#### Levantar solamente el componente en desarrollo
+
+Los mismos comandos funcionan en Linux nativo, WSL 2 y dentro del Dev Container. Compose inicia las dependencias declaradas del servicio elegido, pero no levanta workers, el bot ni servidores de juego que no sean necesarios.
+
+```bash
+# API backend con PostgreSQL y MariaDB
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build backend
+
+# Panel web/proxy con backend, panel de OxideProxy, bases de datos y Redis
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build oxide_web
+
+# Panel de control de OxideProxy con backend y bases de datos
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build oxide_control_panel
+
+# Proxy de tráfico de juegos/XDP con backend e inicializador (solo Linux)
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build oxide_game
+
+# Bot de Discord con backend y bases de datos
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build bot
+
+# Workers individuales
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-backups
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-stats
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-docker-events
+
+# Solo bases de datos/caché, o phpMyAdmin con MariaDB
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d postgres mariadb redis
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d phpmyadmin
+```
+
+Si las dependencias ya están funcionando, añade `--no-deps` para reconstruir o reiniciar únicamente el servicio modificado. Ejemplo: `docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build --no-deps backend`. No uses `--no-deps` durante el primer arranque. Los archivos de `frontend/public` se montan directamente en `oxide_web`, por lo que los cambios estáticos normales aparecen al actualizar el navegador sin reconstruir la imagen. Para seguir un componente usa `docker compose -f docker-compose.yml -f docker-compose.local.yml logs -f <servicio>` y para detener solamente uno usa `docker compose -f docker-compose.yml -f docker-compose.local.yml stop <servicio>`.
+
+Dentro del Dev Container, ejecuta estos comandos desde la raíz después de crear `.env` como se explicó anteriormente. Su daemon Docker está aislado del host. `oxide_game` necesita capacidades Linux/XDP: dentro del contenedor sirve para compilación y pruebas de integración, pero la validación real sobre una tarjeta de red debe realizarse en un host Linux compatible.
 
 ### 5. Acceso al Panel en Local
 * **Panel de Control Web:** [http://localhost:8088](http://localhost:8088)
