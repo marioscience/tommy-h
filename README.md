@@ -241,6 +241,72 @@ flowchart LR
 3. **Official Releases:**
    - This repository starts from base version **`0.0.1`**. Future releases on `main` use semantic versioning.
 
+### Mandatory feature/fix promotion procedure
+
+This procedure applies to every code, deployment, Compose, migration, proxy,
+worker or security change. A green pipeline on one branch does not authorize
+skipping the next environment.
+
+1. **Synchronize before writing code.** Fetch the remote branches, confirm the
+   working tree is clean, and create `feat/<short-name>` or `fix/<short-name>`
+   from the latest `origin/dev`. Never develop from an old local `dev`,
+   `staging` or `main` branch.
+2. **Check for concurrent work.** Before committing and again before opening
+   the merge request, fetch `origin/dev` and review its new commits. Rebase or
+   merge the updated integration branch into the work branch, resolve conflicts
+   there, and rerun the affected checks. Never overwrite another developer's
+   changes with a force push to a shared or protected branch.
+3. **Validate locally.** Run the smallest relevant tests while developing, then
+   the complete checks affected by the change. At minimum validate Compose and
+   the backend/security contracts; Rust/OxideProxy changes also require the
+   locked Cargo tests. Test migrations both on an existing database and on an
+   empty disposable database. A local pass is supporting evidence; GitLab CI is
+   still mandatory.
+4. **Commit one reviewable change.** Do not include `.env` files, credentials,
+   generated runtime routes, customer data, backups or unrelated formatting.
+   Document new environment variables in the example files and update the
+   operational documentation when behavior or deployment changes.
+5. **Merge to `dev` through an MR.** Push only the work branch, open an MR to
+   `dev`, review the complete diff, and wait until every required job is green.
+   A failed, cancelled, skipped or still-running pipeline is not a successful
+   release. Retry only after reading the failed job and correcting its cause.
+6. **Verify development after deployment.** Confirm `/healthz` and `/readyz`,
+   inspect the affected service logs, and exercise the user-visible path that
+   changed. For console, backups, txAdmin, game ingress or authentication fixes,
+   perform a real end-to-end action rather than relying only on the page loading.
+7. **Promote `dev` to `staging` through an MR.** Refresh the remote branches
+   first and verify that no unreviewed commits are being included. Promote the
+   reviewed content—never copy files manually—and wait for the staging pipeline
+   and deployment to finish. Application images must come from the reviewed
+   immutable digests in `deploy/registry-release.lock`; do not rebuild a
+   different image for staging.
+8. **Run staging acceptance checks.** Verify health/readiness, authentication,
+   customer and admin panels, commands through every affected game console,
+   OxideProxy TCP/UDP/HTTPS routing, txAdmin, database access, backup creation
+   and a disposable restore when those areas are in scope. Confirm existing
+   customer containers, volumes and environment-specific ports/configuration
+   were preserved. Record the commit, pipeline and test result in the MR.
+9. **Promote `staging` to `main` through an MR.** Only promote the content that
+   passed staging. Recheck the diff immediately before merging, require a fully
+   green pipeline, and never bypass a job merely because another environment
+   passed. Production consumes the same immutable image digests tested in
+   staging.
+10. **Verify production and close.** Confirm the production updater completed,
+    `/healthz` and `/readyz` are healthy, affected services have no new error
+    loop, public endpoints work, and one safe functional smoke test succeeds.
+    Compare the protected branches by intended content, allowing only reviewed
+    environment-specific files or release-lock differences. Delete the feature
+    and temporary promotion branches only after their commits are reachable from
+    the protected branches and rollback information has been recorded.
+
+If any stage fails, stop promotion. Keep the last healthy environment serving,
+diagnose the failing job or host, and fix the issue in a new `fix/*` branch that
+starts again at `dev`. Do not edit tracked files directly on a server, replace
+runtime configuration during deployment, use mutable image tags, or promote a
+partially deployed revision. The deployment scripts preserve customer volumes
+and runtime OxideProxy configuration; any change to that contract requires a
+reviewed migration and rollback plan.
+
 ---
 
 ## 🌐 Public Edge and Direct Game Endpoints
@@ -565,6 +631,73 @@ flowchart LR
    - Una vez aprobado y probado en `dev`, se promueve a `staging` y posteriormente a `main`.
 3. **Versionado Oficial:**
    - El repositorio parte de la versión base **`0.0.1`**. Las futuras releases de `main` seguirán versionado semántico.
+
+### Procedimiento obligatorio para promover una feature o un fix
+
+Este procedimiento se aplica a cualquier cambio de código, despliegue, Compose,
+migraciones, proxy, workers o seguridad. Que un pipeline esté verde en una rama
+no autoriza saltarse el siguiente entorno.
+
+1. **Sincronizar antes de programar.** Actualiza las referencias remotas,
+   confirma que el árbol de trabajo esté limpio y crea `feat/nombre-corto` o
+   `fix/nombre-corto` desde el último `origin/dev`. Nunca empieces desde una
+   copia local antigua de `dev`, `staging` o `main`.
+2. **Comprobar el trabajo de los demás.** Antes de confirmar cambios y de nuevo
+   antes de abrir el MR, actualiza `origin/dev` y revisa sus commits nuevos.
+   Integra esos cambios en tu rama, resuelve allí los conflictos y repite las
+   pruebas afectadas. Nunca sobrescribas cambios ajenos mediante un push forzado
+   a una rama compartida o protegida.
+3. **Validar en local.** Durante el desarrollo ejecuta las pruebas específicas y
+   antes de subir ejecuta todos los controles afectados. Como mínimo valida
+   Compose y los contratos del backend y de seguridad; un cambio en
+   Rust/OxideProxy también exige las pruebas bloqueadas por `Cargo.lock`. Prueba
+   las migraciones sobre una base existente y otra desechable vacía. Las pruebas
+   locales ayudan, pero no sustituyen el pipeline de GitLab.
+4. **Crear un commit revisable.** No incluyas `.env`, credenciales, rutas runtime
+   generadas, datos de clientes, backups ni formateos sin relación. Documenta
+   variables nuevas en los archivos de ejemplo y actualiza la documentación si
+   cambia el funcionamiento o el despliegue.
+5. **Fusionar hacia `dev` mediante MR.** Sube solamente la rama de trabajo, abre
+   un MR hacia `dev`, revisa el diff completo y espera a que todos los jobs
+   obligatorios estén verdes. Un pipeline fallado, cancelado, omitido o todavía
+   ejecutándose no es una release correcta. Reintenta únicamente después de leer
+   el job fallido y corregir su causa.
+6. **Verificar desarrollo después del despliegue.** Comprueba `/healthz` y
+   `/readyz`, revisa los logs del servicio afectado y prueba el flujo visible que
+   cambió. Para consola, backups, txAdmin, ingress de juegos o autenticación,
+   realiza una acción real de extremo a extremo; no basta con que cargue la página.
+7. **Promover `dev` a `staging` mediante MR.** Actualiza primero las ramas remotas
+   y confirma que no incluyes commits sin revisar. Promueve el contenido aprobado,
+   sin copiar archivos manualmente, y espera a que terminen el pipeline y el
+   despliegue de staging. Las imágenes deben proceder de los digests inmutables
+   revisados en `deploy/registry-release.lock`; no recompiles una imagen distinta
+   para staging.
+8. **Ejecutar aceptación en staging.** Comprueba salud, autenticación, paneles de
+   cliente y administración, comandos en las consolas de los juegos afectados,
+   ruteo TCP/UDP/HTTPS de OxideProxy, txAdmin, acceso a base de datos, creación de
+   backups y una restauración desechable cuando correspondan. Confirma que se
+   conservaron contenedores y volúmenes de clientes, puertos y configuración de
+   cada entorno. Registra en el MR el commit, pipeline y resultado de las pruebas.
+9. **Promover `staging` a `main` mediante MR.** Solo promueve el contenido que
+   superó staging. Revisa nuevamente el diff justo antes de fusionar, exige el
+   pipeline completamente verde y no omitas jobs porque otro entorno haya pasado.
+   Producción debe consumir los mismos digests inmutables probados en staging.
+10. **Verificar producción y cerrar.** Confirma que terminó el actualizador, que
+    `/healthz` y `/readyz` están sanos, que no hay nuevos bucles de error en los
+    servicios afectados, que funcionan los endpoints públicos y que pasa una
+    prueba funcional segura. Compara las ramas protegidas por contenido previsto,
+    admitiendo solo diferencias revisadas de entorno o del lock de release. Borra
+    las ramas de feature y promoción únicamente cuando sus commits sean alcanzables
+    desde las ramas protegidas y quede registrada la información de rollback.
+
+Si falla cualquier etapa, detén la promoción. Mantén sirviendo el último entorno
+sano, diagnostica el job o host y corrige el problema en una rama `fix/*` nueva
+que vuelva a comenzar por `dev`. No edites archivos rastreados directamente en
+un servidor, no reemplaces configuración runtime durante el despliegue, no uses
+etiquetas de imagen mutables ni promociones una revisión desplegada a medias. Los
+scripts de despliegue preservan los volúmenes de clientes y la configuración
+runtime de OxideProxy; cambiar ese contrato exige una migración y un plan de
+rollback revisados.
 
 ---
 
