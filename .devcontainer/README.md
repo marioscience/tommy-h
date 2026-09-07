@@ -21,11 +21,46 @@ or the base-image refresh process.
    npm run security:deployment
    ```
 
-5. Start the local stack explicitly when required:
+5. Start the complete local stack explicitly when required:
 
    ```bash
+   docker compose -f docker-compose.yml -f docker-compose.local.yml build \
+     oxide_control_panel oxide_game oxide_web
    docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
    ```
+
+## Component-only development
+
+All commands are run from the repository root. Compose includes the selected
+service's required dependencies while leaving unrelated components stopped:
+
+```bash
+# Backend API and databases
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build backend
+
+# Web frontend/proxy and its dependencies
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build oxide_web
+
+# OxideProxy management panel and its dependencies
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build oxide_control_panel
+
+# Game proxy/XDP integration stack
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build oxide_game
+
+# Bot, a single worker, or data services
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build bot
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-backups
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d postgres mariadb redis
+```
+
+When dependencies are already running, `--no-deps` rebuilds/restarts only the
+named service. Do not use it for the first start. Files in `frontend/public` are
+bind-mounted into `oxide_web`, so static frontend edits normally require only a
+browser refresh. Follow one service with
+`docker compose -f docker-compose.yml -f docker-compose.local.yml logs -f <service>`.
+
+The Dev Container supports building and integration-testing `oxide_game`, but
+real NIC/XDP attachment must be validated on a suitable native Linux host.
 
 ## Security boundary
 
