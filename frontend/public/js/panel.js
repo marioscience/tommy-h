@@ -2956,7 +2956,9 @@ function toggleSidebar() {
 
         function handleConsoleKey(e) {
             if (e.key === 'Enter') {
-                sendConsoleCommand();
+                e.preventDefault();
+                if (e.repeat || e.isComposing) return;
+                void sendConsoleCommand();
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
                 if (_cmdHistoryIdx < _cmdHistory.length - 1) {

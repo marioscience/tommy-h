@@ -6,17 +6,18 @@ import { JSDOM, VirtualConsole } from 'jsdom';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const publicDir = path.join(root, 'frontend/public');
-const [panelHtml, bindingsSource, commonSource, panelSource, minecraftPartial] = await Promise.all([
+const [panelHtml, bindingsSource, commonSource, panelSource, privilegedActionsSource, minecraftPartial] = await Promise.all([
   fs.readFile(path.join(publicDir, 'panel.html'), 'utf8'),
   fs.readFile(path.join(publicDir, 'js/csp-bindings.js'), 'utf8'),
   fs.readFile(path.join(publicDir, 'js/common.js'), 'utf8'),
   fs.readFile(path.join(publicDir, 'js/panel.js'), 'utf8'),
+  fs.readFile(path.join(publicDir, 'js/privileged-actions.generated.js'), 'utf8'),
   fs.readFile(path.join(publicDir, 'games/minecraft.html'), 'utf8')
 ]);
 
 assert.match(
   panelHtml,
-  /js\/panel\.js\?v=2026090201/,
+  /js\/panel\.js\?v=2026090701/,
   'panel.html debe invalidar la cache cuando cambia panel.js'
 );
 
@@ -66,10 +67,15 @@ window.Chart = class { destroy() {} update() {} };
 window.EventSource = class { addEventListener() {} close() {} };
 window.WebSocket = class { close() {} };
 window.require = Object.assign(() => {}, { config() {} });
-window.fetch = async input => {
+const commandRequests = [];
+window.fetch = async (input, init = {}) => {
   const url = String(input);
   let body = {};
-  if (url.startsWith('/api/servers/') && url.endsWith('/stats-history')) body = { items: [] };
+  if (url.startsWith('/api/servers/') && url.endsWith('/command')) {
+    commandRequests.push(JSON.parse(init.body));
+    body = { ok: true };
+  }
+  else if (url.startsWith('/api/servers/') && url.endsWith('/stats-history')) body = { items: [] };
   else if (url.startsWith('/api/servers')) body = { items: [server], publicHost: 'node1.ragenodes.dev' };
   else if (url.startsWith('/api/auth/me')) body = { id: 2, username: 'test', role: 'user', plan: 'hobby' };
   else if (url.startsWith('/games/minecraft.html')) return new Response(minecraftPartial, { status: 200, headers: { 'content-type': 'text/html' } });
@@ -82,6 +88,7 @@ window.document.getElementById('view-servers').classList.add('hidden');
 window.eval(bindingsSource);
 window.eval(commonSource);
 window.eval(panelSource);
+window.eval(privilegedActionsSource);
 window.document.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
 await new Promise(resolve => window.setTimeout(resolve, 100));
 
@@ -99,6 +106,13 @@ assert.equal(
   0,
   `loadServers no debe fallar: ${warnings.join(' | ')}`
 );
+
+const commandInput = window.document.getElementById('mc-command-input');
+commandInput.value = 'say consola operativa';
+commandInput.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+await new Promise(resolve => window.setTimeout(resolve, 20));
+assert.deepEqual(commandRequests, [{ command: 'say consola operativa' }], 'Enter debe enviar exactamente un comando al servidor');
+assert.equal(commandInput.value, '', 'La consola debe limpiar el comando enviado');
 
 window.openDeployModal('', 'minecraft');
 window.document.getElementById('modal-deploy-name').value = 'Minecraft staging';
