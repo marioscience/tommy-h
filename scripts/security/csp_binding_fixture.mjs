@@ -30,6 +30,15 @@ assert.equal(click.defaultPrevented, true);
 assert.equal(button.hasAttribute('onclick'), false);
 assert.match(clickAttribute, /^data-rn-bind-click="[A-Za-z0-9_-]{24}"$/);
 
+let enterCount = 0;
+const keyupAttribute = window.rnBind('keyup', (event) => {
+  if (event.key === 'Enter') enterCount += 1;
+});
+root.insertAdjacentHTML('beforeend', `<input id="command" ${keyupAttribute}>`);
+const commandInput = window.document.getElementById('command');
+commandInput.dispatchEvent(new window.KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+assert.equal(enterCount, 1, 'keyup bindings must support command and search inputs');
+
 assert.throws(() => window.rnBind('load', () => {}), /Unsupported CSP event/);
 assert.throws(() => window.rnBind('click', 'not-a-function'), /must be a function/);
 

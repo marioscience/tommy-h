@@ -6,7 +6,7 @@
 (() => {
   const handlers = new Map();
   const supportedEvents = new Set([
-    'change', 'click', 'error', 'input', 'keydown', 'keypress', 'mouseout', 'mouseover'
+    'change', 'click', 'error', 'input', 'keydown', 'keypress', 'keyup', 'mouseout', 'mouseover'
   ]);
 
   function token() {
