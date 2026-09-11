@@ -1,0 +1,29 @@
+ingress:
+  tcp_listen_addr: 0.0.0.0:8443
+  udp_listen_addr: 0.0.0.0:8080
+  max_concurrent_connections: 1000
+  initial_buffer_size: 4096
+routing:
+  default_web_backend: backend:3006
+  game_servers: []
+tls:
+  cert_path: config/certs/cert.pem
+  key_path: config/certs/key.pem
+runtime:
+  worker_threads: 2
+  enable_core_pinning: false
+advanced_tuning:
+  ebpf_xdp:
+    enabled: false
+    interface: eth0
+    ddos_mitigation_mode: STRICT_GAMING
+    max_packet_rate_per_ip: 25000
+  tcp_settings:
+    tcp_nodelay: true
+    keepalive_interval_secs: 30
+    congestion_control: cubic
+  security:
+    rate_limit_conns_per_ip: 150
+    blacklist_enabled: false
+    handshake_timeout_ms: 1500
+    blacklisted_ips: []

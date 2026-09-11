@@ -1,3 +1,11 @@
+> **Desarrollo local rápido / Quick local development:** `bash dev setup`,
+> `bash dev doctor`, `bash dev up frontend` (simulado) o `bash dev up core`
+> (backend real con BD). Logs: `bash dev logs backend`.
+> Consulta [la guía de desarrollo local](docs/LOCAL-DEVELOPMENT.md) para Linux,
+> WSL2, Dev Container, componentes, escenarios y solución de problemas.
+> Este flujo ligero utiliza `compose.development.yml` y `.env.development`;
+> los comandos del stack completo que siguen son para integración con juegos reales.
+
 <div align="center">
   <img src="frontend/public/assets/icon.png" alt="RageNodes Logo" width="130" />
   <h1>🎮 RageNodes Ultimate</h1>
