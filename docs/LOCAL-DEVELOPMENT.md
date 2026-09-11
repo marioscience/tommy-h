@@ -5,6 +5,22 @@ dentro de WSL2 y guarda el repositorio en el filesystem Linux (`~/proyectos`),
 o abre el Dev Container. Docker Desktop debe tener integración con tu WSL activa.
 En Linux tu usuario debe poder ejecutar `docker info`.
 
+En Ubuntu Server 24.04 LTS recién instalado, esta preparación cubre las
+dependencias del flujo ligero:
+
+```bash
+sudo apt update
+sudo apt install -y git docker.io docker-compose-v2
+sudo snap install node --classic --channel=24
+sudo usermod -aG docker "$USER"
+```
+
+Cierra la sesión y vuelve a entrar después de añadir el grupo `docker`; confirma
+`node --version`, `docker info` y `docker compose version`. En WSL2 utiliza el
+Docker Desktop del equipo con su integración WSL activada. Si usas Dev Container,
+esas herramientas vienen dentro del contenedor y no necesitas instalarlas en el
+sistema anfitrión.
+
 ```bash
 git clone git@gitlab.com:mariomatos/ragenodesultimate.git
 cd ragenodesultimate
@@ -35,16 +51,65 @@ El backend usa `node --watch`: editar `backend/src` reinicia el proceso. Cambiar
 dependencias requiere repetir `./dev up backend` para reconstruir. Cambiar Rust
 requiere repetir `./dev up proxy`; el perfil prueba HTTP, no XDP/NIC reales.
 
-`setup` genera `.env.development` con secretos aleatorios y conserva el archivo si
-ya existe. No modifica `.env`. El proyecto Compose fijo `ragenodes-dev` utiliza
-volúmenes propios. Los puertos se publican solo en loopback. Para acceder desde
-el portátil a Cerbero utiliza un túnel SSH, por ejemplo
-`ssh -L 18088:127.0.0.1:18088 niko@192.168.1.162`.
+`setup` genera `.env.development` con secretos aleatorios exclusivos de esa copia
+del repositorio y conserva el archivo si ya existe. No modifica `.env`, no necesita
+credenciales compartidas y no toma valores de staging o producción. El proyecto
+Compose recibe un nombre local único (`DEV_PROJECT_NAME`) y usa red y volúmenes
+propios, por lo que dos clones en el mismo equipo no comparten bases de datos y
+`up` o `down` no afectan otros proyectos Docker. Las instalaciones creadas con una
+versión anterior que no tengan esa variable siguen usando `ragenodes-dev` para
+conservar sus datos. Se puede establecer `RAGENODES_DEV_PROJECT` solo cuando sea
+necesario seleccionar explícitamente otra instancia.
+
+Los puertos se publican únicamente en `127.0.0.1`: cuando el desarrollador trabaja
+en el mismo equipo, abre directamente la URL que muestra `./dev status`. No debe
+copiar nombres de host, usuarios, direcciones IP ni rutas de otro desarrollador.
+
+### Acceso remoto opcional
+
+Esta sección solo aplica cuando Docker se ejecuta en otro equipo. Crea un túnel SSH
+reemplazando los marcadores por los datos de tu propio entorno:
+
+```bash
+ssh -L <puerto-local>:127.0.0.1:<puerto-remoto> <usuario>@<host-remoto>
+```
+
+Por ejemplo, para el frontend con su puerto predeterminado:
+
+```bash
+ssh -L 18088:127.0.0.1:18088 developer@dev-host
+```
+
+Después abre `http://localhost:18088/panel` en el equipo desde el que creaste el
+túnel. El nombre `developer@dev-host` es deliberadamente ficticio. Si cambiaste
+`DEV_FRONTEND_PORT` en `.env.development`, usa ese mismo valor a ambos lados del
+túnel. Backend y proxy siguen el mismo patrón con `DEV_BACKEND_PORT` y
+`DEV_PROXY_PORT`. No expongas estos puertos en `0.0.0.0` para evitar el túnel.
 
 El backend ejecuta sus migraciones/arranque habitual y crea el administrador
 `admin` con `DEV_ADMIN_PASSWORD` del archivo local. `./dev credentials` indica
 dónde consultarla. Nunca copies credenciales de producción. Cambiar la contraseña
 del archivo no implica cambiar una cuenta ya existente en la BD.
+
+## Comprobación reproducible de una instalación nueva
+
+Ejecuta esto desde una copia recién clonada, sin reutilizar `.env.development` de
+otro equipo:
+
+```bash
+./dev setup
+./dev doctor
+./dev up frontend
+./dev status
+curl --fail http://127.0.0.1:18088/healthz
+./dev scenario minecraft-running
+./dev down
+```
+
+El resultado esperado es un diagnóstico válido, el servicio `frontend` saludable,
+una respuesta HTTP satisfactoria y el escenario confirmado. `down` detiene esa
+instancia y conserva sus volúmenes. Si personalizaste `DEV_FRONTEND_PORT`, reemplaza
+`18088` en la prueba. Luego inicia solamente el componente en el que vas a trabajar.
 
 ## Escenarios de interfaz sin recursos reales
 
