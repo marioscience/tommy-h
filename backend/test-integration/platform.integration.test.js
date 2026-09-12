@@ -67,8 +67,10 @@ integration('Real platform integration', () => {
     const inspect = await inspectContainer(rows[0].container_name, { force: true });
     assert.equal(inspect.State.Running, true);
     const stats = await getContainerStats(rows[0].container_name, { force: true });
-    assert.ok(Number.isFinite(Number(stats.cpu)));
-    assert.ok(Number.isFinite(Number(stats.ram)));
+    assert.match(stats.cpu, /^\d+(?:\.\d+)?%$/);
+    assert.match(stats.ram, /^\d+(?:\.\d+)?%$/);
+    assert.ok(Number.isFinite(Number.parseFloat(stats.cpu)));
+    assert.ok(Number.isFinite(Number.parseFloat(stats.ram)));
   });
 
   it('serves live liveness and dependency readiness probes', async () => {
