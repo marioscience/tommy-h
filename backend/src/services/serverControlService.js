@@ -17,26 +17,9 @@ import { assertNodeStartCapacity } from './nodeResourcePolicy.js';
 import { getPlanRamGb, resolveServerPlan } from './serverPlanPolicy.js';
 import { GameFactory } from './games/GameFactory.js';
 import { getPublicEndpointUrl } from './publicEndpointService.js';
+import { scheduleEmbeddedTxAdminCookieRepair } from './txAdminCookieService.js';
 const MAINTENANCE_INTERVAL_MS = Math.max(300000, Number(process.env.MAINTENANCE_INTERVAL_MS || 600000));
 const MAINTENANCE_CHUNK_SIZE = Math.max(1, Number(process.env.MAINTENANCE_CHUNK_SIZE || 3));
-
-function scheduleEmbeddedTxAdminCookieRepair(server) {
-  const monitorRoot = '/opt/fivem/alpine/opt/cfx-server/citizen/system_resources/monitor';
-  // Versiones anteriores alteraban el bundle de txAdmin para usar cookies
-  // CHIPS. Eso separa el estado del popup del estado que necesita el callback
-  // OAuth y puede devolver al usuario antes de crear la clave de respaldo.
-  // OxideProxy ya normaliza las cabeceras Set-Cookie en el borde, por lo que
-  // aquí solo deshacemos el parche heredado en instancias existentes.
-  const repair = `docker exec -u 0 ${server.container_name} sh -c "find ${monitorRoot}/core ${monitorRoot}/panel -type f -name '*.js' -exec sed -i -e 's/sameSite:\\"none\\",secure:true,partitioned:true/sameSite:\\"lax\\"/g' -e 's/SameSite=None;Secure;Partitioned/SameSite=Lax/g' {} +"`;
-  setTimeout(async () => {
-    try {
-      await Docker.runRemoteCommand(server.node_id, repair);
-      await Docker.runRemoteCommand(server.node_id, `docker restart ${server.container_name}`);
-    } catch (error) {
-      console.error(`[txAdmin Cookie Repair] ${server.container_name}: ${error.message}`);
-    }
-  }, 5000);
-}
 
 export async function controlServer(id, userId, action, isAdmin, options = {}) {
   const s = await getServerByIdForUser(id, userId, isAdmin);
@@ -448,11 +431,6 @@ export async function repairOneServer(s) {
         return false;
     }
 }
-
-// ==========================================
-// 🚀 GESTIÓN DE SUB-USUARIOS (EQUIPO)
-// ==========================================
-
 
 export async function repairServer(id, userId, isAdmin) {
   const s = await getServerByIdForUser(id, userId, isAdmin);

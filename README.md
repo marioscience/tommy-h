@@ -822,6 +822,7 @@ npm run security:routes
 
 ## 📚 Technical Documentation / Documentación Técnica
 * [System Architecture & UML Diagrams / Arquitectura del Sistema](docs/ARCHITECTURE.md)
+* [Backend maintainability and audit rules / Reglas de mantenibilidad y auditoría](docs/BACKEND-MAINTAINABILITY.md)
 * [ADR-001: Rust OxideProxy](docs/adr/ADR-001-rust-reverse-proxy.md)
 * [ADR-002: OOP Architecture & GameFactory](docs/adr/ADR-002-game-factory-oop-architecture.md)
 * [ADR-003: Direct Public Endpoints](docs/adr/ADR-003-direct-public-endpoints.md)
