@@ -163,10 +163,6 @@ export async function findUserTokenVersion(userId, db = query) {
   return result.rows[0] ?? null;
 }
 
-export async function findUserSessionVersion(userId, db = query) {
-  return (await db('SELECT id, token_version FROM users WHERE id = $1', [userId])).rows[0] ?? null;
-}
-
 export async function deleteOrphanedGeneratedUsers(db = query) {
   return db(`
     DELETE FROM users
