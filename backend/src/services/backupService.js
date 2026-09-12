@@ -9,6 +9,7 @@ import { deleteBackupRecord, recordBackup } from '../repositories/backupReposito
 import { hasManagedDatabase } from './backupPolicy.js';
 import { getNodeConnection } from './dockerUtils.js';
 import { normalizeSharedDataPermissions } from './games/BaseGameService.js';
+import { rustUtil } from '../utils/rustUtil.js';
 
 const MAX_ERROR_LOG_BYTES = 1024 * 1024;
 
@@ -75,7 +76,15 @@ function assertSafeDataPath(dataPath) {
 async function createArchive(sourceDirectory, destination) {
     const partialPath = `${destination}.partial-${process.pid}-${Date.now()}`;
     try {
-        await runProcess('tar', ['--zstd', '-cf', partialPath, '-C', sourceDirectory, '.']);
+        if (config.backupArchiveEngine === 'rust' && rustUtil.runtimeInfo().nativeAvailable) {
+            const result = await rustUtil.zstd(sourceDirectory, partialPath);
+            if (!result.success) throw new Error(`Compresor Rust no disponible: ${result.error}`);
+        } else {
+            if (config.backupArchiveEngine === 'rust') {
+                console.warn('[Backup] Rust solicitado pero el modulo nativo no esta disponible; usando tar de forma segura.');
+            }
+            await runProcess('tar', ['--zstd', '-cf', partialPath, '-C', sourceDirectory, '.']);
+        }
         await fs.rename(partialPath, destination);
     } catch (error) {
         await fs.unlink(partialPath).catch(() => {});

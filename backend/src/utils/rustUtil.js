@@ -21,6 +21,13 @@ try {
  * degradación elegante a JavaScript puro cuando el binario nativo no está disponible.
  */
 export const rustUtil = {
+    runtimeInfo() {
+        return {
+            engine: native ? 'rust-native' : 'javascript-fallback',
+            nativeAvailable: Boolean(native)
+        };
+    },
+
     /**
      * Suscribirse al flujo de eventos de Docker vía Rust Nativo.
      */

@@ -63,6 +63,9 @@ export const config = {
   backupRemoteName: process.env.BACKUP_REMOTE_NAME || 'gdrive',
   backupRemotePath: process.env.BACKUP_REMOTE_PATH || 'ragenodes_backups',
   rcloneConfigPath: process.env.RCLONE_CONFIG_PATH || '/app/config/rclone/rclone.conf',
+  // `tar` remains the production-safe default until the Rust laboratory wins
+  // the equivalence and resource benchmarks on Linux.
+  backupArchiveEngine: String(process.env.BACKUP_ARCHIVE_ENGINE || 'tar').trim().toLowerCase(),
 
   // Imágenes base
   fivemBaseImage: process.env.FIVEM_BASE_IMAGE || 'ragenodes-fivem-base:1.0.0-local',
@@ -149,6 +152,9 @@ export function assertSecureConfig() {
   }
   if (!['port', 'subdomain'].includes(config.publicEndpointMode)) {
     errors.push('PUBLIC_ENDPOINT_MODE debe ser port o subdomain.');
+  }
+  if (!['tar', 'rust'].includes(config.backupArchiveEngine)) {
+    errors.push('BACKUP_ARCHIVE_ENGINE debe ser tar o rust.');
   }
   if (!/^[a-z][a-z0-9-]{0,15}$/.test(config.publicEndpointPrefix)) {
     errors.push('PUBLIC_ENDPOINT_PREFIX debe ser una etiqueta DNS corta y valida.');
