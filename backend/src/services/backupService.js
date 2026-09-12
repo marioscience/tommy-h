@@ -4,7 +4,8 @@ import fs from 'fs/promises';
 import { createReadStream } from 'fs';
 import { config } from '../config.js';
 import { getServerByIdForUser, controlServer } from './serverService.js';
-import { logAudit, query } from '../db.js';
+import { logAudit } from '../db.js';
+import { deleteBackupRecord, recordBackup } from '../repositories/backupRepository.js';
 import { hasManagedDatabase } from './backupPolicy.js';
 import { getNodeConnection } from './dockerUtils.js';
 import { normalizeSharedDataPermissions } from './games/BaseGameService.js';
@@ -179,11 +180,7 @@ export async function createFullBackup(id, userId, isAdmin, customName = null) {
         await fs.unlink(dbDumpFile).catch(() => {});
 
         const stat = await fs.stat(backupFilePath);
-        await query(
-            `INSERT INTO backups (server_id, filename, size_bytes, created_at)
-             VALUES ($1, $2, $3, now())`,
-            [s.id, backupFileName, stat.size]
-        );
+        await recordBackup({ serverId: s.id, filename: backupFileName, sizeBytes: stat.size });
 
         const planName = (s.runtime_plan || '').toLowerCase();
         let maxManualRetain = 1;
@@ -238,7 +235,7 @@ async function enforceBackupRetentionPolicy(serverId, maxRetain = 5, isAuto = fa
         for (const fileToDelete of backupsToDelete) {
             try {
                 await fs.unlink(path.join(config.backupRoot, fileToDelete));
-                await query('DELETE FROM backups WHERE server_id = $1 AND filename = $2', [serverId, fileToDelete]);
+                await deleteBackupRecord(serverId, fileToDelete);
                 console.log(`[Backup Retention] Eliminado: ${fileToDelete}`);
             } catch (err) {
                 console.error(`[Backup Retention] Error al eliminar ${fileToDelete}:`, err);

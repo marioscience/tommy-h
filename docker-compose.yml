@@ -53,14 +53,14 @@ services:
 
   fivem-base:
     build:
-      context: ./fivem-base
+      context: ./runtime-images/fivem
     image: ${FIVEM_BASE_IMAGE}
     profiles: ["build-only"]
     command: ["true"]
 
   blender-web:
     build:
-      context: ./blender-web
+      context: ./runtime-images/blender-web
     image: ${BLENDER_BASE_IMAGE}
     profiles: ["build-only"]
     command: ["true"]
@@ -95,7 +95,6 @@ services:
       - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}:${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}
       - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
       - ./backend/src:/app/src:ro
-      - ./fivem-base:/app/fivem-base
       - ./certs:/opt/ragenodes-ultimate/certs
       - query_cache_data:/app/config-gateway/static
     healthcheck:
@@ -140,7 +139,6 @@ services:
       - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
       - ./backend/src:/app/src:ro
       - ./config/rclone:/app/config/rclone:ro
-      - ./fivem-base:/app/fivem-base
       - ./certs:/opt/ragenodes-ultimate/certs:ro
     security_opt:
       - no-new-privileges:true
@@ -179,7 +177,6 @@ services:
       - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}/templates:${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}/templates:ro
       - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
       - ./backend/src:/app/src:ro
-      - ./fivem-base:/app/fivem-base
       - ./certs:/opt/ragenodes-ultimate/certs:ro
     security_opt:
       - no-new-privileges:true

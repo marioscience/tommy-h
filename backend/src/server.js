@@ -7,7 +7,7 @@ import fs from 'fs';
 import { rateLimit } from 'express-rate-limit';
 import { config, assertSecureConfig } from './config.js';
 import { hasSessionCookie } from './middleware/auth.js';
-import { initDb, waitForDb, query } from './db.js';
+import { getDbMetrics, initDb, waitForDb, query } from './db.js';
 
 // Importación de rutas
 import authRoutes from './routes/auth.js';
@@ -160,6 +160,7 @@ app.get('/readyz', async (req, res) => {
     try {
         await query('SELECT 1');
         checks.database = 'connected';
+        checks.database_pool = getDbMetrics().pool;
     } catch (dbErr) {
         checks.database = `error: ${dbErr.message}`;
         isHealthy = false;

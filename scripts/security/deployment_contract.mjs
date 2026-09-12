@@ -6,7 +6,9 @@ const files = Object.fromEntries(await Promise.all([
   'docker-compose.registry.staging.yml',
   'docker-compose.backup-remote.yml',
   'backend/Dockerfile',
-  'fivem-base/Dockerfile',
+  'runtime-images/fivem/Dockerfile',
+  'runtime-images/fivem/start.sh',
+  'runtime-images/blender-web/Dockerfile',
   'oxideproxy/Dockerfile',
   'oxideproxy/ebpf/src/main.rs',
   'oxideproxy/src/ebpf_xdp.rs',
@@ -19,9 +21,13 @@ const files = Object.fromEntries(await Promise.all([
   'backend/src/services/dockerUtils.js',
   'backend/src/services/backupService.js',
   'backend/src/services/serverControlService.js',
+  'backend/src/services/serverMaintenanceScheduler.js',
+  'backend/src/services/txAdminCookieService.js',
+  'backend/src/worker.js',
   'backend/src/routes/discord.js',
   'backend/src/services/games/minecraft.js',
   'backend/src/services/games/rust.js',
+  'backend/src/services/games/palworld.js',
   'backend/src/services/games/cs2.js',
   'backend/src/services/games/valheim.js',
   'oxideproxy/config/oxide_proxy.yml',
@@ -201,13 +207,20 @@ assert(files['scripts/ensure_base_images.sh'].includes('docker_runtime image ins
 assert(files['scripts/ensure_base_images.sh'].includes('org.ragenodes.fivem.artifact'), 'FiveM rebuilds only when the recommended artifact changes');
 assert(files['scripts/ensure_base_images.sh'].includes('docker_runtime save "$image"'), 'base images are archived in the local master cache');
 assert(files['scripts/ensure_base_images.sh'].includes('docker_runtime pull "$image"'), 'digest-pinned external images are prefetched automatically');
+assert(files['scripts/ensure_base_images.sh'].includes('*@sha256:*'), 'external game images reject mutable tags before deployment');
 assert(files['scripts/ensure_base_images.sh'].includes('MINECRAFT_BASE_IMAGE:=itzg/minecraft-server:java25@sha256:'), 'image cache has a digest-pinned default manifest');
 assert(files['scripts/update_image_cache.sh'].includes('load_env_file "$ENV_FILE"'), 'scheduled image refresh loads dotenv without executing it');
 assert(files['ops/systemd/ragenodes-image-cache.timer'].includes('Persistent=true'), 'missed image refreshes run after the host returns');
 assert(files['ops/systemd/ragenodes-image-cache.service'].includes('NoNewPrivileges=true'), 'scheduled image refresh cannot gain privileges');
 assert(files['ops/systemd/ragenodes-image-cache.service'].includes('ProtectSystem=strict'), 'scheduled image refresh has a read-only system view');
-assert(files['fivem-base/Dockerfile'].includes('ARG FIVEM_DOWNLOAD_URL'), 'FiveM artifact selection is supplied explicitly at build time');
-assert(files['fivem-base/Dockerfile'].includes('https://runtime.fivem.net/artifacts/fivem/build_proot_linux/master/*'), 'FiveM downloads are restricted to the vendor artifact origin');
+assert(files['runtime-images/fivem/Dockerfile'].includes('ARG FIVEM_DOWNLOAD_URL'), 'FiveM artifact selection is supplied explicitly at build time');
+assert(files['runtime-images/fivem/Dockerfile'].includes('https://runtime.fivem.net/artifacts/fivem/build_proot_linux/master/*'), 'FiveM downloads are restricted to the vendor artifact origin');
+assert(!/chmod\s+(?:-R\s+)?777\b/.test(files['runtime-images/fivem/start.sh']), 'FiveM runtime never grants world-writable permissions');
+assert(!/chmod\s+(?:-R\s+)?777\b/.test(files['runtime-images/blender-web/Dockerfile']), 'Blender runtime never grants world-writable permissions');
+assert(!files['runtime-images/fivem/start.sh'].includes('X-Frame-Oxxxxxs'), 'FiveM runtime does not mutate txAdmin frame headers');
+assert(!/find\s+\/\s+-name/.test(files['runtime-images/fivem/start.sh']), 'FiveM startup never scans and deletes package files across the whole image');
+assert(!files['docker-compose.yml'].includes('./fivem-base:/app/fivem-base'), 'production services do not mount the obsolete FiveM build context');
+assert(!files['docker-compose.staging.yml'].includes('./fivem-base:/app/fivem-base'), 'staging services do not mount the obsolete FiveM build context');
 assert(files['scripts/ensure_base_images.sh'].includes('network inspect "$RUNTIME_DOCKER_NETWORK"'), 'runtime network is verified in the rootless daemon');
 assert(files['scripts/ensure_base_images.sh'].includes('network create "$RUNTIME_DOCKER_NETWORK"'), 'missing runtime network is created in the rootless daemon');
 assert(files['deploy_staging.sh'].includes('RUNTIME_DOCKER_NETWORK=ragenodes_net_staging'), 'staging prepares its isolated rootless network');
@@ -239,12 +252,28 @@ assert(files['backend/src/services/dockerUtils.js'].includes('deriveServiceIdent
 assert(files['backend/src/services/games/minecraft.js'].includes("DIFFICULTY=${opts.difficulty || 'normal'}"), 'Minecraft defaults to normal difficulty');
 assert(files['backend/src/services/games/minecraft.js'].includes("'ONLINE_MODE=TRUE'"), 'Minecraft identity verification is enabled by default');
 assert(files['backend/src/services/games/minecraft.js'].includes("'PAUSE_WHEN_EMPTY_SECONDS=-1'"), 'Minecraft stays active while empty');
-assert(files['backend/src/services/serverControlService.js'].includes("process.env.RAGENODES_ROLE === 'worker-docker-events'"), 'game maintenance has a single worker owner');
+assert(
+  !files['backend/src/services/serverControlService.js'].includes('setInterval(')
+    && files['backend/src/services/serverMaintenanceScheduler.js'].includes('setInterval(')
+    && files['backend/src/worker.js'].includes('startServerMaintenance()'),
+  'game maintenance has a single worker owner'
+);
 assert(files['backend/src/services/serverControlService.js'].includes("hasFatalLog && containerHealth === 'unhealthy'"), 'stale fatal log text cannot recreate a healthy game server');
-assert(!files['backend/src/services/serverControlService.js'].includes("sameSite:\\\"lax\\\"/sameSite:\\\"none\\\",secure:true,partitioned:true"), 'FiveM startup cannot force txAdmin OAuth cookies into a partitioned store');
-assert(files['backend/src/services/serverControlService.js'].includes("SameSite=None;Secure;Partitioned/SameSite=Lax"), 'FiveM startup repairs legacy partitioned txAdmin bundles');
+assert(!files['backend/src/services/txAdminCookieService.js'].includes("sameSite:\\\"lax\\\"/sameSite:\\\"none\\\",secure:true,partitioned:true"), 'FiveM startup cannot force txAdmin OAuth cookies into a partitioned store');
+assert(
+  files['backend/src/services/txAdminCookieService.js'].includes("SameSite=None;Secure;Partitioned/SameSite=Lax")
+    && files['backend/src/services/serverControlService.js'].includes('scheduleEmbeddedTxAdminCookieRepair(s)'),
+  'FiveM startup repairs legacy partitioned txAdmin bundles'
+);
 assert(files['backend/src/services/games/rust.js'].includes("deriveServiceIdentifier('rust'"), 'Rust identity is unique per server');
-assert(files['backend/src/services/games/cs2.js'].includes("'SRCDS_TICKRATE=64'"), 'CS2 uses the standard beginner-friendly tickrate');
+assert(files['backend/src/services/games/rust.js'].includes("deriveServicePassword('rust-rcon'"), 'Rust never inherits the image default RCON password');
+assert(files['backend/src/services/games/rust.js'].includes("'SERVER_PORT=28015'"), 'Rust uses the current image environment contract');
+assert(files['backend/src/routes/discord.js'].includes("rust: [[0, 'DUAL'], [1, 'DUAL'], [2, 'UDP']]"), 'Rust route inventory preserves every declared TCP and UDP endpoint');
+assert(files['backend/src/services/games/palworld.js'].includes('...GAME_SECURITY_CONFIG'), 'Palworld applies the shared game-container security policy');
+assert(files['backend/src/services/games/cs2.js'].includes('CS2_SERVERNAME='), 'CS2 uses the current image environment contract');
+assert(files['backend/src/services/games/cs2.js'].includes('CS2_RCONPW='), 'CS2 configures the current image RCON variable');
+assert(!files['backend/src/services/games/cs2.js'].includes('SRCDS_RCON_PW='), 'CS2 does not use the obsolete RCON variable');
+assert(!files['backend/src/services/games/cs2.js'].includes('TICKRATE='), 'CS2 relies on its native subtick system');
 assert(files['backend/src/services/games/valheim.js'].includes("deriveServiceIdentifier('world'"), 'Valheim world names are unique per server');
 for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
   const deploy = files[deployFile];

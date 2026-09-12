@@ -46,6 +46,7 @@ security_contracts:
   - npm run security:deployment
   - node --test oxideproxy/node_panel/routeReconciliation.test.js
   - bash scripts/security/env_loader_contract.sh
+  - node --test scripts/dev/mock-server.test.mjs
 
 backend_tests:
   stage: test

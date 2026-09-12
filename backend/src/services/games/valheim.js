@@ -1,4 +1,4 @@
-import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, deriveServiceIdentifier, sh } from '../dockerUtils.js';
+import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, deriveServiceIdentifier, sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
 import { saveValheimConfig } from '../valheimService.js';
 import { prepareGameProxyBindings } from '../gameProxyPolicy.js';

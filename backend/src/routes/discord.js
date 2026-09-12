@@ -3,7 +3,10 @@ import Docker from 'dockerode';
 import { config } from '../config.js';
 import { query } from '../db.js';
 import * as serverService from '../services/serverService.js';
-import crypto from 'crypto';
+import { verifyDiscordApiKey as verifyApiKey } from '../middleware/discordApiKey.js';
+import { getDiscordUserDiagnostics } from '../services/discordDiagnosticsService.js';
+import { registerVendorRoutes } from './discord/vendorRoutes.js';
+import { findActiveEdgeProxy } from '../repositories/edgeProxyRepository.js';
 
 const router = express.Router();
 
@@ -11,18 +14,6 @@ const router = express.Router();
 const motorServidores = new Docker({ socketPath: config.dockerSocket });
 const LEGO_IMAGE = 'goacme/lego:v5.3.1@sha256:f4fd80df0ef94d2f536cc2e7fb5bdbd090fb0aa81b3595226b9fe814bb9a2bfe';
 let certificateRenewalInFlight = false;
-
-// 🛡️ MIDDLEWARE DE SEGURIDAD ESTRICTA
-const verifyApiKey = (req, res, next) => {
-    const apiKey = req.headers['x-api-key'];
-    const received = crypto.createHash('sha256').update(String(apiKey || '')).digest();
-    const expected = crypto.createHash('sha256').update(String(config.discordApiKey || '')).digest();
-    if (!apiKey || !crypto.timingSafeEqual(received, expected)) {
-        console.warn(`⚠️ Intento de acceso bloqueado a la API del bot desde IP: ${req.ip}`);
-        return res.status(401).json({ error: 'Acceso denegado. API Key inválida.' });
-    }
-    next();
-};
 
 // ============================================================================
 // 📡 RUTA 1: STATUS PING (Para el comando !status)
@@ -36,84 +27,12 @@ router.get('/ping', (req, res) => {
 // ============================================================================
 router.get('/diagnostico/:discordId', verifyApiKey, async (req, res) => {
     const { discordId } = req.params;
-
     try {
-        // 1️⃣ BUSCAR USUARIO EN POSTGRESQL
-        const userQuery = await query(
-            'SELECT id, username, plan FROM users WHERE discord_id = $1 LIMIT 1',
-            [discordId]
-        );
-
-        if (userQuery.rows.length === 0) {
+        const diagnostics = await getDiscordUserDiagnostics(discordId);
+        if (!diagnostics) {
             return res.status(404).json({ error: 'Usuario no encontrado o no vinculado.' });
         }
-
-        const user = userQuery.rows[0];
-
-        // 2️⃣ BUSCAR LOS SERVIDORES DEL USUARIO (Corregido owner_id y container_name)
-        const serversQuery = await query(
-            'SELECT id, name, container_name, fivem_port, status FROM servers WHERE owner_id = $1',
-            [user.id]
-        );
-
-        const userServers = [];
-
-        // 3️⃣ MAGIA PURA: Extraer telemetría del sistema en tiempo real
-        for (const srv of serversQuery.rows) {
-            let cpuPercent = 0;
-            let ramPercent = 0;
-            let diskPercent = 0; // El disco es complejo de medir en vivo, lo dejamos en 0 de forma segura
-            let currentStatus = srv.status;
-
-            try {
-                if (srv.container_name) {
-                    const servidorInstancia = motorServidores.getContainer(srv.container_name);
-                    const inspect = await servidorInstancia.inspect();
-
-                    currentStatus = inspect.State.Running ? 'running' : 'stopped';
-
-                    // Solo calcular si el servidor está encendido
-                    if (currentStatus === 'running') {
-                        const stats = await servidorInstancia.stats({ stream: false });
-
-                        // Cálculo exacto de CPU (Fórmula del sistema)
-                        const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage;
-                        const systemDelta = stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage;
-                        if (systemDelta > 0 && cpuDelta > 0) {
-                            cpuPercent = (cpuDelta / systemDelta) * stats.cpu_stats.online_cpus * 100;
-                        }
-
-                        // Cálculo exacto de Memoria RAM
-                        const usedMemory = stats.memory_stats.usage - (stats.memory_stats.stats?.cache || 0);
-                        const totalMemory = stats.memory_stats.limit;
-                        ramPercent = (usedMemory / totalMemory) * 100;
-                    }
-                }
-            } catch (sysErr) {
-                console.warn(`⚠️ No se pudo leer la telemetría del sistema para el servidor ${srv.name}`);
-                // Si el sistema falla para un servidor, no tiramos la API. Simplemente devuelve 0%.
-            }
-
-            // Añadir el servidor procesado a la lista
-            userServers.push({
-                id: srv.id,
-                name: srv.name,
-                status: currentStatus,
-                ip: config.fivemPublicHost,     // Lee node1.ragenodes.com de tu config
-                fivem_port: srv.fivem_port,     // El puerto real sacado de Postgres
-                cpu_percent: parseFloat(cpuPercent.toFixed(1)),
-                ram_percent: parseFloat(ramPercent.toFixed(1)),
-                disk_percent: diskPercent
-            });
-        }
-
-        // 4️⃣ RESPONDER AL BOT EN EL FORMATO PERFECTO
-        res.json({
-            username: user.username,
-            plan: user.plan || "Hobby",
-            servers: userServers
-        });
-
+        res.json(diagnostics);
     } catch (error) {
         console.error(`❌ Error fatal consultando datos para Discord ID ${discordId}:`, error);
         res.status(500).json({ error: 'Error interno conectando a la base de datos.' });
@@ -307,55 +226,7 @@ router.post('/repair/:serverId', verifyApiKey, async (req, res) => {
 // ============================================================================
 // 🛒 RUTA 12: APROBACIÓN DE VENDEDORES (MARKETPLACE)
 // ============================================================================
-router.post('/vendor-action/:applicationId', verifyApiKey, async (req, res) => {
-    const { applicationId } = req.params;
-    const { action } = req.body; // 'accepted', 'saved', 'rejected'
-    
-    if (!['accepted', 'saved', 'rejected', 'revoke'].includes(action)) {
-        return res.status(400).json({ error: 'Acción no válida' });
-    }
-
-    try {
-        const appQuery = await query('SELECT user_id FROM vendor_applications WHERE id = $1', [applicationId]);
-        if (appQuery.rowCount === 0) {
-            return res.status(404).json({ error: 'Postulación no encontrada' });
-        }
-
-        const userId = appQuery.rows[0].user_id;
-        const newStatus = action === 'saved' ? 'pending' : (action === 'revoke' ? 'revoked' : action);
-
-        // Actualizar el estado de la postulación
-        await query('UPDATE vendor_applications SET status = $1, updated_at = NOW() WHERE id = $2', [newStatus, applicationId]);
-
-        // Si es aceptado, darle el rol de vendor
-        if (action === 'accepted') {
-            await query('UPDATE users SET role = $1 WHERE id = $2 AND role = $3', ['vendor', userId, 'user']);
-        } else if (action === 'revoke') {
-            // Si es revocado, quitarle el rol de vendor
-            await query('UPDATE users SET role = $1 WHERE id = $2 AND role = $3', ['user', userId, 'vendor']);
-        }
-
-        res.json({ ok: true, message: `Postulación ${action} correctamente.` });
-    } catch (error) {
-        console.error(`❌ Error procesando acción de vendedor para app ${applicationId}:`, error);
-        res.status(500).json({ error: 'Error interno procesando acción.' });
-    }
-});
-
-router.get('/vendors', verifyApiKey, async (req, res) => {
-    try {
-        const result = await query(`
-            SELECT id, user_id, discord_username, portfolio_url, status, created_at
-            FROM vendor_applications
-            ORDER BY created_at DESC
-            LIMIT 50
-        `);
-        res.json({ ok: true, vendors: result.rows });
-    } catch (error) {
-        console.error('❌ Error listando vendedores:', error);
-        res.status(500).json({ error: 'Error interno' });
-    }
-});
+registerVendorRoutes(router, verifyApiKey);
 
 // ============================================================================
 // 🐳 RUTA 13: LISTAR CONTENEDORES ACTIVOS DE CLIENTES (Para OxideProxy L7)
@@ -382,7 +253,7 @@ router.get('/servers/routes', verifyApiKey, async (req, res) => {
         const protocolOffsets = {
             minecraft: [[0, 'TCP']],
             fivem: [[0, 'DUAL']],
-            rust: [[0, 'UDP'], [1, 'TCP'], [2, 'UDP']],
+            rust: [[0, 'DUAL'], [1, 'DUAL'], [2, 'UDP']],
             palworld: [[0, 'UDP'], [1, 'TCP'], [2, 'UDP']],
             cs2: [[0, 'DUAL']],
             valheim: [[0, 'UDP'], [1, 'UDP'], [2, 'UDP']],
@@ -582,11 +453,11 @@ router.post('/oxide/certificate/renew', verifyApiKey, async (_req, res) => {
 // ============================================================================
 router.get('/proxies/active', verifyApiKey, async (req, res) => {
     try {
-        const result = await query("SELECT ip_address, api_port, api_key FROM edge_proxies WHERE is_active = true LIMIT 1");
-        if (result.rowCount === 0) {
+        const proxy = await findActiveEdgeProxy();
+        if (!proxy) {
             return res.json({ ok: false, error: 'No active proxy found' });
         }
-        res.json({ ok: true, proxy: result.rows[0] });
+        res.json({ ok: true, proxy });
     } catch (error) {
         console.error('❌ Error obteniendo proxy activo:', error);
         res.status(500).json({ error: 'Error interno' });

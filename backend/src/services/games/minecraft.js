@@ -7,7 +7,7 @@ const MINECRAFT_IMAGES = {
     java11: 'itzg/minecraft-server:java11@sha256:b71159ed67e389fac6cbdc2e7205167e210e9012858a9a47cd1d64cd8de28241',
     java17: 'itzg/minecraft-server:java17@sha256:032c6ac2c1a418bde85e19a54222fc1c3220eacc62226e08586cc4d5b7b0c676',
     java21: 'itzg/minecraft-server:java21@sha256:2849cd16063903439cd34c6eaddbcecc8914367ac9334c9757f6a7ea5007273c',
-    java25: config.minecraftBaseImage || 'itzg/minecraft-server:java21'
+    java25: config.minecraftBaseImage
 };
 
 const MINECRAFT_IDENTITY_FILE = '.ragenodes-minecraft-identity.json';
@@ -44,7 +44,7 @@ export function resolveMinecraftIdentity(requested, locked, serverId) {
  */
 export class MinecraftService extends BaseGameService {
     constructor() {
-        super('minecraft', config.minecraftBaseImage || 'itzg/minecraft-server:java21');
+        super('minecraft', config.minecraftBaseImage);
     }
 
     resolveTargetImage(version = 'LATEST') {

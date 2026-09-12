@@ -11,7 +11,7 @@ export TXHOST_GAME_NAME="${TXHOST_GAME_NAME:-fivem}"
 export TXHOST_IGNORE_DEPRECATED_CONFIGS="${TXHOST_IGNORE_DEPRECATED_CONFIGS:-true}"
 
 mkdir -p /data/txData /data/logs "${TXHOST_DATA_PATH}"
-chmod -R 777 "${TXHOST_DATA_PATH}" /data/txData 2>/dev/null || true
+chmod -R u=rwX,g=rwX,o= "${TXHOST_DATA_PATH}" /data/txData /data/logs 2>/dev/null || true
 
 echo "Buscando archivos server.cfg para corregir puertos y base de datos..."
 patch_server_cfg() {
@@ -76,14 +76,11 @@ EOF
 
 patch_txadmin_zap_assets_only
 
-echo "Deshabilitando X-Frame-Options en txAdmin para permitir iframes..."
-sed -i 's|X-Frame-Options|X-Frame-Oxxxxxs|gi' /opt/fivem/alpine/opt/cfx-server/citizen/system_resources/monitor/core/index.js || true
-
 echo "Preparando directorios para FiveM..."
 rm -rf /data/cache/
-find / -name "yarn.lock" -type f -delete 2>/dev/null || true
-find / -name ".yarn.lock" -type f -delete 2>/dev/null || true
-find / -name ".yarn" -type d -exec rm -rf {} + 2>/dev/null || true
+find /data -name "yarn.lock" -type f -delete 2>/dev/null || true
+find /data -name ".yarn.lock" -type f -delete 2>/dev/null || true
+find /data -name ".yarn" -type d -exec rm -rf {} + 2>/dev/null || true
 
 
 
@@ -100,5 +97,3 @@ else
     +set net_port "${FIVEM_PORT}" \
     +set sv_endpoints "${FIVEM_PUBLIC_HOST:-localhost}:${FIVEM_PORT}"
 fi
-sed -i 's|" trust proxy\,\loopback\|\trust proxy\,true|g' /opt/fivem/alpine/opt/cfx-server/citizen/system_resources/monitor/core/index.js || true
-sed -i 's|\trust proxy\, \loopback\|\trust proxy\, true|g' /opt/fivem/alpine/opt/cfx-server/citizen/system_resources/monitor/core/index.js || true

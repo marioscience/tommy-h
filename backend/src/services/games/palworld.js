@@ -1,4 +1,4 @@
-import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, sh } from '../dockerUtils.js';
+import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
 import { prepareGameProxyBindings } from '../gameProxyPolicy.js';
 
@@ -49,6 +49,7 @@ export async function createPalworldContainer(opts) {
             Memory: opts.plan.memoryBytes,
             NanoCpus: opts.plan.nanoCpus, CpuShares: Math.round((opts.plan.nanoCpus / 10**9) * 1024),
             BlkioWeight: config.dockerBlkioWeight,
+            ...GAME_SECURITY_CONFIG
         },
         Labels: { 'ragenodes.server_id': String(opts.serverId), 'ragenodes.game': 'palworld', ...proxy.labels }
     });

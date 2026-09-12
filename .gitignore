@@ -78,3 +78,4 @@ local_windows_data/
 backend/src/services/Untitled-1
 .image-cache/
 registry-release.env
+.env.development
