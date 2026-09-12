@@ -75,13 +75,13 @@ if [ "$current_fivem" != "$fivem_artifact" ]; then
   docker_runtime build \
     --build-arg "FIVEM_DOWNLOAD_URL=$fivem_url" \
     --build-arg "FIVEM_ARTIFACT_ID=$fivem_artifact" \
-    --tag "$fivem_versioned" --tag "$FIVEM_BASE_IMAGE" ./fivem-base
+    --tag "$fivem_versioned" --tag "$FIVEM_BASE_IMAGE" ./runtime-images/fivem
   archive_image "$FIVEM_BASE_IMAGE"
 else
   echo "==> FiveM $fivem_artifact ya esta en la cache local."
 fi
 
-blender_fingerprint="$(find ./blender-web -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
+blender_fingerprint="$(find ./runtime-images/blender-web -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
 load_archive_if_available "$BLENDER_BASE_IMAGE"
 current_blender="$(docker_runtime image inspect -f '{{ index .Config.Labels "org.ragenodes.context.sha256" }}' "$BLENDER_BASE_IMAGE" 2>/dev/null || true)"
 if [ "$current_blender" != "$blender_fingerprint" ]; then
@@ -89,7 +89,7 @@ if [ "$current_blender" != "$blender_fingerprint" ]; then
   docker_runtime build \
     --label "org.ragenodes.image.kind=blender-base" \
     --label "org.ragenodes.context.sha256=$blender_fingerprint" \
-    --tag "$BLENDER_BASE_IMAGE" ./blender-web
+    --tag "$BLENDER_BASE_IMAGE" ./runtime-images/blender-web
   archive_image "$BLENDER_BASE_IMAGE"
 else
   echo "==> Blender ya esta en la cache local."

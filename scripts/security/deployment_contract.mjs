@@ -6,7 +6,9 @@ const files = Object.fromEntries(await Promise.all([
   'docker-compose.registry.staging.yml',
   'docker-compose.backup-remote.yml',
   'backend/Dockerfile',
-  'fivem-base/Dockerfile',
+  'runtime-images/fivem/Dockerfile',
+  'runtime-images/fivem/start.sh',
+  'runtime-images/blender-web/Dockerfile',
   'oxideproxy/Dockerfile',
   'oxideproxy/ebpf/src/main.rs',
   'oxideproxy/src/ebpf_xdp.rs',
@@ -209,8 +211,14 @@ assert(files['scripts/update_image_cache.sh'].includes('load_env_file "$ENV_FILE
 assert(files['ops/systemd/ragenodes-image-cache.timer'].includes('Persistent=true'), 'missed image refreshes run after the host returns');
 assert(files['ops/systemd/ragenodes-image-cache.service'].includes('NoNewPrivileges=true'), 'scheduled image refresh cannot gain privileges');
 assert(files['ops/systemd/ragenodes-image-cache.service'].includes('ProtectSystem=strict'), 'scheduled image refresh has a read-only system view');
-assert(files['fivem-base/Dockerfile'].includes('ARG FIVEM_DOWNLOAD_URL'), 'FiveM artifact selection is supplied explicitly at build time');
-assert(files['fivem-base/Dockerfile'].includes('https://runtime.fivem.net/artifacts/fivem/build_proot_linux/master/*'), 'FiveM downloads are restricted to the vendor artifact origin');
+assert(files['runtime-images/fivem/Dockerfile'].includes('ARG FIVEM_DOWNLOAD_URL'), 'FiveM artifact selection is supplied explicitly at build time');
+assert(files['runtime-images/fivem/Dockerfile'].includes('https://runtime.fivem.net/artifacts/fivem/build_proot_linux/master/*'), 'FiveM downloads are restricted to the vendor artifact origin');
+assert(!/chmod\s+(?:-R\s+)?777\b/.test(files['runtime-images/fivem/start.sh']), 'FiveM runtime never grants world-writable permissions');
+assert(!/chmod\s+(?:-R\s+)?777\b/.test(files['runtime-images/blender-web/Dockerfile']), 'Blender runtime never grants world-writable permissions');
+assert(!files['runtime-images/fivem/start.sh'].includes('X-Frame-Oxxxxxs'), 'FiveM runtime does not mutate txAdmin frame headers');
+assert(!/find\s+\/\s+-name/.test(files['runtime-images/fivem/start.sh']), 'FiveM startup never scans and deletes package files across the whole image');
+assert(!files['docker-compose.yml'].includes('./fivem-base:/app/fivem-base'), 'production services do not mount the obsolete FiveM build context');
+assert(!files['docker-compose.staging.yml'].includes('./fivem-base:/app/fivem-base'), 'staging services do not mount the obsolete FiveM build context');
 assert(files['scripts/ensure_base_images.sh'].includes('network inspect "$RUNTIME_DOCKER_NETWORK"'), 'runtime network is verified in the rootless daemon');
 assert(files['scripts/ensure_base_images.sh'].includes('network create "$RUNTIME_DOCKER_NETWORK"'), 'missing runtime network is created in the rootless daemon');
 assert(files['deploy_staging.sh'].includes('RUNTIME_DOCKER_NETWORK=ragenodes_net_staging'), 'staging prepares its isolated rootless network');

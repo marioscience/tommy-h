@@ -107,8 +107,8 @@ Minecraft deployments pin the requested edition and version in the server data d
 | `frontend/public/` | Landing page, customer/admin panels, static assets and browser controllers |
 | `oxideproxy/` | Rust L4/L7 proxy, TLS, routing, access gate and telemetry |
 | `oxide_web/` | OxideProxy web/control configuration |
-| `blender-web/` | Browser-accessible Blender runtime |
-| `fivem-base/` | Cached and reproducible FiveM base image |
+| `runtime-images/blender-web/` | Browser-accessible Blender runtime |
+| `runtime-images/fivem/` | Cached and reproducible FiveM base image |
 | `scripts/` | Deployment, image cache, security checks, diagnostics and operational automation |
 | `docker-compose*.yml` | Base, local, staging, production and security overlays |
 | `docs/` | Architecture decisions, readiness checklist and operational documentation |
@@ -495,8 +495,8 @@ Este repositorio contiene el plano de control del ciclo completo de RageNodes; n
 | `frontend/public/` | Landing, paneles de cliente/admin, recursos y controladores del navegador |
 | `oxideproxy/` | Proxy Rust L4/L7, TLS, rutas, puerta de acceso y telemetría |
 | `oxide_web/` | Configuración web y de control de OxideProxy |
-| `blender-web/` | Runtime de Blender accesible desde el navegador |
-| `fivem-base/` | Imagen base de FiveM reproducible y almacenada en caché |
+| `runtime-images/blender-web/` | Runtime de Blender accesible desde el navegador |
+| `runtime-images/fivem/` | Imagen base de FiveM reproducible y almacenada en caché |
 | `scripts/` | Despliegue, caché de imágenes, seguridad, diagnóstico y automatización operativa |
 | `docker-compose*.yml` | Base y overlays de local, staging, producción y seguridad |
 | `docs/` | Decisiones de arquitectura, checklist de preparación y operación |

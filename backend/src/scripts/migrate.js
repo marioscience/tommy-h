@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 import 'dotenv/config';
 import { query, withTransaction, waitForDb, pool } from '../db.js';
 import { runMigrations, migrations } from '../migrations.js';
