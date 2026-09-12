@@ -8,6 +8,20 @@ import { createReadStream } from 'fs';
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+function normalizeNativeStats(result) {
+    const rawCpu = Number.parseFloat(result?.cpu) || 0;
+    const rawRam = Number.parseFloat(result?.ram) || 0;
+    return {
+        cpu: `${rawCpu.toFixed(2)}%`,
+        ram: `${rawRam.toFixed(2)}%`,
+        ram_gb: result?.ram_gb ?? result?.ramGb ?? '0.00',
+        net_rx: result?.net_rx ?? result?.netRx ?? '0',
+        net_tx: result?.net_tx ?? result?.netTx ?? '0',
+        raw_cpu: rawCpu,
+        raw_ram: rawRam
+    };
+}
+
 // Cargar el módulo nativo compilado por NAPI-RS
 let native;
 try {
@@ -97,18 +111,9 @@ export const rustUtil = {
                 // Number de JavaScript se redondea por encima de u64 y rompe el parser Rust.
                 const { pids_stats: _unusedPidsStats, ...statsForRust } = rawStats || {};
                 const result = native.calculateStats(JSON.stringify(statsForRust));
-                const rawCpu = Number.parseFloat(result?.cpu) || 0;
-                const rawRam = Number.parseFloat(result?.ram) || 0;
-
                 // Mantener el mismo contrato que el fallback JS independientemente de si
                 // el módulo nativo está disponible en la plataforma actual.
-                return {
-                    ...result,
-                    cpu: `${rawCpu.toFixed(2)}%`,
-                    ram: `${rawRam.toFixed(2)}%`,
-                    raw_cpu: rawCpu,
-                    raw_ram: rawRam
-                };
+                return normalizeNativeStats(result);
             }
 
             // Fallback en JS Puro (Resiliencia Multi-Plataforma)
@@ -129,10 +134,16 @@ export const rustUtil = {
             const usedMemory = (memStats.usage || 0) - (memStats.stats?.inactive_file || 0);
             const limit = memStats.limit || 1;
             const ramPercent = limit > 0 ? (usedMemory / limit) * 100.0 : 0.0;
+            const networks = Object.values(rawStats.networks || {});
+            const netRx = networks.reduce((total, network) => total + (Number(network?.rx_bytes) || 0), 0);
+            const netTx = networks.reduce((total, network) => total + (Number(network?.tx_bytes) || 0), 0);
 
             return {
                 cpu: `${cpuPercent.toFixed(2)}%`,
                 ram: `${ramPercent.toFixed(2)}%`,
+                ram_gb: `${Math.max(0, usedMemory / (1024 ** 3)).toFixed(2)}`,
+                net_rx: String(netRx),
+                net_tx: String(netTx),
                 raw_cpu: cpuPercent,
                 raw_ram: ramPercent
             };
@@ -150,17 +161,7 @@ export const rustUtil = {
                 return JSON.stringify(statsForRust);
             });
             const results = native.calculateStatsBatch(serialized);
-            return results.map(result => {
-                const rawCpu = Number.parseFloat(result?.cpu) || 0;
-                const rawRam = Number.parseFloat(result?.ram) || 0;
-                return {
-                    ...result,
-                    cpu: `${rawCpu.toFixed(2)}%`,
-                    ram: `${rawRam.toFixed(2)}%`,
-                    raw_cpu: rawCpu,
-                    raw_ram: rawRam
-                };
-            });
+            return results.map(normalizeNativeStats);
         }
         return Promise.all(items.map(item => this.calculateStats(item)));
     },

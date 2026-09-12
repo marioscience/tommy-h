@@ -46,6 +46,8 @@ describe('🦀 RustBridge & Stats Calculator Tests (Módulo 1 & 3)', () => {
         assert.deepEqual(results[0], results[1]);
         assert.equal(results[0].cpu, '40.00%');
         assert.equal(results[0].ram, '50.00%');
+        assert.equal(results[0].net_rx, '0');
+        assert.equal(results[0].net_tx, '0');
     });
 
     it('calcula SHA-256 por streaming también en el fallback', async () => {

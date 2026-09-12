@@ -9,3 +9,11 @@ BACKUP_BENCH_SIZE_MIB=256 BACKUP_BENCH_ROUNDS=3 bash benchmarks/rust-runtime/run
 ```
 
 El script falla si el módulo Rust no está cargado, verifica el SHA-256 lógico de todos los archivos restaurados y guarda tiempo, CPU, pico de RAM y tamaño en `results/backup-summary.json`.
+
+Para medir el cruce N-API de telemetría, hashes grandes y el coste real del parser RCON:
+
+```bash
+node benchmarks/rust-runtime/profile-native-paths.mjs > benchmarks/rust-runtime/results/native-paths.json
+```
+
+El perfil RCON decide si merece una migración: no se cambia de lenguaje cuando su coste por paquete es despreciable frente a la red.

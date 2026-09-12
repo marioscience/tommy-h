@@ -1,6 +1,5 @@
 #![deny(clippy::all)]
 
-use anyhow::Context;
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use napi::threadsafe_function::{ThreadsafeFunction, ErrorStrategy, ThreadsafeFunctionCallMode};
