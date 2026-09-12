@@ -88,32 +88,35 @@ export async function startDockerTelemetryCollector() {
 
                     for (let i = 0; i < ragenodeContainers.length; i += 15) {
                         const batch = ragenodeContainers.slice(i, i + 15);
-                        await Promise.all(batch.map(async (cInfo) => {
+                        const samples = await Promise.all(batch.map(async (cInfo) => {
                             try {
                                 const container = docker.getContainer(cInfo.Id);
                                 const stats = await container.stats({ stream: false });
-                                const result = await rustUtil.calculateStats(stats);
-
-                                if (result) {
-                                    const key = cInfo.Names[0].replace('/', '');
-                                    const payload = {
-                                        cpu: result.cpu,
-                                        ram: result.ram,
-                                        ramGb: result.ram_gb,
-                                        net_rx: result.net_rx,
-                                        net_tx: result.net_tx,
-                                        disk: "0.0",
-                                        diskGb: "0.0",
-                                        updatedAt: Date.now(),
-                                        nodeId
-                                    };
-                                    STATS_CACHE.set(key, payload);
-                                    if (redisClient?.isOpen) {
-                                        redisClient.setEx('ragenodes:stats:' + key, 60, JSON.stringify(payload)).catch(() => {});
-                                    }
-                                }
-                            } catch (e) {}
+                                return { cInfo, stats };
+                            } catch (e) { return null; }
                         }));
+                        const available = samples.filter(Boolean);
+                        const results = await rustUtil.calculateStatsBatch(available.map(sample => sample.stats));
+                        for (let index = 0; index < available.length; index += 1) {
+                            const result = results[index];
+                            if (!result) continue;
+                            const key = available[index].cInfo.Names[0].replace('/', '');
+                            const payload = {
+                                cpu: result.cpu,
+                                ram: result.ram,
+                                ramGb: result.ram_gb,
+                                net_rx: result.net_rx,
+                                net_tx: result.net_tx,
+                                disk: "0.0",
+                                diskGb: "0.0",
+                                updatedAt: Date.now(),
+                                nodeId
+                            };
+                            STATS_CACHE.set(key, payload);
+                            if (redisClient?.isOpen) {
+                                redisClient.setEx('ragenodes:stats:' + key, 60, JSON.stringify(payload)).catch(() => {});
+                            }
+                        }
                     }
                 } catch (nodeErr) {
                     console.error(`⚠️ [Stats] Error en nodo ${nodeId}:`, nodeErr.message);

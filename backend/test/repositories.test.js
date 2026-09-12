@@ -92,10 +92,11 @@ describe('SQL repositories', () => {
   it('keeps backup and notification values parameterized', async () => {
     const calls = [];
     const db = async (sql, parameters) => { calls.push({ sql, parameters }); return { rows: [] }; };
-    await recordBackup({ serverId: 's1', filename: "x'); DROP TABLE backups; --", sizeBytes: 42 }, db);
+    await recordBackup({ serverId: 's1', filename: "x'); DROP TABLE backups; --", sizeBytes: 42, checksumSha256: 'a'.repeat(64) }, db);
     await createNotification({ title: 'title', content: 'content' }, db);
     await listClientNotifications(5, db);
     assert.equal(calls[0].parameters[1], "x'); DROP TABLE backups; --");
+    assert.equal(calls[0].parameters[3], 'a'.repeat(64));
     assert.deepEqual(calls[1].parameters, ['title', 'content', 'info']);
     assert.deepEqual(calls[2].parameters, [5]);
   });

@@ -1,5 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { rustUtil } from '../src/utils/rustUtil.js';
 
 describe('🦀 RustBridge & Stats Calculator Tests (Módulo 1 & 3)', () => {
@@ -30,5 +33,29 @@ describe('🦀 RustBridge & Stats Calculator Tests (Módulo 1 & 3)', () => {
 
         const resultEmpty = await rustUtil.calculateStats({});
         assert.ok(resultEmpty !== undefined);
+    });
+
+    it('mantiene el contrato al calcular telemetría por lotes', async () => {
+        const sample = {
+            cpu_stats: { cpu_usage: { total_usage: 200 }, system_cpu_usage: 1000, online_cpus: 2 },
+            precpu_stats: { cpu_usage: { total_usage: 100 }, system_cpu_usage: 500 },
+            memory_stats: { usage: 1024, limit: 2048, stats: { inactive_file: 0 } }
+        };
+        const results = await rustUtil.calculateStatsBatch([sample, sample]);
+        assert.equal(results.length, 2);
+        assert.deepEqual(results[0], results[1]);
+        assert.equal(results[0].cpu, '40.00%');
+        assert.equal(results[0].ram, '50.00%');
+    });
+
+    it('calcula SHA-256 por streaming también en el fallback', async () => {
+        const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ragenodes-hash-'));
+        const file = path.join(directory, 'sample.bin');
+        try {
+            await fs.writeFile(file, 'ragenodes');
+            assert.equal(await rustUtil.sha256File(file), '703e3c5ca81fad04b9dd5b2aa919c5c1452cde9992dc932ef23128ad118371fd');
+        } finally {
+            await fs.rm(directory, { recursive: true, force: true });
+        }
     });
 });

@@ -5,7 +5,7 @@ import { createReadStream } from 'fs';
 import { config } from '../config.js';
 import { getServerByIdForUser, controlServer } from './serverService.js';
 import { logAudit } from '../db.js';
-import { deleteBackupRecord, recordBackup } from '../repositories/backupRepository.js';
+import { deleteBackupRecord, findBackupRecord, recordBackup } from '../repositories/backupRepository.js';
 import { hasManagedDatabase } from './backupPolicy.js';
 import { getNodeConnection } from './dockerUtils.js';
 import { normalizeSharedDataPermissions } from './games/BaseGameService.js';
@@ -90,6 +90,27 @@ async function createArchive(sourceDirectory, destination) {
         await fs.unlink(partialPath).catch(() => {});
         throw error;
     }
+}
+
+async function extractArchive(source, destination) {
+    if (source.endsWith('.zst') && config.backupArchiveEngine === 'rust' && rustUtil.runtimeInfo().nativeAvailable) {
+        const result = await rustUtil.unzstd(source, destination);
+        if (!result.success) throw new Error(`Extractor Rust no disponible: ${result.error}`);
+        return;
+    }
+    await runProcess('tar', source.endsWith('.zst')
+        ? ['--zstd', '-xf', source, '-C', destination]
+        : ['-xzf', source, '-C', destination]);
+}
+
+async function assertBackupIntegrity(serverId, filename, backupPath) {
+    const record = await findBackupRecord(serverId, filename);
+    if (!record?.checksum_sha256) return { verified: false, reason: 'legacy-without-checksum' };
+    const actual = await rustUtil.sha256File(backupPath);
+    if (actual !== record.checksum_sha256) {
+        throw new Error('La copia no supera la validacion SHA-256 y no sera restaurada.');
+    }
+    return { verified: true, checksumSha256: actual };
 }
 
 async function prepareBackupReadAccess(server) {
@@ -189,7 +210,8 @@ export async function createFullBackup(id, userId, isAdmin, customName = null) {
         await fs.unlink(dbDumpFile).catch(() => {});
 
         const stat = await fs.stat(backupFilePath);
-        await recordBackup({ serverId: s.id, filename: backupFileName, sizeBytes: stat.size });
+        const checksumSha256 = await rustUtil.sha256File(backupFilePath);
+        await recordBackup({ serverId: s.id, filename: backupFileName, sizeBytes: stat.size, checksumSha256 });
 
         const planName = (s.runtime_plan || '').toLowerCase();
         let maxManualRetain = 1;
@@ -301,13 +323,9 @@ export async function restoreBackup(id, filename, userId, isAdmin) {
     await controlServer(s.id, userId, 'stop', isAdmin);
 
     try {
+        await assertBackupIntegrity(s.id, safeFilename, backupPath);
         await fs.mkdir(restorePath, { recursive: true });
-
-        if (safeFilename.endsWith('.zst')) {
-            await runProcess('tar', ['--zstd', '-xf', backupPath, '-C', restorePath]);
-        } else {
-            await runProcess('tar', ['-xzf', backupPath, '-C', restorePath]);
-        }
+        await extractArchive(backupPath, restorePath);
 
         if (includesDatabase) {
             await runProcess('mariadb-dump', [

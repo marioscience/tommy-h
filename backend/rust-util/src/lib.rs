@@ -6,10 +6,11 @@ use napi_derive::napi;
 use napi::threadsafe_function::{ThreadsafeFunction, ErrorStrategy, ThreadsafeFunctionCallMode};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::io::{self, Read, Seek};
-use std::path::Path;
+use std::io::{self, BufReader, Read, Seek};
+use std::path::{Component, Path};
 use zip::ZipArchive;
 use jwalk::WalkDir;
+use sha2::{Digest, Sha256};
 
 // Removed Jemalloc due to initial-exec TLS conflict with Alpine musl
 
@@ -57,6 +58,7 @@ struct MemoryInnerStats {
 }
 
 #[napi(object)]
+#[derive(Serialize)]
 pub struct StatsResult {
     pub cpu: String,
     pub ram: String,
@@ -65,35 +67,75 @@ pub struct StatsResult {
     pub net_tx: String,
 }
 
+fn unzip_validated(source: &str, dest: &str, max_expanded_bytes: u64) -> Result<()> {
+    let file = fs::File::open(source).map_err(map_err)?;
+    let mut archive = ZipArchive::new(file).map_err(map_err)?;
+    fs::create_dir_all(dest).map_err(map_err)?;
+    let mut expanded_bytes = 0_u64;
+
+    for index in 0..archive.len() {
+        let mut entry = archive.by_index(index).map_err(map_err)?;
+        let relative = entry.enclosed_name().ok_or_else(|| {
+            napi::Error::new(napi::Status::InvalidArg, "ZIP contiene una ruta no permitida")
+        })?;
+        if entry.unix_mode().is_some_and(|mode| mode & 0o170000 == 0o120000) {
+            return Err(napi::Error::new(napi::Status::InvalidArg, "ZIP contiene un enlace simbolico"));
+        }
+        expanded_bytes = expanded_bytes.checked_add(entry.size()).ok_or_else(|| {
+            napi::Error::new(napi::Status::InvalidArg, "Tamano expandido fuera de rango")
+        })?;
+        if expanded_bytes > max_expanded_bytes {
+            return Err(napi::Error::new(napi::Status::InvalidArg, "ZIP excede el almacenamiento disponible"));
+        }
+
+        let output = Path::new(dest).join(relative);
+        if entry.is_dir() {
+            fs::create_dir_all(&output).map_err(map_err)?;
+        } else {
+            if let Some(parent) = output.parent() {
+                fs::create_dir_all(parent).map_err(map_err)?;
+            }
+            let mut target = fs::File::create(output).map_err(map_err)?;
+            io::copy(&mut entry, &mut target).map_err(map_err)?;
+        }
+    }
+    Ok(())
+}
+
 #[napi]
 pub async fn unzip_file(source: String, dest: String) -> Result<()> {
     tokio::task::spawn_blocking(move || {
-        let fname = Path::new(&source);
-        let file = fs::File::open(fname).map_err(map_err)?;
-        let mut archive = ZipArchive::new(file).map_err(map_err)?;
+        unzip_validated(&source, &dest, u64::MAX)
+    })
+    .await
+    .map_err(map_err)?
+}
 
-        fs::create_dir_all(&dest).map_err(map_err)?;
-
-        for i in 0..archive.len() {
-            let mut file = archive.by_index(i).map_err(map_err)?;
-            let outpath = match file.enclosed_name() {
-                Some(path) => Path::new(&dest).join(path),
-                None => continue,
-            };
-
-            if file.name().ends_with('/') {
-                fs::create_dir_all(&outpath).map_err(map_err)?;
-            } else {
-                if let Some(p) = outpath.parent() {
-                    if !p.exists() {
-                        fs::create_dir_all(p).map_err(map_err)?;
-                    }
-                }
-                let mut outfile = fs::File::create(&outpath).map_err(map_err)?;
-                io::copy(&mut file, &mut outfile).map_err(map_err)?;
-            }
+#[napi]
+pub async fn unzip_file_validated(source: String, dest: String, max_expanded_bytes: f64) -> Result<()> {
+    tokio::task::spawn_blocking(move || {
+        if !max_expanded_bytes.is_finite() || max_expanded_bytes < 0.0 || max_expanded_bytes > u64::MAX as f64 {
+            return Err(napi::Error::new(napi::Status::InvalidArg, "Limite ZIP invalido"));
         }
-        Ok::<(), napi::Error>(())
+        unzip_validated(&source, &dest, max_expanded_bytes as u64)
+    })
+    .await
+    .map_err(map_err)?
+}
+
+#[napi]
+pub async fn sha256_file(file_path: String) -> Result<String> {
+    tokio::task::spawn_blocking(move || {
+        let file = fs::File::open(file_path).map_err(map_err)?;
+        let mut reader = BufReader::with_capacity(1024 * 1024, file);
+        let mut hasher = Sha256::new();
+        let mut buffer = vec![0_u8; 1024 * 1024];
+        loop {
+            let read = reader.read(&mut buffer).map_err(map_err)?;
+            if read == 0 { break; }
+            hasher.update(&buffer[..read]);
+        }
+        Ok::<String, napi::Error>(format!("{:x}", hasher.finalize()))
     })
     .await
     .map_err(map_err)?
@@ -120,7 +162,7 @@ pub async fn get_dir_size(path: String) -> Result<f64> {
 }
 
 #[napi]
-pub fn calculate_stats(mut json: String) -> Result<StatsResult> {
+fn calculate_stats_inner(mut json: String) -> Result<StatsResult> {
     let mut bytes = unsafe { json.as_mut_vec() };
     let stats: DockerStats = simd_json::from_slice(&mut bytes).map_err(map_err)?;
 
@@ -168,6 +210,16 @@ pub fn calculate_stats(mut json: String) -> Result<StatsResult> {
         net_rx: net_rx.to_string(),
         net_tx: net_tx.to_string(),
     })
+}
+
+#[napi]
+pub fn calculate_stats(json: String) -> Result<StatsResult> {
+    calculate_stats_inner(json)
+}
+
+#[napi]
+pub fn calculate_stats_batch(json_items: Vec<String>) -> Result<Vec<StatsResult>> {
+    json_items.into_iter().map(calculate_stats_inner).collect()
 }
 
 #[napi]
@@ -323,8 +375,21 @@ pub async fn unzstd_dir(source_file: String, output_dir: String) -> Result<()> {
         let zst = fs::File::open(&source_file).map_err(map_err)?;
         let dec = zstd::stream::read::Decoder::new(zst).map_err(map_err)?;
         let mut tar = tar::Archive::new(dec);
-
-        tar.unpack(&output_dir).map_err(map_err)?;
+        fs::create_dir_all(&output_dir).map_err(map_err)?;
+        for entry in tar.entries().map_err(map_err)? {
+            let mut entry = entry.map_err(map_err)?;
+            let entry_type = entry.header().entry_type();
+            if entry_type.is_symlink() || entry_type.is_hard_link() {
+                return Err(napi::Error::new(napi::Status::InvalidArg, "Backup contiene enlaces no permitidos"));
+            }
+            let relative = entry.path().map_err(map_err)?.into_owned();
+            if relative.components().any(|part| !matches!(part, Component::Normal(_) | Component::CurDir)) {
+                return Err(napi::Error::new(napi::Status::InvalidArg, "Backup contiene una ruta no permitida"));
+            }
+            if !entry.unpack_in(&output_dir).map_err(map_err)? {
+                return Err(napi::Error::new(napi::Status::InvalidArg, "No se pudo extraer una ruta de forma segura"));
+            }
+        }
         Ok::<(), napi::Error>(())
     })
     .await

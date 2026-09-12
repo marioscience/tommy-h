@@ -2,6 +2,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { EventEmitter } from 'events';
 import { createRequire } from 'module';
+import crypto from 'crypto';
+import { createReadStream } from 'fs';
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -53,6 +55,28 @@ export const rustUtil = {
             console.error('❌ [RustUtil] Error en unzip:', err.message);
             return { success: false, error: err.message };
         }
+    },
+
+    async unzipValidated(source, dest, maxExpandedBytes) {
+        try {
+            if (!native) throw new Error('Módulo nativo no disponible');
+            await native.unzipFileValidated(source, dest, Number(maxExpandedBytes));
+            return { success: true };
+        } catch (err) {
+            console.error('❌ [RustUtil] Error validando ZIP:', err.message);
+            return { success: false, error: err.message };
+        }
+    },
+
+    async sha256File(filePath) {
+        if (native) return native.sha256File(filePath);
+        return new Promise((resolve, reject) => {
+            const hash = crypto.createHash('sha256');
+            const input = createReadStream(filePath);
+            input.on('data', chunk => hash.update(chunk));
+            input.on('error', reject);
+            input.on('end', () => resolve(hash.digest('hex')));
+        });
     },
 
     async getDirSize(dirPath) {
@@ -116,6 +140,29 @@ export const rustUtil = {
             console.error('❌ [RustUtil] Error en stats:', err.message);
             return null;
         }
+    },
+
+    async calculateStatsBatch(rawStatsItems) {
+        const items = Array.isArray(rawStatsItems) ? rawStatsItems : [];
+        if (native) {
+            const serialized = items.map(rawStats => {
+                const { pids_stats: _unusedPidsStats, ...statsForRust } = rawStats || {};
+                return JSON.stringify(statsForRust);
+            });
+            const results = native.calculateStatsBatch(serialized);
+            return results.map(result => {
+                const rawCpu = Number.parseFloat(result?.cpu) || 0;
+                const rawRam = Number.parseFloat(result?.ram) || 0;
+                return {
+                    ...result,
+                    cpu: `${rawCpu.toFixed(2)}%`,
+                    ram: `${rawRam.toFixed(2)}%`,
+                    raw_cpu: rawCpu,
+                    raw_ram: rawRam
+                };
+            });
+        }
+        return Promise.all(items.map(item => this.calculateStats(item)));
     },
 
     async patchHtml(filePath, styleTag) {
