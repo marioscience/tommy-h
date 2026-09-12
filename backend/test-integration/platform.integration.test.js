@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createClient } from 'redis';
 import { pool, query, withTransaction } from '../src/db.js';
+import { findNodeById } from '../src/repositories/nodeRepository.js';
+import { findServerNodeIdByContainer, getServerStatus } from '../src/repositories/serverRepository.js';
 import { getContainerStats, inspectContainer } from '../src/services/dockerService.js';
 
 const enabled = process.env.RUN_INTEGRATION === '1';
@@ -56,13 +58,20 @@ integration('Real platform integration', () => {
 
   it('reads a real running game container through Docker', async (context) => {
     const { rows } = await query(`
-      SELECT container_name
+      SELECT id, container_name, node_id, status
       FROM servers
       WHERE status = 'running'
       ORDER BY created_at DESC
       LIMIT 1
     `);
     if (rows.length === 0) return context.skip('No running game container is available');
+
+    assert.equal(await getServerStatus(rows[0].id), rows[0].status);
+    assert.equal(await findServerNodeIdByContainer(rows[0].container_name), rows[0].node_id);
+    if (rows[0].node_id) {
+      const node = await findNodeById(rows[0].node_id);
+      assert.equal(node?.id, rows[0].node_id);
+    }
 
     const inspect = await inspectContainer(rows[0].container_name, { force: true });
     assert.equal(inspect.State.Running, true);

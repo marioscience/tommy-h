@@ -18,6 +18,15 @@ import { getPlanRamGb, resolveServerPlan } from './serverPlanPolicy.js';
 import { getPublicEndpointUrl } from './publicEndpointService.js';
 import { scheduleEmbeddedTxAdminCookieRepair } from './txAdminCookieService.js';
 import { restartServerContainer } from './serverRuntimeLifecycle.js';
+import {
+  claimServerRecreation,
+  deleteServerRecord,
+  findSubuserPermissions,
+  getServerStatus,
+  listMaintainableServers,
+  updateServerStatus,
+  updateServerTxAdminUrl
+} from '../repositories/serverRepository.js';
 const MAINTENANCE_CHUNK_SIZE = Math.max(1, Number(process.env.MAINTENANCE_CHUNK_SIZE || 3));
 
 export async function controlServer(id, userId, action, isAdmin, options = {}) {
@@ -29,9 +38,8 @@ export async function controlServer(id, userId, action, isAdmin, options = {}) {
   }
 
   if (s.owner_id !== userId && !isAdmin) {
-      const suRes = await query("SELECT permissions FROM subusers WHERE server_id = $1 AND user_id = $2", [s.id, userId]);
-      if (suRes.rowCount === 0) throw new Error("Acceso denegado.");
-      const perms = suRes.rows[0].permissions || [];
+      const perms = await findSubuserPermissions(s.id, userId);
+      if (perms === null) throw new Error("Acceso denegado.");
       if (!perms.includes('power') && !perms.includes('restart')) {
           throw new Error("No tienes permiso para controlar la energía de este servidor.");
       }
@@ -54,7 +62,7 @@ export async function controlServer(id, userId, action, isAdmin, options = {}) {
           await Docker.startContainer(s.container_name);
 
           if (s.template === 'fivem') scheduleEmbeddedTxAdminCookieRepair(s);
-          await query("UPDATE servers SET status = 'running' WHERE id = $1", [s.id]);
+          await updateServerStatus(s.id, 'running');
       } catch (err) {
           if (err.message.includes('No such container') || err.message.includes('404')) {
               console.log(`[Auto-Fix] Contenedor ${s.container_name} no encontrado al iniciar. Forzando recreación.`);
@@ -65,17 +73,16 @@ export async function controlServer(id, userId, action, isAdmin, options = {}) {
       }
   }
   if (action === 'stop') {
-      await query("UPDATE servers SET status = 'stopping' WHERE id = $1", [s.id]);
+      await updateServerStatus(s.id, 'stopping');
       try {
           await Docker.stopContainer(s.container_name);
       } catch (e) {
           console.error(`[ServerService] Error al detener contenedor ${s.container_name}: ${e.message}`);
       }
-      await query("UPDATE servers SET status = 'stopped' WHERE id = $1", [s.id]);
+      await updateServerStatus(s.id, 'stopped');
   }
   if (action === 'restart') {
-      const { rowCount } = await query("UPDATE servers SET status = 'recreating' WHERE id = $1 AND status != 'recreating'", [s.id]);
-      if (rowCount === 0) {
+      if (!await claimServerRecreation(s.id)) {
           throw new Error("El servidor ya está en proceso de reinicio o recreación. Por favor, espera unos segundos.");
       }
 
@@ -86,9 +93,9 @@ export async function controlServer(id, userId, action, isAdmin, options = {}) {
       try {
           await restartServerContainer(s, plan);
           if (s.template === 'fivem') scheduleEmbeddedTxAdminCookieRepair(s);
-          await query("UPDATE servers SET status = 'running' WHERE id = $1", [s.id]);
+          await updateServerStatus(s.id, 'running');
       } catch (error) {
-          await query("UPDATE servers SET status = 'error' WHERE id = $1", [s.id]);
+          await updateServerStatus(s.id, 'error');
           throw error;
       }
   }
@@ -102,12 +109,12 @@ export async function deleteServer(id, userId, isAdmin) {
   if (!s) throw new Error("No encontrado");
   if (!isAdmin && s.owner_id !== userId) throw new Error('Solo el propietario puede eliminar el servidor.');
 
-  await query("UPDATE servers SET status = 'deleting' WHERE id = $1", [s.id]);
+  await updateServerStatus(s.id, 'deleting');
 
   await Docker.removeContainer(s.container_name);
   await Docker.removeContainer(`${s.container_name}-db`);
   await Docker.removeContainer(`ragenodes-blender-${s.id.slice(0,8)}`);
-  await query('DELETE FROM servers WHERE id = $1', [s.id]);
+  await deleteServerRecord(s.id);
   try { await fs.rm(s.data_path, { recursive: true, force: true }); } catch {}
 
   // 🧹 Limpieza de memoria en mapas locales
@@ -146,12 +153,7 @@ export async function runServerMaintenance() {
         `);
 
         // Filtramos en Postgres para evitar procesamiento inútil en contenedores apagados o suspendidos
-        const { rows: servers } = await query(`
-            SELECT servers.*, users.extra_disk_gb
-            FROM servers
-            LEFT JOIN users ON servers.owner_id = users.id
-            WHERE servers.status NOT IN ('stopped', 'stopping', 'suspended', 'deleting')
-        `);
+        const servers = await listMaintainableServers();
 
         // Ejecución en lotes para no asfixiar al host ni al API de Docker
         const CHUNK_SIZE = MAINTENANCE_CHUNK_SIZE;
@@ -167,19 +169,19 @@ export async function runServerMaintenance() {
                         const portBindings = inspect.HostConfig.PortBindings || {};
 
                         if (state.running && ['error', 'offline'].includes(s.status)) {
-                            await query("UPDATE servers SET status = 'running' WHERE id = $1", [s.id]);
+                            await updateServerStatus(s.id, 'running');
                             s.status = 'running';
                         }
 
                         // 🛡️ Si el contenedor existe pero está apagado (Exited/Dead), se debe reparar de inmediato
                         if (!state.running) {
                             // Secondary DB check to prevent race condition if user stopped it while maintenance loop was iterating
-                            const { rows: freshCheck } = await query("SELECT status FROM servers WHERE id = $1", [s.id]);
-                            if (freshCheck.length > 0 && !['stopped', 'stopping', 'suspended', 'deleting'].includes(freshCheck[0].status)) {
+                            const freshStatus = await getServerStatus(s.id);
+                            if (freshStatus && !['stopped', 'stopping', 'suspended', 'deleting'].includes(freshStatus)) {
                                 console.log(`⚠️ [Mantenimiento] Contenedor ${s.name} está offline (no running). Forzando auto-curado.`);
                                 needsFix = true;
                             } else {
-                                console.log(`ℹ️ [Mantenimiento] Contenedor ${s.name} está offline pero su estado en DB es ${freshCheck[0]?.status}. Ignorando.`);
+                                console.log(`ℹ️ [Mantenimiento] Contenedor ${s.name} está offline pero su estado en DB es ${freshStatus}. Ignorando.`);
                             }
                         }
 
@@ -252,7 +254,7 @@ export async function runServerMaintenance() {
                             if (diskPercent >= 100 && !needsFix) {
                                 console.log(`🛑 [Cuota de Disco] Servidor ${s.name} alcanzó el 100% de uso. Apagando por seguridad.`);
                                 await Docker.stopContainer(s.container_name);
-                                await query("UPDATE servers SET status = 'stopped' WHERE id = $1", [s.id]);
+                                await updateServerStatus(s.id, 'stopped');
                                 await query("INSERT INTO notifications (title, content, type) VALUES ($1, $2, $3)", [
                                     `Servidor Apagado: ${s.name}`,
                                     `El servidor superó su límite de almacenamiento (${(maxDisk / (1024**3)).toFixed(2)} GB). Fue apagado por seguridad.`,
@@ -310,7 +312,7 @@ export async function runServerMaintenance() {
                             }
                         } else {
                             console.log(`❌ [Mantenimiento] ${s.name} ha fallado demasiadas veces. Pausando auto-curado.`);
-                            await query("UPDATE servers SET status = 'error' WHERE id = $1", [s.id]);
+                            await updateServerStatus(s.id, 'error');
                         }
                     }
 
@@ -318,7 +320,7 @@ export async function runServerMaintenance() {
                     if (s.template === 'fivem' && s.txadmin_port) {
                         const publicUrl = getPublicEndpointUrl(s.txadmin_port, { path: '' });
                         if (s.txadmin_url !== publicUrl) {
-                            await query('UPDATE servers SET txadmin_url = $1 WHERE id = $2', [publicUrl, s.id]);
+                            await updateServerTxAdminUrl(s.id, publicUrl);
                         }
                     }
                 } catch (e) {
@@ -338,8 +340,8 @@ export async function runServerMaintenance() {
 
 // Helper para reparar un servidor individualmente
 export async function repairOneServer(s) {
-    const { rowCount } = await query("UPDATE servers SET status = 'recreating' WHERE id = $1 AND status != 'recreating'", [s.id]);
-    if (rowCount === 0 && s.status !== 'error') {
+    const recreationClaimed = await claimServerRecreation(s.id);
+    if (!recreationClaimed && s.status !== 'error') {
         // Allow retry if it was already in recreating, but to prevent infinite loops without delay we set it to error if it fails
         console.warn(`⏳ [Mantenimiento] Servidor ${s.name} ya está en proceso de recreación. Omitiendo por ahora.`);
         return false;
@@ -352,19 +354,19 @@ export async function repairOneServer(s) {
 
     try {
         await restartServerContainer(s, plan);
-        const { rows } = await query("SELECT status FROM servers WHERE id = $1", [s.id]);
-        if (rows.length > 0 && (rows[0].status === 'stopped' || rows[0].status === 'stopping')) {
+        const currentStatus = await getServerStatus(s.id);
+        if (currentStatus === 'stopped' || currentStatus === 'stopping') {
             console.warn(`[Auto-Curado] Reparación de ${s.name} cancelada: El usuario solicitó detener el servidor durante la reparación.`);
             await Docker.stopContainer(s.container_name);
             return false;
         }
 
-        await query("UPDATE servers SET status = 'running' WHERE id = $1", [s.id]);
+        await updateServerStatus(s.id, 'running');
         return true;
 
     } catch (e) {
         console.error(`❌ Error en mantenimiento de ${s.name}:`, e.message);
-        await query("UPDATE servers SET status = 'error' WHERE id = $1", [s.id]);
+        await updateServerStatus(s.id, 'error');
         return false;
     }
 }
@@ -377,8 +379,7 @@ export async function repairServer(id, userId, isAdmin) {
       throw new Error("El servidor está suspendido por falta de pago. No se puede reparar en este estado.");
   }
 
-  const { rowCount } = await query("UPDATE servers SET status = 'recreating' WHERE id = $1 AND status != 'recreating'", [s.id]);
-  if (rowCount === 0) {
+  if (!await claimServerRecreation(s.id)) {
       console.warn(`⏳ [Repair] Servidor ${s.name} ya está en proceso de recreación/mantenimiento. Omitiendo.`);
       return { success: false, reason: 'already_recreating' };
   }
@@ -392,11 +393,11 @@ export async function repairServer(id, userId, isAdmin) {
 
   try {
       await restartServerContainer(s, plan);
-      await query("UPDATE servers SET status = 'running' WHERE id = $1", [s.id]);
+      await updateServerStatus(s.id, 'running');
 
       return { success: true };
   } catch (err) {
-      await query("UPDATE servers SET status = 'error' WHERE id = $1", [s.id]);
+      await updateServerStatus(s.id, 'error');
       await logAudit(userId, 'SERVER.REPAIR.FAILED', { serverId: s.id, error: err.message });
       throw err;
   }

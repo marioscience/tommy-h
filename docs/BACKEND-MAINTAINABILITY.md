@@ -19,7 +19,8 @@ contratos estables y pruebas proporcionales al riesgo.
 ## Dirección de dependencias
 
 ```text
-routes -> middleware -> services -> game adapters / integrations -> db
+routes -> middleware -> services -> repositories -> db
+                              \-> game adapters / integrations
                     \-> policies (reglas puras)
 workers ------------> services
 ```
@@ -30,6 +31,9 @@ workers ------------> services
   origen o trazabilidad.
 - **Servicios:** contienen casos de uso y coordinan persistencia, Docker y otras
   integraciones. Deben exponer funciones con nombres de dominio.
+- **Repositorios:** contienen el SQL de un agregado, usan parámetros y devuelven
+  resultados con fallbacks estables. Rutas y servicios no deben añadir consultas
+  nuevas de ese agregado fuera de su repositorio.
 - **Policies/helpers puros:** resuelven cálculos y decisiones deterministas sin
   red, reloj global ni estado externo; son la unidad preferida para pruebas.
 - **Adaptadores de juegos:** describen imágenes, entorno, puertos, volúmenes y
@@ -76,6 +80,10 @@ export async function resumeAfterMaintenance(serverId) { /* ... */ }
   despachar reinicios a cada adaptador de juego.
 - `services/serverMaintenanceScheduler.js`: único temporizador de mantenimiento,
   iniciado explícitamente por el worker de eventos Docker.
+- `repositories/serverRepository.js`: lecturas y escrituras reutilizadas del
+  agregado servidor, incluidos cambios atómicos de estado.
+- `repositories/nodeRepository.js`: persistencia de nodos y única lista segura de
+  campos editables; evita construir columnas SQL desde entradas HTTP.
 
 Este mapa debe actualizarse cuando una nueva separación cambie la ubicación
 esperada de una responsabilidad importante.

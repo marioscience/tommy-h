@@ -32,6 +32,12 @@ import { createSDTDContainer } from './games/sdtd.js';
 import { createDiscordBotContainer } from './games/discordbot.js';
 import { createWordPressContainer } from './games/wordpress.js';
 import { createDatabaseContainer } from './games/database.js';
+import {
+    listActiveNodeIds,
+    listActiveNodes,
+    updateNodeCapacity
+} from '../repositories/nodeRepository.js';
+import { findServerWebhookByContainer } from '../repositories/serverRepository.js';
 
 const execAsync = util.promisify(exec);
 
@@ -70,12 +76,10 @@ export async function startDockerTelemetryCollector() {
     console.log("📊 [StatsCollector] Iniciando recolector de telemetría multi-nodo...");
     while (true) {
         try {
-            const { query } = await import('../db.js');
-            const nodesRes = await query("SELECT id FROM nodes WHERE status = 'active'");
-
-            for (const nodeRow of nodesRes.rows) {
+            const nodeIds = await listActiveNodeIds();
+            for (const nodeId of nodeIds) {
                 try {
-                    const docker = await getNodeConnection(nodeRow.id);
+                    const docker = await getNodeConnection(nodeId);
                     const containers = await docker.listContainers();
                     const ragenodeContainers = containers.filter(c =>
                         c.Names[0].startsWith('/' + config.containerPrefix) &&
@@ -101,7 +105,7 @@ export async function startDockerTelemetryCollector() {
                                         disk: "0.0",
                                         diskGb: "0.0",
                                         updatedAt: Date.now(),
-                                        nodeId: nodeRow.id
+                                        nodeId
                                     };
                                     STATS_CACHE.set(key, payload);
                                     if (redisClient?.isOpen) {
@@ -112,7 +116,7 @@ export async function startDockerTelemetryCollector() {
                         }));
                     }
                 } catch (nodeErr) {
-                    console.error(`⚠️ [Stats] Error en nodo ${nodeRow.id}:`, nodeErr.message);
+                    console.error(`⚠️ [Stats] Error en nodo ${nodeId}:`, nodeErr.message);
                 }
             }
         } catch (e) {
@@ -126,14 +130,12 @@ export function startNodeMonitor() {
     console.log("🖥️ [NodeMonitor] Iniciando monitoreo de nodos...");
     setInterval(async () => {
         try {
-            const { query } = await import('../db.js');
-            const nodes = await query("SELECT * FROM nodes WHERE status = 'active'");
-            for (const node of nodes.rows) {
+            const nodes = await listActiveNodes();
+            for (const node of nodes) {
                 try {
                     const docker = await getNodeConnection(node.id);
                     const info = await docker.info();
-                    await query("UPDATE nodes SET ram_total_gb = $1, cpu_cores = $2 WHERE id = $3",
-                        [Math.round(info.MemTotal / 1024**3), info.NCPU, node.id]);
+                    await updateNodeCapacity(node.id, Math.round(info.MemTotal / 1024**3), info.NCPU);
                 } catch (e) {}
             }
         } catch (e) {}
@@ -142,11 +144,10 @@ export function startNodeMonitor() {
 
 export async function patchExistingContainers() {
     try {
-        const { query } = await import('../db.js');
-        const nodesRes = await query("SELECT id FROM nodes WHERE status = 'active'");
-        for (const nodeRow of nodesRes.rows) {
+        const nodeIds = await listActiveNodeIds();
+        for (const nodeId of nodeIds) {
             try {
-                const docker = await getNodeConnection(nodeRow.id);
+                const docker = await getNodeConnection(nodeId);
                 const containers = await docker.listContainers();
                 for (const containerInfo of containers) {
                     if (containerInfo.Names[0].startsWith('/ragenodes-')) {
@@ -287,11 +288,9 @@ export async function startContainer(name) {
         invalidateContainerCache(name);
 
         try {
-            const { query } = await import('../db.js');
             const { sendWebhookNotification } = await import('./discordWebhookService.js');
-            const res = await query("SELECT name, discord_webhook_url, discord_webhook_events FROM servers WHERE container_name = $1", [name]);
-            if (res.rowCount > 0) {
-                const s = res.rows[0];
+            const s = await findServerWebhookByContainer(name);
+            if (s) {
                 await sendWebhookNotification(s.discord_webhook_url, s.discord_webhook_events, 'online', s.name);
             }
         } catch (e) {}
@@ -306,11 +305,9 @@ export async function stopContainer(name) {
         invalidateContainerCache(name);
 
         try {
-            const { query } = await import('../db.js');
             const { sendWebhookNotification } = await import('./discordWebhookService.js');
-            const res = await query("SELECT name, discord_webhook_url, discord_webhook_events FROM servers WHERE container_name = $1", [name]);
-            if (res.rowCount > 0) {
-                const s = res.rows[0];
+            const s = await findServerWebhookByContainer(name);
+            if (s) {
                 await sendWebhookNotification(s.discord_webhook_url, s.discord_webhook_events, 'offline', s.name);
             }
         } catch (e) {}
