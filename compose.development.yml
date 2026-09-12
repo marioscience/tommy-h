@@ -1,0 +1,87 @@
+# Standalone local stack; never combine with production Compose files.
+services:
+  frontend:
+    image: node:24-bookworm-slim
+    working_dir: /workspace
+    command: [node, --watch, scripts/dev/mock-server.mjs]
+    environment:
+      RAGENODES_DEV_MOCK: 'true'
+    volumes:
+      - ./scripts/dev:/workspace/scripts/dev:ro
+      - ./frontend/public:/workspace/frontend/public:ro
+    ports: ['127.0.0.1:${DEV_FRONTEND_PORT:-18088}:8080']
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 3s
+      retries: 15
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ragenodes
+      POSTGRES_USER: ragenodes
+      POSTGRES_PASSWORD: ${DEV_POSTGRES_PASSWORD:?Run ./dev setup}
+    volumes: [dev_postgres:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U ragenodes -d ragenodes']
+      interval: 3s
+      retries: 20
+  mariadb:
+    image: mariadb@sha256:de61fed4a40d3842f3ee09944ba52792156cfd9adf489b2cc670fc6ded28df8d
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DEV_MARIADB_PASSWORD:?Run ./dev setup}
+    volumes: [dev_mariadb:/var/lib/mysql]
+    healthcheck:
+      test: [CMD, healthcheck.sh, --connect, --innodb_initialized]
+      interval: 3s
+      retries: 30
+  redis:
+    image: redis:8-alpine
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 3s
+      retries: 15
+  backend:
+    build: ./backend
+    command: [node, --watch, src/server.js]
+    environment:
+      NODE_ENV: development
+      PORT: '3006'
+      PROJECT_ROOT: /workspace
+      PUBLIC_BASE_URL: http://localhost:${DEV_BACKEND_PORT:-13010}
+      CORS_ORIGIN: http://localhost:${DEV_BACKEND_PORT:-13010}
+      DATABASE_URL: postgres://ragenodes:${DEV_POSTGRES_PASSWORD}@postgres:5432/ragenodes
+      CENTRAL_DB_PASS: ${DEV_MARIADB_PASSWORD}
+      JWT_SECRET: ${DEV_JWT_SECRET}
+      ADMIN_BOOTSTRAP_USER: admin
+      ADMIN_BOOTSTRAP_PASS: ${DEV_ADMIN_PASSWORD}
+      REDIS_URL: redis://redis:6379
+      PAYPAL_WEBHOOKS_ENABLED: 'false'
+      COOKIE_SECURE: 'false'
+      ALLOW_LOCAL_ADMIN: 'true'
+      RAGENODES_ROLE: backend-api
+    volumes:
+      - ./backend/src:/app/src:ro
+      - ./frontend/public:/workspace/frontend/public:ro
+    ports: ['127.0.0.1:${DEV_BACKEND_PORT:-13010}:3006']
+    depends_on:
+      postgres: {condition: service_healthy}
+      mariadb: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3006/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 3s
+      retries: 30
+  proxy:
+    build: ./oxideproxy
+    volumes:
+      - ./scripts/dev/oxide.yml:/app/config/oxide_proxy.yml:ro
+      - ./frontend/public:/var/www/frontend:ro
+    environment:
+      ACCESS_GATE_ENABLED: 'false'
+      OXIDE_ACME_ENABLED: 'false'
+    ports: ['127.0.0.1:${DEV_PROXY_PORT:-18089}:8088']
+    depends_on:
+      backend: {condition: service_healthy}
+volumes:
+  dev_postgres:
+  dev_mariadb:

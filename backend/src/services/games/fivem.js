@@ -8,7 +8,7 @@ import { config } from '../../config.js';
  */
 export class FiveMService extends BaseGameService {
     constructor() {
-        super('fivem', config.fivemBaseImage || 'ragenodes-fivem-base:1.0.0-local');
+        super('fivem', config.fivemBaseImage);
     }
 
     async prepareDirectory(nodeId, dataPath) {

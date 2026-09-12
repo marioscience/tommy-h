@@ -26,6 +26,14 @@ describe('🗄️ Database Migrations System Tests', () => {
         }
     });
 
+    it('declara la tabla histórica requerida por el recolector de métricas', () => {
+        const schemaSql = migrations.flatMap((migration) => migration.statements).join('\n');
+        assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS server_stats_history\s*\(/i);
+        assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS notifications\s*\(/i);
+        assert.match(schemaSql, /server_id UUID NOT NULL REFERENCES servers\(id\) ON DELETE CASCADE/i);
+        assert.match(schemaSql, /idx_server_stats_history_server_time/i);
+    });
+
     it('debería registrar y aplicar migraciones pendientes usando mock de DB', async () => {
         const appliedDbMigrations = new Set(['202601010001_initial_core_schema']);
         const executedStatements = [];

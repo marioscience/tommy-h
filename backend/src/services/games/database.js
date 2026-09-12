@@ -1,4 +1,4 @@
-import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, deriveServicePassword, normalizeBindOwnership, sh } from '../dockerUtils.js';
+import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, deriveServicePassword, normalizeBindOwnership, sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
 
 export async function createDatabaseContainer(opts) {

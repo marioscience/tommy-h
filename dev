@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+command -v node >/dev/null || { echo 'Instala Node.js 24 o abre el Dev Container.' >&2; exit 1; }
+exec node scripts/dev/cli.mjs "$@"

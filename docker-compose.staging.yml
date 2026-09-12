@@ -98,7 +98,6 @@ services:
       - /srv/ragenodes-staging-data:/srv/ragenodes-staging-data
       - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
       - ./backend/src:/app/src:ro
-      - ./fivem-base:/app/fivem-base
       - ./certs:/opt/ragenodes-ultimate/certs
     ports:
       - "127.0.0.1:3011:3006" # Puerto 3011 para el panel de Staging
@@ -197,7 +196,6 @@ services:
       - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
       - ./backend/src:/app/src:ro
       - ./config/rclone:/app/config/rclone:ro
-      - ./fivem-base:/app/fivem-base
       - ./certs:/opt/ragenodes-ultimate/certs:ro
     security_opt:
       - no-new-privileges:true

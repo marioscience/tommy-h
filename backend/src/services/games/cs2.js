@@ -1,4 +1,4 @@
-import { getNodeConnection, runRemoteCommand, localDocker, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, sh } from '../dockerUtils.js';
+import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
 import { prepareGameProxyBindings } from '../gameProxyPolicy.js';
 
@@ -59,13 +59,14 @@ export async function createCS2Container(opts) {
         Image: config.cs2BaseImage,
         name: opts.containerName,
         Env: [
-            `SRCDS_HOSTNAME=RageNodes | ${opts.serverName}`,
-            'SRCDS_MAP=de_dust2',
-            'SRCDS_GAME_TYPE=0',
-            'SRCDS_GAME_MODE=1',
-            'SRCDS_MAXPLAYERS=12',
-            'SRCDS_TICKRATE=64', // Perfil estable y accesible para servidores nuevos
-            `SRCDS_RCON_PW=${deriveServicePassword('cs2-rcon', opts.serverId || opts.containerName)}`,
+            `CS2_SERVERNAME=RageNodes | ${opts.serverName}`,
+            'CS2_PORT=27015',
+            'CS2_STARTMAP=de_dust2',
+            'CS2_MAPGROUP=mg_active',
+            'CS2_GAMETYPE=0',
+            'CS2_GAMEMODE=1',
+            'CS2_MAXPLAYERS=12',
+            `CS2_RCONPW=${deriveServicePassword('cs2-rcon', opts.serverId || opts.containerName)}`,
         ],
         ExposedPorts: { '27015/tcp': {}, '27015/udp': {} },
         Tty: true,

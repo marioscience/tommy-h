@@ -15,31 +15,23 @@
     "NODE_ENV": "development",
     "NPM_CONFIG_CACHE": "/home/node/.cache/npm"
   },
-  "postCreateCommand": "bash .devcontainer/setup-ebpf.sh && npm ci && npm --prefix backend ci",
+  "postCreateCommand": "npm ci && npm --prefix backend ci",
   "remoteUser": "node",
   "updateRemoteUserUID": true,
   "privileged": true,
   "shutdownAction": "stopContainer",
-  "mounts": [
-    "source=/sys/fs/bpf,target=/sys/fs/bpf,type=bind,consistency=cached"
-  ],
-  "runArgs": [
-    "--cap-add=NET_ADMIN",
-    "--cap-add=BPF",
-    "--cap-add=PERFMON"
-  ],
-  "forwardPorts": [3010, 8088, 8089],
+  "forwardPorts": [13010, 18088, 18089],
   "portsAttributes": {
-    "3010": {
+    "13010": {
       "label": "RageNodes Backend API",
       "onAutoForward": "notify"
     },
-    "8088": {
+    "18088": {
       "label": "RageNodes Web Dashboard",
       "onAutoForward": "openPreview"
     },
-    "8089": {
-      "label": "phpMyAdmin",
+    "18089": {
+      "label": "OxideProxy HTTP local",
       "onAutoForward": "silent"
     }
   },

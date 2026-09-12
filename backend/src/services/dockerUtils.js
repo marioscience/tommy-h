@@ -5,6 +5,8 @@ import { config } from '../config.js';
 import { exec } from 'child_process';
 import util from 'util';
 import crypto from 'crypto';
+import { findNodeById } from '../repositories/nodeRepository.js';
+import { findServerNodeIdByContainer } from '../repositories/serverRepository.js';
 
 const execAsync = util.promisify(exec);
 
@@ -83,11 +85,8 @@ export async function getNodeConnection(nodeId = 0) {
     if (NODE_CONNECTIONS.has(nodeId)) return NODE_CONNECTIONS.get(nodeId);
 
     try {
-        const { query } = await import('../db.js');
-        const res = await query("SELECT * FROM nodes WHERE id = $1", [nodeId]);
-        if (res.rowCount === 0) throw new Error(`Nodo ${nodeId} no encontrado.`);
-
-        const node = res.rows[0];
+        const node = await findNodeById(nodeId);
+        if (!node) throw new Error(`Nodo ${nodeId} no encontrado.`);
         const certsDir = path.join(config.projectRoot, 'certs');
 
         const dockerOpts = {
@@ -310,9 +309,7 @@ export async function applyRageNodesBranding(container, name = "Unknown", retrie
 
 export async function getDockerForContainer(name) {
     try {
-        const { query } = await import('../db.js');
-        const res = await query("SELECT node_id FROM servers WHERE container_name = $1", [name]);
-        const nodeId = (res.rowCount > 0) ? res.rows[0].node_id : 0;
+        const nodeId = await findServerNodeIdByContainer(name);
         return await getNodeConnection(nodeId);
     } catch (e) {
         return localDocker;
@@ -330,9 +327,7 @@ export async function recreateContainer(name, createFn, opts) {
 
     if (!opts.nodeId) {
         try {
-            const { query } = await import('../db.js');
-            const res = await query("SELECT node_id FROM servers WHERE container_name = $1", [name]);
-            if (res.rowCount > 0) opts.nodeId = res.rows[0].node_id;
+            opts.nodeId = await findServerNodeIdByContainer(name);
         } catch (e) {}
     }
 

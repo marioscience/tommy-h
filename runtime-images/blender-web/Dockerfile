@@ -22,7 +22,7 @@ RUN mkdir -p /usr/share/blender/scripts/addons && \
     git clone --depth 1 --shallow-submodules --recurse-submodules https://github.com/Skylumz/Sollumz.git /usr/share/blender/scripts/addons/sollumz && \
     find /usr/share/blender/scripts/addons/sollumz -name ".git" -exec rm -rf {} + && \
     chown -R abc:abc /usr/share/blender/scripts/addons/sollumz && \
-    chmod -R 777 /usr/share/blender/scripts/addons/sollumz
+    chmod -R u=rwX,g=rX,o=rX /usr/share/blender/scripts/addons/sollumz
 
 # 2b. Auto-habilitar addon Sollumz en el arranque de Blender
 RUN mkdir -p /usr/share/blender/scripts/startup && \

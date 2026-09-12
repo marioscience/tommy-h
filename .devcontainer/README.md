@@ -1,5 +1,11 @@
 # RageNodes development container
 
+For the quick component workflow run `bash dev setup`, `bash dev doctor`, then
+`bash dev up frontend` (mock) or `bash dev up core` (real API and databases).
+See [local development](../docs/LOCAL-DEVELOPMENT.md). Forwarded ports are
+13010, 18088 and 18089. eBPF setup is now opt-in:
+`bash .devcontainer/setup-ebpf.sh`. The full integration workflow below is optional.
+
 This definition provides Node.js 24, Rust, Docker CLI/Compose and an isolated
 Docker daemon. It installs the locked root and backend dependencies when the
 container is created, but it does not start RageNodes, databases, game servers

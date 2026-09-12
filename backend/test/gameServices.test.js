@@ -41,9 +41,17 @@ describe('🏭 GameFactory & OOP Architecture Tests (Módulo 3 & 4)', () => {
 
         const rust = GameFactory.get('rust');
         const rustPorts = rust.buildPortBindings({ gamePort: 28015 });
+        assert.ok(rustPorts.bindings['28015/tcp']);
         assert.ok(rustPorts.bindings['28015/udp']);
         assert.ok(rustPorts.bindings['28016/tcp']); // RCON
+        assert.ok(rustPorts.bindings['28016/udp']);
         assert.ok(rustPorts.bindings['28017/udp']); // Query
+        const rustEnv = rust.buildEnvironment({ serverName: 'test', serverId: 'server-1' });
+        assert.ok(rustEnv.includes('SERVER_PORT=28015'));
+        assert.ok(rustEnv.includes('RCON_PORT=28016'));
+        assert.ok(rustEnv.some((entry) => entry.startsWith('RCON_PASSWORD=') && entry.length > 20));
+        assert.ok(rustEnv.some((entry) => entry.startsWith('SERVER_IDENTITY=rust-')));
+        assert.ok(rustEnv.includes('OXIDE_ENABLED=true'));
 
         const minecraft = GameFactory.get('minecraft');
         const minecraftEnv = minecraft.buildEnvironment({

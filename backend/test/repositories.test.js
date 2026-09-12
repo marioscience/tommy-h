@@ -1,0 +1,102 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  claimServerRecreation,
+  findServerNodeIdByContainer,
+  findSubuserPermissions
+} from '../src/repositories/serverRepository.js';
+import { listActiveNodeIds, updateNode } from '../src/repositories/nodeRepository.js';
+import { activateEdgeProxy, updateEdgeProxy } from '../src/repositories/edgeProxyRepository.js';
+import { updateAdminUser } from '../src/repositories/userRepository.js';
+import { createNotification, listClientNotifications } from '../src/repositories/notificationRepository.js';
+import { recordBackup } from '../src/repositories/backupRepository.js';
+
+describe('SQL repositories', () => {
+  it('claims server recreation atomically', async () => {
+    const calls = [];
+    const db = async (sql, parameters) => {
+      calls.push({ sql, parameters });
+      return { rowCount: 1 };
+    };
+
+    assert.equal(await claimServerRecreation('server-1', db), true);
+    assert.match(calls[0].sql, /status != 'recreating'/);
+    assert.deepEqual(calls[0].parameters, ['server-1']);
+  });
+
+  it('returns stable fallbacks for absent server relations', async () => {
+    const emptyDb = async () => ({ rows: [] });
+    assert.equal(await findSubuserPermissions('server-1', 'user-1', emptyDb), null);
+    assert.equal(await findServerNodeIdByContainer('missing', emptyDb), 0);
+  });
+
+  it('updates only whitelisted node fields in one parameterized statement', async () => {
+    const calls = [];
+    const db = async (sql, parameters) => {
+      calls.push({ sql, parameters });
+      return { rowCount: 1 };
+    };
+
+    await updateNode(7, {
+      name: 'Cerbero',
+      status: 'active',
+      'status = \'offline\' --': 'malicious'
+    }, db);
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].sql, 'UPDATE nodes SET name = $1, status = $2 WHERE id = $3');
+    assert.deepEqual(calls[0].parameters, ['Cerbero', 'active', 7]);
+  });
+
+  it('does not execute an empty node update', async () => {
+    let called = false;
+    const result = await updateNode(7, { unknown: 'value', name: '' }, async () => {
+      called = true;
+    });
+    assert.equal(called, false);
+    assert.deepEqual(result, { rowCount: 0 });
+  });
+
+  it('maps active node rows to identifiers', async () => {
+    const ids = await listActiveNodeIds(async () => ({ rows: [{ id: 2 }, { id: 5 }] }));
+    assert.deepEqual(ids, [2, 5]);
+  });
+
+  it('activates an edge proxy inside one transaction and rejects a missing target', async () => {
+    const statements = [];
+    const transaction = async (callback) => callback(async (sql, parameters = []) => {
+      statements.push({ sql, parameters });
+      return { rowCount: sql.includes('WHERE id') ? 1 : 2 };
+    });
+    assert.equal(await activateEdgeProxy(4, transaction), true);
+    assert.equal(statements.length, 2);
+    assert.match(statements[0].sql, /is_active = false/);
+    assert.deepEqual(statements[1].parameters, [4]);
+
+    await assert.rejects(
+      activateEdgeProxy(99, async (callback) => callback(async () => ({ rowCount: 0 }))),
+      /EDGE_PROXY_NOT_FOUND/
+    );
+  });
+
+  it('whitelists dynamic user and edge-proxy updates', async () => {
+    const calls = [];
+    const db = async (sql, parameters) => { calls.push({ sql, parameters }); return { rowCount: 1 }; };
+    await updateAdminUser(3, { username: 'safe', injected: 'bad', server_limit: 0 }, db);
+    await updateEdgeProxy(8, { name: 'edge', evil: 'bad' }, db);
+    assert.equal(calls[0].sql, 'UPDATE users SET username = $1, server_limit = $2 WHERE id = $3');
+    assert.deepEqual(calls[0].parameters, ['safe', 0, 3]);
+    assert.doesNotMatch(calls[1].sql, /evil/);
+  });
+
+  it('keeps backup and notification values parameterized', async () => {
+    const calls = [];
+    const db = async (sql, parameters) => { calls.push({ sql, parameters }); return { rows: [] }; };
+    await recordBackup({ serverId: 's1', filename: "x'); DROP TABLE backups; --", sizeBytes: 42 }, db);
+    await createNotification({ title: 'title', content: 'content' }, db);
+    await listClientNotifications(5, db);
+    assert.equal(calls[0].parameters[1], "x'); DROP TABLE backups; --");
+    assert.deepEqual(calls[1].parameters, ['title', 'content', 'info']);
+    assert.deepEqual(calls[2].parameters, [5]);
+  });
+});
