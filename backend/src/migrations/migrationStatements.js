@@ -410,5 +410,21 @@ export const migrations = [
       'ALTER TABLE servers DROP CONSTRAINT IF EXISTS servers_allocated_ram_gb_positive',
       'ALTER TABLE servers ADD CONSTRAINT servers_allocated_ram_gb_positive CHECK (allocated_ram_gb >= 0)'
     ]
+  },
+  {
+    id: '202609120001_server_stats_history',
+    description: 'Historial de métricas por servidor utilizado por el panel de clientes',
+    statements: [
+      `CREATE TABLE IF NOT EXISTS server_stats_history (
+        id BIGSERIAL PRIMARY KEY,
+        server_id UUID NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+        cpu REAL NOT NULL,
+        ram REAL NOT NULL,
+        ram_gb REAL NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`,
+      'CREATE INDEX IF NOT EXISTS idx_server_stats_history_server_time ON server_stats_history(server_id, created_at DESC)',
+      'CREATE INDEX IF NOT EXISTS idx_server_stats_history_created_at ON server_stats_history(created_at)'
+    ]
   }
 ];
