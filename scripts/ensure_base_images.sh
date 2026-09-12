@@ -120,6 +120,13 @@ external_vars=(
 for variable in "${external_vars[@]}"; do
   image="${!variable:-}"
   [ -n "$image" ] || continue
+  case "$image" in
+    *@sha256:*) ;;
+    *)
+      echo "ERROR: $variable debe usar una imagen fijada por digest sha256: $image" >&2
+      exit 64
+      ;;
+  esac
   if ! image_exists "$image"; then
     echo "==> Precargando imagen fijada $image..."
     docker_runtime pull "$image"

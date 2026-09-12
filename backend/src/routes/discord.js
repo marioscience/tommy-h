@@ -253,7 +253,7 @@ router.get('/servers/routes', verifyApiKey, async (req, res) => {
         const protocolOffsets = {
             minecraft: [[0, 'TCP']],
             fivem: [[0, 'DUAL']],
-            rust: [[0, 'UDP'], [1, 'TCP'], [2, 'UDP']],
+            rust: [[0, 'DUAL'], [1, 'DUAL'], [2, 'UDP']],
             palworld: [[0, 'UDP'], [1, 'TCP'], [2, 'UDP']],
             cs2: [[0, 'DUAL']],
             valheim: [[0, 'UDP'], [1, 'UDP'], [2, 'UDP']],

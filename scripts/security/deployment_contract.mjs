@@ -27,6 +27,7 @@ const files = Object.fromEntries(await Promise.all([
   'backend/src/routes/discord.js',
   'backend/src/services/games/minecraft.js',
   'backend/src/services/games/rust.js',
+  'backend/src/services/games/palworld.js',
   'backend/src/services/games/cs2.js',
   'backend/src/services/games/valheim.js',
   'oxideproxy/config/oxide_proxy.yml',
@@ -206,6 +207,7 @@ assert(files['scripts/ensure_base_images.sh'].includes('docker_runtime image ins
 assert(files['scripts/ensure_base_images.sh'].includes('org.ragenodes.fivem.artifact'), 'FiveM rebuilds only when the recommended artifact changes');
 assert(files['scripts/ensure_base_images.sh'].includes('docker_runtime save "$image"'), 'base images are archived in the local master cache');
 assert(files['scripts/ensure_base_images.sh'].includes('docker_runtime pull "$image"'), 'digest-pinned external images are prefetched automatically');
+assert(files['scripts/ensure_base_images.sh'].includes('*@sha256:*'), 'external game images reject mutable tags before deployment');
 assert(files['scripts/ensure_base_images.sh'].includes('MINECRAFT_BASE_IMAGE:=itzg/minecraft-server:java25@sha256:'), 'image cache has a digest-pinned default manifest');
 assert(files['scripts/update_image_cache.sh'].includes('load_env_file "$ENV_FILE"'), 'scheduled image refresh loads dotenv without executing it');
 assert(files['ops/systemd/ragenodes-image-cache.timer'].includes('Persistent=true'), 'missed image refreshes run after the host returns');
@@ -264,7 +266,14 @@ assert(
   'FiveM startup repairs legacy partitioned txAdmin bundles'
 );
 assert(files['backend/src/services/games/rust.js'].includes("deriveServiceIdentifier('rust'"), 'Rust identity is unique per server');
-assert(files['backend/src/services/games/cs2.js'].includes("'SRCDS_TICKRATE=64'"), 'CS2 uses the standard beginner-friendly tickrate');
+assert(files['backend/src/services/games/rust.js'].includes("deriveServicePassword('rust-rcon'"), 'Rust never inherits the image default RCON password');
+assert(files['backend/src/services/games/rust.js'].includes("'SERVER_PORT=28015'"), 'Rust uses the current image environment contract');
+assert(files['backend/src/routes/discord.js'].includes("rust: [[0, 'DUAL'], [1, 'DUAL'], [2, 'UDP']]"), 'Rust route inventory preserves every declared TCP and UDP endpoint');
+assert(files['backend/src/services/games/palworld.js'].includes('...GAME_SECURITY_CONFIG'), 'Palworld applies the shared game-container security policy');
+assert(files['backend/src/services/games/cs2.js'].includes('CS2_SERVERNAME='), 'CS2 uses the current image environment contract');
+assert(files['backend/src/services/games/cs2.js'].includes('CS2_RCONPW='), 'CS2 configures the current image RCON variable');
+assert(!files['backend/src/services/games/cs2.js'].includes('SRCDS_RCON_PW='), 'CS2 does not use the obsolete RCON variable');
+assert(!files['backend/src/services/games/cs2.js'].includes('TICKRATE='), 'CS2 relies on its native subtick system');
 assert(files['backend/src/services/games/valheim.js'].includes("deriveServiceIdentifier('world'"), 'Valheim world names are unique per server');
 for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
   const deploy = files[deployFile];
