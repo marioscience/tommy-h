@@ -79,3 +79,11 @@ export async function resumeAfterMaintenance(serverId) { /* ... */ }
 
 Este mapa debe actualizarse cuando una nueva separación cambie la ubicación
 esperada de una responsabilidad importante.
+
+## Pruebas de integración reales
+
+La suite unitaria no requiere infraestructura. Antes de promover cambios del
+backend, ejecutar también `RUN_INTEGRATION=1 npm run test:integration` dentro
+de un contenedor conectado a PostgreSQL, Redis, Docker y al backend del
+laboratorio. La suite realiza sondas no destructivas, usa claves Redis efímeras
+y revierte cualquier escritura de prueba en PostgreSQL.

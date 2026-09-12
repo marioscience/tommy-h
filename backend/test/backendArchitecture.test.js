@@ -11,6 +11,14 @@ describe('Backend architecture boundaries', () => {
     assert.match(worker, /startServerMaintenance\(\)/);
   });
 
+  it('starts Docker telemetry explicitly from the stats worker', async () => {
+    const dockerService = await readFile(new URL('../src/services/dockerService.js', import.meta.url), 'utf8');
+    const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(dockerService, /dockerTelemetryOwner/);
+    assert.match(worker, /startDockerTelemetryCollector\(\)/);
+    assert.match(worker, /startNodeMonitor\(\)/);
+  });
+
   it('builds one canonical restart contract for every game adapter', () => {
     const options = buildRestartOptions({
       id: 'server-id',

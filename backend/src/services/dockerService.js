@@ -66,7 +66,7 @@ const CONTAINER_STATE_CACHE_MS = Math.max(0, Number(process.env.CONTAINER_STATE_
 
 
 
-async function startStatsCollector() {
+export async function startDockerTelemetryCollector() {
     console.log("📊 [StatsCollector] Iniciando recolector de telemetría multi-nodo...");
     while (true) {
         try {
@@ -122,7 +122,7 @@ async function startStatsCollector() {
     }
 }
 
-async function startNodeMonitor() {
+export function startNodeMonitor() {
     console.log("🖥️ [NodeMonitor] Iniciando monitoreo de nodos...");
     setInterval(async () => {
         try {
@@ -138,12 +138,6 @@ async function startNodeMonitor() {
             }
         } catch (e) {}
     }, 60000);
-}
-
-const dockerTelemetryOwner = (process.env.NODE_ENV !== 'test') && (!process.env.RAGENODES_ROLE || process.env.RAGENODES_ROLE === 'worker-stats');
-if (dockerTelemetryOwner) {
-    startStatsCollector();
-    startNodeMonitor();
 }
 
 export async function patchExistingContainers() {
