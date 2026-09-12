@@ -15,10 +15,9 @@ import { checkSystemLoad } from './serverCreationService.js';
 import { getFolderSize } from './serverNodeSelection.js';
 import { assertNodeStartCapacity } from './nodeResourcePolicy.js';
 import { getPlanRamGb, resolveServerPlan } from './serverPlanPolicy.js';
-import { GameFactory } from './games/GameFactory.js';
 import { getPublicEndpointUrl } from './publicEndpointService.js';
 import { scheduleEmbeddedTxAdminCookieRepair } from './txAdminCookieService.js';
-const MAINTENANCE_INTERVAL_MS = Math.max(300000, Number(process.env.MAINTENANCE_INTERVAL_MS || 600000));
+import { restartServerContainer } from './serverRuntimeLifecycle.js';
 const MAINTENANCE_CHUNK_SIZE = Math.max(1, Number(process.env.MAINTENANCE_CHUNK_SIZE || 3));
 
 export async function controlServer(id, userId, action, isAdmin, options = {}) {
@@ -83,39 +82,9 @@ export async function controlServer(id, userId, action, isAdmin, options = {}) {
       checkSystemLoad();
       const basePlan = PLAN_LIMITS[s.runtime_plan] || PLAN_LIMITS.hobby;
       const plan = s.allocated_ram_gb > 0 ? { ...basePlan, memoryBytes: s.allocated_ram_gb * 1024 * 1024 * 1024 } : basePlan;
-      let realLicenseKey = 'hidden';
-      try {
-          const inspect = await Docker.inspectContainer(s.container_name);
-          const env = inspect.Config.Env || [];
-          const lkEnv = env.find(e => e.startsWith('LICENSE_KEY='));
-          if (lkEnv) realLicenseKey = lkEnv.split('=')[1];
-      } catch (e) {}
-
-      const opts = {
-          containerName: s.container_name, dataPath: s.data_path,
-          fivemPort: s.fivem_port, txadminPort: s.txadmin_port,
-          serverId: s.id, serverName: s.name, licenseKey: realLicenseKey, plan, dbName: s.db_name, dbUser: s.db_user, dbPass: s.db_pass, nodeId: s.node_id,
-          gamePort: s.fivem_port, mcVersion: s.mc_version, mcType: s.mc_type,
-          clusterId: s.cluster_id, cpuset: s.cpuset
-      };
 
       try {
-          switch (s.template) {
-              case 'minecraft': await Docker.restartMinecraftContainer(opts); break;
-              case 'rust': await Docker.restartRustContainer(opts); break;
-              case 'palworld': await Docker.restartPalworldContainer(opts); break;
-              case 'cs2': await Docker.restartCS2Container(opts); break;
-              case 'valheim': await Docker.restartValheimContainer(opts); break;
-              case 'zomboid': await Docker.restartZomboidContainer(opts); break;
-              case 'ark': await Docker.restartARKContainer(opts); break;
-              case 'sdtd': await Docker.restartSDTDContainer(s.container_name, s.id, s.fivem_port, plan, s.data_path); break;
-              case 'discord':
-              case 'discordbot': await Docker.restartDiscordBotContainer(opts); break;
-              case 'wordpress': await Docker.restartWordPressContainer(opts); break;
-              case 'database': await Docker.restartDatabaseContainer(opts); break;
-              case 'fivem': await Docker.restartFivemContainer(opts); break;
-              default: throw new Error(`Plantilla desconocida: ${s.template}`);
-          }
+          await restartServerContainer(s, plan);
           if (s.template === 'fivem') scheduleEmbeddedTxAdminCookieRepair(s);
           await query("UPDATE servers SET status = 'running' WHERE id = $1", [s.id]);
       } catch (error) {
@@ -151,7 +120,7 @@ export async function deleteServer(id, userId, isAdmin) {
 // El mantenimiento tiene un unico propietario. Este modulo tambien lo importan
 // la API y otros workers; iniciar el intervalo en todos ellos provoca carreras
 // y recreaciones duplicadas de servidores activos.
-if (process.env.RAGENODES_ROLE === 'worker-docker-events') setInterval(async () => {
+export async function runServerMaintenance() {
     try {
         console.log("🛠️ [Mantenimiento] Iniciando escaneo de salud de servidores...");
 
@@ -365,7 +334,7 @@ if (process.env.RAGENODES_ROLE === 'worker-docker-events') setInterval(async () 
     } catch (e) {
         console.error("❌ Mantenimiento Error:", e.message);
     }
-}, MAINTENANCE_INTERVAL_MS);
+}
 
 // Helper para reparar un servidor individualmente
 export async function repairOneServer(s) {
@@ -378,43 +347,11 @@ export async function repairOneServer(s) {
 
     const basePlan = PLAN_LIMITS[s.runtime_plan] || PLAN_LIMITS.hobby;
     const plan = s.allocated_ram_gb > 0 ? { ...basePlan, memoryBytes: s.allocated_ram_gb * 1024 * 1024 * 1024 } : basePlan;
-    const opts = {
-        containerName: s.container_name, dataPath: s.data_path, fivemPort: s.fivem_port,
-        txadminPort: s.txadmin_port, serverName: s.name, licenseKey: 'hidden', plan,
-        gamePort: s.fivem_port, mcVersion: s.mc_version, mcType: s.mc_type,
-        serverId: s.id, dbName: s.db_name, dbUser: s.db_user, dbPass: s.db_pass, nodeId: s.node_id,
-        clusterId: s.cluster_id
-    };
 
     console.log(`🔧 [Mantenimiento] Reparando ${s.name} (Template: ${s.template})...`);
 
     try {
-        switch (s.template) {
-            case 'minecraft': await Docker.restartMinecraftContainer(opts); break;
-            case 'rust': await Docker.restartRustContainer(opts); break;
-            case 'palworld': await Docker.restartPalworldContainer(opts); break;
-            case 'cs2': await Docker.restartCS2Container(opts); break;
-            case 'valheim': await Docker.restartValheimContainer(opts); break;
-            case 'zomboid': await Docker.restartZomboidContainer(opts); break;
-            case 'ark': await Docker.restartARKContainer(opts); break;
-            case 'sdtd': await Docker.restartSDTDContainer(s.container_name, s.id, s.fivem_port, plan, s.data_path); break;
-            case 'discord':
-            case 'discordbot': await Docker.restartDiscordBotContainer(opts); break;
-            case 'wordpress': await Docker.restartWordPressContainer(opts); break;
-            case 'database': await Docker.restartDatabaseContainer(opts); break;
-            case 'fivem':
-                let realLicenseKey = 'hidden';
-                try {
-                    const inspect = await Docker.inspectContainer(s.container_name);
-                    const env = inspect.Config.Env || [];
-                    const lkEnv = env.find(e => e.startsWith('LICENSE_KEY='));
-                    if (lkEnv) realLicenseKey = lkEnv.split('=')[1];
-                } catch (e) {}
-                opts.licenseKey = realLicenseKey;
-                await Docker.restartFivemContainer(opts);
-                break;
-            default: throw new Error(`Plantilla desconocida: ${s.template}`);
-        }
+        await restartServerContainer(s, plan);
         const { rows } = await query("SELECT status FROM servers WHERE id = $1", [s.id]);
         if (rows.length > 0 && (rows[0].status === 'stopped' || rows[0].status === 'stopping')) {
             console.warn(`[Auto-Curado] Reparación de ${s.name} cancelada: El usuario solicitó detener el servidor durante la reparación.`);
@@ -452,39 +389,9 @@ export async function repairServer(id, userId, isAdmin) {
   try { await fs.rm(cachePath, { recursive: true, force: true }); } catch {}
 
   const plan = PLAN_LIMITS[s.runtime_plan] || PLAN_LIMITS.hobby;
-  let realLicenseKey = 'hidden';
-  try {
-      const inspect = await Docker.inspectContainer(s.container_name);
-      const env = inspect.Config.Env || [];
-      const lkEnv = env.find(e => e.startsWith('LICENSE_KEY='));
-      if (lkEnv) realLicenseKey = lkEnv.split('=')[1];
-  } catch (e) {}
-
-  const opts = {
-      containerName: s.container_name, dataPath: s.data_path, fivemPort: s.fivem_port,
-      txadminPort: s.txadmin_port, serverName: s.name, licenseKey: realLicenseKey, plan,
-      gamePort: s.fivem_port, mcVersion: s.mc_version, mcType: s.mc_type,
-      serverId: s.id, dbName: s.db_name, dbUser: s.db_user, dbPass: s.db_pass, nodeId: s.node_id,
-      clusterId: s.cluster_id, cpuset: s.cpuset
-  };
 
   try {
-      switch (s.template) {
-          case 'minecraft': await Docker.restartMinecraftContainer(opts); break;
-          case 'rust': await Docker.restartRustContainer(opts); break;
-          case 'palworld': await Docker.restartPalworldContainer(opts); break;
-          case 'cs2': await Docker.restartCS2Container(opts); break;
-          case 'valheim': await Docker.restartValheimContainer(opts); break;
-          case 'zomboid': await Docker.restartZomboidContainer(opts); break;
-          case 'ark': await Docker.restartARKContainer(opts); break;
-          case 'sdtd': await Docker.restartSDTDContainer(s.container_name, s.id, s.fivem_port, plan, s.data_path); break;
-          case 'discord':
-          case 'discordbot': await Docker.restartDiscordBotContainer(opts); break;
-          case 'wordpress': await Docker.restartWordPressContainer(opts); break;
-          case 'database': await Docker.restartDatabaseContainer(opts); break;
-          case 'fivem': await Docker.restartFivemContainer(opts); break;
-          default: throw new Error(`Plantilla desconocida: ${s.template}`);
-      }
+      await restartServerContainer(s, plan);
       await query("UPDATE servers SET status = 'running' WHERE id = $1", [s.id]);
 
       return { success: true };

@@ -7,6 +7,7 @@ import { startStatsCollector } from './services/statsCollector.js';
 import { startQueryWarmer } from './services/queryCache.js';
 import { startBillingScheduler } from './services/billingScheduler.js';
 import { startDockerEventsListener } from './services/dockerEventsService.js';
+import { startServerMaintenance } from './services/serverMaintenanceScheduler.js';
 
 process.on('uncaughtException', (err) => {
   console.error('💥 WORKER CRASH (Uncaught Exception):', err);
@@ -33,6 +34,7 @@ async function boot() {
       patchExistingContainers();
       startDockerEventsListener();
       startQueryWarmer();
+      startServerMaintenance();
       break;
     case 'worker-stats':
       startStatsCollector();

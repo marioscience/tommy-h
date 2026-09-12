@@ -72,6 +72,10 @@ export async function resumeAfterMaintenance(serverId) { /* ... */ }
 - `routes/discord/vendorRoutes.js`: endpoints administrativos de vendedores.
 - `services/txAdminCookieService.js`: compatibilidad del parche heredado de
   cookies de txAdmin, aislada del ciclo de vida general.
+- `services/serverRuntimeLifecycle.js`: contrato único para construir opciones y
+  despachar reinicios a cada adaptador de juego.
+- `services/serverMaintenanceScheduler.js`: único temporizador de mantenimiento,
+  iniciado explícitamente por el worker de eventos Docker.
 
 Este mapa debe actualizarse cuando una nueva separación cambie la ubicación
 esperada de una responsabilidad importante.
