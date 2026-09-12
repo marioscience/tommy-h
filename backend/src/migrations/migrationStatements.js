@@ -426,5 +426,19 @@ export const migrations = [
       'CREATE INDEX IF NOT EXISTS idx_server_stats_history_server_time ON server_stats_history(server_id, created_at DESC)',
       'CREATE INDEX IF NOT EXISTS idx_server_stats_history_created_at ON server_stats_history(created_at)'
     ]
+  },
+  {
+    id: '202609120002_notifications',
+    description: 'Persistencia versionada de notificaciones administrativas y de clientes',
+    statements: [
+      `CREATE TABLE IF NOT EXISTS notifications (
+        id BIGSERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        type VARCHAR(32) NOT NULL DEFAULT 'info',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`,
+      'CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC)'
+    ]
   }
 ];
