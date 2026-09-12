@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
-import { query } from '../db.js';
+import { findUserTokenVersion } from '../repositories/userRepository.js';
 
 export function signToken(user) {
   return jwt.sign(
@@ -64,13 +64,10 @@ export async function requireAuth(req, res, next) {
   if (!token || typeof token !== 'string' || token.length > 4096) return res.status(401).json({ error: 'No autenticado' });
   try {
     const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
-    const result = await query('SELECT id, token_version FROM users WHERE id = $1', [payload.sub]);
-    
-    if (result.rowCount === 0) {
+    const user = await findUserTokenVersion(payload.sub);
+    if (!user) {
       return res.status(401).json({ error: 'Usuario no encontrado.' });
     }
-
-    const user = result.rows[0];
     const dbVersion = Number(user.token_version || 0);
     const tokenVersion = Number(payload.version || 0);
     

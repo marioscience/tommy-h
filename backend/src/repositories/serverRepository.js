@@ -55,3 +55,11 @@ export async function findServerNodeIdByContainer(containerName, db = query) {
   const result = await db('SELECT node_id FROM servers WHERE container_name = $1', [containerName]);
   return result.rows[0]?.node_id ?? 0;
 }
+
+export async function listServerIdsByOwner(ownerId, db = query) {
+  return (await db('SELECT id FROM servers WHERE owner_id = $1', [ownerId])).rows.map((row) => row.id);
+}
+
+export async function updateOwnedServersExpiry(ownerId, expiresAt, db = query) {
+  return db('UPDATE servers SET expires_at = $1 WHERE owner_id = $2', [expiresAt, ownerId]);
+}

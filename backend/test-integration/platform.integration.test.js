@@ -4,7 +4,10 @@ import { randomUUID } from 'node:crypto';
 import { createClient } from 'redis';
 import { pool, query, withTransaction } from '../src/db.js';
 import { findNodeById } from '../src/repositories/nodeRepository.js';
+import { listEdgeProxies } from '../src/repositories/edgeProxyRepository.js';
+import { listAdminNotifications } from '../src/repositories/notificationRepository.js';
 import { findServerNodeIdByContainer, getServerStatus } from '../src/repositories/serverRepository.js';
+import { listAdminUsers } from '../src/repositories/userRepository.js';
 import { getContainerStats, inspectContainer } from '../src/services/dockerService.js';
 
 const enabled = process.env.RUN_INTEGRATION === '1';
@@ -56,6 +59,17 @@ integration('Real platform integration', () => {
     assert.equal(await redis.del(key), 1);
   });
 
+  it('reads extracted repository domains from the real schema', async () => {
+    const [users, notifications, proxies] = await Promise.all([
+      listAdminUsers(),
+      listAdminNotifications(),
+      listEdgeProxies()
+    ]);
+    assert.ok(Array.isArray(users));
+    assert.ok(Array.isArray(notifications));
+    assert.ok(Array.isArray(proxies));
+  });
+
   it('reads a real running game container through Docker', async (context) => {
     const { rows } = await query(`
       SELECT id, container_name, node_id, status
@@ -90,5 +104,9 @@ integration('Real platform integration', () => {
     ]);
     assert.equal(health.status, 200);
     assert.equal(readiness.status, 200);
+    const body = await readiness.json();
+    assert.equal(typeof body.checks.database_pool.max, 'number');
+    assert.equal(typeof body.checks.database_pool.waiting, 'number');
+    assert.equal(typeof body.checks.database_pool.saturated, 'boolean');
   });
 });

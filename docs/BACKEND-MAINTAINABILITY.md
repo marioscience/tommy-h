@@ -84,6 +84,14 @@ export async function resumeAfterMaintenance(serverId) { /* ... */ }
   agregado servidor, incluidos cambios atómicos de estado.
 - `repositories/nodeRepository.js`: persistencia de nodos y única lista segura de
   campos editables; evita construir columnas SQL desde entradas HTTP.
+- `repositories/backupRepository.js`: metadatos PostgreSQL de copias; el sistema
+  de archivos y MariaDB continúan coordinados por `backupService.js`.
+- `repositories/userRepository.js`: identidad y edición administrativa con una
+  lista cerrada de columnas modificables.
+- `repositories/notificationRepository.js`: lectura pública filtrada y escritura
+  uniforme de avisos operativos.
+- `repositories/edgeProxyRepository.js`: inventario del proxy perimetral y
+  selección atómica del único proxy activo.
 
 Este mapa debe actualizarse cuando una nueva separación cambie la ubicación
 esperada de una responsabilidad importante.
@@ -95,3 +103,31 @@ backend, ejecutar también `RUN_INTEGRATION=1 npm run test:integration` dentro
 de un contenedor conectado a PostgreSQL, Redis, Docker y al backend del
 laboratorio. La suite realiza sondas no destructivas, usa claves Redis efímeras
 y revierte cualquier escritura de prueba en PostgreSQL.
+
+## Transacciones e invariantes
+
+Una transacción protege una regla de negocio que abarque varias escrituras; no
+se añade solo para agrupar consultas. El servicio delimita el caso de uso y pasa
+el ejecutor transaccional a los repositorios implicados.
+
+- **Registro:** consumir una invitación y crear el usuario confirman juntos. Una
+  invitación agotada o un usuario duplicado revierte ambos efectos.
+- **Edición administrativa:** la caducidad del usuario y la de todos sus
+  servidores cambian juntas. Ningún servidor puede conservar una caducidad
+  distinta por un fallo intermedio.
+- **Proxy perimetral activo:** desactivar el anterior y activar el elegido es una
+  sola transacción. Si el identificador no existe, se restaura el proxy anterior.
+- **Restauración de backups:** la sustitución de archivos y la restauración de la
+  base de datos del juego no son una transacción PostgreSQL. El servicio usa una
+  copia compensatoria, conserva la carpeta previa y reanuda el servidor tanto al
+  confirmar como al revertir. Este orden no debe cambiar sin una prueba de fallo.
+- **Recreación de servidores:** el cambio condicional a `recreating` funciona
+  como compare-and-set y evita dos recreaciones simultáneas.
+
+## Observabilidad PostgreSQL
+
+`db.js` mide consultas totales, fallidas, lentas, duración media/máxima y muestras
+de saturación. `PG_SLOW_QUERY_MS` controla el umbral (250 ms por defecto). Los
+logs guardan solo la operación SQL abreviada y la duración, nunca parámetros.
+`/readyz` publica capacidad, conexiones totales, libres, en espera y el indicador
+de saturación del pool; no publica credenciales ni consultas.

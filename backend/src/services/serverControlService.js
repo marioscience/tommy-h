@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { query, logAudit } from '../db.js';
+import { logAudit } from '../db.js';
 import { config, PLAN_LIMITS } from '../config.js';
 import * as Docker from './dockerService.js';
 import {
@@ -27,6 +27,8 @@ import {
   updateServerStatus,
   updateServerTxAdminUrl
 } from '../repositories/serverRepository.js';
+import { createNotification } from '../repositories/notificationRepository.js';
+import { deleteOrphanedGeneratedUsers } from '../repositories/userRepository.js';
 const MAINTENANCE_CHUNK_SIZE = Math.max(1, Number(process.env.MAINTENANCE_CHUNK_SIZE || 3));
 
 export async function controlServer(id, userId, action, isAdmin, options = {}) {
@@ -144,13 +146,7 @@ export async function runServerMaintenance() {
         }
 
         // Limpieza automática de sub-usuarios huérfanos (Auto-Curado de Base de Datos)
-        await query(`
-            DELETE FROM users
-            WHERE id NOT IN (SELECT owner_id FROM servers)
-            AND id NOT IN (SELECT user_id FROM subusers)
-            AND role != 'admin'
-            AND username ~ '_[0-9a-f]{4}$'
-        `);
+        await deleteOrphanedGeneratedUsers();
 
         // Filtramos en Postgres para evitar procesamiento inútil en contenedores apagados o suspendidos
         const servers = await listMaintainableServers();
@@ -255,31 +251,19 @@ export async function runServerMaintenance() {
                                 console.log(`🛑 [Cuota de Disco] Servidor ${s.name} alcanzó el 100% de uso. Apagando por seguridad.`);
                                 await Docker.stopContainer(s.container_name);
                                 await updateServerStatus(s.id, 'stopped');
-                                await query("INSERT INTO notifications (title, content, type) VALUES ($1, $2, $3)", [
-                                    `Servidor Apagado: ${s.name}`,
-                                    `El servidor superó su límite de almacenamiento (${(maxDisk / (1024**3)).toFixed(2)} GB). Fue apagado por seguridad.`,
-                                    'error'
-                                ]);
+                                await createNotification({ title: `Servidor Apagado: ${s.name}`, content: `El servidor superó su límite de almacenamiento (${(maxDisk / (1024**3)).toFixed(2)} GB). Fue apagado por seguridad.`, type: 'error' });
                                 needsFix = false; // Ya lo detuvimos
                             } else if (diskPercent >= 95 && !needsFix) {
                                 const last = lastWarn.get(`${s.id}_95`) || 0;
                                 if (Date.now() - last > 6 * 60 * 60 * 1000) { // 6 hours
                                     console.log(`⚠️ [Cuota de Disco] Servidor ${s.name} superó el 95% de uso.`);
-                                    await query("INSERT INTO notifications (title, content, type) VALUES ($1, $2, $3)", [
-                                        `Alerta Crítica de Espacio: ${s.name}`,
-                                        `El servidor superó el 95% de almacenamiento (${diskPercent.toFixed(1)}%). Si llega al 100% se apagará automáticamente.`,
-                                        'warning'
-                                    ]);
+                                    await createNotification({ title: `Alerta Crítica de Espacio: ${s.name}`, content: `El servidor superó el 95% de almacenamiento (${diskPercent.toFixed(1)}%). Si llega al 100% se apagará automáticamente.`, type: 'warning' });
                                     lastWarn.set(`${s.id}_95`, Date.now());
                                 }
                             } else if (diskPercent >= 85 && !needsFix) {
                                 const last = lastWarn.get(`${s.id}_85`) || 0;
                                 if (Date.now() - last > 24 * 60 * 60 * 1000) { // 24 hours
-                                    await query("INSERT INTO notifications (title, content, type) VALUES ($1, $2, $3)", [
-                                        `Aviso de Espacio: ${s.name}`,
-                                        `El servidor superó el 85% de almacenamiento (${diskPercent.toFixed(1)}%). Considera limpiar archivos innecesarios.`,
-                                        'info'
-                                    ]);
+                                    await createNotification({ title: `Aviso de Espacio: ${s.name}`, content: `El servidor superó el 85% de almacenamiento (${diskPercent.toFixed(1)}%). Considera limpiar archivos innecesarios.`, type: 'info' });
                                     lastWarn.set(`${s.id}_85`, Date.now());
                                 }
                             }

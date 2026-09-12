@@ -25,13 +25,72 @@ pool.on('error', (error) => {
   );
 });
 
-export async function query(text, params = []) { return pool.query(text, params); }
+const slowQueryThresholdMs = Math.max(1, Number(process.env.PG_SLOW_QUERY_MS || 250));
+const dbMetrics = {
+  queries: 0,
+  errors: 0,
+  slowQueries: 0,
+  saturatedSamples: 0,
+  totalDurationMs: 0,
+  maxDurationMs: 0
+};
+
+function queryLabel(text) {
+  return String(text || '').replace(/'(?:''|[^'])*'/g, '?').trim().split(/\s+/, 3).join(' ').slice(0, 80);
+}
+
+/** Records timings without retaining SQL parameters or potentially sensitive values. */
+export async function executeObservedQuery(execute, text, params = [], now = () => performance.now()) {
+  const startedAt = now();
+  dbMetrics.queries += 1;
+  if (pool.waitingCount > 0 || (pool.totalCount >= pool.options.max && pool.idleCount === 0)) {
+    dbMetrics.saturatedSamples += 1;
+  }
+  try {
+    return await execute(text, params);
+  } catch (error) {
+    dbMetrics.errors += 1;
+    throw error;
+  } finally {
+    const durationMs = Math.max(0, now() - startedAt);
+    dbMetrics.totalDurationMs += durationMs;
+    dbMetrics.maxDurationMs = Math.max(dbMetrics.maxDurationMs, durationMs);
+    if (durationMs >= slowQueryThresholdMs) {
+      dbMetrics.slowQueries += 1;
+      logger.warn({ module: 'PostgresPool', duration_ms: Number(durationMs.toFixed(2)), query: queryLabel(text) }, 'Consulta PostgreSQL lenta.');
+    }
+  }
+}
+
+export async function query(text, params = []) {
+  return executeObservedQuery((sql, values) => pool.query(sql, values), text, params);
+}
+
+export function getDbMetrics() {
+  return {
+    ...dbMetrics,
+    averageDurationMs: dbMetrics.queries ? Number((dbMetrics.totalDurationMs / dbMetrics.queries).toFixed(2)) : 0,
+    pool: {
+      max: pool.options.max,
+      total: pool.totalCount,
+      idle: pool.idleCount,
+      waiting: pool.waitingCount,
+      saturated: pool.waitingCount > 0 || (pool.totalCount >= pool.options.max && pool.idleCount === 0)
+    }
+  };
+}
+
+export function resetDbMetricsForTests() {
+  Object.assign(dbMetrics, { queries: 0, errors: 0, slowQueries: 0, saturatedSamples: 0, totalDurationMs: 0, maxDurationMs: 0 });
+}
 
 export async function withTransaction(callback) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const result = await callback((text, params = []) => client.query(text, params));
+    const result = await callback((text, params = []) =>
+      executeObservedQuery((sql, values) => client.query(sql, values), text, params)
+    );
     await client.query('COMMIT');
     return result;
   } catch (error) {

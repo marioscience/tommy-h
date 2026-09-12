@@ -43,4 +43,20 @@ describe('Backend architecture boundaries', () => {
     assert.deepEqual(options.plan, { memoryBytes: 1024 });
     assert.equal(options.cpuset, '0-1');
   });
+
+  it('keeps extracted persistence out of HTTP and orchestration modules', async () => {
+    const files = [
+      '../src/routes/adminNodes.js',
+      '../src/routes/adminUsers.js',
+      '../src/routes/auth.js',
+      '../src/routes/notifications.js',
+      '../src/middleware/auth.js',
+      '../src/services/backupService.js',
+      '../src/services/serverControlService.js',
+      '../src/services/stagingHealthTestRunner.js'
+    ];
+    const source = (await Promise.all(files.map((file) => readFile(new URL(file, import.meta.url), 'utf8')))).join('\n');
+    assert.doesNotMatch(source, /(?:FROM|INTO|UPDATE|DELETE FROM)\s+(?:backups|edge_proxies|notifications)\b/i);
+    assert.doesNotMatch(source, /(?:FROM|INTO|UPDATE|DELETE FROM)\s+users\b/i);
+  });
 });

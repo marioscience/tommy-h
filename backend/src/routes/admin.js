@@ -19,6 +19,8 @@ import { testNodeConnection } from '../utils/dockerNode.js';
 import { listServerBackups, restoreBackup, migrateResources } from '../services/backupService.js';
 import { backupQueue } from '../services/backupQueue.js';
 import { getServerByIdForUser } from '../services/serverService.js';
+import { createNotification, deleteNotification, listAdminNotifications } from '../repositories/notificationRepository.js';
+import { findUsernameById } from '../repositories/userRepository.js';
 
 const router = express.Router();
 
@@ -74,8 +76,7 @@ router.get('/servers', async (_req, res) => {
      try {
          const servers = await getServersForUser(0, true);
          for (let s of servers) {
-            const userResult = await query('SELECT username FROM users WHERE id = $1', [s.owner_id]);
-            s.username = userResult.rows[0]?.username || 'Desconocido';
+            s.username = await findUsernameById(s.owner_id) || 'Desconocido';
          }
          res.json({ items: servers });
      } catch (e) {
@@ -272,18 +273,17 @@ router.put('/hosting-plans/:id', async (req, res) => {
 
 // RUTAS EXTRA PARA NOTIFICACIONES Y AUDITORÍA
 router.get('/notifications', async (_req, res) => {
-  const result = await query('SELECT * FROM notifications ORDER BY created_at DESC');
-  res.json({ items: result.rows });
+  res.json({ items: await listAdminNotifications() });
 });
 
 router.post('/notifications', async (req, res) => {
   const { title, content, type } = req.body;
-  await query('INSERT INTO notifications (title, content, type) VALUES ($1, $2, $3)', [title, content, type || 'info']);
+  await createNotification({ title, content, type: type || 'info' });
   res.json({ success: true });
 });
 
 router.delete('/notifications/:id', async (req, res) => {
-  await query('DELETE FROM notifications WHERE id = $1', [req.params.id]);
+  await deleteNotification(req.params.id);
   res.json({ success: true });
 });
 

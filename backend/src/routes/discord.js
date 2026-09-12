@@ -6,6 +6,7 @@ import * as serverService from '../services/serverService.js';
 import { verifyDiscordApiKey as verifyApiKey } from '../middleware/discordApiKey.js';
 import { getDiscordUserDiagnostics } from '../services/discordDiagnosticsService.js';
 import { registerVendorRoutes } from './discord/vendorRoutes.js';
+import { findActiveEdgeProxy } from '../repositories/edgeProxyRepository.js';
 
 const router = express.Router();
 
@@ -452,11 +453,11 @@ router.post('/oxide/certificate/renew', verifyApiKey, async (_req, res) => {
 // ============================================================================
 router.get('/proxies/active', verifyApiKey, async (req, res) => {
     try {
-        const result = await query("SELECT ip_address, api_port, api_key FROM edge_proxies WHERE is_active = true LIMIT 1");
-        if (result.rowCount === 0) {
+        const proxy = await findActiveEdgeProxy();
+        if (!proxy) {
             return res.json({ ok: false, error: 'No active proxy found' });
         }
-        res.json({ ok: true, proxy: result.rows[0] });
+        res.json({ ok: true, proxy });
     } catch (error) {
         console.error('❌ Error obteniendo proxy activo:', error);
         res.status(500).json({ error: 'Error interno' });

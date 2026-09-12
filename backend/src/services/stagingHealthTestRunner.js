@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { query, logAudit } from '../db.js';
 import { config } from '../config.js';
+import { createNotification } from '../repositories/notificationRepository.js';
 
 let latestTestResult = {
   timestamp: new Date().toISOString(),
@@ -279,24 +280,10 @@ export async function runStagingHealthSuite(triggerSource = 'AUTOMATED_DEPLOY') 
   // Notificar al Panel Admin
   try {
     if (suitePassed) {
-      await query(
-        `INSERT INTO notifications (title, content, type) VALUES ($1, $2, $3)`,
-        [
-          '🚀 [Staging] Pruebas de Despliegue Exitosas',
-          `El conjunto de pruebas adaptativas pasó al 100% (${passed}/${total} pruebas correctas en ${result.summary.durationMs}ms). La versión está estable en preproducción.`,
-          'success'
-        ]
-      );
+      await createNotification({ title: '🚀 [Staging] Pruebas de Despliegue Exitosas', content: `El conjunto de pruebas adaptativas pasó al 100% (${passed}/${total} pruebas correctas en ${result.summary.durationMs}ms). La versión está estable en preproducción.`, type: 'success' });
       console.log('[Staging Test Suite] ✅ Pruebas completadas con ÉXITO al 100%.');
     } else {
-      await query(
-        `INSERT INTO notifications (title, content, type) VALUES ($1, $2, $3)`,
-        [
-          '🚨 [ROLLBACK AUTOMÁTICO] Despliegue Fallido en Staging',
-          `Se detectaron ${failed} fallos durante las pruebas del despliegue. Se ha ejecutado el rollback automático a la versión previa estable. Revisa el reporte PDF en Diagnóstico.`,
-          'error'
-        ]
-      );
+      await createNotification({ title: '🚨 [ROLLBACK AUTOMÁTICO] Despliegue Fallido en Staging', content: `Se detectaron ${failed} fallos durante las pruebas del despliegue. Se ha ejecutado el rollback automático a la versión previa estable. Revisa el reporte PDF en Diagnóstico.`, type: 'error' });
       console.error(`[Staging Test Suite] 🚨 Pruebas FALLIDAS (${failed} errores). Activado Rollback Enterprise.`);
     }
   } catch (e) {
