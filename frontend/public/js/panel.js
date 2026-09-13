@@ -212,7 +212,7 @@ function toggleSidebar() {
             const gameMinimums = {
                 rust: 6,
                 palworld: 8,
-                zomboid: 4,
+                zomboid: 6,
                 ark: 16,
                 sdtd: 4,
                 minecraft: 2,
@@ -231,7 +231,7 @@ function toggleSidebar() {
                 hobby: { ram: 4 }, standard: { ram: 8 }, premium: { ram: 16 },
                 platinum: { ram: 32 }, partner: { ram: 32 }, ultimate: { ram: 128 },
                 community_starter: { ram: 8 }, community_pro: { ram: 16 }, community_network: { ram: 32 },
-                game_rust: { ram: 8 }
+                game_rust: { ram: 8 }, game_zomboid: { ram: 6 }
             };
             const rawPlan = (user && user.plan) ? user.plan.trim().toLowerCase().replace(/[\s-]+/g, '_') : 'hobby';
             const uPlan = rawPlan === 'elite' || rawPlan === 'plan_platinum' ? 'platinum' : rawPlan;

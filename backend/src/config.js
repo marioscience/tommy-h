@@ -351,6 +351,7 @@ export const PLAN_LIMITS = {
   },
   game_zomboid: {
     memoryBytes: 6 * 1024 * 1024 * 1024, // 6GB RAM
+    minRamGb: 6,
     nanoCpus: 2.5 * 10**9,               // 2.5 Cores
     storageLimit: '20G',
     diskBytes: 20 * 1024 * 1024 * 1024,

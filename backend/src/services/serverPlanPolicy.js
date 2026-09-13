@@ -21,7 +21,9 @@ const TEMPLATE_MIN_RAM_GB = Object.freeze({
   palworld: 8,
   cs2: 2,
   valheim: 2,
-  zomboid: 4,
+  // Project Zomboid Build 42 was repeatedly terminated by the production
+  // cgroup OOM killer while loading a fresh world with a 4 GiB allocation.
+  zomboid: 6,
   ark: 16,
   sdtd: 4,
   discordbot: 1,

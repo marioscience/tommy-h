@@ -49,8 +49,14 @@ describe('Politica central de planes y despliegue', () => {
     assert.equal(resolveRequestedRamGb(2, PLAN_LIMITS.partner, 'minecraft'), 2);
     assert.equal(resolveRequestedRamGb(undefined, PLAN_LIMITS.game_rust, 'rust'), 6);
     assert.equal(PLAN_LIMITS.game_rust.minRamGb, 6);
+    assert.equal(resolveRequestedRamGb(undefined, PLAN_LIMITS.game_zomboid, 'zomboid'), 6);
+    assert.equal(PLAN_LIMITS.game_zomboid.minRamGb, 6);
     assert.throws(
       () => resolveRequestedRamGb(4, PLAN_LIMITS.game_rust, 'rust'),
+      /al menos 6 GB/
+    );
+    assert.throws(
+      () => resolveRequestedRamGb(4, PLAN_LIMITS.game_zomboid, 'zomboid'),
       /al menos 6 GB/
     );
     assert.throws(
