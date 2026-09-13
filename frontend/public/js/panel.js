@@ -4987,8 +4987,7 @@ function toggleSidebar() {
         async function renderZomboidModTools() {
             const grid = document.getElementById('mods-grid');
 
-            // Renderizar formulario de instalación
-            let html = `
+            const renderInstallForm = () => `
               <div class="card" style="grid-column: 1/-1; padding: 30px;">
                   <h3 style="margin-bottom: 15px;"><i class="fa-brands fa-steam" style="color: #171a21;"></i> Instalar mod de Steam Workshop</h3>
                   <div style="display: flex; gap: 15px; margin-bottom: 20px;">
@@ -5005,7 +5004,7 @@ function toggleSidebar() {
               </div>
             `;
 
-            grid.innerHTML = html + `<div style="grid-column: 1/-1; padding: 20px; text-align: center;"><i class="fa-solid fa-circle-notch fa-spin"></i> Cargando mods instalados...</div>`;
+            grid.innerHTML = renderInstallForm() + `<div style="grid-column: 1/-1; padding: 20px; text-align: center;"><i class="fa-solid fa-circle-notch fa-spin"></i> Cargando mods instalados...</div>`;
 
             try {
                 const data = await Nexus.api(`/api/mods/${currentServer.id}`);
@@ -5035,9 +5034,9 @@ function toggleSidebar() {
                     modsHtml += `<div class="card" style="grid-column: 1/-1; padding: 30px; text-align: center;"><p class="muted">No hay mods instalados en este servidor.</p></div>`;
                 }
 
-                grid.innerHTML = html + modsHtml;
+                grid.innerHTML = renderInstallForm() + modsHtml;
             } catch (e) {
-                grid.innerHTML = html + `<div class="card" style="grid-column: 1/-1; padding: 20px; border-left: 4px solid var(--danger);"><p style="color: var(--danger);">Error cargando mods: ${e.message}</p></div>`;
+                grid.innerHTML = renderInstallForm() + `<div class="card" style="grid-column: 1/-1; padding: 20px; border-left: 4px solid var(--danger);"><p style="color: var(--danger);">Error cargando mods: ${e.message}</p></div>`;
             }
         }
 

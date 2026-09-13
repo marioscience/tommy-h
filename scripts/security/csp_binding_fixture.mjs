@@ -30,6 +30,15 @@ assert.equal(click.defaultPrevented, true);
 assert.equal(button.hasAttribute('onclick'), false);
 assert.match(clickAttribute, /^data-rn-bind-click="[A-Za-z0-9_-]{24}"$/);
 
+// Re-rendering an async view may reuse its trusted template string. The new
+// control must retain the closure even though MutationObserver sees the old
+// element leave the DOM in the same turn.
+root.innerHTML = `<button id="rebound" ${clickAttribute}>Seguro</button>`;
+await new Promise((resolve) => window.queueMicrotask(resolve));
+const rebound = window.document.getElementById('rebound');
+rebound.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+assert.equal(clickCount, 2, 'a synchronously replaced binding must remain active');
+
 let enterCount = 0;
 const keyupAttribute = window.rnBind('keyup', (event) => {
   if (event.key === 'Enter') enterCount += 1;
@@ -42,7 +51,7 @@ assert.equal(enterCount, 1, 'keyup bindings must support command and search inpu
 assert.throws(() => window.rnBind('load', () => {}), /Unsupported CSP event/);
 assert.throws(() => window.rnBind('click', 'not-a-function'), /must be a function/);
 
-button.remove();
+rebound.remove();
 await new Promise((resolve) => window.queueMicrotask(resolve));
 dom.window.close();
 

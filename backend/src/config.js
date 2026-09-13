@@ -45,6 +45,7 @@ export const config = {
   portBaseOffset: Number(process.env.PORT_BASE_OFFSET || 0),
   projectRoot: process.env.PROJECT_ROOT || process.cwd(),
   dockerSocket: process.env.DOCKER_SOCKET || '/var/run/docker.sock',
+  rconHost: process.env.RCON_HOST || 'host.docker.internal',
   dockerBlkioWeight: Number(process.env.DOCKER_BLKIO_WEIGHT ?? (process.env.NODE_ENV === 'production' ? 100 : 0)),
   gameContainerSharedGid: Number(process.env.GAME_CONTAINER_SHARED_GID ?? 1000),
   runtimeProcessAlertThreshold: Number(process.env.RUNTIME_PROCESS_ALERT_THRESHOLD || 512),

@@ -1,8 +1,35 @@
 import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, sh } from '../dockerUtils.js';
 import { config } from '../../config.js';
 import { prepareGameProxyBindings } from '../gameProxyPolicy.js';
+import fs from 'fs/promises';
+import path from 'path';
 
 const ZOMBOID_RCON_CONTAINER_PORT = 27015;
+
+function normalizeModList(value, pattern) {
+    return String(value || '')
+        .split(';')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry && pattern.test(entry))
+        .join(';');
+}
+
+export function parseProjectZomboidMods(content = '') {
+    return {
+        modNames: normalizeModList(content.match(/^Mods=([^\r\n]*)/m)?.[1], /^[A-Za-z0-9_.-]+$/),
+        workshopIds: normalizeModList(content.match(/^WorkshopItems=([^\r\n]*)/m)?.[1], /^\d+$/)
+    };
+}
+
+async function readProjectZomboidMods(opts) {
+    const iniPath = path.join(opts.dataPath, 'Zomboid', 'Server', `${opts.serverName}.ini`);
+    try {
+        return parseProjectZomboidMods(await fs.readFile(iniPath, 'utf8'));
+    } catch (error) {
+        if (error.code === 'ENOENT') return { modNames: '', workshopIds: '' };
+        throw error;
+    }
+}
 
 export function buildProjectZomboidRuntime(opts) {
     const password = deriveServicePassword('zomboid-admin', opts.serverId || opts.containerName);
@@ -12,6 +39,8 @@ export function buildProjectZomboidRuntime(opts) {
             `ADMIN_PASSWORD=${password}`,
             `RCON_PORT=${ZOMBOID_RCON_CONTAINER_PORT}`,
             `RCON_PASSWORD=${password}`,
+            `MOD_NAMES=${opts.modNames || ''}`,
+            `MOD_WORKSHOP_IDS=${opts.workshopIds || ''}`,
             'TZ=UTC'
         ],
         exposedPorts: {
@@ -39,7 +68,8 @@ export async function createProjectZomboidContainer(opts) {
         await new Promise((resolve, reject) => { docker.modem.followProgress(stream, (err, res) => err ? reject(err) : resolve(res)); });
     }
 
-    const runtime = buildProjectZomboidRuntime(opts);
+    const persistedMods = await readProjectZomboidMods(opts);
+    const runtime = buildProjectZomboidRuntime({ ...opts, ...persistedMods });
     const proxy = prepareGameProxyBindings(runtime.publicBindings, { enabled: config.oxideGameProxyEnabled, backendOffset: config.gameBackendPortOffset, backendBindIp: config.gameBackendBindIp });
     const container = await docker.createContainer({
         Image: config.zomboidBaseImage,

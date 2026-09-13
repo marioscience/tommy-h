@@ -85,6 +85,8 @@ services:
       - "127.0.0.1:${HOST_BIND_BACKEND_PORT:-3010}:3006"
     networks:
       - ragenodes_net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
