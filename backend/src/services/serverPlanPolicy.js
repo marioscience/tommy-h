@@ -14,7 +14,10 @@ const TEMPLATE_ALIASES = Object.freeze({
 const TEMPLATE_MIN_RAM_GB = Object.freeze({
   fivem: 1,
   minecraft: 2,
-  rust: 4,
+  // RustDedicated exceeded a 4 GiB cgroup during normal startup/runtime in
+  // production. Unlike a JVM workload it has no independent heap ceiling, so
+  // the safe control is rejecting undersized allocations at provisioning.
+  rust: 6,
   palworld: 8,
   cs2: 2,
   valheim: 2,
