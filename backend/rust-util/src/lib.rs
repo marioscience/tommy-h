@@ -1,15 +1,15 @@
 #![deny(clippy::all)]
 
+use jwalk::WalkDir;
 use napi::bindgen_prelude::*;
+use napi::threadsafe_function::{ErrorStrategy, ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
-use napi::threadsafe_function::{ThreadsafeFunction, ErrorStrategy, ThreadsafeFunctionCallMode};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::{self, BufReader, Read, Seek};
 use std::path::{Component, Path};
 use zip::ZipArchive;
-use jwalk::WalkDir;
-use sha2::{Digest, Sha256};
 
 // Removed Jemalloc due to initial-exec TLS conflict with Alpine musl
 
@@ -75,16 +75,28 @@ fn unzip_validated(source: &str, dest: &str, max_expanded_bytes: u64) -> Result<
     for index in 0..archive.len() {
         let mut entry = archive.by_index(index).map_err(map_err)?;
         let relative = entry.enclosed_name().ok_or_else(|| {
-            napi::Error::new(napi::Status::InvalidArg, "ZIP contiene una ruta no permitida")
+            napi::Error::new(
+                napi::Status::InvalidArg,
+                "ZIP contiene una ruta no permitida",
+            )
         })?;
-        if entry.unix_mode().is_some_and(|mode| mode & 0o170000 == 0o120000) {
-            return Err(napi::Error::new(napi::Status::InvalidArg, "ZIP contiene un enlace simbolico"));
+        if entry
+            .unix_mode()
+            .is_some_and(|mode| mode & 0o170000 == 0o120000)
+        {
+            return Err(napi::Error::new(
+                napi::Status::InvalidArg,
+                "ZIP contiene un enlace simbolico",
+            ));
         }
         expanded_bytes = expanded_bytes.checked_add(entry.size()).ok_or_else(|| {
             napi::Error::new(napi::Status::InvalidArg, "Tamano expandido fuera de rango")
         })?;
         if expanded_bytes > max_expanded_bytes {
-            return Err(napi::Error::new(napi::Status::InvalidArg, "ZIP excede el almacenamiento disponible"));
+            return Err(napi::Error::new(
+                napi::Status::InvalidArg,
+                "ZIP excede el almacenamiento disponible",
+            ));
         }
 
         let output = Path::new(dest).join(relative);
@@ -103,18 +115,26 @@ fn unzip_validated(source: &str, dest: &str, max_expanded_bytes: u64) -> Result<
 
 #[napi]
 pub async fn unzip_file(source: String, dest: String) -> Result<()> {
-    tokio::task::spawn_blocking(move || {
-        unzip_validated(&source, &dest, u64::MAX)
-    })
-    .await
-    .map_err(map_err)?
+    tokio::task::spawn_blocking(move || unzip_validated(&source, &dest, u64::MAX))
+        .await
+        .map_err(map_err)?
 }
 
 #[napi]
-pub async fn unzip_file_validated(source: String, dest: String, max_expanded_bytes: f64) -> Result<()> {
+pub async fn unzip_file_validated(
+    source: String,
+    dest: String,
+    max_expanded_bytes: f64,
+) -> Result<()> {
     tokio::task::spawn_blocking(move || {
-        if !max_expanded_bytes.is_finite() || max_expanded_bytes < 0.0 || max_expanded_bytes > u64::MAX as f64 {
-            return Err(napi::Error::new(napi::Status::InvalidArg, "Limite ZIP invalido"));
+        if !max_expanded_bytes.is_finite()
+            || max_expanded_bytes < 0.0
+            || max_expanded_bytes > u64::MAX as f64
+        {
+            return Err(napi::Error::new(
+                napi::Status::InvalidArg,
+                "Limite ZIP invalido",
+            ));
         }
         unzip_validated(&source, &dest, max_expanded_bytes as u64)
     })
@@ -131,7 +151,9 @@ pub async fn sha256_file(file_path: String) -> Result<String> {
         let mut buffer = vec![0_u8; 1024 * 1024];
         loop {
             let read = reader.read(&mut buffer).map_err(map_err)?;
-            if read == 0 { break; }
+            if read == 0 {
+                break;
+            }
             hasher.update(&buffer[..read]);
         }
         Ok::<String, napi::Error>(format!("{:x}", hasher.finalize()))
@@ -160,17 +182,21 @@ pub async fn get_dir_size(path: String) -> Result<f64> {
     .map_err(map_err)?
 }
 
-#[napi]
-fn calculate_stats_inner(mut json: String) -> Result<StatsResult> {
-    let mut bytes = unsafe { json.as_mut_vec() };
-    let stats: DockerStats = simd_json::from_slice(&mut bytes).map_err(map_err)?;
-
+fn calculate_stats_from_parsed(stats: DockerStats) -> StatsResult {
     let mut cpu_percent = 0.0;
     let cpu_total = stats.cpu_stats.cpu_usage.total_usage;
-    let pre_cpu_total = stats.precpu_stats.as_ref().map(|s| s.cpu_usage.total_usage).unwrap_or(0);
-    
+    let pre_cpu_total = stats
+        .precpu_stats
+        .as_ref()
+        .map(|s| s.cpu_usage.total_usage)
+        .unwrap_or(0);
+
     let system_total = stats.cpu_stats.system_cpu_usage.unwrap_or(0);
-    let pre_system_total = stats.precpu_stats.as_ref().and_then(|s| s.system_cpu_usage).unwrap_or(0);
+    let pre_system_total = stats
+        .precpu_stats
+        .as_ref()
+        .and_then(|s| s.system_cpu_usage)
+        .unwrap_or(0);
 
     let cpu_delta = cpu_total as i64 - pre_cpu_total as i64;
     let system_delta = system_total as i64 - pre_system_total as i64;
@@ -181,8 +207,12 @@ fn calculate_stats_inner(mut json: String) -> Result<StatsResult> {
     }
 
     let mut mem_usage = stats.memory_stats.usage.unwrap_or(0);
-    let inactive_file = stats.memory_stats.stats.and_then(|s| s.inactive_file).unwrap_or(0);
-    
+    let inactive_file = stats
+        .memory_stats
+        .stats
+        .and_then(|s| s.inactive_file)
+        .unwrap_or(0);
+
     if mem_usage > inactive_file {
         mem_usage -= inactive_file;
     } else {
@@ -202,13 +232,20 @@ fn calculate_stats_inner(mut json: String) -> Result<StatsResult> {
         }
     }
 
-    Ok(StatsResult {
+    StatsResult {
         cpu: format!("{:.1}", cpu_percent),
         ram: format!("{:.1}", mem_percent),
         ram_gb: format!("{:.2}", mem_gb),
         net_rx: net_rx.to_string(),
         net_tx: net_tx.to_string(),
-    })
+    }
+}
+
+#[napi]
+fn calculate_stats_inner(mut json: String) -> Result<StatsResult> {
+    let bytes = unsafe { json.as_mut_vec() };
+    let stats: DockerStats = simd_json::from_slice(bytes).map_err(map_err)?;
+    Ok(calculate_stats_from_parsed(stats))
 }
 
 #[napi]
@@ -217,42 +254,40 @@ pub fn calculate_stats(json: String) -> Result<StatsResult> {
 }
 
 #[napi]
-pub fn calculate_stats_batch(json_items: Vec<String>) -> Result<Vec<StatsResult>> {
-    json_items.into_iter().map(calculate_stats_inner).collect()
-}
-
-#[napi]
 pub async fn patch_html(file_path: String, style_tag: String) -> Result<()> {
     tokio::task::spawn_blocking(move || {
         let content = fs::read_to_string(&file_path).map_err(map_err)?;
-        
+
         if content.contains(&style_tag) {
             return Ok(());
         }
-        
+
         // Optimización: búsqueda case-insensitive sin to_lowercase() para evitar allocations
         let bytes = content.as_bytes();
         let target = b"</head>";
         let mut found_idx = None;
-        
+
         for i in 0..=bytes.len().saturating_sub(target.len()) {
-            if bytes[i..i+target.len()].eq_ignore_ascii_case(target) {
+            if bytes[i..i + target.len()].eq_ignore_ascii_case(target) {
                 found_idx = Some(i);
                 break;
             }
         }
-        
+
         if let Some(idx) = found_idx {
             let mut patched = String::with_capacity(content.len() + style_tag.len());
             patched.push_str(&content[..idx]);
             patched.push_str(&style_tag);
             patched.push_str(&content[idx..]);
-            
+
             fs::write(&file_path, patched).map_err(map_err)?;
         } else {
-            return Err(napi::Error::new(napi::Status::GenericFailure, "No se encontró la etiqueta </head> en el archivo.".to_string()));
+            return Err(napi::Error::new(
+                napi::Status::GenericFailure,
+                "No se encontró la etiqueta </head> en el archivo.".to_string(),
+            ));
         }
-        
+
         Ok::<(), napi::Error>(())
     })
     .await
@@ -273,14 +308,16 @@ pub async fn compress_dir(source_dir: String, output_file: String) -> Result<()>
             let name = path.strip_prefix(Path::new(&source_dir)).map_err(map_err)?;
 
             if path.is_file() {
-                zip.start_file(name.to_string_lossy(), options).map_err(map_err)?;
+                zip.start_file(name.to_string_lossy(), options)
+                    .map_err(map_err)?;
                 let mut f = fs::File::open(path).map_err(map_err)?;
                 io::copy(&mut f, &mut zip).map_err(map_err)?;
             } else if !name.as_os_str().is_empty() {
-                zip.add_directory(name.to_string_lossy(), options).map_err(map_err)?;
+                zip.add_directory(name.to_string_lossy(), options)
+                    .map_err(map_err)?;
             }
         }
-        
+
         zip.finish().map_err(map_err)?;
         Ok::<(), napi::Error>(())
     })
@@ -308,7 +345,7 @@ pub async fn tail_file(file_path: String, lines_count: u32) -> Result<String> {
     tokio::task::spawn_blocking(move || {
         let mut file = fs::File::open(&file_path).map_err(map_err)?;
         let file_size = file.metadata().map_err(map_err)?.len();
-        
+
         if file_size == 0 || lines_count == 0 {
             return Ok("".to_string());
         }
@@ -321,7 +358,7 @@ pub async fn tail_file(file_path: String, lines_count: u32) -> Result<String> {
         while pos > 0 {
             let to_read = std::cmp::min(chunk_size as u64, pos) as usize;
             pos -= to_read as u64;
-            
+
             file.seek(io::SeekFrom::Start(pos)).map_err(map_err)?;
             file.read_exact(&mut chunk[..to_read]).map_err(map_err)?;
 
@@ -331,7 +368,7 @@ pub async fn tail_file(file_path: String, lines_count: u32) -> Result<String> {
                         continue;
                     }
                     newlines_found += 1;
-                    
+
                     if newlines_found == lines_count {
                         let start_pos = pos + i as u64 + 1;
                         let mut result = String::new();
@@ -357,7 +394,7 @@ pub async fn zstd_dir(source_dir: String, output_file: String) -> Result<()> {
     tokio::task::spawn_blocking(move || {
         let zst = fs::File::create(&output_file).map_err(map_err)?;
         let mut enc = zstd::stream::write::Encoder::new(zst, 3).map_err(map_err)?;
-        enc.multithread(0).map_err(map_err)?; 
+        enc.multithread(0).map_err(map_err)?;
         let mut tar = tar::Builder::new(enc.auto_finish());
 
         tar.append_dir_all(".", &source_dir).map_err(map_err)?;
@@ -369,24 +406,60 @@ pub async fn zstd_dir(source_dir: String, output_file: String) -> Result<()> {
 }
 
 #[napi]
-pub async fn unzstd_dir(source_file: String, output_dir: String) -> Result<()> {
+pub async fn unzstd_dir(
+    source_file: String,
+    output_dir: String,
+    max_expanded_bytes: f64,
+) -> Result<()> {
     tokio::task::spawn_blocking(move || {
+        if !max_expanded_bytes.is_finite()
+            || max_expanded_bytes < 0.0
+            || max_expanded_bytes > u64::MAX as f64
+        {
+            return Err(napi::Error::new(
+                napi::Status::InvalidArg,
+                "Limite de backup invalido",
+            ));
+        }
+        let max_expanded_bytes = max_expanded_bytes as u64;
         let zst = fs::File::open(&source_file).map_err(map_err)?;
         let dec = zstd::stream::read::Decoder::new(zst).map_err(map_err)?;
         let mut tar = tar::Archive::new(dec);
         fs::create_dir_all(&output_dir).map_err(map_err)?;
+        let mut expanded_bytes = 0_u64;
         for entry in tar.entries().map_err(map_err)? {
             let mut entry = entry.map_err(map_err)?;
             let entry_type = entry.header().entry_type();
             if entry_type.is_symlink() || entry_type.is_hard_link() {
-                return Err(napi::Error::new(napi::Status::InvalidArg, "Backup contiene enlaces no permitidos"));
+                return Err(napi::Error::new(
+                    napi::Status::InvalidArg,
+                    "Backup contiene enlaces no permitidos",
+                ));
             }
             let relative = entry.path().map_err(map_err)?.into_owned();
-            if relative.components().any(|part| !matches!(part, Component::Normal(_) | Component::CurDir)) {
-                return Err(napi::Error::new(napi::Status::InvalidArg, "Backup contiene una ruta no permitida"));
+            if relative
+                .components()
+                .any(|part| !matches!(part, Component::Normal(_) | Component::CurDir))
+            {
+                return Err(napi::Error::new(
+                    napi::Status::InvalidArg,
+                    "Backup contiene una ruta no permitida",
+                ));
+            }
+            expanded_bytes = expanded_bytes.checked_add(entry.size()).ok_or_else(|| {
+                napi::Error::new(napi::Status::InvalidArg, "Tamano expandido fuera de rango")
+            })?;
+            if expanded_bytes > max_expanded_bytes {
+                return Err(napi::Error::new(
+                    napi::Status::InvalidArg,
+                    "Backup excede el almacenamiento disponible",
+                ));
             }
             if !entry.unpack_in(&output_dir).map_err(map_err)? {
-                return Err(napi::Error::new(napi::Status::InvalidArg, "No se pudo extraer una ruta de forma segura"));
+                return Err(napi::Error::new(
+                    napi::Status::InvalidArg,
+                    "No se pudo extraer una ruta de forma segura",
+                ));
             }
         }
         Ok::<(), napi::Error>(())
@@ -401,12 +474,10 @@ pub async fn clean_zombies(valid_names_json: String) -> Result<()> {
     use bollard::container::{ListContainersOptions, RemoveContainerOptions, StopContainerOptions};
     use std::collections::HashSet;
 
-    let valid_names: Vec<String> = serde_json::from_str(&valid_names_json)
-        .map_err(map_err)?;
+    let valid_names: Vec<String> = serde_json::from_str(&valid_names_json).map_err(map_err)?;
     let valid_set: HashSet<String> = valid_names.into_iter().collect();
 
-    let docker = Docker::connect_with_local_defaults()
-        .map_err(map_err)?;
+    let docker = Docker::connect_with_local_defaults().map_err(map_err)?;
 
     let options = Some(ListContainersOptions::<String> {
         all: true,
@@ -424,11 +495,31 @@ pub async fn clean_zombies(valid_names_json: String) -> Result<()> {
                     if !valid_set.contains(clean_name) {
                         zombies_found += 1;
                         if let Some(id) = c.id {
-                            println!("⚠️ [Rust] Contenedor ZOMBIE detectado: {} (ID: {}). Procediendo a su purga nativa...", clean_name, &id[..std::cmp::min(12, id.len())]);
-                            let _ = docker.stop_container(&id, None::<StopContainerOptions>).await;
-                            match docker.remove_container(&id, Some(RemoveContainerOptions { force: true, ..Default::default() })).await {
-                                Ok(_) => println!("✅ [Rust] Contenedor zombie {} purgado con éxito.", clean_name),
-                                Err(e) => eprintln!("❌ [Rust] Error purgando {}: {}", clean_name, e),
+                            println!(
+                                "⚠️ [Rust] Contenedor ZOMBIE detectado: {} (ID: {}). Procediendo a su purga nativa...",
+                                clean_name,
+                                &id[..std::cmp::min(12, id.len())]
+                            );
+                            let _ = docker
+                                .stop_container(&id, None::<StopContainerOptions>)
+                                .await;
+                            match docker
+                                .remove_container(
+                                    &id,
+                                    Some(RemoveContainerOptions {
+                                        force: true,
+                                        ..Default::default()
+                                    }),
+                                )
+                                .await
+                            {
+                                Ok(_) => println!(
+                                    "✅ [Rust] Contenedor zombie {} purgado con éxito.",
+                                    clean_name
+                                ),
+                                Err(e) => {
+                                    eprintln!("❌ [Rust] Error purgando {}: {}", clean_name, e)
+                                }
                             }
                         }
                     }
@@ -440,14 +531,19 @@ pub async fn clean_zombies(valid_names_json: String) -> Result<()> {
     if zombies_found == 0 {
         println!("✨ [Rust] No se encontraron contenedores zombies.");
     } else {
-        println!("🎉 [Rust] Purga completada. Se eliminaron {} servidores zombies huerfanos.", zombies_found);
+        println!(
+            "🎉 [Rust] Purga completada. Se eliminaron {} servidores zombies huerfanos.",
+            zombies_found
+        );
     }
 
     Ok(())
 }
 
 #[napi]
-pub fn stream_docker_events(callback: ThreadsafeFunction<String, ErrorStrategy::Fatal>) -> Result<()> {
+pub fn stream_docker_events(
+    callback: ThreadsafeFunction<String, ErrorStrategy::Fatal>,
+) -> Result<()> {
     tokio::spawn(async move {
         use bollard::Docker;
         use bollard::system::EventsOptions;
@@ -457,7 +553,16 @@ pub fn stream_docker_events(callback: ThreadsafeFunction<String, ErrorStrategy::
         if let Ok(docker) = Docker::connect_with_local_defaults() {
             let mut filters = HashMap::new();
             filters.insert("type".to_string(), vec!["container".to_string()]);
-            filters.insert("event".to_string(), vec!["start".to_string(), "die".to_string(), "stop".to_string(), "oom".to_string(), "health_status".to_string()]);
+            filters.insert(
+                "event".to_string(),
+                vec![
+                    "start".to_string(),
+                    "die".to_string(),
+                    "stop".to_string(),
+                    "oom".to_string(),
+                    "health_status".to_string(),
+                ],
+            );
 
             let options = Some(EventsOptions {
                 since: None,
@@ -476,6 +581,6 @@ pub fn stream_docker_events(callback: ThreadsafeFunction<String, ErrorStrategy::
             }
         }
     });
-    
+
     Ok(())
 }

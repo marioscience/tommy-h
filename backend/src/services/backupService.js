@@ -2,7 +2,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
 import { createReadStream } from 'fs';
-import { config } from '../config.js';
+import { config, PLAN_LIMITS } from '../config.js';
 import { getServerByIdForUser, controlServer } from './serverService.js';
 import { logAudit } from '../db.js';
 import { deleteBackupRecord, findBackupRecord, recordBackup } from '../repositories/backupRepository.js';
@@ -92,9 +92,9 @@ async function createArchive(sourceDirectory, destination) {
     }
 }
 
-async function extractArchive(source, destination) {
+async function extractArchive(source, destination, maxExpandedBytes) {
     if (source.endsWith('.zst') && config.backupArchiveEngine === 'rust' && rustUtil.runtimeInfo().nativeAvailable) {
-        const result = await rustUtil.unzstd(source, destination);
+        const result = await rustUtil.unzstd(source, destination, maxExpandedBytes);
         if (!result.success) throw new Error(`Extractor Rust no disponible: ${result.error}`);
         return;
     }
@@ -325,7 +325,9 @@ export async function restoreBackup(id, filename, userId, isAdmin) {
     try {
         await assertBackupIntegrity(s.id, safeFilename, backupPath);
         await fs.mkdir(restorePath, { recursive: true });
-        await extractArchive(backupPath, restorePath);
+        const plan = PLAN_LIMITS[String(s.runtime_plan || s.plan || 'hobby').toLowerCase()] || PLAN_LIMITS.hobby;
+        const maxExpandedBytes = Number(plan.diskBytes) + (Number(s.extra_disk_gb || 0) * 1024 ** 3);
+        await extractArchive(backupPath, restorePath, maxExpandedBytes);
 
         if (includesDatabase) {
             await runProcess('mariadb-dump', [

@@ -46,7 +46,11 @@ const stats = Array.from({ length: telemetrySamples }, (_, index) => dockerSampl
 const singleTelemetry = await measure(async () => {
     for (const sample of stats) await rustUtil.calculateStats(sample);
 });
-const batchTelemetry = await measure(() => rustUtil.calculateStatsBatch(stats));
+const batchTelemetry = await measure(async () => {
+    for (let index = 0; index < stats.length; index += 15) {
+        await rustUtil.calculateStatsBatch(stats.slice(index, index + 15));
+    }
+});
 
 const temporary = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'ragenodes-native-profile-'));
 const hashFile = path.join(temporary, 'large.bin');

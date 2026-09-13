@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "build:release": "napi build --platform --release",
+    "format:check": "cargo fmt --check"
+  },
   "devDependencies": {
     "@napi-rs/cli": "^3.7.2"
   }

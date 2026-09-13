@@ -155,14 +155,8 @@ export const rustUtil = {
 
     async calculateStatsBatch(rawStatsItems) {
         const items = Array.isArray(rawStatsItems) ? rawStatsItems : [];
-        if (native) {
-            const serialized = items.map(rawStats => {
-                const { pids_stats: _unusedPidsStats, ...statsForRust } = rawStats || {};
-                return JSON.stringify(statsForRust);
-            });
-            const results = native.calculateStatsBatch(serialized);
-            return results.map(normalizeNativeStats);
-        }
+        // El lote limita y paraleliza la E/S contra Docker. El perfil nativo demostró
+        // que serializar el grupo completo cuesta más CPU que parsear cada muestra.
         return Promise.all(items.map(item => this.calculateStats(item)));
     },
 
@@ -220,10 +214,10 @@ export const rustUtil = {
         }
     },
 
-    async unzstd(sourceFile, outputDir) {
+    async unzstd(sourceFile, outputDir, maxExpandedBytes = Number.MAX_SAFE_INTEGER) {
         try {
             if (!native) throw new Error('Módulo nativo no disponible');
-            await native.unzstdDir(sourceFile, outputDir);
+            await native.unzstdDir(sourceFile, outputDir, Number(maxExpandedBytes));
             return { success: true };
         } catch (err) {
             console.error('❌ [RustUtil] Error en unzstd:', err.message);

@@ -60,4 +60,36 @@ describe('🦀 RustBridge & Stats Calculator Tests (Módulo 1 & 3)', () => {
             await fs.rm(directory, { recursive: true, force: true });
         }
     });
+
+    it('valida el tamaño expandido antes de extraer ZIP con el motor nativo', async (t) => {
+        if (!rustUtil.runtimeInfo().nativeAvailable) return t.skip('requiere artefacto N-API Linux');
+        const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ragenodes-zip-'));
+        const source = path.join(directory, 'source');
+        const archive = path.join(directory, 'sample.zip');
+        try {
+            await fs.mkdir(source);
+            await fs.writeFile(path.join(source, 'payload.bin'), Buffer.alloc(4096, 0x5a));
+            assert.equal((await rustUtil.compress(source, archive)).success, true);
+            assert.equal((await rustUtil.unzipValidated(archive, path.join(directory, 'valid'), 8192)).success, true);
+            assert.equal((await rustUtil.unzipValidated(archive, path.join(directory, 'blocked'), 1024)).success, false);
+        } finally {
+            await fs.rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    it('valida el tamaño expandido antes de restaurar Zstandard con el motor nativo', async (t) => {
+        if (!rustUtil.runtimeInfo().nativeAvailable) return t.skip('requiere artefacto N-API Linux');
+        const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ragenodes-zstd-'));
+        const source = path.join(directory, 'source');
+        const archive = path.join(directory, 'sample.tar.zst');
+        try {
+            await fs.mkdir(source);
+            await fs.writeFile(path.join(source, 'payload.bin'), Buffer.alloc(4096, 0x5a));
+            assert.equal((await rustUtil.zstd(source, archive)).success, true);
+            assert.equal((await rustUtil.unzstd(archive, path.join(directory, 'valid'), 8192)).success, true);
+            assert.equal((await rustUtil.unzstd(archive, path.join(directory, 'blocked'), 1024)).success, false);
+        } finally {
+            await fs.rm(directory, { recursive: true, force: true });
+        }
+    });
 });
