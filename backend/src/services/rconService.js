@@ -3,6 +3,7 @@ import { sendCommandToContainer, fetchContainerLogs } from './dockerService.js';
 import { encodeSourceRconPacket, SourceRconDecoder } from '../utils/sourceRconProtocol.js';
 
 const RCON_TIMEOUT_MS = 3000;
+export const SOURCE_RCON_GAMES = Object.freeze(['cs2', 'palworld', 'ark', 'zomboid']);
 
 /**
  * Ejecuta un comando RCON utilizando el protocolo de Source Engine (usado por ARK, CS2, Rust, SDTD).
@@ -12,8 +13,6 @@ function sendRconPacket(socket, id, type, body) {
 }
 
 export async function executeRconCommand(host, port, password, command, containerName = null, template = null) {
-    const SOURCE_RCON_GAMES = ['cs2', 'palworld', 'ark'];
-
     if (port === 0 || (template && !SOURCE_RCON_GAMES.includes(template))) {
         if (command === 'GetChat' || command === 'ListPlayers' || command === 'ShowPlayers' || command === 'status') {
             throw new Error('RCON de lectura no disponible por red directa para este servidor.');
@@ -45,7 +44,7 @@ export async function executeRconCommand(host, port, password, command, containe
 
         socket.on('data', (data) => {
             try {
-              for (const { id, type, body } of decoder.push(data)) {
+              for (const { id, type, body, size } of decoder.push(data)) {
                 if (type === 2) { // SERVERDATA_AUTH_RESPONSE
                     if (id === -1) {
                         cleanup();

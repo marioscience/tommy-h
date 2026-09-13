@@ -8,7 +8,7 @@ describe('Source RCON binary framing', () => {
         const decoder = new SourceRconDecoder();
         assert.deepEqual(decoder.push(encoded.subarray(0, 2)), []);
         assert.deepEqual(decoder.push(encoded.subarray(2, 11)), []);
-        assert.deepEqual(decoder.push(encoded.subarray(11)), [{ id: 41, type: 0, body: 'respuesta' }]);
+        assert.deepEqual(decoder.push(encoded.subarray(11)), [{ size: 19, id: 41, type: 0, body: 'respuesta' }]);
     });
 
     it('decodes multiple packets received in one TCP fragment', () => {
@@ -18,8 +18,8 @@ describe('Source RCON binary framing', () => {
             encodeSourceRconPacket(2, 0, 'ok')
         ]);
         assert.deepEqual(decoder.push(combined), [
-            { id: 1, type: 2, body: '' },
-            { id: 2, type: 0, body: 'ok' }
+            { size: 10, id: 1, type: 2, body: '' },
+            { size: 12, id: 2, type: 0, body: 'ok' }
         ]);
     });
 

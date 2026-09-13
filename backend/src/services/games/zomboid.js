@@ -2,6 +2,31 @@ import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, cloneFromMas
 import { config } from '../../config.js';
 import { prepareGameProxyBindings } from '../gameProxyPolicy.js';
 
+const ZOMBOID_RCON_CONTAINER_PORT = 27015;
+
+export function buildProjectZomboidRuntime(opts) {
+    const password = deriveServicePassword('zomboid-admin', opts.serverId || opts.containerName);
+    return {
+        environment: [
+            `SERVER_NAME=${opts.serverName}`,
+            `ADMIN_PASSWORD=${password}`,
+            `RCON_PORT=${ZOMBOID_RCON_CONTAINER_PORT}`,
+            `RCON_PASSWORD=${password}`,
+            'TZ=UTC'
+        ],
+        exposedPorts: {
+            '16261/udp': {},
+            '16262/udp': {},
+            [`${ZOMBOID_RCON_CONTAINER_PORT}/tcp`]: {}
+        },
+        publicBindings: {
+            '16261/udp': [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort) }],
+            '16262/udp': [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort + 1) }],
+            [`${ZOMBOID_RCON_CONTAINER_PORT}/tcp`]: [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort + 1) }]
+        }
+    };
+}
+
 export async function createProjectZomboidContainer(opts) {
     const docker = await getNodeConnection(opts.nodeId || 0);
     await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath}/Zomboid/mods && chown -R 1000:1000 ${opts.dataPath}`);
@@ -14,20 +39,13 @@ export async function createProjectZomboidContainer(opts) {
         await new Promise((resolve, reject) => { docker.modem.followProgress(stream, (err, res) => err ? reject(err) : resolve(res)); });
     }
 
-    const publicBindings = {
-        '16261/udp': [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort) }],
-        '16262/udp': [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort + 1) }]
-    };
-    const proxy = prepareGameProxyBindings(publicBindings, { enabled: config.oxideGameProxyEnabled, backendOffset: config.gameBackendPortOffset, backendBindIp: config.gameBackendBindIp });
+    const runtime = buildProjectZomboidRuntime(opts);
+    const proxy = prepareGameProxyBindings(runtime.publicBindings, { enabled: config.oxideGameProxyEnabled, backendOffset: config.gameBackendPortOffset, backendBindIp: config.gameBackendBindIp });
     const container = await docker.createContainer({
         Image: config.zomboidBaseImage,
         name: opts.containerName,
-        Env: [
-            `SERVER_NAME=${opts.serverName}`,
-            `ADMIN_PASSWORD=${deriveServicePassword('zomboid-admin', opts.serverId || opts.containerName)}`,
-            'TZ=UTC'
-        ],
-        ExposedPorts: { '16261/udp': {}, '16262/udp': {} },
+        Env: runtime.environment,
+        ExposedPorts: runtime.exposedPorts,
         Tty: true,
         OpenStdin: true,
         NetworkingConfig: { EndpointsConfig: { [config.dockerNetwork]: {} } },
