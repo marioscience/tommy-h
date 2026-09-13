@@ -12,6 +12,7 @@ import { startQueryWarmer } from './services/queryCache.js';
 import { startBillingScheduler } from './services/billingScheduler.js';
 import { startDockerEventsListener } from './services/dockerEventsService.js';
 import { startServerMaintenance } from './services/serverMaintenanceScheduler.js';
+import { startRuntimeAnomalyMonitor } from './services/runtimeAnomalyScheduler.js';
 
 process.on('uncaughtException', (err) => {
   console.error('💥 WORKER CRASH (Uncaught Exception):', err);
@@ -39,6 +40,7 @@ async function boot() {
       startDockerEventsListener();
       startQueryWarmer();
       startServerMaintenance();
+      startRuntimeAnomalyMonitor();
       break;
     case 'worker-stats':
       startStatsCollector();

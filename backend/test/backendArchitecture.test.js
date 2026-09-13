@@ -59,4 +59,20 @@ describe('Backend architecture boundaries', () => {
     assert.doesNotMatch(source, /(?:FROM|INTO|UPDATE|DELETE FROM)\s+(?:backups|edge_proxies|notifications)\b/i);
     assert.doesNotMatch(source, /(?:FROM|INTO|UPDATE|DELETE FROM)\s+users\b/i);
   });
+
+  it('purges server data before deleting its database record', async () => {
+    const control = await readFile(new URL('../src/services/serverControlService.js', import.meta.url), 'utf8');
+    const purgeIndex = control.indexOf('await purgeServerDataDirectory(s.node_id, s.id, s.data_path)');
+    const recordIndex = control.indexOf('await deleteServerRecord(s.id)');
+    assert.ok(purgeIndex >= 0, 'server deletion must purge persistent data');
+    assert.ok(recordIndex > purgeIndex, 'the database record must remain available if data cleanup fails');
+    assert.doesNotMatch(control, /fs\.rm\(s\.data_path[\s\S]*catch\s*\{\s*\}/);
+  });
+
+  it('runs the runtime anomaly monitor only from the docker-events worker', async () => {
+    const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
+    const scheduler = await readFile(new URL('../src/services/runtimeAnomalyScheduler.js', import.meta.url), 'utf8');
+    assert.match(worker, /case 'worker-docker-events':[\s\S]*startRuntimeAnomalyMonitor\(\)/);
+    assert.match(scheduler, /scanRuntimeAnomalies\(\)/);
+  });
 });

@@ -1,4 +1,3 @@
-import fs from 'fs/promises';
 import path from 'path';
 import { logAudit } from '../db.js';
 import { config, PLAN_LIMITS } from '../config.js';
@@ -18,6 +17,7 @@ import { getPlanRamGb, resolveServerPlan } from './serverPlanPolicy.js';
 import { getPublicEndpointUrl } from './publicEndpointService.js';
 import { scheduleEmbeddedTxAdminCookieRepair } from './txAdminCookieService.js';
 import { restartServerContainer } from './serverRuntimeLifecycle.js';
+import { purgeServerDataDirectory } from './serverDataCleanup.js';
 import {
   claimServerRecreation,
   deleteServerRecord,
@@ -116,8 +116,8 @@ export async function deleteServer(id, userId, isAdmin) {
   await Docker.removeContainer(s.container_name);
   await Docker.removeContainer(`${s.container_name}-db`);
   await Docker.removeContainer(`ragenodes-blender-${s.id.slice(0,8)}`);
+  await purgeServerDataDirectory(s.node_id, s.id, s.data_path);
   await deleteServerRecord(s.id);
-  try { await fs.rm(s.data_path, { recursive: true, force: true }); } catch {}
 
   // 🧹 Limpieza de memoria en mapas locales
   repairBackoffCache.delete(s.id);
