@@ -5,7 +5,7 @@ import { GameFactory } from '../src/services/games/GameFactory.js';
 import { BaseGameService, normalizeSharedDataPermissions } from '../src/services/games/BaseGameService.js';
 import { FiveMService, fivemService } from '../src/services/games/fivem.js';
 import { RustGameService, rustGameService } from '../src/services/games/rust.js';
-import { MinecraftService, minecraftService, normalizeMinecraftIdentity, resolveMinecraftIdentity } from '../src/services/games/minecraft.js';
+import { calculateMinecraftJvmMemoryMb, MinecraftService, minecraftService, normalizeMinecraftIdentity, resolveMinecraftIdentity } from '../src/services/games/minecraft.js';
 import { config } from '../src/config.js';
 
 describe('🏭 GameFactory & OOP Architecture Tests (Módulo 3 & 4)', () => {
@@ -79,6 +79,12 @@ describe('🏭 GameFactory & OOP Architecture Tests (Módulo 3 & 4)', () => {
             () => normalizeMinecraftIdentity('LATEST', 'PAPER'),
             /versión de Minecraft debe ser explícita/
         );
+    });
+
+    it('reserva memoria nativa suficiente para Forge y Netty', () => {
+        assert.equal(calculateMinecraftJvmMemoryMb(2 * 1024 * 1024 * 1024), 1280);
+        assert.equal(calculateMinecraftJvmMemoryMb(4 * 1024 * 1024 * 1024), 3072);
+        assert.equal(calculateMinecraftJvmMemoryMb(8 * 1024 * 1024 * 1024), 6144);
     });
 
     it('conserva la identidad al reiniciar y sustituye una identidad de un servidor eliminado', () => {
