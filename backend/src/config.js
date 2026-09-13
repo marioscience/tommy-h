@@ -366,6 +366,7 @@ export const PLAN_LIMITS = {
     backups: { maxManual: 2, autoIntervalHours: 24, retentionDays: 3 }
   },
   game_rust: {
+    minRamGb: 6,
     memoryBytes: 8 * 1024 * 1024 * 1024, // 8GB RAM
     nanoCpus: 3.5 * 10**9,               // 3.5 Cores
     storageLimit: '25G',

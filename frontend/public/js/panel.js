@@ -210,7 +210,7 @@ function toggleSidebar() {
                 hobby: 2
             };
             const gameMinimums = {
-                rust: 4,
+                rust: 6,
                 palworld: 8,
                 zomboid: 4,
                 ark: 16,
@@ -230,7 +230,8 @@ function toggleSidebar() {
             const planConfig = {
                 hobby: { ram: 4 }, standard: { ram: 8 }, premium: { ram: 16 },
                 platinum: { ram: 32 }, partner: { ram: 32 }, ultimate: { ram: 128 },
-                community_starter: { ram: 8 }, community_pro: { ram: 16 }, community_network: { ram: 32 }
+                community_starter: { ram: 8 }, community_pro: { ram: 16 }, community_network: { ram: 32 },
+                game_rust: { ram: 8 }
             };
             const rawPlan = (user && user.plan) ? user.plan.trim().toLowerCase().replace(/[\s-]+/g, '_') : 'hobby';
             const uPlan = rawPlan === 'elite' || rawPlan === 'plan_platinum' ? 'platinum' : rawPlan;
@@ -512,7 +513,8 @@ function toggleSidebar() {
                 community_starter: ['minecraft', 'fivem', 'rust', 'cs2', 'valheim', 'zomboid', 'sdtd', 'discordbot', 'wordpress', 'database'],
                 community_pro: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'sdtd', 'discordbot', 'wordpress', 'database'],
                 community_network: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd', 'discordbot', 'wordpress', 'database'],
-                ultimate: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd', 'wordpress', 'discordbot', 'database']
+                ultimate: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd', 'wordpress', 'discordbot', 'database'],
+                game_rust: ['rust']
             };
 
             const isAllowed = (access[plan] || []).includes(game);
