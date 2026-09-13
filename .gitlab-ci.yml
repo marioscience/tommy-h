@@ -63,6 +63,34 @@ backend_tests:
   script:
   - npm test
 
+backend_native_tests:
+  stage: test
+  image: rust@sha256:1716b3aa042d735f4566d14dc54e8037de9d69556e2d5dd58131d93a613d173d
+  tags:
+  - ragenodes-rust
+  cache:
+    key:
+      files:
+      - backend/rust-util/Cargo.lock
+      - backend/rust-util/package-lock.json
+    paths:
+    - .cargo/
+    - backend/rust-util/target/
+    - backend/rust-util/.npm-cache/
+  variables:
+    CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
+  before_script:
+  - apk add --no-cache nodejs npm musl-dev
+  script:
+  - cd backend/rust-util
+  - npm ci --ignore-scripts --cache .npm-cache
+  - npm run format:check
+  - npm run build:release
+  - cp index.linux-x64-musl.node ../src/utils/ragenodes_napi.node
+  - cd ..
+  - npm ci --ignore-scripts --cache .npm-cache
+  - npm test
+
 dependency_audit:
   stage: test
   image: node:24-bookworm

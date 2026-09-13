@@ -1,5 +1,6 @@
 import net from 'net';
 import { sendCommandToContainer, fetchContainerLogs } from './dockerService.js';
+import { encodeSourceRconPacket, SourceRconDecoder } from '../utils/sourceRconProtocol.js';
 
 const RCON_TIMEOUT_MS = 3000;
 
@@ -7,18 +8,7 @@ const RCON_TIMEOUT_MS = 3000;
  * Ejecuta un comando RCON utilizando el protocolo de Source Engine (usado por ARK, CS2, Rust, SDTD).
  */
 function sendRconPacket(socket, id, type, body) {
-    const bodyBuffer = Buffer.from(body, 'utf8');
-    const packetLength = 8 + bodyBuffer.length + 2; // ID (4) + Type (4) + Body + Null + Null
-    const buffer = Buffer.alloc(4 + packetLength);
-
-    buffer.writeInt32LE(packetLength, 0);
-    buffer.writeInt32LE(id, 4);
-    buffer.writeInt32LE(type, 8);
-    bodyBuffer.copy(buffer, 12);
-    buffer.writeInt8(0, 12 + bodyBuffer.length);
-    buffer.writeInt8(0, 12 + bodyBuffer.length + 1);
-
-    socket.write(buffer);
+    socket.write(encodeSourceRconPacket(id, type, body));
 }
 
 export async function executeRconCommand(host, port, password, command, containerName = null, template = null) {
@@ -41,6 +31,7 @@ export async function executeRconCommand(host, port, password, command, containe
 
         let authenticated = false;
         let responseData = '';
+        const decoder = new SourceRconDecoder();
         const reqId = Math.floor(Math.random() * 1000) + 1;
 
         const cleanup = () => {
@@ -53,16 +44,8 @@ export async function executeRconCommand(host, port, password, command, containe
         });
 
         socket.on('data', (data) => {
-            let offset = 0;
-            while (offset < data.length) {
-                if (offset + 4 > data.length) break;
-                const size = data.readInt32LE(offset);
-                if (offset + 4 + size > data.length) break;
-
-                const id = data.readInt32LE(offset + 4);
-                const type = data.readInt32LE(offset + 8);
-                const body = data.toString('utf8', offset + 12, offset + 4 + size - 2);
-
+            try {
+              for (const { id, type, body } of decoder.push(data)) {
                 if (type === 2) { // SERVERDATA_AUTH_RESPONSE
                     if (id === -1) {
                         cleanup();
@@ -83,7 +66,10 @@ export async function executeRconCommand(host, port, password, command, containe
                     }
                 }
 
-                offset += 4 + size;
+              }
+            } catch (error) {
+                cleanup();
+                reject(error);
             }
         });
 
