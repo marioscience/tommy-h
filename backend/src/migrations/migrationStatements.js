@@ -220,6 +220,16 @@ export const migrations = [
     ]
   },
   {
+    id: '202605010002_backup_checksums',
+    description: 'Hash SHA-256 para validar backups antes de restaurarlos',
+    statements: [
+      'ALTER TABLE backups ADD COLUMN IF NOT EXISTS checksum_sha256 TEXT',
+      `ALTER TABLE backups DROP CONSTRAINT IF EXISTS backups_checksum_sha256_format`,
+      `ALTER TABLE backups ADD CONSTRAINT backups_checksum_sha256_format
+       CHECK (checksum_sha256 IS NULL OR checksum_sha256 ~ '^[0-9a-f]{64}$')`
+    ]
+  },
+  {
     id: '202606010001_node_telemetry_history',
     description: 'Historial de métricas de telemetría de nodos (CPU, RAM, Disco, Ancho de Banda)',
     statements: [

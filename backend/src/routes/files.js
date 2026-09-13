@@ -1,6 +1,5 @@
 import express from 'express';
 import multer from 'multer';
-import fs from 'fs';
 import fsPromises from 'fs/promises';
 import { createWriteStream } from 'fs';
 import path from 'path';
@@ -23,26 +22,6 @@ import {
 
 const router = express.Router();
 const upload = multer({ dest: '/tmp/ragenodes_uploads/' });
-
-function validateZipArchive(filePath, destination, remainingBytes = 10 * 1024 * 1024 * 1024) {
-    const destinationRoot = path.resolve(destination);
-    const archive = new (require('adm-zip'))(filePath);
-    let expandedBytes = 0;
-    for (const entry of archive.getEntries()) {
-        const resolvedEntry = path.resolve(destinationRoot, entry.entryName);
-        if (resolvedEntry !== destinationRoot && !resolvedEntry.startsWith(`${destinationRoot}${path.sep}`)) {
-            throw new Error('El archivo ZIP contiene rutas de escape no permitidas.');
-        }
-        const unixMode = (Number(entry.header?.attr || 0) >>> 16) & 0xffff;
-        if ((unixMode & 0o170000) === 0o120000) {
-            throw new Error('El archivo ZIP contiene enlaces simbolicos no permitidos.');
-        }
-        expandedBytes += Number(entry.header?.size || 0);
-        if (expandedBytes > remainingBytes) {
-            throw new Error('La descompresion del ZIP excede el almacenamiento restante disponible.');
-        }
-    }
-}
 
 router.get('/list', requireAuth, async (req, res) => {
     const row = await getServerByIdForUser(req.query.serverId, req.user.sub, req.user.role === 'admin', 'files');
@@ -149,8 +128,7 @@ router.post('/action', requireAuth, async (req, res) => {
         else if (req.body.action === 'unzip') {
              const extractDir = path.dirname(targetPath);
              const allowance = await getStorageAllowance(row, true);
-             validateZipArchive(targetPath, extractDir, allowance.remainingBytes);
-             const result = await rustUtil.unzip(targetPath, extractDir);
+             const result = await rustUtil.unzipValidated(targetPath, extractDir, allowance.remainingBytes);
              if (!result.success) throw new Error(`Fallo en descompresion nativa: ${result.error}`);
              storageCache.delete(row.id);
              await checkStorageLimit(row, 0, true);

@@ -1,8 +1,17 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { rustUtil } from '../src/utils/rustUtil.js';
 
 describe('🦀 RustBridge & Stats Calculator Tests (Módulo 1 & 3)', () => {
+    it('debería identificar explícitamente el motor cargado', () => {
+        const runtime = rustUtil.runtimeInfo();
+        assert.ok(['rust-native', 'javascript-fallback'].includes(runtime.engine));
+        assert.equal(runtime.nativeAvailable, runtime.engine === 'rust-native');
+    });
+
     it('debería calcular estadísticas de Docker correctamente vía Rust o Fallback JS', async () => {
         const mockStats = {
             cpu_stats: { cpu_usage: { total_usage: 100000 }, system_cpu_usage: 500000, online_cpus: 4 },
@@ -24,5 +33,63 @@ describe('🦀 RustBridge & Stats Calculator Tests (Módulo 1 & 3)', () => {
 
         const resultEmpty = await rustUtil.calculateStats({});
         assert.ok(resultEmpty !== undefined);
+    });
+
+    it('mantiene el contrato al calcular telemetría por lotes', async () => {
+        const sample = {
+            cpu_stats: { cpu_usage: { total_usage: 200 }, system_cpu_usage: 1000, online_cpus: 2 },
+            precpu_stats: { cpu_usage: { total_usage: 100 }, system_cpu_usage: 500 },
+            memory_stats: { usage: 1024, limit: 2048, stats: { inactive_file: 0 } }
+        };
+        const results = await rustUtil.calculateStatsBatch([sample, sample]);
+        assert.equal(results.length, 2);
+        assert.deepEqual(results[0], results[1]);
+        assert.equal(results[0].cpu, '40.00%');
+        assert.equal(results[0].ram, '50.00%');
+        assert.equal(results[0].net_rx, '0');
+        assert.equal(results[0].net_tx, '0');
+    });
+
+    it('calcula SHA-256 por streaming también en el fallback', async () => {
+        const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ragenodes-hash-'));
+        const file = path.join(directory, 'sample.bin');
+        try {
+            await fs.writeFile(file, 'ragenodes');
+            assert.equal(await rustUtil.sha256File(file), '703e3c5ca81fad04b9dd5b2aa919c5c1452cde9992dc932ef23128ad118371fd');
+        } finally {
+            await fs.rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    it('valida el tamaño expandido antes de extraer ZIP con el motor nativo', async (t) => {
+        if (!rustUtil.runtimeInfo().nativeAvailable) return t.skip('requiere artefacto N-API Linux');
+        const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ragenodes-zip-'));
+        const source = path.join(directory, 'source');
+        const archive = path.join(directory, 'sample.zip');
+        try {
+            await fs.mkdir(source);
+            await fs.writeFile(path.join(source, 'payload.bin'), Buffer.alloc(4096, 0x5a));
+            assert.equal((await rustUtil.compress(source, archive)).success, true);
+            assert.equal((await rustUtil.unzipValidated(archive, path.join(directory, 'valid'), 8192)).success, true);
+            assert.equal((await rustUtil.unzipValidated(archive, path.join(directory, 'blocked'), 1024)).success, false);
+        } finally {
+            await fs.rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    it('valida el tamaño expandido antes de restaurar Zstandard con el motor nativo', async (t) => {
+        if (!rustUtil.runtimeInfo().nativeAvailable) return t.skip('requiere artefacto N-API Linux');
+        const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ragenodes-zstd-'));
+        const source = path.join(directory, 'source');
+        const archive = path.join(directory, 'sample.tar.zst');
+        try {
+            await fs.mkdir(source);
+            await fs.writeFile(path.join(source, 'payload.bin'), Buffer.alloc(4096, 0x5a));
+            assert.equal((await rustUtil.zstd(source, archive)).success, true);
+            assert.equal((await rustUtil.unzstd(archive, path.join(directory, 'valid'), 8192)).success, true);
+            assert.equal((await rustUtil.unzstd(archive, path.join(directory, 'blocked'), 1024)).success, false);
+        } finally {
+            await fs.rm(directory, { recursive: true, force: true });
+        }
     });
 });

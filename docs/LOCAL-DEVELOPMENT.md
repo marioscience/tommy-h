@@ -32,6 +32,12 @@ bash dev up frontend
 
 También puedes ejecutar `./dev`. En Windows con Node instalado se admite
 `node scripts/dev/cli.mjs help`; para el Dev Container usa **Reopen in Container**.
+
+El acelerador N-API de backups, hashes y validación es opcional. La aplicación
+mantiene fallbacks portables si el artefacto Linux/musl no está disponible, por
+lo que no es necesario compilar Rust para trabajar en frontend o en rutas HTTP.
+Las instrucciones reproducibles y los perfiles están en
+[`benchmarks/rust-runtime/README.md`](../benchmarks/rust-runtime/README.md).
 La primera descarga/construcción depende de la conexión y CPU. Los siguientes
 arranques reutilizan imágenes y datos. No hace falta iniciar sesión en un registry
 para construir imágenes internas desde este repositorio.
