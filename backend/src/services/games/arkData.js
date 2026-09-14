@@ -3,8 +3,9 @@ import path from 'node:path';
 
 // All filesystem preparation runs in the SAME Docker user namespace as ARK.
 // Binding the common data root exposes the shared master without downloading
-// ARK again. Reflinks are used when both paths happen to share a filesystem;
-// otherwise the bounded retry loop resumes a regular copy from the master.
+// ARK again. A tar stream is deliberately used instead of recursive cp: the
+// production template is NFS-backed while instances are Btrfs/rootless, and
+// tar can safely merge a partially copied destination during bounded retries.
 export const ARK_PREPARE_SCRIPT = `set -eu
 target="/data/$ARK_SERVER_ID"
 master='/data/templates/ark-master'
@@ -15,7 +16,7 @@ if [ -n "$(find "$target" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
 elif [ -d "$master/common" ]; then
     echo 'ARK prepare: cloning master template'
     copy_attempt=1
-    while ! cp --reflink=auto -R --no-dereference --preserve=mode,timestamps "$master/." "$target/"; do
+    while ! (cd "$master" && tar -cf - .) | (cd "$target" && tar -xf -); do
         if [ "$copy_attempt" -ge 3 ]; then
             echo 'ARK master template copy failed after 3 resumable attempts' >&2
             exit 1
