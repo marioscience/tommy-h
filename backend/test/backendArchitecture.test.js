@@ -69,6 +69,19 @@ describe('Backend architecture boundaries', () => {
     assert.doesNotMatch(control, /fs\.rm\(s\.data_path[\s\S]*catch\s*\{\s*\}/);
   });
 
+  it('uses rootless-safe cleanup when a server creation is rolled back', async () => {
+    const creation = await readFile(new URL('../src/services/serverCreationService.js', import.meta.url), 'utf8');
+    assert.match(creation, /await purgeServerDataDirectory\(nodeId, serverId, dataPath\)/);
+    assert.doesNotMatch(creation, /runRemoteCommand\(nodeId,[\s\S]{0,80}rm -rf/);
+  });
+
+  it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
+    const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
+    assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);
+    assert.doesNotMatch(cs2, /mkdir -p \$\{opts\.dataPath\} && chown -R/);
+    assert.match(cs2, /await normalizeCS2DataOwnership/);
+  });
+
   it('runs the runtime anomaly monitor only from the docker-events worker', async () => {
     const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
     const scheduler = await readFile(new URL('../src/services/runtimeAnomalyScheduler.js', import.meta.url), 'utf8');
