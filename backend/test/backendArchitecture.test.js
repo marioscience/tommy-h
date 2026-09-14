@@ -95,6 +95,14 @@ describe('Backend architecture boundaries', () => {
     assert.match(control, /todavía se está preparando/);
   });
 
+  it('targets power operations at the node assigned to the server row', async () => {
+    const control = await readFile(new URL('../src/services/serverControlService.js', import.meta.url), 'utf8');
+    const lifecycle = await readFile(new URL('../src/services/serverRuntimeLifecycle.js', import.meta.url), 'utf8');
+    assert.match(control, /startContainer\(s\.container_name, \{ nodeId: s\.node_id \}\)/);
+    assert.match(control, /stopContainer\(s\.container_name, \{ nodeId: s\.node_id \}\)/);
+    assert.match(lifecycle, /inspectContainer\(server\.container_name, \{ nodeId: server\.node_id \}\)/);
+  });
+
   it('closes the temporary ARK preparation permissions even after failure', async () => {
     const ark = await readFile(new URL('../src/services/games/ark.js', import.meta.url), 'utf8');
     const openIndex = ark.indexOf('chmod 0777');

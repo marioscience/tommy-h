@@ -65,7 +65,7 @@ export async function controlServer(id, userId, action, isAdmin, options = {}) {
           await assertNodeStartCapacity(s.node_id, requiredRamGb);
       }
       try {
-          await Docker.startContainer(s.container_name);
+          await Docker.startContainer(s.container_name, { nodeId: s.node_id });
 
           if (s.template === 'fivem') scheduleEmbeddedTxAdminCookieRepair(s);
           await updateServerStatus(s.id, 'running');
@@ -81,7 +81,7 @@ export async function controlServer(id, userId, action, isAdmin, options = {}) {
   if (action === 'stop') {
       await updateServerStatus(s.id, 'stopping');
       try {
-          await Docker.stopContainer(s.container_name);
+          await Docker.stopContainer(s.container_name, { nodeId: s.node_id });
       } catch (e) {
           console.error(`[ServerService] Error al detener contenedor ${s.container_name}: ${e.message}`);
       }
