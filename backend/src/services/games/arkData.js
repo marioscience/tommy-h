@@ -15,7 +15,7 @@ if [ -n "$(find "$target" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
 elif [ -d "$master/common" ]; then
     echo 'ARK prepare: cloning master template'
     copy_attempt=1
-    while ! cp --reflink=auto -R --preserve=mode,timestamps,links "$master/." "$target/"; do
+    while ! cp --reflink=auto -R --no-dereference --preserve=mode,timestamps "$master/." "$target/"; do
         if [ "$copy_attempt" -ge 3 ]; then
             echo 'ARK master template copy failed after 3 resumable attempts' >&2
             exit 1

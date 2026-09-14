@@ -17,6 +17,8 @@ test('ARK prepares data in a restricted namespace helper and does not reuse temp
     assert.deepEqual(spec.HostConfig.CapDrop, ['ALL']);
     assert.equal(removed, true);
     assert.match(ARK_PREPARE_SCRIPT, /cp --reflink=auto/);
+    assert.match(ARK_PREPARE_SCRIPT, /--no-dereference --preserve=mode,timestamps/);
+    assert.doesNotMatch(ARK_PREPARE_SCRIPT, /preserve=mode,timestamps,links/);
     assert.match(ARK_PREPARE_SCRIPT, /copy failed after 3 resumable attempts/);
     assert.match(ARK_PREPARE_SCRIPT, /resuming attempt \$copy_attempt\/3/);
     assert.match(ARK_PREPARE_SCRIPT, /templates\/ark-master/);
