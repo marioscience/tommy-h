@@ -222,6 +222,27 @@ function numericCommandOutput(result, label) {
     return value;
 }
 
+export function buildTemplateStreamCommand(masterPath, dataPath) {
+    const source = sh`${masterPath}`;
+    const target = sh`${dataPath}`;
+    return `(cd ${source} && tar -cf - .) | (cd ${target} && tar -xf -)`;
+}
+
+async function copyTemplateAcrossFilesystems(masterPath, dataPath, nodeId) {
+    const command = buildTemplateStreamCommand(masterPath, dataPath);
+    let lastError;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            await runRemoteCommand(nodeId, command);
+            return;
+        } catch (error) {
+            lastError = error;
+            console.warn(`[Templates] Copia por flujo interrumpida; reanudando intento ${attempt}/3: ${error.message}`);
+        }
+    }
+    throw lastError;
+}
+
 export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0) {
     if (gameName === 'fivem' || gameName === 'minecraft') {
         console.log(`ℹ️ [${gameName.toUpperCase()}] Omitiendo plantilla maestra.`);
@@ -267,7 +288,7 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0) {
                 console.log(`⚡ [${gameName.toUpperCase()}] Sembrando una única caché local desde la plantilla compartida.`);
                 try {
                     await runRemoteCommand(nodeId, sh`mkdir -p ${cacheRoot} && rm -rf ${cacheTemp} && mkdir -p ${cacheTemp}`);
-                    await runRemoteCommand(nodeId, sh`cp -R -P --preserve=mode,timestamps,links ${masterPath + '/.'} ${cacheTemp + '/'}`);
+                    await copyTemplateAcrossFilesystems(masterPath, cacheTemp, nodeId);
                     await runRemoteCommand(nodeId, sh`printf '%s\n' ${String(templateBytes)} > ${path.join(cacheTemp, '.ragenodes-template-bytes')}`);
                     await runRemoteCommand(nodeId, sh`if [ -e ${cachePath} ]; then mv ${cachePath} ${cacheOld}; fi; mv ${cacheTemp} ${cachePath}; rm -rf ${cacheOld}`);
                 } catch (error) {

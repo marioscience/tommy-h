@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveDataSubdirectory } from '../src/services/games/BaseGameService.js';
-import { commandStdout, sh } from '../src/services/dockerUtils.js';
+import { buildTemplateStreamCommand, commandStdout, sh } from '../src/services/dockerUtils.js';
 import { buildSDTDInstallationCheck } from '../src/services/games/sdtd.js';
 import { buildARKHostConfig } from '../src/services/games/ark.js';
 
@@ -26,6 +26,13 @@ describe('Preparación segura de directorios de juego', () => {
     assert.equal(
       sh`cp --reflink=always -a ${master} ${target}`,
       "cp --reflink=always -a '/srv/ragenodes-data/templates/ark-master/.' '/srv/ragenodes-data/server-id/'"
+    );
+  });
+
+  it('copia plantillas por flujo entre sistemas de archivos distintos', () => {
+    assert.equal(
+      buildTemplateStreamCommand("/srv/data/templates/rust master", "/srv/data/server O'Reilly"),
+      "(cd '/srv/data/templates/rust master' && tar -cf - .) | (cd '/srv/data/server O'\\''Reilly' && tar -xf -)"
     );
   });
 
