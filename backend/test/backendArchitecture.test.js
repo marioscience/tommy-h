@@ -88,4 +88,10 @@ describe('Backend architecture boundaries', () => {
     assert.match(worker, /case 'worker-docker-events':[\s\S]*startRuntimeAnomalyMonitor\(\)/);
     assert.match(scheduler, /scanRuntimeAnomalies\(\)/);
   });
+
+  it('does not recreate a server while its initial installation is active', async () => {
+    const control = await readFile(new URL('../src/services/serverControlService.js', import.meta.url), 'utf8');
+    assert.match(control, /\['creating', 'recreating'\]\.includes\(s\.status\)/);
+    assert.match(control, /todavía se está preparando/);
+  });
 });

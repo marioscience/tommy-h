@@ -1,5 +1,5 @@
-import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, detachMutableTemplatePath, normalizeBindOwnership, deriveServicePassword, sh } from '../dockerUtils.js';
-import path from 'path';
+import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, deriveServicePassword, sh } from '../dockerUtils.js';
+import { prepareArkData } from './arkData.js';
 import { config } from '../../config.js';
 
 function sanitizeArkLaunchValue(value, fallback = '') {
@@ -86,31 +86,8 @@ export async function createARKContainer(opts) {
         await new Promise((resolve, reject) => { docker.modem.followProgress(stream, (err, res) => err ? reject(err) : resolve(res)); });
     }
 
-    await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath} && chown -R 1000:1000 ${opts.dataPath}`);
-
-    await cloneFromMasterTemplate('ark', opts.dataPath, opts.nodeId);
-    await detachMutableTemplatePath(path.join(opts.dataPath, 'compatdata'), opts.nodeId);
-
-    const baseArkPath = path.join(opts.dataPath, 'common', 'ARK Survival Ascended Dedicated Server');
-    const shooterPath = path.join(baseArkPath, 'ShooterGame');
-    const win64Path = path.join(shooterPath, 'Binaries', 'Win64');
-
-    await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${win64Path}`);
-    await detachMutableTemplatePath(path.join(shooterPath, 'Saved'), opts.nodeId);
-    await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath + '/compatdata/2430930'}`);
-    await runRemoteCommand(opts.nodeId || 0, sh`rm -f ${opts.dataPath + '/compatdata/2430930/pfx.lock'}`);
-    await normalizeBindOwnership(docker, config.arkBaseImage, opts.dataPath, '1000:1000', 'ark');
-
-    try {
-        const baseAppId = path.join(baseArkPath, 'steam_appid.txt');
-        const shooterAppId = path.join(shooterPath, 'steam_appid.txt');
-        const win64AppId = path.join(win64Path, 'steam_appid.txt');
-        await runRemoteCommand(opts.nodeId || 0, sh`echo 2430930 > ${baseAppId} && echo 2430930 > ${shooterAppId} && echo 2430930 > ${win64AppId} && chown 1000:1000 ${baseAppId} ${shooterAppId} ${win64AppId} && chmod 644 ${baseAppId} ${shooterAppId} ${win64AppId}`);
-    } catch (e) {}
-
-    try {
-        await runRemoteCommand(opts.nodeId || 0, sh`chown -R 1000:1000 ${opts.dataPath}`);
-    } catch (e) {}
+    await prepareArkData({ docker, image: config.arkBaseImage,
+        dataRoot: config.instanceDataRoot, dataPath: opts.dataPath });
 
     const clusterBinds = [];
     if (opts.clusterId) {

@@ -35,6 +35,10 @@ export async function controlServer(id, userId, action, isAdmin, options = {}) {
   const s = await getServerByIdForUser(id, userId, isAdmin);
   if (!s) throw new Error("No encontrado");
 
+  if (['creating', 'recreating'].includes(s.status)) {
+      throw new Error('El servidor todavía se está preparando. Espera a que termine antes de controlar su energía.');
+  }
+
   if (!isAdmin && (action === 'start' || action === 'restart') && s.status === 'suspended') {
       throw new Error("El servidor está suspendido por falta de pago. Por favor, renueva tu suscripción.");
   }
