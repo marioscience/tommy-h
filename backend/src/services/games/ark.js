@@ -86,8 +86,17 @@ export async function createARKContainer(opts) {
         await new Promise((resolve, reject) => { docker.modem.followProgress(stream, (err, res) => err ? reject(err) : resolve(res)); });
     }
 
-    await prepareArkData({ docker, image: config.arkBaseImage,
-        dataRoot: config.instanceDataRoot, dataPath: opts.dataPath });
+    const targetNodeId = opts.nodeId || 0;
+    // The host owns the instance root while game files use a rootless UID map.
+    // Open only this empty/validated UUID directory during preparation and
+    // always close it again, including when template transfer fails.
+    await runRemoteCommand(targetNodeId, sh`mkdir -p ${opts.dataPath} && chmod 0777 ${opts.dataPath}`);
+    try {
+        await prepareArkData({ docker, image: config.arkBaseImage,
+            dataRoot: config.instanceDataRoot, dataPath: opts.dataPath });
+    } finally {
+        await runRemoteCommand(targetNodeId, sh`chmod 0755 ${opts.dataPath}`).catch(() => {});
+    }
 
     const clusterBinds = [];
     if (opts.clusterId) {

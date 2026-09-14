@@ -19,11 +19,12 @@ test('ARK prepares data in a restricted namespace helper and does not reuse temp
     assert.match(ARK_PREPARE_SCRIPT, /tar -cf - \./);
     assert.match(ARK_PREPARE_SCRIPT, /tar -xf -/);
     assert.doesNotMatch(ARK_PREPARE_SCRIPT, /\bcp\b/);
+    assert.ok(ARK_PREPARE_SCRIPT.indexOf('mkdir -p "$target"') < ARK_PREPARE_SCRIPT.indexOf('find "$target"'));
     assert.match(ARK_PREPARE_SCRIPT, /copy failed after 3 resumable attempts/);
     assert.match(ARK_PREPARE_SCRIPT, /resuming attempt \$copy_attempt\/3/);
     assert.match(ARK_PREPARE_SCRIPT, /templates\/ark-master/);
     assert.doesNotMatch(ARK_PREPARE_SCRIPT, /rm -rf/);
-    assert.match(ARK_PREPARE_SCRIPT, /chown -R -P 1000:1000/);
+    assert.match(ARK_PREPARE_SCRIPT, /find "\$target" -mindepth 1 -exec chown -h 1000:1000/);
 });
 test('ARK helper failure propagates and helper is removed', async () => {
     let removed = false;

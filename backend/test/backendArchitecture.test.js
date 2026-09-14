@@ -94,4 +94,14 @@ describe('Backend architecture boundaries', () => {
     assert.match(control, /\['creating', 'recreating'\]\.includes\(s\.status\)/);
     assert.match(control, /todavía se está preparando/);
   });
+
+  it('closes the temporary ARK preparation permissions even after failure', async () => {
+    const ark = await readFile(new URL('../src/services/games/ark.js', import.meta.url), 'utf8');
+    const openIndex = ark.indexOf('chmod 0777');
+    const finallyIndex = ark.indexOf('finally', openIndex);
+    const closeIndex = ark.indexOf('chmod 0755', finallyIndex);
+    assert.ok(openIndex >= 0, 'ARK must prepare its host-owned UUID directory');
+    assert.ok(finallyIndex > openIndex, 'ARK permission cleanup must use finally');
+    assert.ok(closeIndex > finallyIndex, 'ARK must close temporary permissions');
+  });
 });

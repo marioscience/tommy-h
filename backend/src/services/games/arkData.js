@@ -11,6 +11,7 @@ target="/data/$ARK_SERVER_ID"
 master='/data/templates/ark-master'
 echo 'ARK prepare: validating paths'
 if [ -L "$target" ]; then echo 'ARK preparation rejected a symlinked instance directory' >&2; exit 1; fi
+mkdir -p "$target"
 if [ -n "$(find "$target" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
     echo 'ARK instance already contains data; preserving it'
 elif [ -d "$master/common" ]; then
@@ -42,7 +43,9 @@ for entry in "$target/common/ARK Survival Ascended Dedicated Server/steam_appid.
     printf '2430930\\n' > "$entry"
 done
 echo 'ARK prepare: normalizing ownership'
-chown -R -P 1000:1000 "$target"
+# The host-owned mount point itself is finalized by the backend. Only entries
+# created inside the rootless namespace can be safely assigned to steam here.
+find "$target" -mindepth 1 -exec chown -h 1000:1000 {} +
 echo 'ARK prepare: complete'
 `;
 
