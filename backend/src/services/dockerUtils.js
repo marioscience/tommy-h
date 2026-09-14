@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import { exec } from 'child_process';
 import util from 'util';
 import crypto from 'crypto';
+import { PassThrough } from 'stream';
 import { findNodeById } from '../repositories/nodeRepository.js';
 import { findServerNodeIdByContainer } from '../repositories/serverRepository.js';
 
@@ -65,9 +66,26 @@ export async function runRemoteCommand(nodeId, command) {
                 AutoRemove: true
             }
         });
+        const attached = await container.attach({ stream: true, stdout: true, stderr: true });
+        const stdoutStream = new PassThrough();
+        const stderrStream = new PassThrough();
+        const stdoutChunks = [];
+        const stderrChunks = [];
+        stdoutStream.on('data', (chunk) => stdoutChunks.push(Buffer.from(chunk)));
+        stderrStream.on('data', (chunk) => stderrChunks.push(Buffer.from(chunk)));
+        docker.modem.demuxStream(attached, stdoutStream, stderrStream);
         await container.start();
-        await container.wait();
-        return true;
+        const waitResult = await container.wait();
+        attached.destroy();
+        stdoutStream.end();
+        stderrStream.end();
+        const stdout = Buffer.concat(stdoutChunks).toString('utf8');
+        const stderr = Buffer.concat(stderrChunks).toString('utf8');
+        if (waitResult.StatusCode !== 0) {
+            const detail = stderr.trim() || stdout.trim() || `exit ${waitResult.StatusCode}`;
+            throw new Error(`Comando remoto falló (${waitResult.StatusCode}): ${detail}`);
+        }
+        return { stdout, stderr };
     } catch (err) {
         console.error('[NodeHostCmd] Error on node ' + nodeId + ':', err.message);
         throw err;
@@ -176,6 +194,34 @@ export async function detachMutableTemplatePath(dirPath, nodeId = 0) {
     }
 }
 
+const TEMPLATE_CLONE_RESERVE_BYTES = 15 * 1024 ** 3;
+
+export function selectTemplateCloneStrategy({ sourceDevice, targetDevice, templateBytes, availableBytes, reserveBytes = TEMPLATE_CLONE_RESERVE_BYTES }) {
+    const source = String(sourceDevice || '').trim();
+    const target = String(targetDevice || '').trim();
+    const required = Math.max(0, Number(templateBytes) || 0);
+    const available = Math.max(0, Number(availableBytes) || 0);
+    const reserve = Math.max(0, Number(reserveBytes) || 0);
+    if (!source || !target) throw new Error('No se pudo determinar el dispositivo de la plantilla y del destino.');
+    if (source !== target && available < required + reserve) {
+        const requiredGb = ((required + reserve) / 1024 ** 3).toFixed(1);
+        const availableGb = (available / 1024 ** 3).toFixed(1);
+        throw new Error(`Espacio insuficiente para clonar la plantilla entre sistemas de archivos: se requieren ${requiredGb} GB (incluida la reserva) y hay ${availableGb} GB disponibles.`);
+    }
+    return source === target ? 'reflink' : 'copy';
+}
+
+export function templateCacheMatches(markerValue, templateBytes) {
+    const markerBytes = Number.parseInt(String(markerValue || '').trim(), 10);
+    return Number.isSafeInteger(markerBytes) && markerBytes === Number(templateBytes);
+}
+
+function numericCommandOutput(result, label) {
+    const value = Number.parseInt(commandStdout(result).trim(), 10);
+    if (!Number.isSafeInteger(value) || value < 0) throw new Error(`No se pudo medir ${label}.`);
+    return value;
+}
+
 export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0) {
     if (gameName === 'fivem' || gameName === 'minecraft') {
         console.log(`ℹ️ [${gameName.toUpperCase()}] Omitiendo plantilla maestra.`);
@@ -184,43 +230,81 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0) {
 
     const masterPath = path.join(config.instanceDataRoot, 'templates', `${gameName}-master`);
     try {
-        try {
-            const dataStats = await fs.stat(dataPath);
-            const files = await fs.readdir(dataPath);
-            if (files.length > 0) {
-                console.log(`ℹ️ [${gameName.toUpperCase()}] El directorio ${dataPath} ya existe y contiene datos. Omitiendo clonación de plantilla maestra para preservar la configuración del usuario.`);
-                return true;
-            }
-        } catch (e) { }
-
-        const masterStats = await fs.stat(masterPath);
-        if (masterStats.isDirectory()) {
-            console.log(`⚡ [${gameName.toUpperCase()}] Plantilla maestra detectada en ${masterPath}. Clonando usando BTRFS Copy-on-Write / Hard Links...`);
-            await runRemoteCommand(nodeId, sh`mkdir -p ${dataPath}`);
-            try {
-                await runRemoteCommand(nodeId, sh`cp --reflink=always -a ${masterPath + '/.'} ${dataPath + '/'}`);
-            } catch (reflinkErr) {
-                console.warn(`⚠️ [${gameName.toUpperCase()}] Reflinks no disponibles (${reflinkErr.message}). Intentando Hard links...`);
-                try {
-                    if (gameName === 'ark') {
-                        throw new Error('ARK requiere una copia independiente para Proton');
-                    }
-                    await runRemoteCommand(nodeId, sh`cp -al ${masterPath + '/.'} ${dataPath + '/'}`);
-                } catch (linkErr) {
-                    console.warn(`⚠️ [${gameName.toUpperCase()}] Hard links no disponibles (${linkErr.message}). Copiando desde plantilla maestra normal...`);
-                    await runRemoteCommand(nodeId, sh`cp -a ${masterPath + '/.'} ${dataPath + '/'}`);
-                }
-            }
-            console.log(`⚡ [${gameName.toUpperCase()}] Plantilla maestra aplicada con éxito.`);
-            try { 
-                await runRemoteCommand(nodeId, sh`chown -R 1000:1000 ${dataPath} && chmod -R u=rwX,g=rX,o= ${dataPath}`);
-            } catch (e) {}
+        const files = await fs.readdir(dataPath).catch(() => []);
+        if (files.length > 0) {
+            console.log(`ℹ️ [${gameName.toUpperCase()}] El directorio ${dataPath} ya contiene datos. Se preserva sin volver a clonar.`);
             return true;
         }
-    } catch (e) {
-        console.log(`ℹ️ [${gameName.toUpperCase()}] Plantilla maestra no encontrada en ${masterPath}. Se descargará desde cero.`);
+        const masterStats = await fs.stat(masterPath).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
+        if (!masterStats?.isDirectory()) {
+            console.log(`ℹ️ [${gameName.toUpperCase()}] Plantilla maestra no encontrada en ${masterPath}. Se descargará desde cero.`);
+            return false;
+        }
+
+        const parentPath = path.dirname(dataPath);
+        await runRemoteCommand(nodeId, sh`mkdir -p ${parentPath}`);
+        const [sourceDeviceResult, targetDeviceResult, templateSizeResult, availableSizeResult] = await Promise.all([
+            runRemoteCommand(nodeId, sh`stat -c %d ${masterPath}`),
+            runRemoteCommand(nodeId, sh`stat -c %d ${parentPath}`),
+            runRemoteCommand(nodeId, sh`du -sb ${masterPath} | cut -f1`),
+            runRemoteCommand(nodeId, sh`df -PB1 ${parentPath} | awk 'NR==2 {print $4}'`)
+        ]);
+        const sourceDevice = commandStdout(sourceDeviceResult).trim();
+        const targetDevice = commandStdout(targetDeviceResult).trim();
+        const templateBytes = numericCommandOutput(templateSizeResult, 'el tamaño de la plantilla');
+        const availableBytes = numericCommandOutput(availableSizeResult, 'el espacio disponible');
+        const reserveBytes = Math.max(1, Number(process.env.TEMPLATE_CLONE_FREE_RESERVE_GB || 15)) * 1024 ** 3;
+        let cloneSourcePath = masterPath;
+
+        if (selectTemplateCloneStrategy({ sourceDevice, targetDevice, templateBytes, availableBytes, reserveBytes }) === 'copy') {
+            const cacheRoot = path.join(config.instanceDataRoot, '.template-cache');
+            const cachePath = path.join(cacheRoot, `${gameName}-master`);
+            const cacheMarker = path.join(cachePath, '.ragenodes-template-bytes');
+            const markerResult = await runRemoteCommand(nodeId, sh`cat ${cacheMarker} 2>/dev/null || true`);
+            if (!templateCacheMatches(commandStdout(markerResult), templateBytes)) {
+                const cacheTemp = `${cachePath}.seed-${crypto.randomUUID()}`;
+                const cacheOld = `${cachePath}.old-${crypto.randomUUID()}`;
+                console.log(`⚡ [${gameName.toUpperCase()}] Sembrando una única caché local desde la plantilla compartida.`);
+                try {
+                    await runRemoteCommand(nodeId, sh`mkdir -p ${cacheRoot} && rm -rf ${cacheTemp} && mkdir -p ${cacheTemp}`);
+                    await runRemoteCommand(nodeId, sh`cp -R -P --preserve=mode,timestamps,links ${masterPath + '/.'} ${cacheTemp + '/'}`);
+                    await runRemoteCommand(nodeId, sh`printf '%s\n' ${String(templateBytes)} > ${path.join(cacheTemp, '.ragenodes-template-bytes')}`);
+                    await runRemoteCommand(nodeId, sh`if [ -e ${cachePath} ]; then mv ${cachePath} ${cacheOld}; fi; mv ${cacheTemp} ${cachePath}; rm -rf ${cacheOld}`);
+                } catch (error) {
+                    await runRemoteCommand(nodeId, sh`rm -rf ${cacheTemp}`).catch(() => {});
+                    throw new Error(`No se pudo preparar la caché local de ${gameName}: ${error.message}`);
+                }
+            } else {
+                console.log(`⚡ [${gameName.toUpperCase()}] Reutilizando caché local validada.`);
+            }
+            cloneSourcePath = cachePath;
+        }
+
+        const clonePath = `${dataPath}.clone-${crypto.randomUUID()}`;
+        console.log(`⚡ [${gameName.toUpperCase()}] Clonación atómica desde plantilla (reflink, ${(templateBytes / 1024 ** 3).toFixed(1)} GB).`);
+        try {
+            await runRemoteCommand(nodeId, sh`rm -rf ${clonePath} && mkdir -p ${clonePath}`);
+            try {
+                await runRemoteCommand(nodeId, sh`cp --reflink=always -R -P --preserve=mode,timestamps,links ${cloneSourcePath + '/.'} ${clonePath + '/'}`);
+            } catch (reflinkError) {
+                const currentAvailableResult = await runRemoteCommand(nodeId, sh`df -PB1 ${parentPath} | awk 'NR==2 {print $4}'`);
+                selectTemplateCloneStrategy({ sourceDevice: 'copy-source', targetDevice: 'copy-target', templateBytes, availableBytes: numericCommandOutput(currentAvailableResult, 'el espacio disponible después de preparar la caché'), reserveBytes });
+                console.warn(`⚠️ [${gameName.toUpperCase()}] Reflink no disponible; se usará copia independiente con espacio ya validado.`);
+                await runRemoteCommand(nodeId, sh`rm -rf ${clonePath} && mkdir -p ${clonePath} && cp -R -P --preserve=mode,timestamps,links ${cloneSourcePath + '/.'} ${clonePath + '/'}`);
+            }
+            await runRemoteCommand(nodeId, sh`test -n "$(find ${clonePath} -mindepth 1 -print -quit)" || exit 1; rm -f ${path.join(clonePath, '.ragenodes-template-bytes')}; if [ -d ${dataPath} ]; then rmdir ${dataPath}; fi; test ! -e ${dataPath}; mv ${clonePath} ${dataPath}`);
+        } catch (error) {
+            await runRemoteCommand(nodeId, sh`rm -rf ${clonePath}`).catch(() => {});
+            throw new Error(`No se pudo clonar de forma segura la plantilla ${gameName}: ${error.message}`);
+        }
+
+        try { await runRemoteCommand(nodeId, sh`chown -R 1000:1000 ${dataPath} && chmod -R u=rwX,g=rX,o= ${dataPath}`); } catch {}
+        console.log(`⚡ [${gameName.toUpperCase()}] Plantilla maestra aplicada con éxito.`);
+        return true;
+    } catch (error) {
+        if (String(error?.message || '').includes('Espacio insuficiente')) throw error;
+        throw new Error(`Falló la preparación de la plantilla ${gameName}: ${error.message}`);
     }
-    return false;
 }
 
 export async function applyRageNodesBranding(container, name = "Unknown", retries = 5) {
