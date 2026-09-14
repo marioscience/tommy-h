@@ -17,6 +17,8 @@ test('ARK prepares data in a restricted namespace helper and does not reuse temp
     assert.deepEqual(spec.HostConfig.CapDrop, ['ALL']);
     assert.equal(removed, true);
     assert.match(ARK_PREPARE_SCRIPT, /cp --reflink=auto/);
+    assert.match(ARK_PREPARE_SCRIPT, /copy failed after 3 resumable attempts/);
+    assert.match(ARK_PREPARE_SCRIPT, /resuming attempt \$copy_attempt\/3/);
     assert.match(ARK_PREPARE_SCRIPT, /templates\/ark-master/);
     assert.doesNotMatch(ARK_PREPARE_SCRIPT, /rm -rf/);
     assert.match(ARK_PREPARE_SCRIPT, /chown -R -P 1000:1000/);
@@ -24,9 +26,11 @@ test('ARK prepares data in a restricted namespace helper and does not reuse temp
 test('ARK helper failure propagates and helper is removed', async () => {
     let removed = false;
     const docker = { createContainer: async () => ({
-        start: async () => {}, wait: async () => ({ StatusCode: 1 }), remove: async () => { removed = true; }
+        start: async () => {}, wait: async () => ({ StatusCode: 1 }),
+        logs: async () => Buffer.from('ARK prepare: normalizing ownership\nchown: denied\n'),
+        remove: async () => { removed = true; }
     }) };
-    await assert.rejects(prepareArkData({ ...options, docker }), /preparation failed/);
+    await assert.rejects(prepareArkData({ ...options, docker }), /normalizing ownership.*chown: denied/s);
     assert.equal(removed, true);
 });
 test('ARK rejects broad or traversing mount paths before Docker access', async () => {
