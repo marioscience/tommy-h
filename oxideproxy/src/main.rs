@@ -14,6 +14,17 @@ use std::sync::{
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+const DEFAULT_CONFIG_RELOAD_DEBOUNCE_MS: u64 = 30_000;
+
+fn config_reload_debounce() -> std::time::Duration {
+    let millis = std::env::var("OXIDE_CONFIG_RELOAD_DEBOUNCE_MS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|value| *value >= 2_000)
+        .unwrap_or(DEFAULT_CONFIG_RELOAD_DEBOUNCE_MS);
+    std::time::Duration::from_millis(millis)
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Configuración de telemetría asíncrona no bloqueante (Stdout + Archivo Rotativo)
     let log_dir = std::env::var("OXIDE_LOG_DIR").unwrap_or_else(|_| "/app/runtime/logs".into());
@@ -96,15 +107,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         {
             let watched_path = config_path.clone();
             tokio::spawn(async move {
-                let initial = std::fs::metadata(&watched_path)
+                let mut last_seen = std::fs::metadata(&watched_path)
                     .and_then(|metadata| metadata.modified())
                     .ok();
+                let mut last_change = None;
+                let debounce = config_reload_debounce();
                 loop {
                     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
                     let current = std::fs::metadata(&watched_path)
                         .and_then(|metadata| metadata.modified())
                         .ok();
-                    if initial.is_some() && current.is_some() && current != initial {
+                    if current.is_some() && current != last_seen {
+                        last_seen = current;
+                        last_change = Some(tokio::time::Instant::now());
+                        tracing::info!(
+                            "Configuración de rutas modificada; esperando {:?} de estabilidad antes de recargar.",
+                            debounce
+                        );
+                    }
+                    if last_change.is_some_and(|changed| changed.elapsed() >= debounce) {
                         tracing::info!("Configuración de rutas modificada; reinicio controlado solicitado.");
                         std::process::exit(75);
                     }
@@ -177,4 +198,14 @@ fn eligible_cpu_ids() -> Vec<usize> {
 #[cfg(not(target_os = "linux"))]
 fn pin_current_thread(_cpu: usize) -> bool {
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DEFAULT_CONFIG_RELOAD_DEBOUNCE_MS;
+
+    #[test]
+    fn route_reload_debounce_is_longer_than_the_reconciliation_poll() {
+        assert!(DEFAULT_CONFIG_RELOAD_DEBOUNCE_MS >= 30_000);
+    }
 }

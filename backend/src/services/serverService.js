@@ -135,6 +135,10 @@ export async function getServersForUser(userId, isAdmin = false) {
              hasIcon = existsSync(iconPath);
          }
          s.has_icon = hasIcon;
+         if ((isAdmin || s.owner_id === userId) && s.template === 'fivem') {
+             s.db_host = config.gameDatabaseHost;
+             s.db_port = config.gameDatabasePort;
+         }
          delete s.blender_pass;
          if (!isAdmin && s.owner_id !== userId) {
              delete s.db_name;
@@ -289,6 +293,10 @@ export async function getServerDetails(id, userId, isAdmin) {
       hasIcon = existsSync(iconPath);
   }
   s.has_icon = hasIcon;
+  if (canViewSecrets && s.template === 'fivem') {
+      s.db_host = config.gameDatabaseHost;
+      s.db_port = config.gameDatabasePort;
+  }
   if (!canViewSecrets) {
       delete s.db_name;
       delete s.db_user;

@@ -14,11 +14,16 @@ const TEMPLATE_ALIASES = Object.freeze({
 const TEMPLATE_MIN_RAM_GB = Object.freeze({
   fivem: 1,
   minecraft: 2,
-  rust: 4,
+  // RustDedicated exceeded a 4 GiB cgroup during normal startup/runtime in
+  // production. Unlike a JVM workload it has no independent heap ceiling, so
+  // the safe control is rejecting undersized allocations at provisioning.
+  rust: 6,
   palworld: 8,
   cs2: 2,
   valheim: 2,
-  zomboid: 4,
+  // Project Zomboid Build 42 was repeatedly terminated by the production
+  // cgroup OOM killer while loading a fresh world with a 4 GiB allocation.
+  zomboid: 6,
   ark: 16,
   sdtd: 4,
   discordbot: 1,

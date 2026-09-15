@@ -45,8 +45,15 @@ export const config = {
   portBaseOffset: Number(process.env.PORT_BASE_OFFSET || 0),
   projectRoot: process.env.PROJECT_ROOT || process.cwd(),
   dockerSocket: process.env.DOCKER_SOCKET || '/var/run/docker.sock',
+  rconHost: process.env.RCON_HOST || 'host.docker.internal',
+  // Private DNS alias exposed inside the isolated game runtime network.
+  gameDatabaseHost: process.env.GAME_DATABASE_HOST || 'mariadb',
+  gameDatabasePort: Number(process.env.GAME_DATABASE_PORT || 3306),
   dockerBlkioWeight: Number(process.env.DOCKER_BLKIO_WEIGHT ?? (process.env.NODE_ENV === 'production' ? 100 : 0)),
   gameContainerSharedGid: Number(process.env.GAME_CONTAINER_SHARED_GID ?? 1000),
+  runtimeProcessAlertThreshold: Number(process.env.RUNTIME_PROCESS_ALERT_THRESHOLD || 512),
+  runtimeProcessStopThreshold: Number(process.env.RUNTIME_PROCESS_STOP_THRESHOLD || 4096),
+  runtimeAnomalyIntervalMs: Number(process.env.RUNTIME_ANOMALY_INTERVAL_MS || 300000),
   oxideGameProxyEnabled: process.env.OXIDE_GAME_PROXY_ENABLED === 'true',
   gameBackendPortOffset: Number(process.env.GAME_BACKEND_PORT_OFFSET || 10000),
   gameBackendBindIp: process.env.GAME_BACKEND_BIND_IP || '127.0.0.1',
@@ -348,6 +355,7 @@ export const PLAN_LIMITS = {
   },
   game_zomboid: {
     memoryBytes: 6 * 1024 * 1024 * 1024, // 6GB RAM
+    minRamGb: 6,
     nanoCpus: 2.5 * 10**9,               // 2.5 Cores
     storageLimit: '20G',
     diskBytes: 20 * 1024 * 1024 * 1024,
@@ -363,6 +371,7 @@ export const PLAN_LIMITS = {
     backups: { maxManual: 2, autoIntervalHours: 24, retentionDays: 3 }
   },
   game_rust: {
+    minRamGb: 6,
     memoryBytes: 8 * 1024 * 1024 * 1024, // 8GB RAM
     nanoCpus: 3.5 * 10**9,               // 3.5 Cores
     storageLimit: '25G',

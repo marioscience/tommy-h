@@ -59,4 +59,80 @@ describe('Backend architecture boundaries', () => {
     assert.doesNotMatch(source, /(?:FROM|INTO|UPDATE|DELETE FROM)\s+(?:backups|edge_proxies|notifications)\b/i);
     assert.doesNotMatch(source, /(?:FROM|INTO|UPDATE|DELETE FROM)\s+users\b/i);
   });
+
+  it('purges server data before deleting its database record', async () => {
+    const control = await readFile(new URL('../src/services/serverControlService.js', import.meta.url), 'utf8');
+    const purgeIndex = control.indexOf('await purgeServerDataDirectory(s.node_id, s.id, s.data_path)');
+    const recordIndex = control.indexOf('await deleteServerRecord(s.id)');
+    assert.ok(purgeIndex >= 0, 'server deletion must purge persistent data');
+    assert.ok(recordIndex > purgeIndex, 'the database record must remain available if data cleanup fails');
+    assert.doesNotMatch(control, /fs\.rm\(s\.data_path[\s\S]*catch\s*\{\s*\}/);
+  });
+
+  it('uses rootless-safe cleanup when a server creation is rolled back', async () => {
+    const creation = await readFile(new URL('../src/services/serverCreationService.js', import.meta.url), 'utf8');
+    assert.match(creation, /await purgeServerDataDirectory\(nodeId, serverId, dataPath\)/);
+    assert.doesNotMatch(creation, /runRemoteCommand\(nodeId,[\s\S]{0,80}rm -rf/);
+  });
+
+  it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
+    const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
+    assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);
+    assert.doesNotMatch(cs2, /mkdir -p \$\{opts\.dataPath\} && chown -R/);
+    assert.match(cs2, /await normalizeCS2DataOwnership/);
+  });
+
+  it('keeps the final 7DTD path absent until the atomic template clone is promoted', async () => {
+    const sdtd = await readFile(new URL('../src/services/games/sdtd.js', import.meta.url), 'utf8');
+    const cloneIndex = sdtd.indexOf("cloneFromMasterTemplate('sdtd', dataPath, nodeId)");
+    assert.ok(cloneIndex >= 0, '7DTD must prepare its shared template before configuring the instance');
+    assert.doesNotMatch(sdtd.slice(0, cloneIndex), /mkdir -p \$\{dataPath\}/);
+  });
+
+  it('runs the runtime anomaly monitor only from the docker-events worker', async () => {
+    const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
+    const scheduler = await readFile(new URL('../src/services/runtimeAnomalyScheduler.js', import.meta.url), 'utf8');
+    assert.match(worker, /case 'worker-docker-events':[\s\S]*startRuntimeAnomalyMonitor\(\)/);
+    assert.match(scheduler, /scanRuntimeAnomalies\(\)/);
+  });
+
+  it('does not recreate a server while its initial installation is active', async () => {
+    const control = await readFile(new URL('../src/services/serverControlService.js', import.meta.url), 'utf8');
+    assert.match(control, /\['creating', 'recreating'\]\.includes\(s\.status\)/);
+    assert.match(control, /todavía se está preparando/);
+  });
+
+  it('targets power operations at the node assigned to the server row', async () => {
+    const control = await readFile(new URL('../src/services/serverControlService.js', import.meta.url), 'utf8');
+    const lifecycle = await readFile(new URL('../src/services/serverRuntimeLifecycle.js', import.meta.url), 'utf8');
+    assert.match(control, /startContainer\(s\.container_name, \{ nodeId: s\.node_id \}\)/);
+    assert.match(control, /stopContainer\(s\.container_name, \{ nodeId: s\.node_id \}\)/);
+    assert.match(lifecycle, /inspectContainer\(server\.container_name, \{ nodeId: server\.node_id \}\)/);
+  });
+
+  it('shares the configured MariaDB endpoint with FiveM and authorized clients', async () => {
+    const fivem = await readFile(new URL('../src/services/games/fivem.js', import.meta.url), 'utf8');
+    const servers = await readFile(new URL('../src/services/serverService.js', import.meta.url), 'utf8');
+    assert.match(fivem, /TXHOST_DEFAULT_DBHOST=\$\{config\.gameDatabaseHost\}/);
+    assert.match(fivem, /TXHOST_DEFAULT_DBPORT=\$\{config\.gameDatabasePort\}/);
+    assert.match(servers, /s\.db_host = config\.gameDatabaseHost/);
+    assert.match(servers, /if \(canViewSecrets && s\.template === 'fivem'\)/);
+  });
+
+  it('prepares ARK without mutating rootless instance-directory permissions', async () => {
+    const ark = await readFile(new URL('../src/services/games/ark.js', import.meta.url), 'utf8');
+    assert.match(ark, /mkdir -p \$\{opts\.dataPath\}/);
+    assert.doesNotMatch(ark, /chmod 0?777/);
+    assert.doesNotMatch(ark, /chmod 0?755/);
+  });
+
+  it('publishes ARK through the isolated runtime network and game proxy inventory', async () => {
+    const ark = await readFile(new URL('../src/services/games/ark.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(ark, /NetworkMode:\s*['"]host['"]/);
+    assert.match(ark, /prepareGameProxyBindings\(publicBindings/);
+    assert.match(ark, /NetworkingConfig:\s*\{ EndpointsConfig:\s*\{ \[config\.dockerNetwork\]/);
+    assert.match(ark, /'ragenodes\.game': 'ark'/);
+    assert.match(ark, /-ServerPlatform=ALL/);
+    assert.doesNotMatch(ark, /chmod 0777/);
+  });
 });

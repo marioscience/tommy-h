@@ -1,4 +1,3 @@
-import fs from 'fs/promises';
 import path from 'path';
 import { logAudit } from '../db.js';
 import { config, PLAN_LIMITS } from '../config.js';
@@ -18,6 +17,7 @@ import { getPlanRamGb, resolveServerPlan } from './serverPlanPolicy.js';
 import { getPublicEndpointUrl } from './publicEndpointService.js';
 import { scheduleEmbeddedTxAdminCookieRepair } from './txAdminCookieService.js';
 import { restartServerContainer } from './serverRuntimeLifecycle.js';
+import { purgeServerDataDirectory } from './serverDataCleanup.js';
 import {
   claimServerRecreation,
   deleteServerRecord,
@@ -34,6 +34,10 @@ const MAINTENANCE_CHUNK_SIZE = Math.max(1, Number(process.env.MAINTENANCE_CHUNK_
 export async function controlServer(id, userId, action, isAdmin, options = {}) {
   const s = await getServerByIdForUser(id, userId, isAdmin);
   if (!s) throw new Error("No encontrado");
+
+  if (['creating', 'recreating'].includes(s.status)) {
+      throw new Error('El servidor todavía se está preparando. Espera a que termine antes de controlar su energía.');
+  }
 
   if (!isAdmin && (action === 'start' || action === 'restart') && s.status === 'suspended') {
       throw new Error("El servidor está suspendido por falta de pago. Por favor, renueva tu suscripción.");
@@ -61,7 +65,7 @@ export async function controlServer(id, userId, action, isAdmin, options = {}) {
           await assertNodeStartCapacity(s.node_id, requiredRamGb);
       }
       try {
-          await Docker.startContainer(s.container_name);
+          await Docker.startContainer(s.container_name, { nodeId: s.node_id });
 
           if (s.template === 'fivem') scheduleEmbeddedTxAdminCookieRepair(s);
           await updateServerStatus(s.id, 'running');
@@ -77,7 +81,7 @@ export async function controlServer(id, userId, action, isAdmin, options = {}) {
   if (action === 'stop') {
       await updateServerStatus(s.id, 'stopping');
       try {
-          await Docker.stopContainer(s.container_name);
+          await Docker.stopContainer(s.container_name, { nodeId: s.node_id });
       } catch (e) {
           console.error(`[ServerService] Error al detener contenedor ${s.container_name}: ${e.message}`);
       }
@@ -116,8 +120,8 @@ export async function deleteServer(id, userId, isAdmin) {
   await Docker.removeContainer(s.container_name);
   await Docker.removeContainer(`${s.container_name}-db`);
   await Docker.removeContainer(`ragenodes-blender-${s.id.slice(0,8)}`);
+  await purgeServerDataDirectory(s.node_id, s.id, s.data_path);
   await deleteServerRecord(s.id);
-  try { await fs.rm(s.data_path, { recursive: true, force: true }); } catch {}
 
   // 🧹 Limpieza de memoria en mapas locales
   repairBackoffCache.delete(s.id);

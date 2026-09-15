@@ -17,7 +17,7 @@ const [panelHtml, bindingsSource, commonSource, panelSource, privilegedActionsSo
 
 assert.match(
   panelHtml,
-  /js\/panel\.js\?v=2026090701/,
+  /js\/panel\.js\?v=2026091501/,
   'panel.html debe invalidar la cache cuando cambia panel.js'
 );
 

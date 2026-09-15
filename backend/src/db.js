@@ -216,7 +216,7 @@ export async function seedInitialData() {
       ('game_fivem', 'FiveM Dedicated', 9.99, '', '{"ram": "6GB", "cores": 2.5, "ssd": "25GB", "game": "fivem"}'),
       ('game_zomboid', 'Project Zomboid', 7.99, '', '{"ram": "6GB", "cores": 2.5, "ssd": "25GB", "game": "zomboid"}'),
       ('game_sdtd', '7 Days to Die', 7.99, '', '{"ram": "8GB", "cores": 3, "ssd": "40GB", "game": "sdtd"}'),
-      ('game_rust', 'Rust Dedicated', 12.99, '', '{"ram": "8GB", "cores": 3.5, "ssd": "40GB", "game": "rust"}'),
+      ('game_rust', 'Rust Dedicated', 12.99, '', '{"ram": "8GB", "cores": 3.5, "ssd": "40GB", "game": "rust", "min_ram_gb": 6}'),
       ('game_palworld', 'Palworld Dedicated', 16.99, '', '{"ram": "16GB", "cores": 4, "ssd": "40GB", "game": "palworld"}'),
       ('game_ark', 'ARK Dedicated', 19.99, '', '{"ram": "16GB", "cores": 5, "ssd": "100GB", "game": "ark"}'),
       ('app_discordbot', 'Discord Bot Hosting', 1.99, '', '{"ram": "512MB", "cores": 1, "ssd": "5GB", "game": "discordbot"}'),
