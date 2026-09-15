@@ -1,6 +1,7 @@
-import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, detachMutableTemplatePath, normalizeBindOwnership, deriveServicePassword, sh } from '../dockerUtils.js';
-import path from 'path';
+import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, deriveServicePassword, sh } from '../dockerUtils.js';
+import { prepareArkData } from './arkData.js';
 import { config } from '../../config.js';
+import { prepareGameProxyBindings } from '../gameProxyPolicy.js';
 
 function sanitizeArkLaunchValue(value, fallback = '') {
     return String(value || fallback)
@@ -46,10 +47,10 @@ const ARK_CAPABILITIES = [
     'DAC_OVERRIDE'
 ];
 
-export function buildARKHostConfig(opts, clusterBinds = []) {
+export function buildARKHostConfig(opts, clusterBinds = [], portBindings = {}) {
     return {
-        NetworkMode: 'host',
         Binds: [`${opts.dataPath}:/home/steam/Steam/steamapps`, ...clusterBinds],
+        PortBindings: portBindings,
         RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
         Memory: opts.plan.memoryBytes,
         NanoCpus: opts.plan.nanoCpus,
@@ -86,31 +87,13 @@ export async function createARKContainer(opts) {
         await new Promise((resolve, reject) => { docker.modem.followProgress(stream, (err, res) => err ? reject(err) : resolve(res)); });
     }
 
-    await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath} && chown -R 1000:1000 ${opts.dataPath}`);
-
-    await cloneFromMasterTemplate('ark', opts.dataPath, opts.nodeId);
-    await detachMutableTemplatePath(path.join(opts.dataPath, 'compatdata'), opts.nodeId);
-
-    const baseArkPath = path.join(opts.dataPath, 'common', 'ARK Survival Ascended Dedicated Server');
-    const shooterPath = path.join(baseArkPath, 'ShooterGame');
-    const win64Path = path.join(shooterPath, 'Binaries', 'Win64');
-
-    await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${win64Path}`);
-    await detachMutableTemplatePath(path.join(shooterPath, 'Saved'), opts.nodeId);
-    await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath + '/compatdata/2430930'}`);
-    await runRemoteCommand(opts.nodeId || 0, sh`rm -f ${opts.dataPath + '/compatdata/2430930/pfx.lock'}`);
-    await normalizeBindOwnership(docker, config.arkBaseImage, opts.dataPath, '1000:1000', 'ark');
-
-    try {
-        const baseAppId = path.join(baseArkPath, 'steam_appid.txt');
-        const shooterAppId = path.join(shooterPath, 'steam_appid.txt');
-        const win64AppId = path.join(win64Path, 'steam_appid.txt');
-        await runRemoteCommand(opts.nodeId || 0, sh`echo 2430930 > ${baseAppId} && echo 2430930 > ${shooterAppId} && echo 2430930 > ${win64AppId} && chown 1000:1000 ${baseAppId} ${shooterAppId} ${win64AppId} && chmod 644 ${baseAppId} ${shooterAppId} ${win64AppId}`);
-    } catch (e) {}
-
-    try {
-        await runRemoteCommand(opts.nodeId || 0, sh`chown -R 1000:1000 ${opts.dataPath}`);
-    } catch (e) {}
+    const targetNodeId = opts.nodeId || 0;
+    // The node user and rootless Docker share ownership of this directory.
+    // Never chmod an existing instance root: on mapped/rootless filesystems
+    // that operation is forbidden and would prevent otherwise safe restarts.
+    await runRemoteCommand(targetNodeId, sh`mkdir -p ${opts.dataPath}`);
+    await prepareArkData({ docker, image: config.arkBaseImage,
+        dataRoot: config.instanceDataRoot, dataPath: opts.dataPath });
 
     const clusterBinds = [];
     if (opts.clusterId) {
@@ -145,15 +128,27 @@ export async function createARKContainer(opts) {
     adminPassword = sanitizeArkLaunchValue(adminPassword, generatedAdminPassword);
     serverPassword = sanitizeArkLaunchValue(serverPassword, '');
 
-    let connectionString = `${mapName}?listen?SessionName=${sessionName}?Port=${opts.gamePort}?QueryPort=${opts.gamePort + 1}?MaxPlayers=70`;
+    const rconPort = opts.gamePort + 13;
+    let connectionString = `${mapName}?listen?SessionName=${sessionName}?Port=${opts.gamePort}?QueryPort=${opts.gamePort + 1}?RCONEnabled=True?RCONPort=${rconPort}?MaxPlayers=70`;
     if (serverPassword) {
         connectionString += `?ServerPassword=${serverPassword}`;
     }
     connectionString += `?ServerAdminPassword=${adminPassword}`;
-    connectionString += ` -WinLiveMaxPlayers=70 -NoBattlEye`;
+    connectionString += ` -WinLiveMaxPlayers=70 -ServerPlatform=ALL -NoBattlEye`;
     if (opts.clusterId) {
         connectionString += ` -clusterid=${opts.clusterId}`;
     }
+
+    const publicBindings = {
+        [`${opts.gamePort}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort) }],
+        [`${opts.gamePort + 1}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort + 1) }],
+        [`${rconPort}/tcp`]: [{ HostIp: '0.0.0.0', HostPort: String(rconPort) }]
+    };
+    const proxy = prepareGameProxyBindings(publicBindings, {
+        enabled: config.oxideGameProxyEnabled,
+        backendOffset: config.gameBackendPortOffset,
+        backendBindIp: config.gameBackendBindIp
+    });
 
     const container = await docker.createContainer({
         Image: config.arkBaseImage,
@@ -169,14 +164,18 @@ export async function createARKContainer(opts) {
         ],
         ExposedPorts: {
             [`${opts.gamePort}/udp`]: {},
-            [`${opts.gamePort}/tcp`]: {},
             [`${opts.gamePort + 1}/udp`]: {},
-            '27015/udp': {},
-            [`${opts.gamePort + 13}/tcp`]: {}
+            [`${rconPort}/tcp`]: {}
         },
         Tty: true,
         OpenStdin: true,
-        HostConfig: buildARKHostConfig(opts, clusterBinds)
+        NetworkingConfig: { EndpointsConfig: { [config.dockerNetwork]: {} } },
+        HostConfig: buildARKHostConfig(opts, clusterBinds, proxy.bindings),
+        Labels: {
+            'ragenodes.server_id': String(opts.serverId),
+            'ragenodes.game': 'ark',
+            ...proxy.labels
+        }
     });
 
     await container.start();

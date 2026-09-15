@@ -20,7 +20,7 @@ RUN npm ci --ignore-scripts \
 FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS runtime-base
 WORKDIR /app
 
-RUN apk add --no-cache mariadb-client tar gzip zstd rsync \
+RUN apk add --no-cache mariadb-client tar gzip zstd rsync coreutils \
     && rm -rf /usr/local/lib/node_modules/npm \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
       /usr/local/bin/yarn /usr/local/bin/yarnpkg /usr/local/bin/pnpm /usr/local/bin/pnpx

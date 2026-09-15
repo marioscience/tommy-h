@@ -236,16 +236,29 @@ export async function sendCommandToContainer(containerName, command) {
 
 export function invalidateContainerCache(name) {
     CONTAINER_INSPECT_CACHE.delete(name);
+    for (const key of CONTAINER_INSPECT_CACHE.keys()) {
+        if (key.endsWith(`:${name}`)) CONTAINER_INSPECT_CACHE.delete(key);
+    }
 }
 
-export async function inspectContainer(name, { force = false } = {}) {
-    const cached = CONTAINER_INSPECT_CACHE.get(name);
+async function resolveDockerConnection(name, nodeId) {
+    // When a caller already has the server row, its assigned node is
+    // authoritative. A second name lookup can transiently select the local
+    // daemon during provisioning and falsely report a remote container absent.
+    return nodeId === undefined || nodeId === null
+        ? getDockerForContainer(name)
+        : getNodeConnection(nodeId);
+}
+
+export async function inspectContainer(name, { force = false, nodeId } = {}) {
+    const cacheKey = nodeId === undefined || nodeId === null ? name : `${nodeId}:${name}`;
+    const cached = CONTAINER_INSPECT_CACHE.get(cacheKey);
     if (!force && cached && cached.expiresAt > Date.now()) return cached.data;
 
-    const docker = await getDockerForContainer(name);
+    const docker = await resolveDockerConnection(name, nodeId);
     const data = await promiseWithTimeout(docker.getContainer(name).inspect(), 3000, 'Docker inspect timeout');
     if (CONTAINER_STATE_CACHE_MS > 0) {
-        CONTAINER_INSPECT_CACHE.set(name, { data, expiresAt: Date.now() + CONTAINER_STATE_CACHE_MS });
+        CONTAINER_INSPECT_CACHE.set(cacheKey, { data, expiresAt: Date.now() + CONTAINER_STATE_CACHE_MS });
     }
     return data;
 }
@@ -257,10 +270,10 @@ export async function resolveContainerState(name, options = {}) {
     } catch (e) { return { exists: false, running: false, inspect: null }; }
 }
 
-export async function startContainer(name) {
+export async function startContainer(name, { nodeId } = {}) {
     try {
         invalidateContainerCache(name);
-        const docker = await getDockerForContainer(name);
+        const docker = await resolveDockerConnection(name, nodeId);
         const container = docker.getContainer(name);
         
         try {
@@ -300,10 +313,10 @@ export async function startContainer(name) {
     } catch (e) { console.error(`Error starting ${name}:`, e.message); throw e; }
 }
 
-export async function stopContainer(name) {
+export async function stopContainer(name, { nodeId } = {}) {
     try {
         invalidateContainerCache(name);
-        const docker = await getDockerForContainer(name);
+        const docker = await resolveDockerConnection(name, nodeId);
         await docker.getContainer(name).stop();
         invalidateContainerCache(name);
 

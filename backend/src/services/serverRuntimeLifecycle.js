@@ -3,7 +3,7 @@ import { buildRestartOptions } from './serverRestartOptions.js';
 
 async function resolveFiveMLicenseKey(server) {
   try {
-    const inspect = await Docker.inspectContainer(server.container_name);
+    const inspect = await Docker.inspectContainer(server.container_name, { nodeId: server.node_id });
     const value = (inspect.Config.Env || []).find((entry) => entry.startsWith('LICENSE_KEY='));
     return value ? value.slice('LICENSE_KEY='.length) : 'hidden';
   } catch {
