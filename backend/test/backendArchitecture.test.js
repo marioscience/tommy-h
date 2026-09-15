@@ -82,6 +82,13 @@ describe('Backend architecture boundaries', () => {
     assert.match(cs2, /await normalizeCS2DataOwnership/);
   });
 
+  it('keeps the final 7DTD path absent until the atomic template clone is promoted', async () => {
+    const sdtd = await readFile(new URL('../src/services/games/sdtd.js', import.meta.url), 'utf8');
+    const cloneIndex = sdtd.indexOf("cloneFromMasterTemplate('sdtd', dataPath, nodeId)");
+    assert.ok(cloneIndex >= 0, '7DTD must prepare its shared template before configuring the instance');
+    assert.doesNotMatch(sdtd.slice(0, cloneIndex), /mkdir -p \$\{dataPath\}/);
+  });
+
   it('runs the runtime anomaly monitor only from the docker-events worker', async () => {
     const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
     const scheduler = await readFile(new URL('../src/services/runtimeAnomalyScheduler.js', import.meta.url), 'utf8');

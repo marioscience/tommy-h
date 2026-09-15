@@ -43,7 +43,9 @@ async function setOwnership(docker, image, dataPath, serverId, ownership) {
 
 export async function createSDTDContainer(containerName, serverId, gamePort, plan, dataPath, nodeId = 0) {
     const docker = await getNodeConnection(nodeId);
-    await runRemoteCommand(nodeId, sh`mkdir -p ${dataPath}`);
+    // Keep the final path absent while the shared template is prepared. Creating
+    // it here allows background observers to populate it and breaks the atomic
+    // rename performed by cloneFromMasterTemplate after a long cache seed.
     await cloneFromMasterTemplate('sdtd', dataPath, nodeId);
     const installed = commandStdout(await runRemoteCommand(
         nodeId,
