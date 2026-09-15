@@ -50,13 +50,16 @@ describe('Preparación segura de directorios de juego', () => {
   });
 
   it('permite a Proton preparar el prefix solo en el contenedor ARK', () => {
+    const bindings = { '7777/udp': [{ HostIp: '127.0.0.1', HostPort: '17777' }] };
     const hostConfig = buildARKHostConfig({
       dataPath: '/srv/ragenodes-data/server-id',
       plan: { memoryBytes: 8 * 1024 ** 3, nanoCpus: 4 * 10 ** 9 }
-    });
+    }, [], bindings);
     assert.deepEqual(hostConfig.SecurityOpt, []);
     assert.ok(hostConfig.CapAdd.includes('SETUID'));
     assert.ok(hostConfig.CapAdd.includes('SETGID'));
+    assert.equal(hostConfig.NetworkMode, undefined);
+    assert.deepEqual(hostConfig.PortBindings, bindings);
   });
 
   it('rechaza rutas relativas, absolutas anidadas y traversal', () => {

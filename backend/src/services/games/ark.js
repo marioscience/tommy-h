@@ -1,6 +1,7 @@
 import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, deriveServicePassword, sh } from '../dockerUtils.js';
 import { prepareArkData } from './arkData.js';
 import { config } from '../../config.js';
+import { prepareGameProxyBindings } from '../gameProxyPolicy.js';
 
 function sanitizeArkLaunchValue(value, fallback = '') {
     return String(value || fallback)
@@ -46,10 +47,10 @@ const ARK_CAPABILITIES = [
     'DAC_OVERRIDE'
 ];
 
-export function buildARKHostConfig(opts, clusterBinds = []) {
+export function buildARKHostConfig(opts, clusterBinds = [], portBindings = {}) {
     return {
-        NetworkMode: 'host',
         Binds: [`${opts.dataPath}:/home/steam/Steam/steamapps`, ...clusterBinds],
+        PortBindings: portBindings,
         RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
         Memory: opts.plan.memoryBytes,
         NanoCpus: opts.plan.nanoCpus,
@@ -87,16 +88,12 @@ export async function createARKContainer(opts) {
     }
 
     const targetNodeId = opts.nodeId || 0;
-    // The host owns the instance root while game files use a rootless UID map.
-    // Open only this empty/validated UUID directory during preparation and
-    // always close it again, including when template transfer fails.
-    await runRemoteCommand(targetNodeId, sh`mkdir -p ${opts.dataPath} && chmod 0777 ${opts.dataPath}`);
-    try {
-        await prepareArkData({ docker, image: config.arkBaseImage,
-            dataRoot: config.instanceDataRoot, dataPath: opts.dataPath });
-    } finally {
-        await runRemoteCommand(targetNodeId, sh`chmod 0755 ${opts.dataPath}`).catch(() => {});
-    }
+    // The node user and rootless Docker share ownership of this directory.
+    // Never chmod an existing instance root: on mapped/rootless filesystems
+    // that operation is forbidden and would prevent otherwise safe restarts.
+    await runRemoteCommand(targetNodeId, sh`mkdir -p ${opts.dataPath}`);
+    await prepareArkData({ docker, image: config.arkBaseImage,
+        dataRoot: config.instanceDataRoot, dataPath: opts.dataPath });
 
     const clusterBinds = [];
     if (opts.clusterId) {
@@ -131,15 +128,27 @@ export async function createARKContainer(opts) {
     adminPassword = sanitizeArkLaunchValue(adminPassword, generatedAdminPassword);
     serverPassword = sanitizeArkLaunchValue(serverPassword, '');
 
-    let connectionString = `${mapName}?listen?SessionName=${sessionName}?Port=${opts.gamePort}?QueryPort=${opts.gamePort + 1}?MaxPlayers=70`;
+    const rconPort = opts.gamePort + 13;
+    let connectionString = `${mapName}?listen?SessionName=${sessionName}?Port=${opts.gamePort}?QueryPort=${opts.gamePort + 1}?RCONEnabled=True?RCONPort=${rconPort}?MaxPlayers=70`;
     if (serverPassword) {
         connectionString += `?ServerPassword=${serverPassword}`;
     }
     connectionString += `?ServerAdminPassword=${adminPassword}`;
-    connectionString += ` -WinLiveMaxPlayers=70 -NoBattlEye`;
+    connectionString += ` -WinLiveMaxPlayers=70 -ServerPlatform=ALL -NoBattlEye`;
     if (opts.clusterId) {
         connectionString += ` -clusterid=${opts.clusterId}`;
     }
+
+    const publicBindings = {
+        [`${opts.gamePort}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort) }],
+        [`${opts.gamePort + 1}/udp`]: [{ HostIp: '0.0.0.0', HostPort: String(opts.gamePort + 1) }],
+        [`${rconPort}/tcp`]: [{ HostIp: '0.0.0.0', HostPort: String(rconPort) }]
+    };
+    const proxy = prepareGameProxyBindings(publicBindings, {
+        enabled: config.oxideGameProxyEnabled,
+        backendOffset: config.gameBackendPortOffset,
+        backendBindIp: config.gameBackendBindIp
+    });
 
     const container = await docker.createContainer({
         Image: config.arkBaseImage,
@@ -155,14 +164,18 @@ export async function createARKContainer(opts) {
         ],
         ExposedPorts: {
             [`${opts.gamePort}/udp`]: {},
-            [`${opts.gamePort}/tcp`]: {},
             [`${opts.gamePort + 1}/udp`]: {},
-            '27015/udp': {},
-            [`${opts.gamePort + 13}/tcp`]: {}
+            [`${rconPort}/tcp`]: {}
         },
         Tty: true,
         OpenStdin: true,
-        HostConfig: buildARKHostConfig(opts, clusterBinds)
+        NetworkingConfig: { EndpointsConfig: { [config.dockerNetwork]: {} } },
+        HostConfig: buildARKHostConfig(opts, clusterBinds, proxy.bindings),
+        Labels: {
+            'ragenodes.server_id': String(opts.serverId),
+            'ragenodes.game': 'ark',
+            ...proxy.labels
+        }
     });
 
     await container.start();

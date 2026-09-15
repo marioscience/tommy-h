@@ -119,13 +119,20 @@ describe('Backend architecture boundaries', () => {
     assert.match(servers, /if \(canViewSecrets && s\.template === 'fivem'\)/);
   });
 
-  it('closes the temporary ARK preparation permissions even after failure', async () => {
+  it('prepares ARK without mutating rootless instance-directory permissions', async () => {
     const ark = await readFile(new URL('../src/services/games/ark.js', import.meta.url), 'utf8');
-    const openIndex = ark.indexOf('chmod 0777');
-    const finallyIndex = ark.indexOf('finally', openIndex);
-    const closeIndex = ark.indexOf('chmod 0755', finallyIndex);
-    assert.ok(openIndex >= 0, 'ARK must prepare its host-owned UUID directory');
-    assert.ok(finallyIndex > openIndex, 'ARK permission cleanup must use finally');
-    assert.ok(closeIndex > finallyIndex, 'ARK must close temporary permissions');
+    assert.match(ark, /mkdir -p \$\{opts\.dataPath\}/);
+    assert.doesNotMatch(ark, /chmod 0?777/);
+    assert.doesNotMatch(ark, /chmod 0?755/);
+  });
+
+  it('publishes ARK through the isolated runtime network and game proxy inventory', async () => {
+    const ark = await readFile(new URL('../src/services/games/ark.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(ark, /NetworkMode:\s*['"]host['"]/);
+    assert.match(ark, /prepareGameProxyBindings\(publicBindings/);
+    assert.match(ark, /NetworkingConfig:\s*\{ EndpointsConfig:\s*\{ \[config\.dockerNetwork\]/);
+    assert.match(ark, /'ragenodes\.game': 'ark'/);
+    assert.match(ark, /-ServerPlatform=ALL/);
+    assert.doesNotMatch(ark, /chmod 0777/);
   });
 });
