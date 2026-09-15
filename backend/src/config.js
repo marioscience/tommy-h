@@ -46,6 +46,9 @@ export const config = {
   projectRoot: process.env.PROJECT_ROOT || process.cwd(),
   dockerSocket: process.env.DOCKER_SOCKET || '/var/run/docker.sock',
   rconHost: process.env.RCON_HOST || 'host.docker.internal',
+  // Private DNS alias exposed inside the isolated game runtime network.
+  gameDatabaseHost: process.env.GAME_DATABASE_HOST || 'mariadb',
+  gameDatabasePort: Number(process.env.GAME_DATABASE_PORT || 3306),
   dockerBlkioWeight: Number(process.env.DOCKER_BLKIO_WEIGHT ?? (process.env.NODE_ENV === 'production' ? 100 : 0)),
   gameContainerSharedGid: Number(process.env.GAME_CONTAINER_SHARED_GID ?? 1000),
   runtimeProcessAlertThreshold: Number(process.env.RUNTIME_PROCESS_ALERT_THRESHOLD || 512),

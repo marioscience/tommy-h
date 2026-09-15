@@ -276,8 +276,9 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0) {
         const availableBytes = numericCommandOutput(availableSizeResult, 'el espacio disponible');
         const reserveBytes = Math.max(1, Number(process.env.TEMPLATE_CLONE_FREE_RESERVE_GB || 15)) * 1024 ** 3;
         let cloneSourcePath = masterPath;
+        let strategy = selectTemplateCloneStrategy({ sourceDevice, targetDevice, templateBytes, availableBytes, reserveBytes });
 
-        if (selectTemplateCloneStrategy({ sourceDevice, targetDevice, templateBytes, availableBytes, reserveBytes }) === 'copy') {
+        if (strategy === 'copy') {
             const cacheRoot = path.join(config.instanceDataRoot, '.template-cache');
             const cachePath = path.join(cacheRoot, `${gameName}-master`);
             const cacheMarker = path.join(cachePath, '.ragenodes-template-bytes');
@@ -299,10 +300,11 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0) {
                 console.log(`⚡ [${gameName.toUpperCase()}] Reutilizando caché local validada.`);
             }
             cloneSourcePath = cachePath;
+            strategy = 'reflink';
         }
 
         const clonePath = `${dataPath}.clone-${crypto.randomUUID()}`;
-        console.log(`⚡ [${gameName.toUpperCase()}] Clonación atómica desde plantilla (reflink, ${(templateBytes / 1024 ** 3).toFixed(1)} GB).`);
+        console.log(`⚡ [${gameName.toUpperCase()}] Clonación atómica desde plantilla (${strategy}, ${(templateBytes / 1024 ** 3).toFixed(1)} GB).`);
         try {
             await runRemoteCommand(nodeId, sh`rm -rf ${clonePath} && mkdir -p ${clonePath}`);
             try {

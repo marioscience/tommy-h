@@ -103,6 +103,15 @@ describe('Backend architecture boundaries', () => {
     assert.match(lifecycle, /inspectContainer\(server\.container_name, \{ nodeId: server\.node_id \}\)/);
   });
 
+  it('shares the configured MariaDB endpoint with FiveM and authorized clients', async () => {
+    const fivem = await readFile(new URL('../src/services/games/fivem.js', import.meta.url), 'utf8');
+    const servers = await readFile(new URL('../src/services/serverService.js', import.meta.url), 'utf8');
+    assert.match(fivem, /TXHOST_DEFAULT_DBHOST=\$\{config\.gameDatabaseHost\}/);
+    assert.match(fivem, /TXHOST_DEFAULT_DBPORT=\$\{config\.gameDatabasePort\}/);
+    assert.match(servers, /s\.db_host = config\.gameDatabaseHost/);
+    assert.match(servers, /if \(canViewSecrets && s\.template === 'fivem'\)/);
+  });
+
   it('closes the temporary ARK preparation permissions even after failure', async () => {
     const ark = await readFile(new URL('../src/services/games/ark.js', import.meta.url), 'utf8');
     const openIndex = ark.indexOf('chmod 0777');

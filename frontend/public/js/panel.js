@@ -1532,6 +1532,7 @@ function toggleSidebar() {
 
                 const safeId = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
                 safeId('db-tab-user', s.db_user); safeId('db-tab-pass', s.db_pass);
+                safeId('tx-top-host', `${s.db_host || 'mariadb'}:${s.db_port || 3306}`);
                 safeId('tx-top-db', s.db_name); safeId('tx-top-user', s.db_user); safeId('tx-top-pass', s.db_pass);
 
                 const safeDisplay = (id, val) => { const el = document.getElementById(id); if (el && el.style.display !== val) el.style.display = val; };

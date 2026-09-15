@@ -31,7 +31,7 @@ services:
     volumes:
       - mariadb_data:/var/lib/mysql
     ports:
-      - "127.0.0.1:3307:3306"
+      - "127.0.0.1:${MARIADB_GAME_HOST_PORT:-3307}:3306"
     networks:
       - ragenodes_net
     cpu_shares: 1024
@@ -81,6 +81,8 @@ services:
       PUBLIC_ENDPOINT_SCHEME: ${PUBLIC_ENDPOINT_SCHEME:-https}
       PUBLIC_ENDPOINT_MODE: ${PUBLIC_ENDPOINT_MODE:-subdomain}
       PUBLIC_ENDPOINT_PREFIX: ${PUBLIC_ENDPOINT_PREFIX:-tx}
+      GAME_DATABASE_HOST: ${GAME_DATABASE_HOST:-mariadb}
+      GAME_DATABASE_PORT: ${GAME_DATABASE_PORT:-3306}
     ports:
       - "127.0.0.1:${HOST_BIND_BACKEND_PORT:-3010}:3006"
     networks:
@@ -359,6 +361,7 @@ services:
       - ACCESS_GATE_DOMAIN=${ACCESS_GATE_DOMAIN:-ragenodes.dev}
       - ACCESS_GATE_SHARED_EDGE=${ACCESS_GATE_SHARED_EDGE:-true}
       - ACCESS_GATE_ALLOWED_EMAIL_DOMAIN=${ACCESS_GATE_ALLOWED_EMAIL_DOMAIN:-ragenodes.com}
+      - ACCESS_GATE_ALLOWED_EMAILS=${ACCESS_GATE_ALLOWED_EMAILS:-}
       - ACCESS_GATE_SESSION_SECRET=${ACCESS_GATE_SESSION_SECRET:-}
       - ACCESS_GATE_REDIS_URL=${ACCESS_GATE_REDIS_URL:-redis://redis:6379/0}
       - ACCESS_GATE_FROM_EMAIL=${ACCESS_GATE_FROM_EMAIL:-RageNodes Access <info@ragenodes.com>}
