@@ -80,7 +80,21 @@ backend_native_tests:
   variables:
     CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
   before_script:
-  - apk add --no-cache nodejs npm musl-dev
+  - |
+    apk_attempt=1
+    while [ "$apk_attempt" -le 3 ]; do
+      rm -rf /var/cache/apk/*
+      if timeout 45 apk update && timeout 120 apk add --no-cache nodejs npm musl-dev; then
+        break
+      fi
+      if [ "$apk_attempt" -eq 3 ]; then
+        echo "Unable to install Alpine CI dependencies after ${apk_attempt} attempts." >&2
+        exit 1
+      fi
+      echo "Alpine package index download failed; retrying (${apk_attempt}/3)..." >&2
+      sleep $((apk_attempt * 5))
+      apk_attempt=$((apk_attempt + 1))
+    done
   script:
   - cd backend/rust-util
   - npm ci --ignore-scripts --cache .npm-cache
