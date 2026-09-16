@@ -3,6 +3,18 @@ import { sendCommandToContainer, fetchContainerLogs } from './dockerService.js';
 import { encodeSourceRconPacket, SourceRconDecoder } from '../utils/sourceRconProtocol.js';
 
 const RCON_TIMEOUT_MS = 3000;
+export const SOURCE_RCON_GAMES = Object.freeze(['cs2', 'palworld', 'ark', 'zomboid']);
+
+export function parseZomboidPlayers(output = '') {
+    const players = [];
+    for (const line of String(output).split('\n')) {
+        const match = line.match(/^\s*-\s*(.+?)\s*$/);
+        if (!match) continue;
+        const name = match[1].trim();
+        if (name) players.push({ name, steamId: name });
+    }
+    return players;
+}
 
 /**
  * Ejecuta un comando RCON utilizando el protocolo de Source Engine (usado por ARK, CS2, Rust, SDTD).
@@ -12,8 +24,6 @@ function sendRconPacket(socket, id, type, body) {
 }
 
 export async function executeRconCommand(host, port, password, command, containerName = null, template = null) {
-    const SOURCE_RCON_GAMES = ['cs2', 'palworld', 'ark'];
-
     if (port === 0 || (template && !SOURCE_RCON_GAMES.includes(template))) {
         if (command === 'GetChat' || command === 'ListPlayers' || command === 'ShowPlayers' || command === 'status') {
             throw new Error('RCON de lectura no disponible por red directa para este servidor.');
@@ -45,7 +55,7 @@ export async function executeRconCommand(host, port, password, command, containe
 
         socket.on('data', (data) => {
             try {
-              for (const { id, type, body } of decoder.push(data)) {
+              for (const { id, type, body, size } of decoder.push(data)) {
                 if (type === 2) { // SERVERDATA_AUTH_RESPONSE
                     if (id === -1) {
                         cleanup();
@@ -58,8 +68,9 @@ export async function executeRconCommand(host, port, password, command, containe
                 } else if (type === 0) { // SERVERDATA_RESPONSE_VALUE
                     if (authenticated) {
                         responseData += body;
-                        // Si el paquete es pequeño o ya tenemos respuesta, terminamos
-                        if (size < 4000) {
+                        // Some Source RCON servers emit an empty response frame
+                        // before the command payload. It is framing, not the result.
+                        if (body.length > 0 && size < 4000) {
                             cleanup();
                             return resolve(responseData.trim());
                         }
@@ -119,6 +130,7 @@ export async function getLivePlayers(host, port, password, containerName, templa
         let cmd = 'ListPlayers';
         if (template === 'palworld') cmd = 'ShowPlayers';
         if (template === 'cs2' || template === 'rust') cmd = 'status';
+        if (template === 'zomboid') cmd = 'players';
 
         const output = await executeRconCommand(host, port, password, cmd, containerName, template);
         const lines = output.split('\n');
@@ -133,6 +145,11 @@ export async function getLivePlayers(host, port, password, containerName, templa
             });
             if (players.length > 0 || output.includes('name,playeruid,steamid')) {
                 return players;
+            }
+        } else if (template === 'zomboid') {
+            const zomboidPlayers = parseZomboidPlayers(output);
+            if (zomboidPlayers.length > 0 || /no players|players connected\s*\(0\)\s*:/i.test(output)) {
+                return zomboidPlayers;
             }
         } else {
             lines.forEach(line => {
@@ -194,7 +211,7 @@ export async function getLivePlayers(host, port, password, containerName, templa
  */
 export async function getLiveChat(host, port, password, containerName, template = null) {
     try {
-        if (template !== 'palworld') {
+        if (template !== 'palworld' && template !== 'zomboid') {
             const output = await executeRconCommand(host, port, password, 'GetChat', containerName, template);
             const lines = output.split('\n');
             const messages = [];

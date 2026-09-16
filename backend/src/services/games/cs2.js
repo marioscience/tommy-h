@@ -33,7 +33,11 @@ async function normalizeCS2DataOwnership(docker, image, dataPath, serverId) {
 
 export async function createCS2Container(opts) {
     const docker = await getNodeConnection(opts.nodeId || 0);
-    await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath} && chown -R 1000:1000 ${opts.dataPath}`);
+    // A port-conflict retry can revisit an already-normalized rootless volume.
+    // Host-side recursive chown cannot traverse those translated subuids and
+    // can fill the child-process buffer with permission errors. Creation is
+    // intentionally idempotent here; the helper below owns normalization.
+    await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath}`);
     await cloneFromMasterTemplate('cs2', opts.dataPath, opts.nodeId);
     
     try {

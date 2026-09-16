@@ -12,7 +12,8 @@
     "audit:structure": "node scripts/check-module-size.mjs",
     "worker:backups": "RAGENODES_ROLE=worker-backups node src/worker.js",
     "worker:docker-events": "RAGENODES_ROLE=worker-docker-events node src/worker.js",
-    "worker:stats": "RAGENODES_ROLE=worker-stats node src/worker.js"
+    "worker:stats": "RAGENODES_ROLE=worker-stats node src/worker.js",
+    "worker:deployments": "RAGENODES_ROLE=worker-deployments node src/worker.js"
   },
   "dependencies": {
     "adm-zip": "^0.6.0",

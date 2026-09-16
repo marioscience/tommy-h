@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { waitForDb } from './db.js';
+import { startDbMaintenance, waitForDb } from './db.js';
 import { assertSecureConfig } from './config.js';
 import {
   patchExistingContainers,
@@ -12,6 +12,10 @@ import { startQueryWarmer } from './services/queryCache.js';
 import { startBillingScheduler } from './services/billingScheduler.js';
 import { startDockerEventsListener } from './services/dockerEventsService.js';
 import { startServerMaintenance } from './services/serverMaintenanceScheduler.js';
+import { startRuntimeAnomalyMonitor } from './services/runtimeAnomalyScheduler.js';
+import { startDeploymentWorker } from './services/deploymentWorker.js';
+import { startCronManager } from './services/cronManager.js';
+import { startBackupWorker } from './services/backupWorker.js';
 
 process.on('uncaughtException', (err) => {
   console.error('💥 WORKER CRASH (Uncaught Exception):', err);
@@ -33,17 +37,24 @@ async function boot() {
     case 'worker-backups':
       startAutoBackups();
       startBillingScheduler();
+      startCronManager();
+      startDbMaintenance();
+      void startBackupWorker();
       break;
     case 'worker-docker-events':
       patchExistingContainers();
       startDockerEventsListener();
       startQueryWarmer();
       startServerMaintenance();
+      startRuntimeAnomalyMonitor();
       break;
     case 'worker-stats':
       startStatsCollector();
       startDockerTelemetryCollector();
       startNodeMonitor();
+      break;
+    case 'worker-deployments':
+      await startDeploymentWorker();
       break;
     default:
       throw new Error(`Rol de worker desconocido: ${role}`);

@@ -14,6 +14,24 @@ const MINECRAFT_IDENTITY_FILE = '.ragenodes-minecraft-identity.json';
 const DEFAULT_MINECRAFT_VERSION = '1.21.4';
 const ALLOWED_MINECRAFT_TYPES = new Set(['PAPER', 'FORGE', 'FABRIC', 'NEOFORGE', 'PURPUR', 'VANILLA']);
 
+const MIB = 1024 * 1024;
+const MINIMUM_JVM_MEMORY_MB = 512;
+const MINIMUM_NATIVE_HEADROOM_MB = 768;
+
+export function calculateMinecraftJvmMemoryMb(memoryBytes) {
+    const totalMb = Math.max(
+        MINIMUM_JVM_MEMORY_MB + MINIMUM_NATIVE_HEADROOM_MB,
+        Math.floor(Number(memoryBytes || 4 * 1024 * 1024 * 1024) / MIB)
+    );
+    // Forge, Netty and the container runtime consume memory outside the Java
+    // heap. Reserving both 25% and at least 768 MiB prevents a healthy JVM
+    // from sitting at the cgroup ceiling and being terminated with exit 137.
+    return Math.max(
+        MINIMUM_JVM_MEMORY_MB,
+        Math.min(Math.floor(totalMb * 0.75), totalMb - MINIMUM_NATIVE_HEADROOM_MB)
+    );
+}
+
 export function normalizeMinecraftIdentity(version, type) {
     const normalizedVersion = String(version || DEFAULT_MINECRAFT_VERSION).trim();
     const normalizedType = String(type || 'PAPER').trim().toUpperCase();
@@ -56,7 +74,7 @@ export class MinecraftService extends BaseGameService {
     }
 
     buildEnvironment(opts) {
-        const memoryMb = Math.floor((opts.plan?.memoryBytes || 4 * 1024 * 1024 * 1024) / 1024 / 1024 * 0.85);
+        const memoryMb = calculateMinecraftJvmMemoryMb(opts.plan?.memoryBytes);
         const jvmMemory = `${memoryMb}M`;
         const { version, type } = normalizeMinecraftIdentity(opts.mcVersion, opts.mcType);
 

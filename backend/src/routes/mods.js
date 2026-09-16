@@ -25,7 +25,7 @@ router.post('/:serverId/zomboid/install', requireAuth, async (req, res) => {
             return res.status(400).json({ error: 'Identificador o nombre de mod inválido.' });
         }
         const result = await modService.installZomboidMod(serverId, req.user.sub, req.user.role === 'admin', workshopId, modName);
-        await logAudit(req.user.sub, 'ZOMBOID.MOD.INSTALL', { serverId, workshopId, modName });
+        await logAudit(req, 'ZOMBOID.MOD.INSTALL', { serverId, workshopId, modName });
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -41,7 +41,7 @@ router.post('/:serverId/zomboid/uninstall', requireAuth, async (req, res) => {
             return res.status(400).json({ error: 'Identificador o nombre de mod inválido.' });
         }
         const result = await modService.uninstallZomboidMod(serverId, req.user.sub, req.user.role === 'admin', workshopId, modName);
-        await logAudit(req.user.sub, 'ZOMBOID.MOD.UNINSTALL', { serverId, workshopId, modName });
+        await logAudit(req, 'ZOMBOID.MOD.UNINSTALL', { serverId, workshopId, modName });
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });

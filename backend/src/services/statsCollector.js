@@ -1,43 +1,56 @@
-import nodeCron from 'node-cron';
 import { query } from '../db.js';
 import * as serverService from './serverService.js';
 import { getContainerStats } from './dockerService.js';
 import { checkServerAlerts } from './alertService.js';
 
+const intervalMs = Math.max(60000, Number(process.env.STATS_HISTORY_INTERVAL_MS || 300000));
+const statsConcurrency = Math.max(1, Number(process.env.STATS_COLLECTION_CONCURRENCY || 15));
+
+export async function collectHistoricalStats() {
+  const servers = (await serverService.getAllServers()).filter((server) => server.status === 'running');
+  const samples = [];
+  for (let offset = 0; offset < servers.length; offset += statsConcurrency) {
+    const batch = servers.slice(offset, offset + statsConcurrency);
+    await Promise.all(batch.map(async (server) => {
+      try {
+        const stats = await getContainerStats(server.container_name);
+        if (stats?.cpu === undefined) return;
+        samples.push({ id: server.id, cpu: Number.parseFloat(stats.cpu), ram: Number.parseFloat(stats.ram), ramGb: Number.parseFloat(stats.ramGb) });
+        await checkServerAlerts(server, stats);
+      } catch (error) {
+        console.error(`❌ Error recolectando stats para ${server.name}:`, error.message);
+      }
+    }));
+  }
+
+  if (samples.length === 0) return 0;
+  await query(
+    `INSERT INTO server_stats_history (server_id, cpu, ram, ram_gb)
+     SELECT * FROM UNNEST($1::uuid[], $2::real[], $3::real[], $4::real[])`,
+    [
+      samples.map((sample) => sample.id),
+      samples.map((sample) => sample.cpu),
+      samples.map((sample) => sample.ram),
+      samples.map((sample) => sample.ramGb)
+    ]
+  );
+  return samples.length;
+}
+
 export function startStatsCollector() {
-    console.log("📈 [StatsCollector] Iniciando recolector de estadísticas históricas...");
-
-    const collectStats = async () => {
-        try {
-            const servers = await serverService.getAllServers();
-            const statsPromises = servers.map(async (server) => {
-                if (server.status === 'running') {
-                    try {
-                        const stats = await getContainerStats(server.container_name);
-                        if (stats && stats.cpu !== undefined) {
-                            await query(
-                                'INSERT INTO server_stats_history (server_id, cpu, ram, ram_gb) VALUES ($1, $2, $3, $4)',
-                                [server.id, parseFloat(stats.cpu), parseFloat(stats.ram), parseFloat(stats.ramGb)]
-                            );
-                            await checkServerAlerts(server, stats);
-                        }
-                    } catch (e) {
-                        console.error(`❌ Error recolectando stats para ${server.name}:`, e.message);
-                    }
-                }
-            });
-            await Promise.all(statsPromises);
-            
-            // Limpieza: Borrar datos de más de 7 días para no saturar la DB
-            await query("DELETE FROM server_stats_history WHERE created_at < NOW() - INTERVAL '7 days'");
-            
-        } catch (error) {
-            console.error("❌ [StatsCollector] Error recolectando estadísticas:", error);
-        }
-    };
-
-    // Primera muestra inmediata y después una por minuto. Las tarjetas en vivo
-    // continúan usando el recolector de alta frecuencia sin escribir en la BD.
-    void collectStats();
-    nodeCron.schedule('* * * * *', collectStats);
+  console.log(`📈 [StatsCollector] Historial por lotes cada ${Math.round(intervalMs / 1000)}s.`);
+  let running = false;
+  const run = async () => {
+    if (running) return;
+    running = true;
+    try {
+      await collectHistoricalStats();
+    } catch (error) {
+      console.error('❌ [StatsCollector] Error recolectando estadísticas:', error);
+    } finally {
+      running = false;
+    }
+  };
+  void run();
+  return setInterval(run, intervalMs);
 }

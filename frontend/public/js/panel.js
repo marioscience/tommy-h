@@ -210,9 +210,9 @@ function toggleSidebar() {
                 hobby: 2
             };
             const gameMinimums = {
-                rust: 4,
+                rust: 6,
                 palworld: 8,
-                zomboid: 4,
+                zomboid: 6,
                 ark: 16,
                 sdtd: 4,
                 minecraft: 2,
@@ -230,7 +230,8 @@ function toggleSidebar() {
             const planConfig = {
                 hobby: { ram: 4 }, standard: { ram: 8 }, premium: { ram: 16 },
                 platinum: { ram: 32 }, partner: { ram: 32 }, ultimate: { ram: 128 },
-                community_starter: { ram: 8 }, community_pro: { ram: 16 }, community_network: { ram: 32 }
+                community_starter: { ram: 8 }, community_pro: { ram: 16 }, community_network: { ram: 32 },
+                game_rust: { ram: 8 }, game_zomboid: { ram: 6 }
             };
             const rawPlan = (user && user.plan) ? user.plan.trim().toLowerCase().replace(/[\s-]+/g, '_') : 'hobby';
             const uPlan = rawPlan === 'elite' || rawPlan === 'plan_platinum' ? 'platinum' : rawPlan;
@@ -512,7 +513,8 @@ function toggleSidebar() {
                 community_starter: ['minecraft', 'fivem', 'rust', 'cs2', 'valheim', 'zomboid', 'sdtd', 'discordbot', 'wordpress', 'database'],
                 community_pro: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'sdtd', 'discordbot', 'wordpress', 'database'],
                 community_network: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd', 'discordbot', 'wordpress', 'database'],
-                ultimate: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd', 'wordpress', 'discordbot', 'database']
+                ultimate: ['minecraft', 'fivem', 'rust', 'palworld', 'cs2', 'valheim', 'zomboid', 'ark', 'sdtd', 'wordpress', 'discordbot', 'database'],
+                game_rust: ['rust']
             };
 
             const isAllowed = (access[plan] || []).includes(game);
@@ -624,7 +626,16 @@ function toggleSidebar() {
             btn.disabled = true;
 
             try {
-                await Nexus.api('/api/servers', { method: 'POST', body: JSON.stringify(body) });
+                const deployment = await Nexus.api('/api/servers', {
+                    method: 'POST',
+                    headers: {
+                        'Idempotency-Key': crypto.randomUUID?.()
+                            || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+                    },
+                    body: JSON.stringify(body)
+                });
+                showToast('Despliegue en cola. Puedes mantener esta pestaña abierta.', 'info');
+                await waitForDeployment(deployment.jobId, deployment.statusUrl);
                 showToast('¡Servidor creado con éxito!', 'success');
                 lastDataHash = "";
                 await switchView('servers', document.getElementById('nav-servers'));
@@ -633,6 +644,21 @@ function toggleSidebar() {
                 btn.innerHTML = '<i class="fa-solid fa-plus"></i> Desplegar';
                 btn.disabled = false;
             }
+        }
+
+        async function waitForDeployment(jobId, statusUrl) {
+            const started = Date.now();
+            const timeoutMs = 2 * 60 * 60 * 1000;
+            const endpoint = statusUrl || `/api/servers/deployment-jobs/${encodeURIComponent(jobId)}`;
+            while (Date.now() - started < timeoutMs) {
+                const job = await Nexus.api(endpoint);
+                if (job.status === 'succeeded') return job;
+                if (job.status === 'failed' || job.status === 'cancelled') {
+                    throw new Error(job.last_error || 'El despliegue no pudo completarse.');
+                }
+                await new Promise(resolve => setTimeout(resolve, 2500));
+            }
+            throw new Error('El despliegue continúa en segundo plano. Revisa el panel en unos minutos.');
         }
 
 
@@ -1530,6 +1556,7 @@ function toggleSidebar() {
 
                 const safeId = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
                 safeId('db-tab-user', s.db_user); safeId('db-tab-pass', s.db_pass);
+                safeId('tx-top-host', `${s.db_host || 'mariadb'}:${s.db_port || 3306}`);
                 safeId('tx-top-db', s.db_name); safeId('tx-top-user', s.db_user); safeId('tx-top-pass', s.db_pass);
 
                 const safeDisplay = (id, val) => { const el = document.getElementById(id); if (el && el.style.display !== val) el.style.display = val; };
@@ -4985,8 +5012,7 @@ function toggleSidebar() {
         async function renderZomboidModTools() {
             const grid = document.getElementById('mods-grid');
 
-            // Renderizar formulario de instalación
-            let html = `
+            const renderInstallForm = () => `
               <div class="card" style="grid-column: 1/-1; padding: 30px;">
                   <h3 style="margin-bottom: 15px;"><i class="fa-brands fa-steam" style="color: #171a21;"></i> Instalar mod de Steam Workshop</h3>
                   <div style="display: flex; gap: 15px; margin-bottom: 20px;">
@@ -5003,7 +5029,7 @@ function toggleSidebar() {
               </div>
             `;
 
-            grid.innerHTML = html + `<div style="grid-column: 1/-1; padding: 20px; text-align: center;"><i class="fa-solid fa-circle-notch fa-spin"></i> Cargando mods instalados...</div>`;
+            grid.innerHTML = renderInstallForm() + `<div style="grid-column: 1/-1; padding: 20px; text-align: center;"><i class="fa-solid fa-circle-notch fa-spin"></i> Cargando mods instalados...</div>`;
 
             try {
                 const data = await Nexus.api(`/api/mods/${currentServer.id}`);
@@ -5033,9 +5059,9 @@ function toggleSidebar() {
                     modsHtml += `<div class="card" style="grid-column: 1/-1; padding: 30px; text-align: center;"><p class="muted">No hay mods instalados en este servidor.</p></div>`;
                 }
 
-                grid.innerHTML = html + modsHtml;
+                grid.innerHTML = renderInstallForm() + modsHtml;
             } catch (e) {
-                grid.innerHTML = html + `<div class="card" style="grid-column: 1/-1; padding: 20px; border-left: 4px solid var(--danger);"><p style="color: var(--danger);">Error cargando mods: ${e.message}</p></div>`;
+                grid.innerHTML = renderInstallForm() + `<div class="card" style="grid-column: 1/-1; padding: 20px; border-left: 4px solid var(--danger);"><p style="color: var(--danger);">Error cargando mods: ${e.message}</p></div>`;
             }
         }
 

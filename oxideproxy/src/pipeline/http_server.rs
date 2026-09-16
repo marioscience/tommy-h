@@ -7,7 +7,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use http::header::{
     HeaderName, HeaderValue, ACCEPT_ENCODING, CACHE_CONTROL, CONTENT_ENCODING, CONTENT_TYPE, ETAG,
-    SET_COOKIE,
+    SET_COOKIE, COOKIE,
 };
 use http::{Request, Response, StatusCode};
 use hyper::{service::service_fn, Body};
@@ -1002,6 +1002,7 @@ async fn handle_http_request(
 
     // 2c. Enrutamiento phpMyAdmin (`/pma/...`)
     if uri_path.starts_with("/pma") {
+        prepare_public_proxy_request(&mut req, host_without_port, is_https);
         tracing::debug!("Enrutando petición phpMyAdmin al contenedor phpmyadmin:80...");
         let mut response =
             reverse_proxy_request(req, "phpmyadmin:80".to_string(), Some("/pma"), peer_addr)
@@ -1012,6 +1013,27 @@ async fn handle_http_request(
 
     // 3. Servidor de Archivos Estáticos Blindado (Frontend Web)
     serve_static_file(req, "/var/www/frontend", peer_addr, ban_tx).await
+}
+
+// RFC 9113 section 8.2.2: HTTP/2 cookie crumbs must be joined with
+// semicolon-space before forwarding to HTTP/1.1. Comma folding loses sessions
+// in PHP and other backends. Preserve byte values, order and sensitivity.
+fn normalize_request_cookies(headers: &mut http::HeaderMap) {
+    if headers.get_all(COOKIE).iter().count() < 2 {
+        return;
+    }
+    let mut joined = Vec::new();
+    for value in headers.get_all(COOKIE).iter() {
+        if !joined.is_empty() {
+            joined.extend_from_slice(b"; ");
+        }
+        joined.extend_from_slice(value.as_bytes());
+    }
+    // All bytes came from validated HeaderValues and a valid delimiter.
+    if let Ok(mut value) = HeaderValue::from_bytes(&joined) {
+        value.set_sensitive(true);
+        headers.insert(COOKIE, value);
+    }
 }
 
 async fn reverse_proxy_request(
@@ -1045,8 +1067,13 @@ async fn reverse_proxy_request(
         if let Ok(val) = prefix.parse() {
             req.headers_mut().insert("x-forwarded-prefix", val);
         }
-        if let Ok(val) = "http".parse() {
-            req.headers_mut().insert("x-forwarded-proto", val);
+        // The public listener already records whether the client used HTTP or
+        // HTTPS. Keep that value when stripping a path prefix (for example
+        // /pma); overwriting it made phpMyAdmin reject its secure cookie.
+        if !req.headers().contains_key("x-forwarded-proto") {
+            if let Ok(val) = "http".parse() {
+                req.headers_mut().insert("x-forwarded-proto", val);
+            }
         }
     }
 
@@ -1061,6 +1088,7 @@ async fn reverse_proxy_request(
     match new_uri.parse::<hyper::Uri>() {
         Ok(uri) => {
             *req.uri_mut() = uri;
+            normalize_request_cookies(req.headers_mut());
             *req.version_mut() = hyper::Version::HTTP_11;
 
             let is_upgrade = req.headers().contains_key(hyper::header::UPGRADE);
@@ -1389,6 +1417,32 @@ mod tests {
     };
     use http::{Response, StatusCode};
     use hyper::{header::{HeaderValue, SET_COOKIE}, Body};
+
+    #[test]
+    fn cookie_crumbs_are_joined_for_http1_without_changing_values() {
+        let mut headers = http::HeaderMap::new();
+        headers.append("cookie", HeaderValue::from_static("session=abc==; other=1"));
+        headers.append("cookie", HeaderValue::from_static("lang=es"));
+        headers.append("cookie", HeaderValue::from_static("token=xyz"));
+        headers.append(SET_COOKIE, HeaderValue::from_static("response=untouched"));
+        super::normalize_request_cookies(&mut headers);
+        assert_eq!(headers.get_all("cookie").iter().count(), 1);
+        assert_eq!(headers["cookie"], "session=abc==; other=1; lang=es; token=xyz");
+        assert!(headers["cookie"].is_sensitive());
+        assert_eq!(headers[SET_COOKIE], "response=untouched");
+        super::normalize_request_cookies(&mut headers);
+        assert_eq!(headers["cookie"], "session=abc==; other=1; lang=es; token=xyz");
+    }
+
+    #[test]
+    fn cookie_normalization_preserves_missing_and_single_headers() {
+        let mut headers = http::HeaderMap::new();
+        super::normalize_request_cookies(&mut headers);
+        assert!(!headers.contains_key("cookie"));
+        headers.insert("cookie", HeaderValue::from_static("lang=es; session=abc"));
+        super::normalize_request_cookies(&mut headers);
+        assert_eq!(headers["cookie"], "lang=es; session=abc");
+    }
 
     #[test]
     fn dynamic_hosts_only_resolve_inside_the_allowed_range_and_domain() {

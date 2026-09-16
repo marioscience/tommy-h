@@ -54,6 +54,12 @@
     for (const element of [node, ...node.querySelectorAll('*')]) {
       for (const attribute of element.attributes) {
         if (!attribute.name.startsWith('data-rn-bind-')) continue;
+        // A trusted template can be synchronously replaced with another node
+        // carrying the same binding. MutationObserver runs after that replacement,
+        // so only release identifiers that truly disappeared from the document.
+        const currentDocument = globalThis.document;
+        if (!currentDocument) return;
+        if (currentDocument.querySelector(`[${attribute.name}="${attribute.value}"]`)) continue;
         handlers.delete(attribute.value);
       }
     }

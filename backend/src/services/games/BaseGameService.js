@@ -202,6 +202,9 @@ export class BaseGameService {
             Env: env,
             ExposedPorts: ports.exposed,
             HostConfig: hostConfig,
+            NetworkingConfig: {
+                EndpointsConfig: { [config.dockerNetwork]: {} }
+            },
             Labels: {
                 "ragenodes.server_id": String(opts.serverId),
                 "ragenodes.game": String(this.gameId),

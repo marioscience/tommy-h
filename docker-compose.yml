@@ -31,7 +31,7 @@ services:
     volumes:
       - mariadb_data:/var/lib/mysql
     ports:
-      - "127.0.0.1:3307:3306"
+      - "127.0.0.1:${MARIADB_GAME_HOST_PORT:-3307}:3306"
     networks:
       - ragenodes_net
     cpu_shares: 1024
@@ -81,10 +81,14 @@ services:
       PUBLIC_ENDPOINT_SCHEME: ${PUBLIC_ENDPOINT_SCHEME:-https}
       PUBLIC_ENDPOINT_MODE: ${PUBLIC_ENDPOINT_MODE:-subdomain}
       PUBLIC_ENDPOINT_PREFIX: ${PUBLIC_ENDPOINT_PREFIX:-tx}
+      GAME_DATABASE_HOST: ${GAME_DATABASE_HOST:-mariadb}
+      GAME_DATABASE_PORT: ${GAME_DATABASE_PORT:-3306}
     ports:
       - "127.0.0.1:${HOST_BIND_BACKEND_PORT:-3010}:3006"
     networks:
       - ragenodes_net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
@@ -111,6 +115,47 @@ services:
       - /tmp:rw,noexec,nosuid,nodev,size=512m
     pids_limit: 256
     cpu_shares: 2048
+
+  worker-deployments:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    init: true
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    group_add:
+      - "${DOCKER_GID:-1000}"
+      - "${GAME_DATA_GID:-1000}"
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
+    environment:
+      - RAGENODES_ROLE=worker-deployments
+      - PUBLIC_ENDPOINT_HOST=${PUBLIC_ENDPOINT_HOST:-ragenodes.app}
+      - PUBLIC_ENDPOINT_SCHEME=${PUBLIC_ENDPOINT_SCHEME:-https}
+      - PUBLIC_ENDPOINT_MODE=${PUBLIC_ENDPOINT_MODE:-subdomain}
+      - PUBLIC_ENDPOINT_PREFIX=${PUBLIC_ENDPOINT_PREFIX:-tx}
+      - GAME_DATABASE_HOST=${GAME_DATABASE_HOST:-mariadb}
+      - GAME_DATABASE_PORT=${GAME_DATABASE_PORT:-3306}
+    command: ["node", "src/worker.js"]
+    networks:
+      - ragenodes_net
+    depends_on:
+      backend:
+        condition: service_healthy
+      mariadb:
+        condition: service_started
+    volumes:
+      - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
+      - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}:${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}
+      - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
+      - ./backend/src:/app/src:ro
+      - ./certs:/opt/ragenodes-ultimate/certs:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=512m
+    pids_limit: 256
+    cpu_shares: 1536
 
   worker-backups:
     build:
@@ -357,6 +402,7 @@ services:
       - ACCESS_GATE_DOMAIN=${ACCESS_GATE_DOMAIN:-ragenodes.dev}
       - ACCESS_GATE_SHARED_EDGE=${ACCESS_GATE_SHARED_EDGE:-true}
       - ACCESS_GATE_ALLOWED_EMAIL_DOMAIN=${ACCESS_GATE_ALLOWED_EMAIL_DOMAIN:-ragenodes.com}
+      - ACCESS_GATE_ALLOWED_EMAILS=${ACCESS_GATE_ALLOWED_EMAILS:-}
       - ACCESS_GATE_SESSION_SECRET=${ACCESS_GATE_SESSION_SECRET:-}
       - ACCESS_GATE_REDIS_URL=${ACCESS_GATE_REDIS_URL:-redis://redis:6379/0}
       - ACCESS_GATE_FROM_EMAIL=${ACCESS_GATE_FROM_EMAIL:-RageNodes Access <info@ragenodes.com>}

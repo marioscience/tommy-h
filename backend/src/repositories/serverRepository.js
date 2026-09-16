@@ -29,9 +29,17 @@ export async function listMaintainableServers(db = query) {
     SELECT servers.*, users.extra_disk_gb
     FROM servers
     LEFT JOIN users ON servers.owner_id = users.id
-    WHERE servers.status NOT IN ('stopped', 'stopping', 'suspended', 'deleting')
+    WHERE servers.status NOT IN (
+      'creating', 'recreating', 'stopped', 'stopping', 'suspended', 'deleting'
+    )
   `);
   return result.rows;
+}
+
+export async function listServerRuntimeIdentities(db = query) {
+  return (await db(
+    'SELECT id, owner_id, name, container_name, node_id, status FROM servers'
+  )).rows;
 }
 
 export async function getServerStatus(serverId, db = query) {

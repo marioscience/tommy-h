@@ -1,4 +1,3 @@
-import fs from 'fs/promises';
 import path from 'path';
 import { logAudit } from '../db.js';
 import { config, PLAN_LIMITS } from '../config.js';
@@ -18,6 +17,7 @@ import { getPlanRamGb, resolveServerPlan } from './serverPlanPolicy.js';
 import { getPublicEndpointUrl } from './publicEndpointService.js';
 import { scheduleEmbeddedTxAdminCookieRepair } from './txAdminCookieService.js';
 import { restartServerContainer } from './serverRuntimeLifecycle.js';
+import { purgeServerDataDirectory } from './serverDataCleanup.js';
 import {
   claimServerRecreation,
   deleteServerRecord,
@@ -30,10 +30,15 @@ import {
 import { createNotification } from '../repositories/notificationRepository.js';
 import { deleteOrphanedGeneratedUsers } from '../repositories/userRepository.js';
 const MAINTENANCE_CHUNK_SIZE = Math.max(1, Number(process.env.MAINTENANCE_CHUNK_SIZE || 3));
+const quotaWarningCache = new Map();
 
 export async function controlServer(id, userId, action, isAdmin, options = {}) {
   const s = await getServerByIdForUser(id, userId, isAdmin);
   if (!s) throw new Error("No encontrado");
+
+  if (['creating', 'recreating'].includes(s.status)) {
+      throw new Error('El servidor todavía se está preparando. Espera a que termine antes de controlar su energía.');
+  }
 
   if (!isAdmin && (action === 'start' || action === 'restart') && s.status === 'suspended') {
       throw new Error("El servidor está suspendido por falta de pago. Por favor, renueva tu suscripción.");
@@ -61,7 +66,7 @@ export async function controlServer(id, userId, action, isAdmin, options = {}) {
           await assertNodeStartCapacity(s.node_id, requiredRamGb);
       }
       try {
-          await Docker.startContainer(s.container_name);
+          await Docker.startContainer(s.container_name, { nodeId: s.node_id });
 
           if (s.template === 'fivem') scheduleEmbeddedTxAdminCookieRepair(s);
           await updateServerStatus(s.id, 'running');
@@ -77,7 +82,7 @@ export async function controlServer(id, userId, action, isAdmin, options = {}) {
   if (action === 'stop') {
       await updateServerStatus(s.id, 'stopping');
       try {
-          await Docker.stopContainer(s.container_name);
+          await Docker.stopContainer(s.container_name, { nodeId: s.node_id });
       } catch (e) {
           console.error(`[ServerService] Error al detener contenedor ${s.container_name}: ${e.message}`);
       }
@@ -116,8 +121,8 @@ export async function deleteServer(id, userId, isAdmin) {
   await Docker.removeContainer(s.container_name);
   await Docker.removeContainer(`${s.container_name}-db`);
   await Docker.removeContainer(`ragenodes-blender-${s.id.slice(0,8)}`);
+  await purgeServerDataDirectory(s.node_id, s.id, s.data_path);
   await deleteServerRecord(s.id);
-  try { await fs.rm(s.data_path, { recursive: true, force: true }); } catch {}
 
   // 🧹 Limpieza de memoria en mapas locales
   repairBackoffCache.delete(s.id);
@@ -244,8 +249,13 @@ export async function runServerMaintenance() {
                             const maxDisk = (plan.diskBytes || (20 * 1024 ** 3)) + ((s.extra_disk_gb || 0) * 1024 ** 3);
                             const diskPercent = (usedDiskBytes / maxDisk) * 100;
 
-                            const lastWarn = global.lastQuotaWarning || new Map();
-                            global.lastQuotaWarning = lastWarn;
+                            const lastWarn = quotaWarningCache;
+                            if (lastWarn.size > 10000) {
+                                const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+                                for (const [key, timestamp] of lastWarn) {
+                                    if (timestamp < cutoff) lastWarn.delete(key);
+                                }
+                            }
 
                             if (diskPercent >= 100 && !needsFix) {
                                 console.log(`🛑 [Cuota de Disco] Servidor ${s.name} alcanzó el 100% de uso. Apagando por seguridad.`);

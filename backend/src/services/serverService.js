@@ -11,7 +11,6 @@ import { config, PLAN_LIMITS, generateSecurePassword } from '../config.js';
 import * as Docker from './dockerService.js';
 import { execFile } from 'child_process';
 import { GameFactory } from './games/GameFactory.js';
-import { rustUtil } from '../utils/rustUtil.js';
 import { sendTeamInviteEmail } from './emailService.js';
 import os from 'os';
 import net from 'net';
@@ -23,6 +22,11 @@ const MAX_REPAIRS_PER_HOUR = 3;
 
 export function shouldRepairWithBackoff(serverId) {
     const now = Date.now();
+    if (repairBackoffCache.size > 10000) {
+        for (const [id, timestamps] of repairBackoffCache) {
+            if (!timestamps.some(timestamp => now - timestamp < 3600000)) repairBackoffCache.delete(id);
+        }
+    }
     const records = repairBackoffCache.get(serverId) || [];
     const recentRecords = records.filter(t => now - t < 3600000);
     if (recentRecords.length >= MAX_REPAIRS_PER_HOUR) {
@@ -78,31 +82,6 @@ const DOCKER_QUERY_CHUNK_SIZE = Math.max(1, Number(process.env.DOCKER_QUERY_CHUN
 const MAINTENANCE_CHUNK_SIZE = Math.max(1, Number(process.env.MAINTENANCE_CHUNK_SIZE || 3));
 const MAINTENANCE_INTERVAL_MS = Math.max(300000, Number(process.env.MAINTENANCE_INTERVAL_MS || 600000)); // 10 minutes default
 
-// 🧠 CACHE DE TAMAÑO DE DISCO (Para no saturar I/O)
-const diskSizeCache = new Map();
-const DISK_CACHE_TTL = 60 * 1000; // 1 minuto
-const inflightDiskRequests = new Map(); // Para evitar escaneos simultáneos de la misma carpeta
-
-// Función optimizada con Rust, Caché y Promesas In-Flight.
-// Los listados usan stale-while-revalidate para no bloquear requests con escaneos de disco.
-function refreshFolderSize(dirPath) {
-    if (!dirPath || inflightDiskRequests.has(dirPath)) return inflightDiskRequests.get(dirPath);
-
-    const promise = rustUtil.getDirSize(dirPath).then(size => {
-        diskSizeCache.set(dirPath, { size, time: Date.now() });
-        inflightDiskRequests.delete(dirPath);
-        return size;
-    }).catch(err => {
-        inflightDiskRequests.delete(dirPath);
-        console.warn(`[DiskCache] No se pudo calcular tamaño de ${dirPath}:`, err.message);
-        return diskSizeCache.get(dirPath)?.size || 0;
-    });
-
-    inflightDiskRequests.set(dirPath, promise);
-    return promise;
-}
-
-
 export { getFolderSize, getNodeRuntimeUsage, nodeCanAcceptDockerWorkload, selectDeploymentNode, getNextAvailablePort } from './serverNodeSelection.js';
 export { getSubusersForServer, addSubuserToServer, removeSubuserFromServer } from './serverSubusers.js';
 export { setServerBackupTime, updateServerWebhook, updateServerCluster, updateServerAutoRestart, toggleBlenderForServer, renewBlenderHeartbeat } from './serverSettings.js';
@@ -135,6 +114,10 @@ export async function getServersForUser(userId, isAdmin = false) {
              hasIcon = existsSync(iconPath);
          }
          s.has_icon = hasIcon;
+         if ((isAdmin || s.owner_id === userId) && s.template === 'fivem') {
+             s.db_host = config.gameDatabaseHost;
+             s.db_port = config.gameDatabasePort;
+         }
          delete s.blender_pass;
          if (!isAdmin && s.owner_id !== userId) {
              delete s.db_name;
@@ -230,8 +213,6 @@ async function getNextAvailablePort(startPort, range = 1, targetNodeId = 0) {
   throw new Error(`No hay puertos disponibles entre ${startPort} y ${endPort} para un bloque de ${range}. Libera puertos o amplía PORT_SCAN_LIMIT.`);
 }
 
-const userCreationLocks = new Map();
-
 export { createServerForUser } from './serverCreationService.js';
 
 export async function getServerDetails(id, userId, isAdmin) {
@@ -289,6 +270,10 @@ export async function getServerDetails(id, userId, isAdmin) {
       hasIcon = existsSync(iconPath);
   }
   s.has_icon = hasIcon;
+  if (canViewSecrets && s.template === 'fivem') {
+      s.db_host = config.gameDatabaseHost;
+      s.db_port = config.gameDatabasePort;
+  }
   if (!canViewSecrets) {
       delete s.db_name;
       delete s.db_user;
