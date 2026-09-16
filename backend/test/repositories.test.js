@@ -28,7 +28,7 @@ describe('SQL repositories', () => {
     const job = await enqueueDeployment(9, 'request-1', { template: 'ark' }, db);
     assert.equal(job.id, 'job-1');
     assert.match(statements[0].sql, /ON CONFLICT \(owner_id, idempotency_key\)/);
-    assert.deepEqual(statements[0].parameters, [9, 'request-1', '{"template":"ark"}']);
+    assert.deepEqual(statements[0].parameters, [9, 'request-1', '{"template":"ark"}', null]);
 
     const claimed = await claimDeployment('worker-a', async (callback) => callback(db));
     assert.equal(claimed.id, 'job-1');
@@ -109,6 +109,17 @@ describe('SQL repositories', () => {
   it('maps active node rows to identifiers', async () => {
     const ids = await listActiveNodeIds(async () => ({ rows: [{ id: 2 }, { id: 5 }] }));
     assert.deepEqual(ids, [2, 5]);
+  });
+
+  it('avoids WAL writes when node capacity did not change', async () => {
+    const calls = [];
+    const { updateNodeCapacity } = await import('../src/repositories/nodeRepository.js');
+    await updateNodeCapacity(3, 64, 16, async (sql, parameters) => {
+      calls.push({ sql, parameters });
+      return { rowCount: 0 };
+    });
+    assert.match(calls[0].sql, /IS DISTINCT FROM/);
+    assert.deepEqual(calls[0].parameters, [64, 16, 3]);
   });
 
   it('activates an edge proxy inside one transaction and rejects a missing target', async () => {

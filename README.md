@@ -212,6 +212,7 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build b
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-backups
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-stats
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-docker-events
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-deployments
 
 # Databases/cache only, or phpMyAdmin plus MariaDB
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d postgres mariadb redis
@@ -601,6 +602,7 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build b
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-backups
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-stats
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-docker-events
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-deployments
 
 # Solo bases de datos/caché, o phpMyAdmin con MariaDB
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d postgres mariadb redis
@@ -616,6 +618,14 @@ Dentro del Dev Container, ejecuta estos comandos desde la raíz después de crea
 * **API Backend:** [http://localhost:3010](http://localhost:3010)
 * **Sonda de Salud en Vivo:** [http://localhost:3010/readyz](http://localhost:3010/readyz)
 * **phpMyAdmin:** [http://localhost:8089](http://localhost:8089)
+
+### Cola de despliegues y protección del almacenamiento
+
+La creación de servidores se ejecuta en `worker-deployments`, no dentro de la API. PostgreSQL conserva los trabajos pendientes, impide dos despliegues simultáneos del mismo usuario y recupera trabajos abandonados después de un reinicio. Mantén una réplica del worker por entorno hasta configurar particionamiento explícito por nodos; la cola acepta cualquier cantidad de solicitudes sin iniciar todas las instalaciones a la vez.
+
+`DEPLOYMENT_PAYLOAD_KEY` cifra las credenciales temporales guardadas en la cola y debe ser el mismo secreto estable en la API y el worker. No lo cambies mientras existan trabajos pendientes. El polling de una cola vacía aumenta progresivamente desde `DEPLOYMENT_POLL_INTERVAL_MS` hasta `DEPLOYMENT_MAX_IDLE_POLL_MS`.
+
+Para reducir E/S, el historial se inserta en lotes según `STATS_HISTORY_INTERVAL_MS` (cinco minutos por defecto), la caché FiveM consulta el inventario una vez por minuto y sólo reescribe archivos cuando cambia su contenido. Los registros de cola finalizados se conservan 30 días y se purgan durante el mantenimiento diario.
 
 ---
 

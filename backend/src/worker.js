@@ -13,6 +13,8 @@ import { startBillingScheduler } from './services/billingScheduler.js';
 import { startDockerEventsListener } from './services/dockerEventsService.js';
 import { startServerMaintenance } from './services/serverMaintenanceScheduler.js';
 import { startRuntimeAnomalyMonitor } from './services/runtimeAnomalyScheduler.js';
+import { startDeploymentWorker } from './services/deploymentWorker.js';
+import { startCronManager } from './services/cronManager.js';
 
 process.on('uncaughtException', (err) => {
   console.error('💥 WORKER CRASH (Uncaught Exception):', err);
@@ -34,6 +36,7 @@ async function boot() {
     case 'worker-backups':
       startAutoBackups();
       startBillingScheduler();
+      startCronManager();
       break;
     case 'worker-docker-events':
       patchExistingContainers();
@@ -46,6 +49,9 @@ async function boot() {
       startStatsCollector();
       startDockerTelemetryCollector();
       startNodeMonitor();
+      break;
+    case 'worker-deployments':
+      await startDeploymentWorker();
       break;
     default:
       throw new Error(`Rol de worker desconocido: ${role}`);

@@ -1,56 +1,67 @@
 import axios from 'axios';
+import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import { query } from '../db.js';
 
-const CACHE_DIR = '/app/config-gateway/static';
+const cacheDir = '/app/config-gateway/static';
+const serverRefreshMs = Math.max(30000, Number(process.env.QUERY_WARMER_SERVER_REFRESH_MS || 60000));
+const minimumCycleMs = Math.max(3000, Number(process.env.QUERY_WARMER_MIN_CYCLE_MS || 5000));
+const maximumCycleMs = Math.max(minimumCycleMs, Number(process.env.QUERY_WARMER_MAX_CYCLE_MS || 30000));
 
-/**
- * ???? WORKER DE ALTA VELOCIDAD (Optimizaci??n de Concurrencia Inteligente)
- */
+function contentHash(value) {
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
+
 export async function startQueryWarmer() {
-    console.log('???? [QueryWarmer] Iniciando motor de pre-carga de latencia cero...');
-    
-    const runCycle = async () => {
-        try {
-            const { rows: servers } = await query("SELECT id, fivem_port FROM servers WHERE status = 'running'");
-            
-            // Agrupar en lotes de 15 para no saturar la red y maximizar el paralelismo
-            const BATCH_SIZE = 15;
-            for (let i = 0; i < servers.length; i += BATCH_SIZE) {
-                const batch = servers.slice(i, i + BATCH_SIZE);
-                
-                await Promise.all(batch.map(async (s) => {
-                    const internalPort = parseInt(s.fivem_port) + 20000;
-                    const serverDir = path.join(CACHE_DIR, String(s.fivem_port));
-                    
-                    await fs.mkdir(serverDir, { recursive: true }).catch(() => {});
+  console.log('🔥 [QueryWarmer] Caché FiveM con escrituras por cambio.');
+  const knownHashes = new Map();
+  let servers = [];
+  let refreshedAt = 0;
 
-                    const files = ['info.json', 'players.json', 'dynamic.json'];
-                    
-                    await Promise.all(files.map(async (file) => {
-                        try {
-                            const url = `http://172.17.0.1:${internalPort}/${file}`;
-                            const response = await axios.get(url, { timeout: 1500 });
-                            
-                            if (response.status === 200) {
-                                await fs.writeFile(path.join(serverDir, file), JSON.stringify(response.data));
-                            }
-                        } catch (e) {
-                            // Ignorar errores (servidor apagado o no responde)
-                        }
-                    }));
-                }));
-            }
-        } catch (err) {
-            // Ignorar fallos de base de datos silenciosamente
-        } finally {
-            // Programar la siguiente ejecuci??n S??LO despu??s de terminar el ciclo actual
-            // Esto elimina la fuga de memoria y el colapso del Event Loop.
-            setTimeout(runCycle, 3000);
-        }
-    };
+  const refreshServers = async () => {
+    if (Date.now() - refreshedAt < serverRefreshMs) return;
+    const result = await query(
+      "SELECT id, fivem_port FROM servers WHERE status = 'running' AND template = 'fivem'"
+    );
+    servers = result.rows;
+    refreshedAt = Date.now();
+  };
 
-    // Arrancar el primer ciclo
-    runCycle();
+  const warmServer = async (server) => {
+    const internalPort = Number(server.fivem_port) + 20000;
+    const serverDir = path.join(cacheDir, String(server.fivem_port));
+    await fs.mkdir(serverDir, { recursive: true });
+    await Promise.all(['info.json', 'players.json', 'dynamic.json'].map(async (file) => {
+      try {
+        const response = await axios.get(`http://172.17.0.1:${internalPort}/${file}`, { timeout: 1500 });
+        if (response.status !== 200) return;
+        const content = JSON.stringify(response.data);
+        const key = `${server.id}:${file}`;
+        const hash = contentHash(content);
+        if (knownHashes.get(key) === hash) return;
+        await fs.writeFile(path.join(serverDir, file), content);
+        knownHashes.set(key, hash);
+      } catch {
+        // Un servidor que arranca o se detiene no debe interrumpir el lote.
+      }
+    }));
+  };
+
+  const runCycle = async () => {
+    try {
+      await refreshServers();
+      for (let index = 0; index < servers.length; index += 15) {
+        await Promise.all(servers.slice(index, index + 15).map(warmServer));
+      }
+    } catch (error) {
+      console.warn('[QueryWarmer] Ciclo omitido:', error.message);
+      refreshedAt = 0;
+    } finally {
+      const loadDelay = minimumCycleMs * Math.max(1, Math.ceil(servers.length / 100));
+      setTimeout(runCycle, Math.min(maximumCycleMs, loadDelay));
+    }
+  };
+
+  void runCycle();
 }

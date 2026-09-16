@@ -185,6 +185,12 @@ async function startDbMaintenance() {
             // También purgamos estadísticas históricas de más de 7 días para no inflar la DB
             const statsRes = await query("DELETE FROM server_stats_history WHERE created_at < NOW() - INTERVAL '7 days'");
             if (statsRes.rowCount > 0) console.log(`🧹 [DB] Mantenimiento: Purgadas ${statsRes.rowCount} muestras de estadísticas antiguas.`);
+            const deploymentRes = await query(`
+                DELETE FROM deployment_jobs
+                WHERE status IN ('succeeded', 'failed', 'cancelled')
+                  AND updated_at < NOW() - INTERVAL '30 days'
+            `);
+            if (deploymentRes.rowCount > 0) console.log(`🧹 [DB] Mantenimiento: Purgados ${deploymentRes.rowCount} despliegues finalizados.`);
         } catch (e) {
             console.error("❌ Error en mantenimiento de DB:", e);
         }

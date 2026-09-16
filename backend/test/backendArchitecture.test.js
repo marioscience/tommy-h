@@ -19,6 +19,31 @@ describe('Backend architecture boundaries', () => {
     assert.match(worker, /startNodeMonitor\(\)/);
   });
 
+  it('runs durable provisioning only from the deployments worker', async () => {
+    const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
+    const routes = await readFile(new URL('../src/routes/servers.js', import.meta.url), 'utf8');
+    assert.match(worker, /case 'worker-deployments':[\s\S]*startDeploymentWorker\(\)/);
+    assert.match(routes, /enqueueDeployment/);
+    assert.match(routes, /statusUrl: `\/api\/servers\/deployment-jobs\/\$\{job\.id\}`/);
+    assert.doesNotMatch(routes, /await createServerForUser\(/);
+  });
+
+  it('keeps scheduled jobs out of horizontally scaled API replicas', async () => {
+    const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
+    const server = await readFile(new URL('../src/server.js', import.meta.url), 'utf8');
+    assert.match(worker, /case 'worker-backups':[\s\S]*startCronManager\(\)/);
+    assert.doesNotMatch(server, /startCronManager/);
+  });
+
+  it('batches historical writes and rewrites FiveM cache files only on change', async () => {
+    const stats = await readFile(new URL('../src/services/statsCollector.js', import.meta.url), 'utf8');
+    const warmer = await readFile(new URL('../src/services/queryCache.js', import.meta.url), 'utf8');
+    assert.match(stats, /SELECT \* FROM UNNEST/);
+    assert.doesNotMatch(stats, /DELETE FROM server_stats_history/);
+    assert.match(warmer, /template = 'fivem'/);
+    assert.match(warmer, /knownHashes\.get\(key\) === hash/);
+  });
+
   it('builds one canonical restart contract for every game adapter', () => {
     const options = buildRestartOptions({
       id: 'server-id',

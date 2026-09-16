@@ -1,15 +1,19 @@
 import { query, withTransaction } from '../db.js';
+import { decryptDeploymentSecret, encryptDeploymentSecret } from '../services/deploymentPayloadCrypto.js';
 
 const RETRY_BASE_SECONDS = Math.max(1, Number(process.env.DEPLOYMENT_RETRY_BASE_SECONDS || 15));
 
 export async function enqueueDeployment(ownerId, idempotencyKey, payload, db = query) {
+  const safePayload = { ...payload };
+  const secretCiphertext = encryptDeploymentSecret(safePayload.licenseKey);
+  delete safePayload.licenseKey;
   const result = await db(
-    `INSERT INTO deployment_jobs (owner_id, idempotency_key, payload)
-     VALUES ($1, $2, $3::jsonb)
+    `INSERT INTO deployment_jobs (owner_id, idempotency_key, payload, secret_ciphertext)
+     VALUES ($1, $2, $3::jsonb, $4)
      ON CONFLICT (owner_id, idempotency_key) DO UPDATE
        SET idempotency_key = EXCLUDED.idempotency_key
      RETURNING *`,
-    [ownerId, idempotencyKey, JSON.stringify(payload)]
+    [ownerId, idempotencyKey, JSON.stringify(safePayload), secretCiphertext]
   );
   return result.rows[0];
 }
@@ -34,7 +38,12 @@ export async function claimDeployment(workerId, transaction = withTransaction) {
        RETURNING job.*`,
       [workerId]
     );
-    return result.rows[0] || null;
+    const job = result.rows[0] || null;
+    if (job?.secret_ciphertext) {
+      job.payload = { ...job.payload, licenseKey: decryptDeploymentSecret(job.secret_ciphertext) };
+      delete job.secret_ciphertext;
+    }
+    return job;
   });
 }
 

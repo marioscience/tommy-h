@@ -461,6 +461,7 @@ export const migrations = [
         server_id UUID REFERENCES servers(id) ON DELETE SET NULL,
         idempotency_key TEXT NOT NULL,
         payload JSONB NOT NULL,
+        secret_ciphertext TEXT,
         status TEXT NOT NULL DEFAULT 'queued',
         attempts INTEGER NOT NULL DEFAULT 0,
         max_attempts INTEGER NOT NULL DEFAULT 3,

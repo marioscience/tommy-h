@@ -13,6 +13,9 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET || (
     process.env.NODE_ENV === 'production' ? '' : 'dev_jwt_secret_key_32_characters_long_ragenodes_dev'
   ),
+  deploymentPayloadKey: process.env.DEPLOYMENT_PAYLOAD_KEY || process.env.JWT_SECRET || (
+    process.env.NODE_ENV === 'production' ? '' : 'dev_deployment_payload_key_32_chars_ragenodes'
+  ),
   adminUser: process.env.ADMIN_BOOTSTRAP_USER,
   adminPass: process.env.ADMIN_BOOTSTRAP_PASS,
   corsOrigin: process.env.CORS_ORIGIN || process.env.PUBLIC_BASE_URL || 'http://localhost:8088',
@@ -126,6 +129,7 @@ export function assertSecureConfig() {
   const required = [
     ['DATABASE_URL', config.databaseUrl, 12],
     ['JWT_SECRET', config.jwtSecret, 32],
+    ['DEPLOYMENT_PAYLOAD_KEY', config.deploymentPayloadKey, 32],
     ['DISCORD_API_KEY', config.discordApiKey, 24],
     ['NODE_ENROLLMENT_API_KEY', config.nodeEnrollmentApiKey, 24],
     ['CENTRAL_DB_PASS', config.centralDbPass, 16]
