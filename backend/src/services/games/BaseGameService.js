@@ -130,6 +130,9 @@ export class BaseGameService {
         const hostConfig = {
             Binds: binds,
             PortBindings: proxy.bindings,
+            // Docker's tiny init reaps orphaned game subprocesses and forwards
+            // termination signals, preventing defunct Steam/Rust processes.
+            Init: true,
             RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: memoryBytes,
             NanoCpus: nanoCpus,
