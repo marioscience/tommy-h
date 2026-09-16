@@ -279,6 +279,7 @@ for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
   const deploy = files[deployFile];
   const redisService = deployFile === 'deploy.sh' ? 'redis' : 'redis-staging';
   const runtimeInitService = deployFile === 'deploy.sh' ? 'oxide_game_runtime_init' : 'oxide_game_runtime_init_staging';
+  const deploymentWorker = deployFile === 'deploy.sh' ? 'worker-deployments' : 'worker-deployments-staging';
   assert(deploy.includes('bash ./scripts/ensure_base_images.sh'), `${deployFile} prepares game images before application services`);
   assert(deploy.indexOf('bash ./scripts/ensure_base_images.sh') < deploy.indexOf('build "${APP_SERVICES[@]}"'), `${deployFile} cannot publish a backend before its game images exist`);
   assert(deploy.includes(`STATE_SERVICES=(\n  ${redisService}\n)`), `${deployFile} declares Redis as required deployment state`);
@@ -286,6 +287,8 @@ for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
   assert(deploy.includes(`run --rm --no-deps ${runtimeInitService}`), `${deployFile} prepares the persistent OxideProxy runtime volume`);
   assert(deploy.indexOf(`run --rm --no-deps ${runtimeInitService}`) < deploy.indexOf('up -d --no-deps "${APP_SERVICES[@]}"'), `${deployFile} prepares OxideProxy storage before application startup`);
   assert(deploy.includes(`wait_for_service ${redisService} 60`), `${deployFile} waits for Redis readiness before application startup`);
+  assert(deploy.includes(`  ${deploymentWorker}\n`), `${deployFile} always deploys the durable provisioning worker`);
+  assert(deploy.includes(`wait_for_service ${deploymentWorker} 60`), `${deployFile} verifies the durable provisioning worker`);
   assert(deploy.includes('wait_for_http()'), `${deployFile} waits for HTTP readiness instead of checking only once`);
   assert(/wait_for_http http:\/\/127\.0\.0\.1:\d+\/healthz 90/.test(deploy), `${deployFile} retries the health endpoint during startup`);
   assert(/wait_for_http http:\/\/127\.0\.0\.1:\d+\/readyz 90/.test(deploy), `${deployFile} retries the readiness endpoint during startup`);
