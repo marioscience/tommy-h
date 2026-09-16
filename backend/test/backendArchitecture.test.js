@@ -45,6 +45,8 @@ describe('Backend architecture boundaries', () => {
     assert.doesNotMatch(queue, /new Map|queueMicrotask|createFullBackup/);
     assert.match(repository, /FOR UPDATE SKIP LOCKED/);
     assert.match(repository, /status IN \('queued', 'running'\)/);
+    assert.match(worker, /superviseLongRunningTask\('backup-queue', startBackupWorker\(\)\)/);
+    assert.match(worker, /setImmediate\(\(\) => process\.exit\(1\)\)/);
   });
 
   it('bounds telemetry fan-out and protects periodic schedulers from overlap', async () => {
