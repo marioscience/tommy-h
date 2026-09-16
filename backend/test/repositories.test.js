@@ -28,12 +28,14 @@ describe('SQL repositories', () => {
     const job = await enqueueDeployment(9, 'request-1', { template: 'ark' }, db);
     assert.equal(job.id, 'job-1');
     assert.match(statements[0].sql, /ON CONFLICT \(owner_id, idempotency_key\)/);
-    assert.deepEqual(statements[0].parameters, [9, 'request-1', '{"template":"ark"}', null]);
+    assert.deepEqual(statements[0].parameters, [9, 'request-1', '{"template":"ark"}', null, null, null, null, 'standard']);
 
     const claimed = await claimDeployment('worker-a', async (callback) => callback(db));
     assert.equal(claimed.id, 'job-1');
     assert.match(statements[1].sql, /FOR UPDATE SKIP LOCKED/);
     assert.match(statements[1].sql, /attempts = attempts \+ 1/);
+    assert.match(statements[1].sql, /deployment_worker_leases/);
+    assert.deepEqual(statements[1].parameters, ['worker-a', null, 1, 4, 8, 4, 32]);
   });
 
   it('backs failed deployments off and recovers abandoned leases', async () => {
@@ -157,7 +159,30 @@ describe('SQL repositories', () => {
     await listClientNotifications(5, db);
     assert.equal(calls[0].parameters[1], "x'); DROP TABLE backups; --");
     assert.equal(calls[0].parameters[3], 'a'.repeat(64));
-    assert.deepEqual(calls[1].parameters, ['title', 'content', 'info']);
+    assert.deepEqual(calls[1].parameters, ['title', 'content', 'info', 'client']);
     assert.deepEqual(calls[2].parameters, [5]);
+    assert.match(calls[2].sql, /audience IN \('client', 'all'\)/);
+    assert.doesNotMatch(calls[2].sql, /title NOT LIKE/);
+  });
+
+  it('keeps administrative notifications out of the client audience', async () => {
+    const calls = [];
+    const db = async (sql, parameters) => { calls.push({ sql, parameters }); return { rows: [] }; };
+    await createNotification({
+      title: '[Seguridad] Contenedor huérfano detectado',
+      content: 'internal runtime details',
+      type: 'warning',
+      audience: 'admin'
+    }, db);
+    assert.deepEqual(calls[0].parameters, [
+      '[Seguridad] Contenedor huérfano detectado',
+      'internal runtime details',
+      'warning',
+      'admin'
+    ]);
+    await assert.rejects(
+      createNotification({ title: 'bad', content: 'bad', audience: 'public' }, db),
+      /INVALID_NOTIFICATION_AUDIENCE/
+    );
   });
 });

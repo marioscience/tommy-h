@@ -21,6 +21,7 @@ import { backupQueue } from '../services/backupQueue.js';
 import { getServerByIdForUser } from '../services/serverService.js';
 import { createNotification, deleteNotification, listAdminNotifications } from '../repositories/notificationRepository.js';
 import { findUsernameById } from '../repositories/userRepository.js';
+import { getDeploymentQueueMetrics } from '../repositories/deploymentJobRepository.js';
 
 const router = express.Router();
 
@@ -52,6 +53,14 @@ router.get('/backup-jobs/:jobId', async (req, res) => {
     const job = await backupQueue.getJob(req.params.jobId, req.user.sub, true);
     if (!job) return res.status(404).json({ error: 'Job no encontrado' });
     res.json(job);
+});
+
+router.get('/deployment-queue/metrics', async (_req, res) => {
+    try {
+        res.json({ items: await getDeploymentQueueMetrics() });
+    } catch (error) {
+        res.status(500).json({ error: error.message || 'No se pudieron cargar las métricas.' });
+    }
 });
 
 router.get('/overview', async (_req, res) => {
@@ -277,8 +286,8 @@ router.get('/notifications', async (_req, res) => {
 });
 
 router.post('/notifications', async (req, res) => {
-  const { title, content, type } = req.body;
-  await createNotification({ title, content, type: type || 'info' });
+  const { title, content, type, audience } = req.body;
+  await createNotification({ title, content, type: type || 'info', audience: audience || 'client' });
   res.json({ success: true });
 });
 

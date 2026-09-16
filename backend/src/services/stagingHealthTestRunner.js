@@ -280,10 +280,10 @@ export async function runStagingHealthSuite(triggerSource = 'AUTOMATED_DEPLOY') 
   // Notificar al Panel Admin
   try {
     if (suitePassed) {
-      await createNotification({ title: '🚀 [Staging] Pruebas de Despliegue Exitosas', content: `El conjunto de pruebas adaptativas pasó al 100% (${passed}/${total} pruebas correctas en ${result.summary.durationMs}ms). La versión está estable en preproducción.`, type: 'success' });
+      await createNotification({ title: '🚀 [Staging] Pruebas de Despliegue Exitosas', content: `El conjunto de pruebas adaptativas pasó al 100% (${passed}/${total} pruebas correctas en ${result.summary.durationMs}ms). La versión está estable en preproducción.`, type: 'success', audience: 'admin' });
       console.log('[Staging Test Suite] ✅ Pruebas completadas con ÉXITO al 100%.');
     } else {
-      await createNotification({ title: '🚨 [ROLLBACK AUTOMÁTICO] Despliegue Fallido en Staging', content: `Se detectaron ${failed} fallos durante las pruebas del despliegue. Se ha ejecutado el rollback automático a la versión previa estable. Revisa el reporte PDF en Diagnóstico.`, type: 'error' });
+      await createNotification({ title: '🚨 [ROLLBACK AUTOMÁTICO] Despliegue Fallido en Staging', content: `Se detectaron ${failed} fallos durante las pruebas del despliegue. Se ha ejecutado el rollback automático a la versión previa estable. Revisa el reporte PDF en Diagnóstico.`, type: 'error', audience: 'admin' });
       console.error(`[Staging Test Suite] 🚨 Pruebas FALLIDAS (${failed} errores). Activado Rollback Enterprise.`);
     }
   } catch (e) {

@@ -23,7 +23,7 @@ describe('Backend architecture boundaries', () => {
     const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
     const routes = await readFile(new URL('../src/routes/servers.js', import.meta.url), 'utf8');
     assert.match(worker, /case 'worker-deployments':[\s\S]*startDeploymentWorker\(\)/);
-    assert.match(routes, /enqueueDeployment/);
+    assert.match(routes, /planAndEnqueueDeployment/);
     assert.match(routes, /statusUrl: `\/api\/servers\/deployment-jobs\/\$\{job\.id\}`/);
     assert.doesNotMatch(routes, /await createServerForUser\(/);
   });
@@ -45,6 +45,8 @@ describe('Backend architecture boundaries', () => {
     assert.doesNotMatch(queue, /new Map|queueMicrotask|createFullBackup/);
     assert.match(repository, /FOR UPDATE SKIP LOCKED/);
     assert.match(repository, /status IN \('queued', 'running'\)/);
+    assert.match(worker, /superviseLongRunningTask\('backup-queue', startBackupWorker\(\)\)/);
+    assert.match(worker, /setImmediate\(\(\) => process\.exit\(1\)\)/);
   });
 
   it('bounds telemetry fan-out and protects periodic schedulers from overlap', async () => {

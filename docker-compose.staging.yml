@@ -101,6 +101,12 @@ services:
       - ./certs:/opt/ragenodes-ultimate/certs
     ports:
       - "127.0.0.1:3011:3006" # Puerto 3011 para el panel de Staging
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3006/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
@@ -144,7 +150,7 @@ services:
       - ragenodes_net_staging
     depends_on:
       backend-staging:
-        condition: service_started
+        condition: service_healthy
       mariadb-staging:
         condition: service_started
     volumes:
@@ -195,7 +201,7 @@ services:
       - ragenodes_net_staging
     depends_on:
       backend-staging:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
       - /srv/ragenodes-staging-data:/srv/ragenodes-staging-data
@@ -239,7 +245,7 @@ services:
       - ragenodes_net_staging
     depends_on:
       backend-staging:
-        condition: service_started
+        condition: service_healthy
       mariadb-staging:
         condition: service_started
     volumes:
@@ -283,7 +289,7 @@ services:
       - ragenodes_net_staging
     depends_on:
       backend-staging:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
       - /srv/ragenodes-staging-data:/srv/ragenodes-staging-data
@@ -333,7 +339,7 @@ services:
       - oxide_game_runtime_data_staging:/app/runtime:ro
     depends_on:
       backend-staging:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 10s
@@ -383,7 +389,7 @@ services:
       - oxide_game_runtime_data_staging:/app/runtime
     depends_on:
       backend-staging:
-        condition: service_started
+        condition: service_healthy
       oxide_game_runtime_init_staging:
         condition: service_completed_successfully
     read_only: true
@@ -446,7 +452,7 @@ services:
       - OXIDE_RUNTIME_BLACKLIST_PATH=/app/runtime/runtime-blacklist.txt
     depends_on:
       backend-staging:
-        condition: service_started
+        condition: service_healthy
       oxide_control_panel:
         condition: service_healthy
       redis-staging:

@@ -22,6 +22,7 @@ APP_SERVICES=(
   worker-stats
   worker-backups
   worker-docker-events
+  worker-deployments
   oxide_control_panel
   oxide_game
   oxide_web
@@ -126,6 +127,7 @@ echo "==> 🧰 Preparando el volumen de ejecución de OxideProxy..."
 
 echo "==> 🩺 Esperando servicios críticos..."
 wait_for_service backend 90
+wait_for_service worker-deployments 60
 wait_for_service oxide_control_panel 60
 wait_for_service oxide_game 60
 wait_for_service oxide_web 60

@@ -34,13 +34,41 @@ describe('🗄️ Database Migrations System Tests', () => {
         assert.match(schemaSql, /idx_server_stats_history_server_time/i);
     });
 
-    it('declara una cola durable con exclusión de trabajos concurrentes', () => {
+  it('declara una cola durable con exclusión de trabajos concurrentes', () => {
         const schemaSql = migrations.flatMap((migration) => migration.statements).join('\n');
         assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS deployment_jobs/i);
         assert.match(schemaSql, /UNIQUE\(owner_id, idempotency_key\)/i);
         assert.match(schemaSql, /idx_deployment_jobs_one_active_per_owner/i);
         assert.match(schemaSql, /status IN \('queued', 'running'\)/i);
-    });
+  });
+
+  it('repara esquemas heredados antes de iniciar workers durables', () => {
+    const repair = migrations.find((migration) => migration.id === '202609160002_repair_durable_worker_schema');
+    assert.ok(repair, 'debe existir una migración correctiva independiente');
+    const sql = repair.statements.join('\n');
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS backup_jobs/);
+    assert.match(sql, /ALTER TABLE server_cron_jobs[\s\S]*ADD COLUMN IF NOT EXISTS is_active/);
+  });
+
+  it('clasifica las alertas internas para que solo las vea administración', () => {
+    const migration = migrations.find((item) => item.id === '202609160003_notification_audience');
+    assert.ok(migration, 'debe existir la migración de audiencia de notificaciones');
+    const sql = migration.statements.join('\n');
+    assert.match(sql, /ADD COLUMN IF NOT EXISTS audience/);
+    assert.match(sql, /SET audience = 'admin'/);
+    assert.match(sql, /\[Seguridad\]/);
+  });
+
+  it('reserva capacidad y limita concurrencia de despliegues por nodo', () => {
+    const migration = migrations.find((item) => item.id === '202609160004_node_aware_deployment_queue');
+    assert.ok(migration, 'debe existir la migración de cola por nodo');
+    const sql = migration.statements.join('\n');
+    assert.match(sql, /requested_ram_gb/i);
+    assert.match(sql, /workload_class/i);
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS deployment_worker_leases/i);
+    assert.match(sql, /UNIQUE\(node_id, workload_class, slot\)/i);
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS deployment_port_reservations/i);
+  });
 
     it('debería registrar y aplicar migraciones pendientes usando mock de DB', async () => {
         const appliedDbMigrations = new Set(['202601010001_initial_core_schema']);
