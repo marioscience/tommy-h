@@ -25,6 +25,9 @@ export const config = {
   sessionCookieName: process.env.SESSION_COOKIE_NAME || 'rn_session',
   cookieSecure: process.env.COOKIE_SECURE === 'true' || (process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE !== 'false'),
   cookieSameSite: process.env.COOKIE_SAMESITE || 'Lax',
+  clientDebugLogging: process.env.CLIENT_DEBUG_LOGGING !== undefined
+    ? process.env.CLIENT_DEBUG_LOGGING === 'true'
+    : (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging'),
 
   // 🤖 CONFIGURACIÓN DEL BOT DE DISCORD — Sin fallback inseguro: falla en arranque si no está configurada
   discordApiKey: process.env.DISCORD_API_KEY || (

@@ -12,6 +12,11 @@ const currentLogLevelName = (process.env.LOG_LEVEL || (process.env.NODE_ENV === 
 const currentLogLevel = LOG_LEVELS[currentLogLevelName] ?? LOG_LEVELS.info;
 const isJsonOutput = process.env.LOG_FORMAT === 'json' || process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging';
 
+// Capture raw console streams
+const rawConsoleLog = console.log.bind(console);
+const rawConsoleWarn = console.warn.bind(console);
+const rawConsoleError = console.error.bind(console);
+
 function serializeError(err) {
   if (!err) return undefined;
   if (err instanceof Error) {
@@ -90,12 +95,12 @@ export class Logger {
       const formattedLine = `${prefix}${reqId}${mod} ${message || ''}${contextStr}`;
 
       if (levelWeight >= LOG_LEVELS.error) {
-        console.error(formattedLine);
-        if (payload.err?.stack) console.error(payload.err.stack);
+        rawConsoleError(formattedLine);
+        if (payload.err?.stack) rawConsoleError(payload.err.stack);
       } else if (levelWeight >= LOG_LEVELS.warn) {
-        console.warn(formattedLine);
+        rawConsoleWarn(formattedLine);
       } else {
-        console.log(formattedLine);
+        rawConsoleLog(formattedLine);
       }
     }
 
@@ -107,6 +112,25 @@ export class Logger {
   warn(firstArg, secondArg) { return this._log('warn', firstArg, secondArg); }
   error(firstArg, secondArg) { return this._log('error', firstArg, secondArg); }
   fatal(firstArg, secondArg) { return this._log('fatal', firstArg, secondArg); }
+}
+
+export function enableConsoleBridge() {
+  const legacyLogger = new Logger({ module: 'legacy' });
+
+  console.error = (...args) => {
+    const errArg = args.find(a => a instanceof Error);
+    const msg = args
+        .map(a => (typeof a === 'object' && !(a instanceof Error) ? JSON.stringify(a) : String(a?.message || a)))
+        .join( ' ');
+    legacyLogger.error({ err: errArg }, msg);
+  };
+
+  console.warn = (...args) => {
+    const msg = args
+        .map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a)))
+        .join(' ');
+    legacyLogger.warn(msg);
+  };
 }
 
 export const logger = new Logger({ service: 'backend-api' });

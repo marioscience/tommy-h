@@ -18,3 +18,6 @@ services:
     security_opt: !reset []
     cap_drop: !reset []
     read_only: false
+
+  postgres:
+    ports: !reset []

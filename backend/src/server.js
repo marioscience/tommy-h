@@ -38,11 +38,13 @@ import cronRoutes from './routes/cron.js'; // 🕒 AÑADIDO: Rutas de Cron Jobs
 
 import pluginsRoutes from './routes/plugins.js';
 import { runStagingHealthSuite } from './services/stagingHealthTestRunner.js';
-import { logger } from './utils/logger.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { autoscalingTelemetryMiddleware, getAutoscalingTelemetry, isLoopbackAddress } from './services/autoscalingTelemetry.js';
 import { getDeploymentQueueMetrics } from './repositories/deploymentJobRepository.js';
 import { distributedRateLimitStore } from './services/distributedRateLimitStore.js';
+
+import { logger, enableConsoleBridge } from "./utils/logger.js";
+enableConsoleBridge();
 
 // 🤖 ESCUDO ANTI-CRASHEO SILENCIOSO
 process.on('uncaughtException', (err) => {
@@ -347,6 +349,15 @@ async function bootstrap() {
                 setTimeout(() => {
                     runStagingHealthSuite('SERVER_BOOTSTRAP').catch(console.error);
                 }, 3000);
+            }
+
+            // Display very visible warning in production if client debug logging is enabled. Avoid bleeding logs to the public.
+            if (config.nodeEnv === 'production' && config.clientDebugLogging) {
+                console.warn('\n' + '='.repeat(75));
+                console.warn('⚠️  ALL CAPS WARNING: CLIENT DEBUG LOGGING IS ACTIVATED IN PRODUCTION! ⚠️');
+                console.warn('DETAILED ERROR RESPONSES AND DEBUG HEADERS ARE BEING EXPOSED TO CLIENTS.');
+                console.warn('DISABLE CLIENT_DEBUG_LOGGING IN YOUR ENVIRONMENT IMMEDIATELY!');
+                console.warn('='.repeat(75) + '\n');
             }
         });
     } catch (error) {

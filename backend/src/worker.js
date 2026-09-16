@@ -15,16 +15,22 @@ import { startCronManager } from './services/cronManager.js';
 import { startBackupWorker } from './services/backupWorker.js';
 import { startDiskUsageCollector } from './services/diskUsageService.js';
 
+import { logger, enableConsoleBridge } from "./utils/logger.js";
+enableConsoleBridge();
+
+
+const role = process.env.RAGENODES_ROLE || process.argv[2] || 'worker-backups';
+const workerLog = logger.child({ module: 'worker', role });
+
 process.on('uncaughtException', (err) => {
-  console.error('💥 WORKER CRASH (Uncaught Exception):', err);
+  workerLog.fatal({ err },'💥 WORKER CRASH (Uncaught Exception):');
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason) => {
-  console.error('💥 WORKER PROMESA RECHAZADA:', reason);
+  workerLog.error({ err: reason }, '💥 WORKER PROMESA RECHAZADA:');
 });
 
-const role = process.env.RAGENODES_ROLE || process.argv[2] || 'worker-backups';
 assertSecureConfig();
 
 function superviseLongRunningTask(name, promise) {
@@ -48,29 +54,31 @@ async function boot() {
       superviseLongRunningTask('backup-queue', startBackupWorker());
       break;
     case 'worker-docker-events':
-      patchExistingContainers();
+      await patchExistingContainers();
       startDockerEventsListener();
-      startQueryWarmer();
+      await startQueryWarmer();
       startServerMaintenance();
       startRuntimeAnomalyMonitor();
       break;
     case 'worker-stats':
       startStatsCollector();
-      startDockerTelemetryCollector();
+      startDockerTelemetryCollector(); //TODO: should this be awaited?
       startDiskUsageCollector();
+
       startNodeMonitor();
       break;
     case 'worker-deployments':
       await startDeploymentWorker();
       break;
     default:
+      workerLog.error(`Rol de worker desconocido: ${role}`);
       throw new Error(`Rol de worker desconocido: ${role}`);
   }
 
-  console.log(`[Worker] Rol ${role} activo.`);
+  workerLog.info(`[Worker] Rol ${role} activo.`);
 }
 
 boot().catch((error) => {
-  console.error(`[Worker] Error arrancando ${role}:`, error);
+  workerLog.error(`[Worker] Error arrancando ${role}:`, error);
   process.exit(1);
 });
