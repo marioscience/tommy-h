@@ -63,7 +63,12 @@ async function reportFinding(finding) {
   ].filter(Boolean).join(' | ');
 
   console.warn('[RuntimeSecurity]', JSON.stringify(finding));
-  await createNotification({ title, content, type: finding.level === 'critical' ? 'error' : 'warning' });
+  await createNotification({
+    title,
+    content,
+    type: finding.level === 'critical' ? 'error' : 'warning',
+    audience: 'admin'
+  });
 }
 
 async function inspectRuntimeContainer(docker, nodeId, info, registeredServer, thresholds) {
