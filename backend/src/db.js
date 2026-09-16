@@ -164,37 +164,45 @@ export async function waitForDb() {
  * 🧹 PURGA AUTOMÁTICA DE LOGS
  * Ejecuta una limpieza cada 24 horas para no sobrecargar el sistema.
  */
-async function startDbMaintenance() {
+let dbMaintenanceTimer = null;
+let dbMaintenanceRunning = false;
+
+export async function runDbMaintenance() {
+    if (dbMaintenanceRunning) return false;
+    dbMaintenanceRunning = true;
+    try {
+        const res = await query(`
+            DELETE FROM audit_logs
+            WHERE created_at < NOW() - INTERVAL '30 days'
+              AND action NOT LIKE 'payment.%'
+              AND action NOT LIKE 'legal.%'
+              AND action NOT LIKE 'billing.%'
+              AND action NOT LIKE 'admin.dispute_evidence.%'
+        `);
+        await query(`DELETE FROM audit_logs WHERE created_at < NOW() - INTERVAL '24 months'`);
+        if (res.rowCount > 0) console.log(`🧹 [DB] Purgados ${res.rowCount} registros de auditoría antiguos.`);
+        const statsRes = await query("DELETE FROM server_stats_history WHERE created_at < NOW() - INTERVAL '7 days'");
+        if (statsRes.rowCount > 0) console.log(`🧹 [DB] Purgadas ${statsRes.rowCount} muestras de estadísticas.`);
+        const deploymentRes = await query(`DELETE FROM deployment_jobs WHERE status IN ('succeeded', 'failed', 'cancelled') AND updated_at < NOW() - INTERVAL '30 days'`);
+        await query(`DELETE FROM backup_jobs WHERE status IN ('completed', 'failed', 'cancelled') AND updated_at < NOW() - INTERVAL '30 days'`);
+        if (deploymentRes.rowCount > 0) console.log(`🧹 [DB] Purgados ${deploymentRes.rowCount} despliegues finalizados.`);
+        return true;
+    } finally {
+        dbMaintenanceRunning = false;
+    }
+}
+
+export function startDbMaintenance() {
+    if (dbMaintenanceTimer) return dbMaintenanceTimer;
     console.log("🧹 [DB] Iniciando mantenimiento de base de datos...");
-    setInterval(async () => {
+    dbMaintenanceTimer = setInterval(async () => {
         try {
-            const res = await query(`
-                DELETE FROM audit_logs
-                WHERE created_at < NOW() - INTERVAL '30 days'
-                  AND action NOT LIKE 'payment.%'
-                  AND action NOT LIKE 'legal.%'
-                  AND action NOT LIKE 'billing.%'
-                  AND action NOT LIKE 'admin.dispute_evidence.%'
-            `);
-            await query(`
-                DELETE FROM audit_logs
-                WHERE created_at < NOW() - INTERVAL '24 months'
-            `);
-            if (res.rowCount > 0) console.log(`🧹 [DB] Mantenimiento: Purgados ${res.rowCount} registros de auditoría antiguos.`);
-            
-            // También purgamos estadísticas históricas de más de 7 días para no inflar la DB
-            const statsRes = await query("DELETE FROM server_stats_history WHERE created_at < NOW() - INTERVAL '7 days'");
-            if (statsRes.rowCount > 0) console.log(`🧹 [DB] Mantenimiento: Purgadas ${statsRes.rowCount} muestras de estadísticas antiguas.`);
-            const deploymentRes = await query(`
-                DELETE FROM deployment_jobs
-                WHERE status IN ('succeeded', 'failed', 'cancelled')
-                  AND updated_at < NOW() - INTERVAL '30 days'
-            `);
-            if (deploymentRes.rowCount > 0) console.log(`🧹 [DB] Mantenimiento: Purgados ${deploymentRes.rowCount} despliegues finalizados.`);
+            await runDbMaintenance();
         } catch (e) {
             console.error("❌ Error en mantenimiento de DB:", e);
         }
     }, 24 * 60 * 60 * 1000); // Cada 24 horas
+    return dbMaintenanceTimer;
 }
 
 export async function seedInitialData() {
@@ -250,14 +258,16 @@ export async function seedInitialData() {
 }
 
 export async function initDb() {
-  // 1. Ejecutar migraciones estructurales de base de datos
-  await runMigrations(query, withTransaction);
-
-  // 2. Sembrar datos esenciales (Seeds)
-  await seedInitialData();
-
-  // 3. Iniciar tareas de mantenimiento
-  startDbMaintenance();
+  const client = await pool.connect();
+  try {
+    // Un solo proceso migra/siembra aunque arranquen varias réplicas simultáneamente.
+    await client.query('SELECT pg_advisory_lock($1)', [741936221]);
+    await runMigrations(query, withTransaction);
+    await seedInitialData();
+  } finally {
+    await client.query('SELECT pg_advisory_unlock($1)', [741936221]).catch(() => {});
+    client.release();
+  }
 }
 
 export async function logAudit(userIdOrReq, action, details = {}, ipOverride = null, uaOverride = null) {

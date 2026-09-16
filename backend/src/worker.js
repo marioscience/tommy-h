@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { waitForDb } from './db.js';
+import { startDbMaintenance, waitForDb } from './db.js';
 import { assertSecureConfig } from './config.js';
 import {
   patchExistingContainers,
@@ -15,6 +15,7 @@ import { startServerMaintenance } from './services/serverMaintenanceScheduler.js
 import { startRuntimeAnomalyMonitor } from './services/runtimeAnomalyScheduler.js';
 import { startDeploymentWorker } from './services/deploymentWorker.js';
 import { startCronManager } from './services/cronManager.js';
+import { startBackupWorker } from './services/backupWorker.js';
 
 process.on('uncaughtException', (err) => {
   console.error('💥 WORKER CRASH (Uncaught Exception):', err);
@@ -37,6 +38,8 @@ async function boot() {
       startAutoBackups();
       startBillingScheduler();
       startCronManager();
+      startDbMaintenance();
+      void startBackupWorker();
       break;
     case 'worker-docker-events':
       patchExistingContainers();

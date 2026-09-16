@@ -17,7 +17,7 @@ const router = express.Router();
 router.use(requireAuth);
 
 router.get('/backup-jobs/:jobId', async (req, res) => {
-    const job = backupQueue.getJob(req.params.jobId, req.user.sub, req.user.role === 'admin');
+    const job = await backupQueue.getJob(req.params.jobId, req.user.sub, req.user.role === 'admin');
     if (!job) return res.status(404).json({ error: 'Job no encontrado' });
     res.json(job);
 });
@@ -79,7 +79,7 @@ router.post('/:id/backup', async (req, res) => {
       const s = await getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'files');
       if (!s) return res.status(404).json({ error: "Servidor no encontrado" });
 
-      const job = backupQueue.enqueue(
+      const job = await backupQueue.enqueue(
           req.params.id,
           req.user.sub,
           req.user.role === 'admin',

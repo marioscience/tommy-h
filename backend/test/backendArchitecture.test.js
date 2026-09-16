@@ -35,6 +35,28 @@ describe('Backend architecture boundaries', () => {
     assert.doesNotMatch(server, /startCronManager/);
   });
 
+  it('owns database maintenance and durable backup execution in the backup worker', async () => {
+    const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
+    const db = await readFile(new URL('../src/db.js', import.meta.url), 'utf8');
+    const queue = await readFile(new URL('../src/services/backupQueue.js', import.meta.url), 'utf8');
+    const repository = await readFile(new URL('../src/repositories/backupJobRepository.js', import.meta.url), 'utf8');
+    assert.match(worker, /case 'worker-backups':[\s\S]*startDbMaintenance\(\)[\s\S]*startBackupWorker\(\)/);
+    assert.doesNotMatch(db.match(/export async function initDb[\s\S]*?\n\}/)?.[0] || '', /startDbMaintenance/);
+    assert.doesNotMatch(queue, /new Map|queueMicrotask|createFullBackup/);
+    assert.match(repository, /FOR UPDATE SKIP LOCKED/);
+    assert.match(repository, /status IN \('queued', 'running'\)/);
+  });
+
+  it('bounds telemetry fan-out and protects periodic schedulers from overlap', async () => {
+    const stats = await readFile(new URL('../src/services/statsCollector.js', import.meta.url), 'utf8');
+    const backups = await readFile(new URL('../src/services/backupScheduler.js', import.meta.url), 'utf8');
+    const billing = await readFile(new URL('../src/services/billingScheduler.js', import.meta.url), 'utf8');
+    assert.match(stats, /STATS_COLLECTION_CONCURRENCY/);
+    assert.match(stats, /servers\.slice\(offset, offset \+ statsConcurrency\)/);
+    assert.match(backups, /scheduleRunning/);
+    assert.match(billing, /if \(running\) return/);
+  });
+
   it('batches historical writes and rewrites FiveM cache files only on change', async () => {
     const stats = await readFile(new URL('../src/services/statsCollector.js', import.meta.url), 'utf8');
     const warmer = await readFile(new URL('../src/services/queryCache.js', import.meta.url), 'utf8');

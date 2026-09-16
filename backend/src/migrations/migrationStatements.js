@@ -2,6 +2,8 @@
  * 🗄️ Declaraciones de Migraciones SQL para RageNodes Ultimate
  */
 
+import { operationsMigrations } from './operationsMigrationStatements.js';
+
 export const migrations = [
   {
     id: '202601010001_initial_core_schema',
@@ -487,5 +489,6 @@ export const migrations = [
        ON deployment_jobs(owner_id)
        WHERE status IN ('queued', 'running')`
     ]
-  }
+  },
+  ...operationsMigrations
 ];

@@ -30,6 +30,7 @@ import {
 import { createNotification } from '../repositories/notificationRepository.js';
 import { deleteOrphanedGeneratedUsers } from '../repositories/userRepository.js';
 const MAINTENANCE_CHUNK_SIZE = Math.max(1, Number(process.env.MAINTENANCE_CHUNK_SIZE || 3));
+const quotaWarningCache = new Map();
 
 export async function controlServer(id, userId, action, isAdmin, options = {}) {
   const s = await getServerByIdForUser(id, userId, isAdmin);
@@ -248,8 +249,13 @@ export async function runServerMaintenance() {
                             const maxDisk = (plan.diskBytes || (20 * 1024 ** 3)) + ((s.extra_disk_gb || 0) * 1024 ** 3);
                             const diskPercent = (usedDiskBytes / maxDisk) * 100;
 
-                            const lastWarn = global.lastQuotaWarning || new Map();
-                            global.lastQuotaWarning = lastWarn;
+                            const lastWarn = quotaWarningCache;
+                            if (lastWarn.size > 10000) {
+                                const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+                                for (const [key, timestamp] of lastWarn) {
+                                    if (timestamp < cutoff) lastWarn.delete(key);
+                                }
+                            }
 
                             if (diskPercent >= 100 && !needsFix) {
                                 console.log(`🛑 [Cuota de Disco] Servidor ${s.name} alcanzó el 100% de uso. Apagando por seguridad.`);
