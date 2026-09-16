@@ -78,5 +78,22 @@ export const operationsMigrations = [
       `ALTER TABLE server_cron_jobs ADD COLUMN IF NOT EXISTS last_run_key TEXT`,
       `ALTER TABLE server_cron_jobs ADD COLUMN IF NOT EXISTS last_run_at TIMESTAMPTZ`
     ]
+  },
+  {
+    id: '202609160003_notification_audience',
+    description: 'Separa notificaciones administrativas de los avisos para clientes',
+    statements: [
+      `ALTER TABLE notifications
+       ADD COLUMN IF NOT EXISTS audience VARCHAR(16) NOT NULL DEFAULT 'client'`,
+      `UPDATE notifications
+       SET audience = 'admin'
+       WHERE title LIKE '%[Seguridad]%'
+          OR title LIKE '%[Staging]%'
+          OR title LIKE '%[ROLLBACK%'
+          OR title LIKE '%Despliegue%'
+          OR title LIKE '%[Deploy%'`,
+      `CREATE INDEX IF NOT EXISTS idx_notifications_audience_created_at
+       ON notifications(audience, created_at DESC)`
+    ]
   }
 ];

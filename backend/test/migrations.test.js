@@ -50,6 +50,15 @@ describe('🗄️ Database Migrations System Tests', () => {
     assert.match(sql, /ALTER TABLE server_cron_jobs[\s\S]*ADD COLUMN IF NOT EXISTS is_active/);
   });
 
+  it('clasifica las alertas internas para que solo las vea administración', () => {
+    const migration = migrations.find((item) => item.id === '202609160003_notification_audience');
+    assert.ok(migration, 'debe existir la migración de audiencia de notificaciones');
+    const sql = migration.statements.join('\n');
+    assert.match(sql, /ADD COLUMN IF NOT EXISTS audience/);
+    assert.match(sql, /SET audience = 'admin'/);
+    assert.match(sql, /\[Seguridad\]/);
+  });
+
     it('debería registrar y aplicar migraciones pendientes usando mock de DB', async () => {
         const appliedDbMigrations = new Set(['202601010001_initial_core_schema']);
         const executedStatements = [];

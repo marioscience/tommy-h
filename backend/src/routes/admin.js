@@ -277,8 +277,8 @@ router.get('/notifications', async (_req, res) => {
 });
 
 router.post('/notifications', async (req, res) => {
-  const { title, content, type } = req.body;
-  await createNotification({ title, content, type: type || 'info' });
+  const { title, content, type, audience } = req.body;
+  await createNotification({ title, content, type: type || 'info', audience: audience || 'client' });
   res.json({ success: true });
 });
 

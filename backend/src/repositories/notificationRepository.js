@@ -7,20 +7,20 @@ export async function listAdminNotifications(db = query) {
 export async function listClientNotifications(limit = 5, db = query) {
   return (await db(
     `SELECT * FROM notifications
-     WHERE title NOT LIKE '%[Staging]%'
-       AND title NOT LIKE '%[ROLLBACK%'
-       AND title NOT LIKE '%Despliegue%'
-       AND title NOT LIKE '%[Deploy%'
+     WHERE audience IN ('client', 'all')
      ORDER BY created_at DESC
      LIMIT $1`,
     [limit]
   )).rows;
 }
 
-export async function createNotification({ title, content, type = 'info' }, db = query) {
+export async function createNotification({ title, content, type = 'info', audience = 'client' }, db = query) {
+  if (!['admin', 'client', 'all'].includes(audience)) {
+    throw new Error('INVALID_NOTIFICATION_AUDIENCE');
+  }
   return db(
-    'INSERT INTO notifications (title, content, type) VALUES ($1, $2, $3)',
-    [title, content, type]
+    'INSERT INTO notifications (title, content, type, audience) VALUES ($1, $2, $3, $4)',
+    [title, content, type, audience]
   );
 }
 
