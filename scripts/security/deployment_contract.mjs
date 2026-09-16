@@ -297,6 +297,8 @@ assert(files['docker-compose.staging.yml'].includes('phpmyadmin-staging:'), 'sta
 assert(/phpmyadmin-staging:[\s\S]*?aliases:\s*\n\s*- phpmyadmin/.test(files['docker-compose.staging.yml']), 'staging exposes phpMyAdmin through the internal proxy alias');
 assert(files['docker-compose.staging.yml'].includes('STAGING_PUBLIC_BASE_URL:-https://panel.ragenodes.dev'), 'staging phpMyAdmin keeps redirects on the staging panel origin');
 assert(files['deploy_staging.sh'].includes('  phpmyadmin-staging'), 'staging deploys phpMyAdmin automatically');
+assert(files['docker-compose.staging.yml'].includes("fetch('http://127.0.0.1:3006/healthz')"), 'staging backend exposes a migration-aware health gate');
+assert(!/backend-staging:\s*\n\s*condition: service_started/.test(files['docker-compose.staging.yml']), 'staging dependants wait until backend migrations finish');
 for (const composeFile of ['docker-compose.yml', 'docker-compose.staging.yml']) {
   const compose = files[composeFile];
   assert(compose.includes('chown -R 0:${APP_GID:-1000} /runtime'), `${composeFile} grants the unprivileged control panel group access to runtime telemetry`);
