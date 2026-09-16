@@ -68,6 +68,7 @@ describe('🏭 GameFactory & OOP Architecture Tests (Módulo 3 & 4)', () => {
             ['/tmp/test:/data']
         );
         assert.deepEqual(minecraftHost.GroupAdd, [String(config.gameContainerSharedGid)]);
+        assert.equal(minecraftHost.Init, true, 'todos los juegos deben recolectar procesos hijos terminados');
     });
 
     it('fija una identidad explícita para Minecraft y rechaza LATEST', () => {
