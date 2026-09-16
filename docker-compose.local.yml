@@ -1,1 +1,20 @@
-services: {}
+services:
+  backend:
+    init: false
+    entrypoint: ["node", "--watch", "src/server.js"]
+    security_opt: !reset []
+    cap_drop: !reset []
+    read_only: false
+    volumes:
+      - ./backend/src:/app/src
+
+  oxide_control_panel:
+    init: false
+    security_opt: !reset [ ]
+    cap_drop: !reset [ ]
+    read_only: false
+
+  oxide_web:
+    security_opt: !reset []
+    cap_drop: !reset []
+    read_only: false

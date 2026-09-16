@@ -22,7 +22,12 @@
     "security:deployment": "node scripts/security/deployment_contract.mjs",
     "security:migrate-dynamic-handlers": "node scripts/security/migrate_dynamic_template_handlers.mjs",
     "security:migrate-privileged-handlers": "node scripts/security/migrate_privileged_handlers.mjs",
-    "security:migrate-public-handlers": "node scripts/security/migrate_public_handlers.mjs"
+    "security:migrate-public-handlers": "node scripts/security/migrate_public_handlers.mjs",
+
+    "dev:up": "docker compose -f docker-compose.yml -f docker-compose.local.yml up -d oxide_web",
+    "dev:logs": "docker compose -f docker-compose.yml -f docker-compose.local.yml logs -f backend",
+    "dev:down": "docker compose -f docker-compose.yml -f docker-compose.local.yml down",
+    "dev:restart": "docker compose -f docker-compose.yml -f docker-compose.local.yml restart backend"
   },
   "dependencies": {
     "jsdom": "^26.1.0"
