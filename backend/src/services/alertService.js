@@ -22,6 +22,11 @@ export async function checkServerAlerts(server, stats) {
 
     if (alertMsg) {
         const now = Date.now();
+        if (lastAlerts.size > 10000) {
+            for (const [id, timestamp] of lastAlerts) {
+                if (now - timestamp > ALERT_COOLDOWN) lastAlerts.delete(id);
+            }
+        }
         const lastAlert = lastAlerts.get(server.id) || 0;
 
         if (now - lastAlert > ALERT_COOLDOWN) {

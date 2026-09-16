@@ -1,6 +1,7 @@
 import express from 'express';
+import crypto from 'crypto';
 import { requireAuth } from '../middleware/auth.js';
-import { createServerForUser, getServersForUser, getServerDetails, controlServer, deleteServer, getServerLogs, toggleBlenderForServer, getServerByIdForUser, setServerBackupTime, getServerStatsHistory, renewBlenderHeartbeat, getSubusersForServer, addSubuserToServer, removeSubuserFromServer, updateServerWebhook, updateServerCluster, updateServerAutoRestart } from '../services/serverService.js';
+import { getServersForUser, getServerDetails, controlServer, deleteServer, getServerLogs, toggleBlenderForServer, getServerByIdForUser, setServerBackupTime, getServerStatsHistory, renewBlenderHeartbeat, getSubusersForServer, addSubuserToServer, removeSubuserFromServer, updateServerWebhook, updateServerCluster, updateServerAutoRestart } from '../services/serverService.js';
 import { config } from '../config.js';
 
 // 🚀 AÑADIDO: Todos los servicios de Backups para el cliente (INCLUYENDO deleteBackup)
@@ -9,15 +10,22 @@ import { backupQueue } from '../services/backupQueue.js';
 import { logAudit } from '../db.js';
 
 import { logHub } from '../services/logHub.js';
+import { enqueueDeployment, getDeploymentForOwner } from '../repositories/deploymentJobRepository.js';
 
 const router = express.Router();
 
 router.use(requireAuth);
 
 router.get('/backup-jobs/:jobId', async (req, res) => {
-    const job = backupQueue.getJob(req.params.jobId, req.user.sub, req.user.role === 'admin');
+    const job = await backupQueue.getJob(req.params.jobId, req.user.sub, req.user.role === 'admin');
     if (!job) return res.status(404).json({ error: 'Job no encontrado' });
     res.json(job);
+});
+
+router.get('/deployment-jobs/:jobId', async (req, res) => {
+  const job = await getDeploymentForOwner(req.params.jobId, req.user.sub, req.user.role === 'admin');
+  if (!job) return res.status(404).json({ error: 'Despliegue no encontrado' });
+  res.json(job);
 });
 
 router.get('/', async (req, res) => {
@@ -30,7 +38,24 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.post('/', async (req, res) => { try { res.status(201).json({ item: await createServerForUser(req.user.sub, req.body) }); } catch(e) { res.status(400).json({ error: e.message }); } });
+router.post('/', async (req, res) => {
+  try {
+    const requestedKey = String(req.get('Idempotency-Key') || '').trim();
+    const idempotencyKey = requestedKey.slice(0, 128) || crypto.randomUUID();
+    const job = await enqueueDeployment(req.user.sub, idempotencyKey, req.body);
+    res.status(202).json({
+      jobId: job.id,
+      status: job.status,
+      queued: true,
+      statusUrl: `/api/servers/deployment-jobs/${job.id}`
+    });
+  } catch (error) {
+    if (error?.code === '23505') {
+      return res.status(409).json({ error: 'Ya tienes un despliegue en curso.' });
+    }
+    res.status(400).json({ error: error.message });
+  }
+});
 
 router.get('/:id', async (req, res) => { const item = await getServerDetails(req.params.id, req.user.sub, req.user.role === 'admin'); item ? res.json({ item, publicHost: config.fivemPublicHost }) : res.status(404).json({ error: 'No encontrado' }); });
 
@@ -54,7 +79,7 @@ router.post('/:id/backup', async (req, res) => {
       const s = await getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'files');
       if (!s) return res.status(404).json({ error: "Servidor no encontrado" });
 
-      const job = backupQueue.enqueue(
+      const job = await backupQueue.enqueue(
           req.params.id,
           req.user.sub,
           req.user.role === 'admin',

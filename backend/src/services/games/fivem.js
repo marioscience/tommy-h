@@ -36,8 +36,8 @@ export class FiveMService extends BaseGameService {
             ...(opts.dbName ? [`TXHOST_DEFAULT_DBNAME=${opts.dbName}`] : []),
             ...(opts.dbUser ? [`TXHOST_DEFAULT_DBUSER=${opts.dbUser}`] : []),
             ...(opts.dbPass ? [`TXHOST_DEFAULT_DBPASS=${opts.dbPass}`] : []),
-            `TXHOST_DEFAULT_DBHOST=mariadb`,
-            `TXHOST_DEFAULT_DBPORT=3306`,
+            `TXHOST_DEFAULT_DBHOST=${config.gameDatabaseHost}`,
+            `TXHOST_DEFAULT_DBPORT=${config.gameDatabasePort}`,
             `SERVER_NAME=${opts.serverName}`,
             `LICENSE_KEY=${opts.licenseKey}`,
             `FIVEM_PUBLIC_HOST=${config.fivemPublicHost}`

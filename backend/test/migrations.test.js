@@ -34,6 +34,14 @@ describe('🗄️ Database Migrations System Tests', () => {
         assert.match(schemaSql, /idx_server_stats_history_server_time/i);
     });
 
+    it('declara una cola durable con exclusión de trabajos concurrentes', () => {
+        const schemaSql = migrations.flatMap((migration) => migration.statements).join('\n');
+        assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS deployment_jobs/i);
+        assert.match(schemaSql, /UNIQUE\(owner_id, idempotency_key\)/i);
+        assert.match(schemaSql, /idx_deployment_jobs_one_active_per_owner/i);
+        assert.match(schemaSql, /status IN \('queued', 'running'\)/i);
+    });
+
     it('debería registrar y aplicar migraciones pendientes usando mock de DB', async () => {
         const appliedDbMigrations = new Set(['202601010001_initial_core_schema']);
         const executedStatements = [];

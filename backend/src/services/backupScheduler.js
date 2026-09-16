@@ -29,26 +29,41 @@ export function startAutoBackups() {
     }
 
     
+    let remoteSyncRunning = false;
     if (config.backupRemoteEnabled) {
         // La sincronizacion remota es opcional y se serializa en el worker de backups.
         cron.schedule('15 * * * *', async () => {
+            if (remoteSyncRunning) return;
+            remoteSyncRunning = true;
             try {
                 await syncBackupsToRemote();
             } catch (err) {
                 console.error('[Scheduler] Error en Sync de Backups:', err);
+            } finally {
+                remoteSyncRunning = false;
             }
         });
     } else {
         console.log('[Scheduler] Sincronizacion remota deshabilitada; los backups locales siguen activos.');
     }
 
+    let scheduleRunning = false;
     cron.schedule('* * * * *', async () => {
+        if (scheduleRunning) return;
+        scheduleRunning = true;
+        try {
         const now = new Date();
         const currentHour = now.getHours().toString().padStart(2, '0');
         const currentMinute = now.getMinutes().toString().padStart(2, '0');
         const currentTime = `${currentHour}:${currentMinute}`;
-        await processAutoBackups(currentTime);
-        await processAutoRestarts(currentTime);
+        const servers = await serverService.getAllServers();
+        await processAutoBackups(currentTime, servers);
+        await processAutoRestarts(currentTime, servers);
+        } catch (error) {
+            console.error('[Scheduler] Error en ciclo de backups/reinicios:', error);
+        } finally {
+            scheduleRunning = false;
+        }
     });
 }
 
@@ -67,9 +82,8 @@ function buildRunTimes(startTime, intervalHours) {
     return times;
 }
 
-async function processAutoBackups(currentTime) {
+async function processAutoBackups(currentTime, servers) {
     try {
-        const servers = await serverService.getAllServers();
         if (!servers || servers.length === 0) return;
 
         for (const server of servers) {
@@ -81,7 +95,7 @@ async function processAutoBackups(currentTime) {
             if (!timesToRun.includes(currentTime)) continue;
 
             try {
-                const job = backupQueue.enqueue(server.id, null, true, 'auto', plan);
+                const job = await backupQueue.enqueue(server.id, null, true, 'auto', plan);
                 console.log(`[AutoBackup] Encolado ${job.jobId} para servidor ${server.id} (Plan: ${plan}, Hora: ${currentTime})`);
             } catch (err) {
                 console.error(`[AutoBackup] Fallo al encolar ${server.id}:`, err.message);
@@ -92,9 +106,8 @@ async function processAutoBackups(currentTime) {
     }
 }
 
-async function processAutoRestarts(currentTime) {
+async function processAutoRestarts(currentTime, servers) {
     try {
-        const servers = await serverService.getAllServers();
         if (!servers || servers.length === 0) return;
 
         for (const server of servers) {
@@ -106,7 +119,7 @@ async function processAutoRestarts(currentTime) {
             if (server.backup_before_restart) {
                 try {
                     const plan = (server.runtime_plan || 'hobby').toLowerCase();
-                    const job = backupQueue.enqueue(server.id, null, true, 'pre-restart', plan);
+                    const job = await backupQueue.enqueue(server.id, null, true, 'pre-restart', plan);
                     console.log(`[AutoRestart] Encolado backup previo al reinicio ${job.jobId} para servidor ${server.id}`);
                 } catch (err) {
                     console.error(`[AutoRestart] Fallo al encolar backup previo para ${server.id}:`, err.message);

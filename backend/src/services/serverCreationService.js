@@ -10,6 +10,7 @@ import { getPublicEndpointUrl } from './publicEndpointService.js';
 import { getNextAvailablePort, selectDeploymentNode } from './serverNodeSelection.js';
 import { isPortBindingConflict } from './portBindingConflict.js';
 import { assertNodeStartCapacity } from './nodeResourcePolicy.js';
+import { purgeServerDataDirectory } from './serverDataCleanup.js';
 import {
   getEffectiveServerLimit,
   getPlanRamGb,
@@ -128,7 +129,7 @@ async function rollbackCreation({ serverId, containerName, dataPath, nodeId, dbN
   }
 
   try {
-    await Docker.runRemoteCommand(nodeId, Docker.sh`rm -rf -- ${dataPath}`);
+    await purgeServerDataDirectory(nodeId, serverId, dataPath);
   } catch (error) {
     console.warn(`[Rollback] No se pudo retirar ${dataPath}: ${error.message}`);
   }

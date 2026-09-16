@@ -549,7 +549,7 @@
       executeFiveMResource('ensure')
     },
     "priv_0182": function (event) {
-      Nexus.copyToClipboard('host.docker.internal'); showToast('Copiado','success');
+      Nexus.copyToClipboard(document.getElementById('tx-top-host').innerText); showToast('Copiado','success');
     },
     "priv_0183": function (event) {
       Nexus.copyToClipboard(document.getElementById('tx-top-db').innerText); showToast('Copiado','success');

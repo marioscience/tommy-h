@@ -49,7 +49,7 @@ router.get('/oxide-status', async (req, res) => {
 });
 
 router.get('/backup-jobs/:jobId', async (req, res) => {
-    const job = backupQueue.getJob(req.params.jobId, req.user.sub, true);
+    const job = await backupQueue.getJob(req.params.jobId, req.user.sub, true);
     if (!job) return res.status(404).json({ error: 'Job no encontrado' });
     res.json(job);
 });
@@ -133,7 +133,7 @@ router.post('/servers/:id/backup', async (req, res) => {
         const s = await getServerByIdForUser(req.params.id, null, true);
         if (!s) return res.status(404).json({ error: "Servidor no encontrado" });
 
-        const job = backupQueue.enqueue(
+        const job = await backupQueue.enqueue(
             req.params.id,
             req.user.sub,
             true,

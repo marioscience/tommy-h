@@ -35,6 +35,7 @@ export class SourceRconDecoder {
             const totalBytes = size + 4;
             if (this.#pending.length < totalBytes) break;
             packets.push({
+                size,
                 id: this.#pending.readInt32LE(4),
                 type: this.#pending.readInt32LE(8),
                 body: this.#pending.toString('utf8', 12, totalBytes - 2)

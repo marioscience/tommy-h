@@ -55,19 +55,21 @@ export async function installZomboidMod(serverId, userId, isAdmin, workshopId, m
 
     // Actualizar WorkshopItems
     let workshopItems = content.match(/^WorkshopItems=([^\r\n]*)/m)?.[1] || "";
-    if (!workshopItems.includes(workshopId)) {
-        workshopItems = workshopItems ? `${workshopItems};${workshopId}` : workshopId;
-        content = content.replace(/^WorkshopItems=([^\r\n]*)/m, `WorkshopItems=${workshopItems}`);
+    const workshopList = workshopItems.split(';').filter(Boolean);
+    if (!workshopList.includes(workshopId)) {
+        workshopList.push(workshopId);
+        content = upsertIniValue(content, 'WorkshopItems', workshopList.join(';'));
     }
 
     // Actualizar Mods
     let mods = content.match(/^Mods=([^\r\n]*)/m)?.[1] || "";
-    if (!mods.includes(modName)) {
-        mods = mods ? `${mods};${modName}` : modName;
-        content = content.replace(/^Mods=([^\r\n]*)/m, `Mods=${mods}`);
+    const modList = mods.split(';').filter(Boolean);
+    if (!modList.includes(modName)) {
+        modList.push(modName);
+        content = upsertIniValue(content, 'Mods', modList.join(';'));
     }
 
-    await fs.writeFile(iniPath, content);
+    await writeFileAtomically(iniPath, content);
     return { success: true };
 }
 
@@ -92,8 +94,26 @@ export async function uninstallZomboidMod(serverId, userId, isAdmin, workshopId,
         content = content.replace(/^Mods=([^\r\n]*)/m, `Mods=${mods}`);
     }
 
-    await fs.writeFile(iniPath, content);
+    await writeFileAtomically(iniPath, content);
     return { success: true };
+}
+
+function upsertIniValue(content, key, value) {
+    const line = `${key}=${value}`;
+    const pattern = new RegExp(`^${key}=[^\\r\\n]*$`, 'm');
+    if (pattern.test(content)) return content.replace(pattern, line);
+    return `${content}${content.endsWith('\n') ? '' : '\n'}${line}\n`;
+}
+
+async function writeFileAtomically(filePath, content) {
+    const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+    try {
+        await fs.writeFile(tempPath, content, { encoding: 'utf8', mode: 0o600 });
+        await fs.rename(tempPath, filePath);
+    } catch (error) {
+        await fs.rm(tempPath, { force: true }).catch(() => {});
+        throw error;
+    }
 }
 
 // --- 🦀 RUST (Oxide Plugins) ---
