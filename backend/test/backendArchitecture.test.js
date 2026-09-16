@@ -121,9 +121,29 @@ describe('Backend architecture boundaries', () => {
 
   it('prepares ARK without mutating rootless instance-directory permissions', async () => {
     const ark = await readFile(new URL('../src/services/games/ark.js', import.meta.url), 'utf8');
+    const arkData = await readFile(new URL('../src/services/games/arkData.js', import.meta.url), 'utf8');
     assert.match(ark, /mkdir -p \$\{opts\.dataPath\}/);
+    assert.match(ark, /cloneFromMasterTemplate\('ark', opts\.dataPath, targetNodeId, \{/);
+    assert.match(ark, /refreshExisting: true/);
+    assert.match(ark, /ShooterGame\/Saved/);
     assert.doesNotMatch(ark, /chmod 0?777/);
     assert.doesNotMatch(ark, /chmod 0?755/);
+    assert.match(arkData, /chown -h 1000:1000 "\$target"/);
+    assert.match(arkData, /find "\$target" -mindepth 1 -exec chown -h 1000:1000/);
+  });
+
+  it('starts ARK from the validated master without per-instance Steam updates', async () => {
+    const ark = await readFile(new URL('../src/services/games/ark.js', import.meta.url), 'utf8');
+    const arkData = await readFile(new URL('../src/services/games/arkData.js', import.meta.url), 'utf8');
+    assert.match(ark, /'updateonstart=false'/);
+    assert.doesNotMatch(ark, /'updateonstart=true'/);
+    assert.match(ark, /echo 2399830 \| tee/);
+    assert.match(arkData, /printf '2399830\\\\n'/);
+    assert.doesNotMatch(ark, /echo 2430930 \| tee/);
+    assert.doesNotMatch(arkData, /printf '2430930\\\\n'/);
+    assert.match(ark, /touch \/home\/steam\/CONTAINER_ALREADY_STARTED_PLACEHOLDER/);
+    assert.match(ark, /-Port=\$\{opts\.gamePort\}/);
+    assert.doesNotMatch(ark, /\?Port=\$\{opts\.gamePort\}/);
   });
 
   it('publishes ARK through the isolated runtime network and game proxy inventory', async () => {

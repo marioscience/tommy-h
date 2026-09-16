@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {
   claimServerRecreation,
   findServerNodeIdByContainer,
-  findSubuserPermissions
+  findSubuserPermissions,
+  listMaintainableServers
 } from '../src/repositories/serverRepository.js';
 import { listActiveNodeIds, updateNode } from '../src/repositories/nodeRepository.js';
 import { activateEdgeProxy, updateEdgeProxy } from '../src/repositories/edgeProxyRepository.js';
@@ -12,6 +13,17 @@ import { createNotification, listClientNotifications } from '../src/repositories
 import { recordBackup } from '../src/repositories/backupRepository.js';
 
 describe('SQL repositories', () => {
+  it('does not auto-heal servers while creation or recreation owns their runtime', async () => {
+    const calls = [];
+    const db = async (sql, parameters) => {
+      calls.push({ sql, parameters });
+      return { rows: [] };
+    };
+
+    await listMaintainableServers(db);
+    assert.match(calls[0].sql, /'creating', 'recreating'/);
+  });
+
   it('claims server recreation atomically', async () => {
     const calls = [];
     const db = async (sql, parameters) => {

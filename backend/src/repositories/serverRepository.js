@@ -29,7 +29,9 @@ export async function listMaintainableServers(db = query) {
     SELECT servers.*, users.extra_disk_gb
     FROM servers
     LEFT JOIN users ON servers.owner_id = users.id
-    WHERE servers.status NOT IN ('stopped', 'stopping', 'suspended', 'deleting')
+    WHERE servers.status NOT IN (
+      'creating', 'recreating', 'stopped', 'stopping', 'suspended', 'deleting'
+    )
   `);
   return result.rows;
 }
