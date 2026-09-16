@@ -1,4 +1,4 @@
-import { PLAN_LIMITS } from '../config.js';
+import { config, PLAN_LIMITS } from '../config.js';
 
 const GIB = 1024 ** 3;
 
@@ -23,7 +23,7 @@ const TEMPLATE_MIN_RAM_GB = Object.freeze({
   valheim: 2,
   // Project Zomboid Build 42 was repeatedly terminated by the production
   // cgroup OOM killer while loading a fresh world with a 4 GiB allocation.
-  zomboid: 6,
+  zomboid: config.nodeEnv === 'production' ? 6 : 4,
   ark: 16,
   sdtd: 4,
   discordbot: 1,
