@@ -621,7 +621,9 @@ Dentro del Dev Container, ejecuta estos comandos desde la raíz después de crea
 
 ### Cola de despliegues y protección del almacenamiento
 
-La creación de servidores se ejecuta en `worker-deployments`, no dentro de la API. PostgreSQL conserva los trabajos pendientes, impide dos despliegues simultáneos del mismo usuario y recupera trabajos abandonados después de un reinicio. Mantén una réplica del worker por entorno hasta configurar particionamiento explícito por nodos; la cola acepta cualquier cantidad de solicitudes sin iniciar todas las instalaciones a la vez.
+La creación de servidores se ejecuta en `worker-deployments`, no dentro de la API. PostgreSQL conserva los trabajos pendientes, impide dos despliegues simultáneos del mismo usuario y recupera trabajos abandonados después de un reinicio. Antes de encolar, reserva nodo, RAM, almacenamiento estimado y puertos en una transacción. Los workers pueden fijarse a un nodo con `DEPLOYMENT_NODE_ID`; `DEPLOYMENT_WORKER_CONCURRENCY` define sus bucles locales. Los límites seguros se aplican también en PostgreSQL mediante `DEPLOYMENT_HEAVY_SLOTS` (1), `DEPLOYMENT_STANDARD_SLOTS` (4), `DEPLOYMENT_LIGHT_SLOTS` (8), `DEPLOYMENT_NODE_SLOTS` (4) y `DEPLOYMENT_GLOBAL_SLOTS` (32). No aumentes estos valores sin medir RAM, CPU y E/S del nodo.
+
+La admisión rechaza temporalmente nuevas solicitudes al alcanzar `DEPLOYMENT_MAX_QUEUED_PER_NODE` (200) o `DEPLOYMENT_MAX_QUEUED_GLOBAL` (1000). El cliente recibe fase, posición aproximada y espera estimada; administración puede consultar profundidad y espera p95/p99 en `GET /api/admin/deployment-queue/metrics`. Para añadir capacidad, despliega un worker por nodo con el mismo `DEPLOYMENT_NODE_ID` del nodo y conserva los límites de base de datos: varias réplicas no pueden saltárselos.
 
 `DEPLOYMENT_PAYLOAD_KEY` cifra las credenciales temporales guardadas en la cola y debe ser el mismo secreto estable en la API y el worker. No lo cambies mientras existan trabajos pendientes. El polling de una cola vacía aumenta progresivamente desde `DEPLOYMENT_POLL_INTERVAL_MS` hasta `DEPLOYMENT_MAX_IDLE_POLL_MS`.
 

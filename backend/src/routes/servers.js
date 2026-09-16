@@ -10,7 +10,8 @@ import { backupQueue } from '../services/backupQueue.js';
 import { logAudit } from '../db.js';
 
 import { logHub } from '../services/logHub.js';
-import { enqueueDeployment, getDeploymentForOwner } from '../repositories/deploymentJobRepository.js';
+import { getDeploymentForOwner } from '../repositories/deploymentJobRepository.js';
+import { planAndEnqueueDeployment } from '../services/deploymentPlanner.js';
 
 const router = express.Router();
 
@@ -42,10 +43,12 @@ router.post('/', async (req, res) => {
   try {
     const requestedKey = String(req.get('Idempotency-Key') || '').trim();
     const idempotencyKey = requestedKey.slice(0, 128) || crypto.randomUUID();
-    const job = await enqueueDeployment(req.user.sub, idempotencyKey, req.body);
+    const { job, plan } = await planAndEnqueueDeployment(req.user.sub, idempotencyKey, req.body);
     res.status(202).json({
       jobId: job.id,
       status: job.status,
+      phase: job.phase,
+      nodeId: plan.nodeId,
       queued: true,
       statusUrl: `/api/servers/deployment-jobs/${job.id}`
     });

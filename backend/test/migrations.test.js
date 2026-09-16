@@ -59,6 +59,17 @@ describe('🗄️ Database Migrations System Tests', () => {
     assert.match(sql, /\[Seguridad\]/);
   });
 
+  it('reserva capacidad y limita concurrencia de despliegues por nodo', () => {
+    const migration = migrations.find((item) => item.id === '202609160004_node_aware_deployment_queue');
+    assert.ok(migration, 'debe existir la migración de cola por nodo');
+    const sql = migration.statements.join('\n');
+    assert.match(sql, /requested_ram_gb/i);
+    assert.match(sql, /workload_class/i);
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS deployment_worker_leases/i);
+    assert.match(sql, /UNIQUE\(node_id, workload_class, slot\)/i);
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS deployment_port_reservations/i);
+  });
+
     it('debería registrar y aplicar migraciones pendientes usando mock de DB', async () => {
         const appliedDbMigrations = new Set(['202601010001_initial_core_schema']);
         const executedStatements = [];
