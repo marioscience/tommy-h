@@ -54,7 +54,9 @@ export async function updateNodeResources(nodeId, { cpuCores, ramTotalGb }, db =
 
 export async function updateNodeCapacity(nodeId, ramTotalGb, cpuCores, db = query) {
   return db(
-    'UPDATE nodes SET ram_total_gb = $1, cpu_cores = $2 WHERE id = $3',
+    `UPDATE nodes SET ram_total_gb = $1, cpu_cores = $2
+     WHERE id = $3
+       AND (ram_total_gb IS DISTINCT FROM $1 OR cpu_cores IS DISTINCT FROM $2)`,
     [ramTotalGb, cpuCores, nodeId]
   );
 }

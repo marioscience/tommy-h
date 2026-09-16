@@ -37,7 +37,6 @@ import rconRoutes from './routes/rcon.js'; // 🔌 AÑADIDO: Rutas de RCON y Jug
 import cronRoutes from './routes/cron.js'; // 🕒 AÑADIDO: Rutas de Cron Jobs
 
 import pluginsRoutes from './routes/plugins.js';
-import { startCronManager } from './services/cronManager.js';
 import { runStagingHealthSuite } from './services/stagingHealthTestRunner.js';
 import { logger } from './utils/logger.js';
 import { requestLogger } from './middleware/requestLogger.js';
@@ -288,8 +287,6 @@ async function bootstrap() {
     try {
         await waitForDb();
         await initDb();
-        startCronManager();
-
         server.listen(config.port, () => {
             console.log(`---------------------------------------------------`);
             console.log(`🚀 API RAGENODES escuchando en ${config.port}`);

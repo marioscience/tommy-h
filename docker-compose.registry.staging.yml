@@ -11,6 +11,9 @@ services:
   worker-stats-staging:
     image: ${RAGENODES_BACKEND_IMAGE:?Set RAGENODES_BACKEND_IMAGE to a digest-pinned registry reference}
     build: !reset null
+  worker-deployments-staging:
+    image: ${RAGENODES_BACKEND_IMAGE:?Set RAGENODES_BACKEND_IMAGE to a digest-pinned registry reference}
+    build: !reset null
   oxide_control_panel:
     image: ${RAGENODES_OXIDE_CONTROL_PANEL_IMAGE:?Set RAGENODES_OXIDE_CONTROL_PANEL_IMAGE to a digest-pinned registry reference}
     build: !reset null

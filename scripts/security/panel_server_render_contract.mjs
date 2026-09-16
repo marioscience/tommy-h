@@ -68,12 +68,24 @@ window.EventSource = class { addEventListener() {} close() {} };
 window.WebSocket = class { close() {} };
 window.require = Object.assign(() => {}, { config() {} });
 const commandRequests = [];
+const deploymentRequests = [];
 window.fetch = async (input, init = {}) => {
   const url = String(input);
   let body = {};
   if (url.startsWith('/api/servers/') && url.endsWith('/command')) {
     commandRequests.push(JSON.parse(init.body));
     body = { ok: true };
+  }
+  else if (url === '/api/servers' && init.method === 'POST') {
+    deploymentRequests.push(JSON.parse(init.body));
+    body = {
+      jobId: '11111111-1111-4111-8111-111111111111',
+      status: 'queued',
+      statusUrl: '/api/servers/deployment-jobs/11111111-1111-4111-8111-111111111111'
+    };
+  }
+  else if (url === '/api/servers/deployment-jobs/11111111-1111-4111-8111-111111111111') {
+    body = { status: 'succeeded', server_id: server.id };
   }
   else if (url.startsWith('/api/servers/') && url.endsWith('/stats-history')) body = { items: [] };
   else if (url.startsWith('/api/servers')) body = { items: [server], publicHost: 'node1.ragenodes.dev' };
@@ -119,6 +131,8 @@ window.document.getElementById('modal-deploy-name').value = 'Minecraft staging';
 window.document.getElementById('view-servers').classList.add('hidden');
 await window.executeDeploy();
 await new Promise(resolve => window.setTimeout(resolve, 50));
+assert.equal(deploymentRequests.length, 1, 'El despliegue debe encolarse una sola vez');
+assert.equal(deploymentRequests[0].template, 'minecraft', 'El fixture debe conservar el juego seleccionado');
 assert.equal(
   window.document.getElementById('view-servers').classList.contains('hidden'),
   false,

@@ -243,7 +243,14 @@ async function copyTemplateAcrossFilesystems(masterPath, dataPath, nodeId) {
     throw lastError;
 }
 
-export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0) {
+export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0, options = {}) {
+    const refreshExisting = options.refreshExisting === true;
+    const preservePaths = Array.isArray(options.preservePaths) ? options.preservePaths : [];
+    for (const relativePath of preservePaths) {
+        if (!relativePath || path.posix.isAbsolute(relativePath) || path.posix.normalize(relativePath).startsWith('../')) {
+            throw new Error(`Ruta preservada no válida para ${gameName}.`);
+        }
+    }
     if (gameName === 'fivem' || gameName === 'minecraft') {
         console.log(`ℹ️ [${gameName.toUpperCase()}] Omitiendo plantilla maestra.`);
         return false;
@@ -252,9 +259,12 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0) {
     const masterPath = path.join(config.instanceDataRoot, 'templates', `${gameName}-master`);
     try {
         const files = await fs.readdir(dataPath).catch(() => []);
-        if (files.length > 0) {
+        if (files.length > 0 && !refreshExisting) {
             console.log(`ℹ️ [${gameName.toUpperCase()}] El directorio ${dataPath} ya contiene datos. Se preserva sin volver a clonar.`);
             return true;
+        }
+        if (files.length > 0) {
+            console.log(`⚡ [${gameName.toUpperCase()}] Actualizando runtime desde la plantilla y preservando datos mutables.`);
         }
         const masterStats = await fs.stat(masterPath).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
         if (!masterStats?.isDirectory()) {
@@ -315,7 +325,24 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0) {
                 console.warn(`⚠️ [${gameName.toUpperCase()}] Reflink no disponible; se usará copia independiente con espacio ya validado.`);
                 await runRemoteCommand(nodeId, sh`rm -rf ${clonePath} && mkdir -p ${clonePath} && cp -R -P --preserve=mode,timestamps,links ${cloneSourcePath + '/.'} ${clonePath + '/'}`);
             }
-            await runRemoteCommand(nodeId, sh`test -n "$(find ${clonePath} -mindepth 1 -print -quit)" || exit 1; rm -f ${path.join(clonePath, '.ragenodes-template-bytes')}; if [ -d ${dataPath} ]; then rmdir ${dataPath}; fi; test ! -e ${dataPath}; mv ${clonePath} ${dataPath}`);
+            if (files.length > 0 && refreshExisting) {
+                for (const relativePath of preservePaths) {
+                    const source = path.join(dataPath, relativePath);
+                    const destination = path.join(clonePath, relativePath);
+                    const destinationParent = path.dirname(destination);
+                    await runRemoteCommand(nodeId, sh`if [ -e ${source} ]; then rm -rf ${destination}; mkdir -p ${destinationParent}; cp --reflink=always -R -P --preserve=mode,timestamps,links ${source} ${destination}; fi`);
+                }
+                const oldPath = `${dataPath}.old-${crypto.randomUUID()}`;
+                await runRemoteCommand(nodeId, sh`test -n "$(find ${clonePath} -mindepth 1 -print -quit)" || exit 1; rm -f ${path.join(clonePath, '.ragenodes-template-bytes')}; test ! -e ${oldPath}; mv ${dataPath} ${oldPath}; if mv ${clonePath} ${dataPath}; then true; else mv ${oldPath} ${dataPath}; exit 1; fi`);
+                // Runtime files created by rootless Proton may not be removable
+                // by the backend uid. Cleanup is best effort and must never
+                // turn an already successful atomic promotion into a rollback.
+                runRemoteCommand(nodeId, sh`rm -rf ${oldPath}`).catch((cleanupError) => {
+                    console.warn(`[Templates] Runtime anterior pendiente de limpieza (${oldPath}): ${cleanupError.message}`);
+                });
+            } else {
+                await runRemoteCommand(nodeId, sh`test -n "$(find ${clonePath} -mindepth 1 -print -quit)" || exit 1; rm -f ${path.join(clonePath, '.ragenodes-template-bytes')}; if [ -d ${dataPath} ]; then rmdir ${dataPath}; fi; test ! -e ${dataPath}; mv ${clonePath} ${dataPath}`);
+            }
         } catch (error) {
             await runRemoteCommand(nodeId, sh`rm -rf ${clonePath}`).catch(() => {});
             throw new Error(`No se pudo clonar de forma segura la plantilla ${gameName}: ${error.message}`);

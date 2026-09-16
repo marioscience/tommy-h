@@ -11,6 +11,9 @@ services:
   worker-stats:
     image: ${RAGENODES_BACKEND_IMAGE:?Set RAGENODES_BACKEND_IMAGE to a digest-pinned registry reference}
     build: !reset null
+  worker-deployments:
+    image: ${RAGENODES_BACKEND_IMAGE:?Set RAGENODES_BACKEND_IMAGE to a digest-pinned registry reference}
+    build: !reset null
   bot:
     image: ${RAGENODES_BOT_IMAGE:?Set RAGENODES_BOT_IMAGE to a digest-pinned registry reference}
     build: !reset null

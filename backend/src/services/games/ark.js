@@ -1,4 +1,4 @@
-import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, deriveServicePassword, sh } from '../dockerUtils.js';
+import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, sh } from '../dockerUtils.js';
 import { prepareArkData } from './arkData.js';
 import { config } from '../../config.js';
 import { prepareGameProxyBindings } from '../gameProxyPolicy.js';
@@ -92,6 +92,15 @@ export async function createARKContainer(opts) {
     // Never chmod an existing instance root: on mapped/rootless filesystems
     // that operation is forbidden and would prevent otherwise safe restarts.
     await runRemoteCommand(targetNodeId, sh`mkdir -p ${opts.dataPath}`);
+    // Reuse the shared template cache used by the other game families. When
+    // templates live on NFS and instances on local Btrfs, this pays the NFS
+    // copy once and then creates each server with an atomic local reflink.
+    await cloneFromMasterTemplate('ark', opts.dataPath, targetNodeId, {
+        refreshExisting: true,
+        preservePaths: [
+            'common/ARK Survival Ascended Dedicated Server/ShooterGame/Saved'
+        ]
+    });
     await prepareArkData({ docker, image: config.arkBaseImage,
         dataRoot: config.instanceDataRoot, dataPath: opts.dataPath });
 
@@ -129,12 +138,12 @@ export async function createARKContainer(opts) {
     serverPassword = sanitizeArkLaunchValue(serverPassword, '');
 
     const rconPort = opts.gamePort + 13;
-    let connectionString = `${mapName}?listen?SessionName=${sessionName}?Port=${opts.gamePort}?QueryPort=${opts.gamePort + 1}?RCONEnabled=True?RCONPort=${rconPort}?MaxPlayers=70`;
+    let connectionString = `${mapName}?listen?SessionName=${sessionName}?QueryPort=${opts.gamePort + 1}?RCONEnabled=True?RCONPort=${rconPort}?MaxPlayers=70`;
     if (serverPassword) {
         connectionString += `?ServerPassword=${serverPassword}`;
     }
     connectionString += `?ServerAdminPassword=${adminPassword}`;
-    connectionString += ` -WinLiveMaxPlayers=70 -ServerPlatform=ALL -NoBattlEye`;
+    connectionString += ` -Port=${opts.gamePort} -WinLiveMaxPlayers=70 -ServerPlatform=ALL -NoBattlEye`;
     if (opts.clusterId) {
         connectionString += ` -clusterid=${opts.clusterId}`;
     }
@@ -156,11 +165,14 @@ export async function createARKContainer(opts) {
         Env: [
             `startcommands=${connectionString}`,
             'TZ=UTC',
-            'updateonstart=true'
+            // Instances are immutable clones of a validated master. Updating
+            // here caused every server to contact Steam independently and a
+            // failed manifest request still launched an obsolete build.
+            'updateonstart=false'
         ],
         Cmd: [
             '/bin/bash', '-c',
-            'cp /home/steam/serverstart.sh /tmp/serverstart.sh && sed -i "s/+force_install_dir/+@sSteamCmdForcePlatformType windows +force_install_dir/g" /tmp/serverstart.sh && sed -i "s/echo .*steam_appid.txt//g" /tmp/serverstart.sh && echo 2430930 | tee "/home/steam/Steam/steamapps/common/ARK Survival Ascended Dedicated Server/ShooterGame/Binaries/Win64/steam_appid.txt" > /dev/null || true && bash /tmp/serverstart.sh'
+            'touch /home/steam/CONTAINER_ALREADY_STARTED_PLACEHOLDER && cp /home/steam/serverstart.sh /tmp/serverstart.sh && sed -i "s/+force_install_dir/+@sSteamCmdForcePlatformType windows +force_install_dir/g" /tmp/serverstart.sh && sed -i "s/echo .*steam_appid.txt//g" /tmp/serverstart.sh && echo 2399830 | tee "/home/steam/Steam/steamapps/common/ARK Survival Ascended Dedicated Server/ShooterGame/Binaries/Win64/steam_appid.txt" > /dev/null || true && bash /tmp/serverstart.sh'
         ],
         ExposedPorts: {
             [`${opts.gamePort}/udp`]: {},
