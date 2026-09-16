@@ -11,8 +11,45 @@ import { activateEdgeProxy, updateEdgeProxy } from '../src/repositories/edgeProx
 import { updateAdminUser } from '../src/repositories/userRepository.js';
 import { createNotification, listClientNotifications } from '../src/repositories/notificationRepository.js';
 import { recordBackup } from '../src/repositories/backupRepository.js';
+import {
+  claimDeployment,
+  enqueueDeployment,
+  failDeployment,
+  recoverStaleDeployments
+} from '../src/repositories/deploymentJobRepository.js';
 
 describe('SQL repositories', () => {
+  it('enqueues deployments idempotently and claims them with SKIP LOCKED', async () => {
+    const statements = [];
+    const db = async (sql, parameters) => {
+      statements.push({ sql, parameters });
+      return { rows: [{ id: 'job-1' }] };
+    };
+    const job = await enqueueDeployment(9, 'request-1', { template: 'ark' }, db);
+    assert.equal(job.id, 'job-1');
+    assert.match(statements[0].sql, /ON CONFLICT \(owner_id, idempotency_key\)/);
+    assert.deepEqual(statements[0].parameters, [9, 'request-1', '{"template":"ark"}']);
+
+    const claimed = await claimDeployment('worker-a', async (callback) => callback(db));
+    assert.equal(claimed.id, 'job-1');
+    assert.match(statements[1].sql, /FOR UPDATE SKIP LOCKED/);
+    assert.match(statements[1].sql, /attempts = attempts \+ 1/);
+  });
+
+  it('backs failed deployments off and recovers abandoned leases', async () => {
+    const statements = [];
+    const db = async (sql, parameters) => {
+      statements.push({ sql, parameters });
+      return { rows: [{ id: 'job-1', status: 'queued' }] };
+    };
+    await failDeployment('job-1', 'temporary', db);
+    await recoverStaleDeployments(45, db);
+    assert.match(statements[0].sql, /POWER\(2, GREATEST\(attempts - 1, 0\)\)/);
+    assert.equal(statements[0].parameters[2], 'temporary');
+    assert.match(statements[1].sql, /claimed_at < NOW\(\) -/);
+    assert.deepEqual(statements[1].parameters, [45]);
+  });
+
   it('does not auto-heal servers while creation or recreation owns their runtime', async () => {
     const calls = [];
     const db = async (sql, parameters) => {

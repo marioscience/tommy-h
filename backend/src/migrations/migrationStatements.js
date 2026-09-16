@@ -450,5 +450,41 @@ export const migrations = [
       )`,
       'CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC)'
     ]
+  },
+  {
+    id: '202609160001_deployment_jobs',
+    description: 'Cola durable e idempotente para despliegues de servidores',
+    statements: [
+      `CREATE TABLE IF NOT EXISTS deployment_jobs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        server_id UUID REFERENCES servers(id) ON DELETE SET NULL,
+        idempotency_key TEXT NOT NULL,
+        payload JSONB NOT NULL,
+        status TEXT NOT NULL DEFAULT 'queued',
+        attempts INTEGER NOT NULL DEFAULT 0,
+        max_attempts INTEGER NOT NULL DEFAULT 3,
+        available_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        claimed_at TIMESTAMPTZ,
+        claimed_by TEXT,
+        completed_at TIMESTAMPTZ,
+        last_error TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT deployment_jobs_status_valid
+          CHECK (status IN ('queued', 'running', 'succeeded', 'failed', 'cancelled')),
+        CONSTRAINT deployment_jobs_attempts_valid
+          CHECK (attempts >= 0 AND max_attempts BETWEEN 1 AND 20),
+        UNIQUE(owner_id, idempotency_key)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_deployment_jobs_claim
+       ON deployment_jobs(status, available_at, created_at)
+       WHERE status = 'queued'`,
+      `CREATE INDEX IF NOT EXISTS idx_deployment_jobs_owner_created
+       ON deployment_jobs(owner_id, created_at DESC)`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_deployment_jobs_one_active_per_owner
+       ON deployment_jobs(owner_id)
+       WHERE status IN ('queued', 'running')`
+    ]
   }
 ];
