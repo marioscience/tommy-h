@@ -81,3 +81,4 @@ registry-release.env
 benchmarks/rust-runtime/results/
 .cerbero-lab-*
 .env.development
+AGENTS.md

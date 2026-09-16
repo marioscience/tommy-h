@@ -1,21 +1,43 @@
 ingress:
-  # Listeners de control no publicados. Los listeners de juego se crean a
-  # partir de routing.game_servers en sus puertos públicos reales.
   tcp_listen_addr: 127.0.0.1:62000
   udp_listen_addr: 127.0.0.1:62001
   game_listen_ip: 0.0.0.0
   http_listen_addrs: []
   max_concurrent_connections: 100000
   initial_buffer_size: 4096
+  max_buffer_size: 65536
+  socket_rcv_buf: 1048576
+  socket_snd_buf: 1048576
 routing:
-  default_web_backend: 127.0.0.1:3006
-  game_servers: []
+  default_web_backend: 127.0.0.1:3010
+  game_servers:
+    - game_id: 16200
+      name: auto:ragenodes-213e57ed:16200
+      backend_addr: 127.0.0.1:16200
+      protocol: UDP
+      port_range: '16200'
+      description: Auto ZOMBOID - test-zomboid-server
+      health_check:
+        enabled: false
+        interval_secs: 10
+        timeout_secs: 2
+    - game_id: 16201
+      name: auto:ragenodes-213e57ed:16201
+      backend_addr: 127.0.0.1:16201
+      protocol: UDP
+      port_range: '16201'
+      description: Auto ZOMBOID - test-zomboid-server
+      health_check:
+        enabled: false
+        interval_secs: 10
+        timeout_secs: 2
 tls:
   cert_path: config/certs/cert.pem
   key_path: config/certs/key.pem
 runtime:
   worker_threads: null
   enable_core_pinning: true
+  io_poll_interval_us: 100
 browser_security:
   allowed_frame_origins:
     - https://idms.fivem.net

@@ -2,6 +2,8 @@
   "scripts": {
     "test:dev": "node --test scripts/dev/*.test.mjs",
     "test:local": "node scripts/dev/quality-gate.mjs all",
+    "start:frontend": "node scripts/dev_panel_server.mjs",
+    "dev:frontend": "node scripts/dev_panel_server.mjs",
     "sync:qa": "node scripts/sync_qa_readme.mjs",
     "security:routes": "node scripts/security/route_auth_smoke.mjs",
     "security:stack": "docker compose -f docker-compose.yml -f docker-compose.security.yml up -d --build",

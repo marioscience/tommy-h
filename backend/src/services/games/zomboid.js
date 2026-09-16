@@ -34,8 +34,16 @@ async function readProjectZomboidMods(opts) {
 
 export function buildProjectZomboidRuntime(opts) {
     const password = deriveServicePassword('zomboid-admin', opts.serverId || opts.containerName);
+
+    // JVM needs safety fallback for RAM space for running without Linux killing it.
+    // Calculate safe JVM Heap leaving 1.5 GB (1536 MB) for OS and JVM Metaspace
+    const planBytes = Number(opts.plan?.memoryBytes || opts.memoryBytes || 6 * 1024 * 1024 * 1024);
+    const planRamMb = Math.floor(planBytes / (1024 * 1024));
+    const maxRamMb = Math.max(2048, planRamMb - 1536);
+
     return {
         environment: [
+            `MAX_RAM=${maxRamMb}m`,
             `SERVER_NAME=${opts.serverName}`,
             `ADMIN_PASSWORD=${password}`,
             `RCON_PORT=${ZOMBOID_RCON_CONTAINER_PORT}`,
@@ -91,7 +99,8 @@ export async function createProjectZomboidContainer(opts) {
                 `${opts.dataPath}/Zomboid:/home/steam/Zomboid`
             ],
             PortBindings: proxy.bindings,
-            RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
+            RestartPolicy: { Name: "unless-stopped"},
+            //RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: opts.plan.memoryBytes,
             NanoCpus: opts.plan.nanoCpus, CpuShares: Math.round((opts.plan.nanoCpus / 10**9) * 1024),
             BlkioWeight: config.dockerBlkioWeight,

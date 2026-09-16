@@ -13,6 +13,9 @@ const DEFAULT_CONFIG = {
     Map: 'Muldraugh, KY',
     AutoSave: '0',
     SaveWorldEveryMinutes: '15',
+    SoftResetCron: '',
+    HoursForLootRespawn: '0',
+    AllowDestructionByAdmin: 'false'
 };
 
 const ALLOWED_KEYS = new Set(Object.keys(DEFAULT_CONFIG));
@@ -35,6 +38,7 @@ async function resolveZomboidIni(cfgDir, serverName, { create = false } = {}) {
 
     const preferred = `${safeIniStem(serverName)}.ini`;
     if (files.includes(preferred)) return preferred;
+    if (create) return preferred; // if saving or creating, use the named file.
     if (files.length === 1) return files[0];
     if (files.length > 1) {
         throw new Error(`Configuración Zomboid ambigua: no se encontró ${preferred}.`);

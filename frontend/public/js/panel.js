@@ -4033,7 +4033,7 @@ function toggleSidebar() {
             const grid = document.getElementById('mc-config-grid');
             const fields = [
                 { key: 'PublicName', label: 'Nombre del Servidor', type: 'text', icon: 'skull' },
-                { key: 'Password', label: 'Contraseña', type: 'text', icon: 'lock' },
+                { key: 'Password', label: 'Contraseña de la Sala (Server)', type: 'text', icon: 'lock', placeholder: 'Dejar vacía para sala pública'  },
                 { key: 'MaxPlayers', label: 'Jugadores Máximos', type: 'number', icon: 'users' },
                 { key: 'Map', label: 'Mapa', type: 'text', icon: 'map' },
                 { key: 'PVP', label: 'PvP Activado', type: 'switch', icon: 'gun' },
