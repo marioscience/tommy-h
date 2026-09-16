@@ -9,10 +9,17 @@ export function startBillingScheduler() {
     console.log("🕒 [Billing] Iniciando Scheduler de Facturación y Suspensiones.");
 
     // Ejecutar cada 1 hora
-    setInterval(checkExpiredAccounts, 60 * 60 * 1000);
+    let running = false;
+    const run = async () => {
+        if (running) return;
+        running = true;
+        try { await checkExpiredAccounts(); }
+        finally { running = false; }
+    };
+    setInterval(run, 60 * 60 * 1000);
     
     // Ejecutar una vez al arrancar
-    setTimeout(checkExpiredAccounts, 10000);
+    setTimeout(run, 10000);
 }
 
 async function checkExpiredAccounts() {

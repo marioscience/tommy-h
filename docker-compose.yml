@@ -116,6 +116,47 @@ services:
     pids_limit: 256
     cpu_shares: 2048
 
+  worker-deployments:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    init: true
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    group_add:
+      - "${DOCKER_GID:-1000}"
+      - "${GAME_DATA_GID:-1000}"
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
+    environment:
+      - RAGENODES_ROLE=worker-deployments
+      - PUBLIC_ENDPOINT_HOST=${PUBLIC_ENDPOINT_HOST:-ragenodes.app}
+      - PUBLIC_ENDPOINT_SCHEME=${PUBLIC_ENDPOINT_SCHEME:-https}
+      - PUBLIC_ENDPOINT_MODE=${PUBLIC_ENDPOINT_MODE:-subdomain}
+      - PUBLIC_ENDPOINT_PREFIX=${PUBLIC_ENDPOINT_PREFIX:-tx}
+      - GAME_DATABASE_HOST=${GAME_DATABASE_HOST:-mariadb}
+      - GAME_DATABASE_PORT=${GAME_DATABASE_PORT:-3306}
+    command: ["node", "src/worker.js"]
+    networks:
+      - ragenodes_net
+    depends_on:
+      backend:
+        condition: service_healthy
+      mariadb:
+        condition: service_started
+    volumes:
+      - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
+      - ${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}:${INSTANCE_DATA_ROOT:?Set INSTANCE_DATA_ROOT to an absolute path}
+      - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
+      - ./backend/src:/app/src:ro
+      - ./certs:/opt/ragenodes-ultimate/certs:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=512m
+    pids_limit: 256
+    cpu_shares: 1536
+
   worker-backups:
     build:
       context: ./backend

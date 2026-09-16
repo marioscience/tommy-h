@@ -46,6 +46,7 @@ Whether deploying a large FiveM roleplay community or a multi-node cluster for R
 - **📊 Real-Time Telemetry & iFrame Auth:** Live CPU, memory, network and I/O metrics use SSE, WebSockets or bounded polling according to the feature, with authenticated browser requests and token propagation where required.
 - **🩺 Production & Staging Diagnostics:** Native `/healthz`, `/readyz` probes, and an adaptive hardware test suite (`backend/src/services/stagingHealthTestRunner.js`) generating PDF/HTML diagnostic reports.
 - **📦 Complete Base-Image Cache:** Every deployable service has a reusable local base image. FiveM and Blender are version-aware RageNodes masters that are built and archived locally; Minecraft, Rust, Palworld, CS2, Valheim, Project Zomboid, ARK, 7 Days to Die, Discord bots, WordPress and MariaDB use digest-pinned upstream images that are prefetched into the local cache. A hardened systemd timer refreshes the complete manifest without replacing active customer containers, so subsequent deployments normally start from local storage instead of downloading again.
+- **⚡ Local Game-Template Tier:** When shared masters live on NFS/HDD and instance data lives on local Btrfs/SSD, CS2, Rust, Palworld, Valheim, Project Zomboid, ARK and 7 Days to Die seed one validated local cache and create subsequent instances with atomic reflinks. Existing instance data is never overwritten. FiveM and Minecraft keep their specialized installation flows.
 
 ## 🧭 Platform Capability Map
 
@@ -211,6 +212,7 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build b
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-backups
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-stats
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-docker-events
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-deployments
 
 # Databases/cache only, or phpMyAdmin plus MariaDB
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d postgres mariadb redis
@@ -438,6 +440,7 @@ Ya sea para desplegar una comunidad de FiveM o un clúster multi-nodo para Rust 
 - **📊 Telemetría en Tiempo Real e iframe Autenticado:** Métricas de CPU, memoria, red e I/O mediante SSE, WebSockets o polling acotado según la función, con solicitudes autenticadas y propagación de tokens cuando corresponde.
 - **🩺 Diagnóstico Adaptativo de Salud:** Sondas nativas `/healthz`, `/readyz` y runner adaptativo en staging (`backend/src/services/stagingHealthTestRunner.js`) con generación de reportes PDF/HTML.
 - **📦 Caché Completa de Imágenes Base:** Cada servicio desplegable dispone de una imagen base reutilizable en local. FiveM y Blender son imágenes maestras de RageNodes, versionadas, construidas y archivadas localmente; Minecraft, Rust, Palworld, CS2, Valheim, Project Zomboid, ARK, 7 Days to Die, bots de Discord, WordPress y MariaDB usan imágenes externas fijadas por digest que se precargan en la caché local. Un timer systemd endurecido actualiza el manifiesto completo sin reemplazar contenedores activos, permitiendo que los siguientes despliegues se inicien normalmente desde el almacenamiento local sin volver a descargar.
+- **⚡ Nivel local de plantillas de juegos:** Cuando las plantillas compartidas están en NFS/HDD y los datos de instancias en Btrfs/SSD local, CS2, Rust, Palworld, Valheim, Project Zomboid, ARK y 7 Days to Die preparan una única caché local validada y crean las instancias siguientes mediante reflinks atómicos. Nunca se sobrescriben datos de una instancia existente. FiveM y Minecraft conservan sus flujos especializados.
 
 Los despliegues de Minecraft fijan en el directorio de datos la edición y versión solicitadas. El auto-curado recrea exactamente ese runtime, sin actualizarlo de forma silenciosa, y los servidores alojados permanecen activos aunque estén vacíos para no interrumpir handshakes del proxy ni clientes en pausa.
 
@@ -599,6 +602,7 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build b
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-backups
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-stats
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-docker-events
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build worker-deployments
 
 # Solo bases de datos/caché, o phpMyAdmin con MariaDB
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d postgres mariadb redis
@@ -614,6 +618,14 @@ Dentro del Dev Container, ejecuta estos comandos desde la raíz después de crea
 * **API Backend:** [http://localhost:3010](http://localhost:3010)
 * **Sonda de Salud en Vivo:** [http://localhost:3010/readyz](http://localhost:3010/readyz)
 * **phpMyAdmin:** [http://localhost:8089](http://localhost:8089)
+
+### Cola de despliegues y protección del almacenamiento
+
+La creación de servidores se ejecuta en `worker-deployments`, no dentro de la API. PostgreSQL conserva los trabajos pendientes, impide dos despliegues simultáneos del mismo usuario y recupera trabajos abandonados después de un reinicio. Mantén una réplica del worker por entorno hasta configurar particionamiento explícito por nodos; la cola acepta cualquier cantidad de solicitudes sin iniciar todas las instalaciones a la vez.
+
+`DEPLOYMENT_PAYLOAD_KEY` cifra las credenciales temporales guardadas en la cola y debe ser el mismo secreto estable en la API y el worker. No lo cambies mientras existan trabajos pendientes. El polling de una cola vacía aumenta progresivamente desde `DEPLOYMENT_POLL_INTERVAL_MS` hasta `DEPLOYMENT_MAX_IDLE_POLL_MS`.
+
+Para reducir E/S, el historial se inserta en lotes según `STATS_HISTORY_INTERVAL_MS` (cinco minutos por defecto), la caché FiveM consulta el inventario una vez por minuto y sólo reescribe archivos cuando cambia su contenido. Los registros de cola finalizados se conservan 30 días y se purgan durante el mantenimiento diario.
 
 ---
 

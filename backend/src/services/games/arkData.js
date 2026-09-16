@@ -40,11 +40,12 @@ echo 'ARK prepare: updating runtime files'
 rm -f -- "$target/compatdata/2430930/pfx.lock"
 for entry in "$target/common/ARK Survival Ascended Dedicated Server/steam_appid.txt" "$base/steam_appid.txt" "$base/Binaries/Win64/steam_appid.txt"; do
     if [ -L "$entry" ]; then echo 'ARK preparation rejected a symlinked app id' >&2; exit 1; fi
-    printf '2430930\\n' > "$entry"
+    printf '2399830\\n' > "$entry"
 done
 echo 'ARK prepare: normalizing ownership'
-# The host-owned mount point itself is finalized by the backend. Only entries
-# created inside the rootless namespace can be safely assigned to steam here.
+# The bind root must also belong to steam. Leaving it as root:root with mode
+# 0750 makes every correctly-owned child unreachable to the server process.
+chown -h 1000:1000 "$target"
 find "$target" -mindepth 1 -exec chown -h 1000:1000 {} +
 echo 'ARK prepare: complete'
 `;

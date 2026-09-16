@@ -19,6 +19,53 @@ describe('Backend architecture boundaries', () => {
     assert.match(worker, /startNodeMonitor\(\)/);
   });
 
+  it('runs durable provisioning only from the deployments worker', async () => {
+    const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
+    const routes = await readFile(new URL('../src/routes/servers.js', import.meta.url), 'utf8');
+    assert.match(worker, /case 'worker-deployments':[\s\S]*startDeploymentWorker\(\)/);
+    assert.match(routes, /enqueueDeployment/);
+    assert.match(routes, /statusUrl: `\/api\/servers\/deployment-jobs\/\$\{job\.id\}`/);
+    assert.doesNotMatch(routes, /await createServerForUser\(/);
+  });
+
+  it('keeps scheduled jobs out of horizontally scaled API replicas', async () => {
+    const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
+    const server = await readFile(new URL('../src/server.js', import.meta.url), 'utf8');
+    assert.match(worker, /case 'worker-backups':[\s\S]*startCronManager\(\)/);
+    assert.doesNotMatch(server, /startCronManager/);
+  });
+
+  it('owns database maintenance and durable backup execution in the backup worker', async () => {
+    const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
+    const db = await readFile(new URL('../src/db.js', import.meta.url), 'utf8');
+    const queue = await readFile(new URL('../src/services/backupQueue.js', import.meta.url), 'utf8');
+    const repository = await readFile(new URL('../src/repositories/backupJobRepository.js', import.meta.url), 'utf8');
+    assert.match(worker, /case 'worker-backups':[\s\S]*startDbMaintenance\(\)[\s\S]*startBackupWorker\(\)/);
+    assert.doesNotMatch(db.match(/export async function initDb[\s\S]*?\n\}/)?.[0] || '', /startDbMaintenance/);
+    assert.doesNotMatch(queue, /new Map|queueMicrotask|createFullBackup/);
+    assert.match(repository, /FOR UPDATE SKIP LOCKED/);
+    assert.match(repository, /status IN \('queued', 'running'\)/);
+  });
+
+  it('bounds telemetry fan-out and protects periodic schedulers from overlap', async () => {
+    const stats = await readFile(new URL('../src/services/statsCollector.js', import.meta.url), 'utf8');
+    const backups = await readFile(new URL('../src/services/backupScheduler.js', import.meta.url), 'utf8');
+    const billing = await readFile(new URL('../src/services/billingScheduler.js', import.meta.url), 'utf8');
+    assert.match(stats, /STATS_COLLECTION_CONCURRENCY/);
+    assert.match(stats, /servers\.slice\(offset, offset \+ statsConcurrency\)/);
+    assert.match(backups, /scheduleRunning/);
+    assert.match(billing, /if \(running\) return/);
+  });
+
+  it('batches historical writes and rewrites FiveM cache files only on change', async () => {
+    const stats = await readFile(new URL('../src/services/statsCollector.js', import.meta.url), 'utf8');
+    const warmer = await readFile(new URL('../src/services/queryCache.js', import.meta.url), 'utf8');
+    assert.match(stats, /SELECT \* FROM UNNEST/);
+    assert.doesNotMatch(stats, /DELETE FROM server_stats_history/);
+    assert.match(warmer, /template = 'fivem'/);
+    assert.match(warmer, /knownHashes\.get\(key\) === hash/);
+  });
+
   it('builds one canonical restart contract for every game adapter', () => {
     const options = buildRestartOptions({
       id: 'server-id',
@@ -121,9 +168,29 @@ describe('Backend architecture boundaries', () => {
 
   it('prepares ARK without mutating rootless instance-directory permissions', async () => {
     const ark = await readFile(new URL('../src/services/games/ark.js', import.meta.url), 'utf8');
+    const arkData = await readFile(new URL('../src/services/games/arkData.js', import.meta.url), 'utf8');
     assert.match(ark, /mkdir -p \$\{opts\.dataPath\}/);
+    assert.match(ark, /cloneFromMasterTemplate\('ark', opts\.dataPath, targetNodeId, \{/);
+    assert.match(ark, /refreshExisting: true/);
+    assert.match(ark, /ShooterGame\/Saved/);
     assert.doesNotMatch(ark, /chmod 0?777/);
     assert.doesNotMatch(ark, /chmod 0?755/);
+    assert.match(arkData, /chown -h 1000:1000 "\$target"/);
+    assert.match(arkData, /find "\$target" -mindepth 1 -exec chown -h 1000:1000/);
+  });
+
+  it('starts ARK from the validated master without per-instance Steam updates', async () => {
+    const ark = await readFile(new URL('../src/services/games/ark.js', import.meta.url), 'utf8');
+    const arkData = await readFile(new URL('../src/services/games/arkData.js', import.meta.url), 'utf8');
+    assert.match(ark, /'updateonstart=false'/);
+    assert.doesNotMatch(ark, /'updateonstart=true'/);
+    assert.match(ark, /echo 2399830 \| tee/);
+    assert.match(arkData, /printf '2399830\\\\n'/);
+    assert.doesNotMatch(ark, /echo 2430930 \| tee/);
+    assert.doesNotMatch(arkData, /printf '2430930\\\\n'/);
+    assert.match(ark, /touch \/home\/steam\/CONTAINER_ALREADY_STARTED_PLACEHOLDER/);
+    assert.match(ark, /-Port=\$\{opts\.gamePort\}/);
+    assert.doesNotMatch(ark, /\?Port=\$\{opts\.gamePort\}/);
   });
 
   it('publishes ARK through the isolated runtime network and game proxy inventory', async () => {

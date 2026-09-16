@@ -109,6 +109,59 @@ services:
       - /tmp:rw,noexec,nosuid,nodev,size=512m
     pids_limit: 256
 
+  worker-deployments-staging:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    init: true
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    group_add:
+      - "${DOCKER_GID:-1000}"
+      - "${STAGING_GAME_DATA_GID:-${GAME_DATA_GID:-1000}}"
+    env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
+    environment:
+      - RAGENODES_ROLE=worker-deployments
+      - CONTAINER_PREFIX=ragenodes-staging-
+      - DOCKER_NETWORK=ragenodes_net_staging
+      - PORT_BASE_OFFSET=${STAGING_PORT_BASE_OFFSET:-1000}
+      - PORT_SCAN_LIMIT=${STAGING_PORT_SCAN_LIMIT:-999}
+      - GAME_CONTAINER_SHARED_GID=${STAGING_GAME_CONTAINER_SHARED_GID:-0}
+      - FIVEM_PUBLIC_HOST=${STAGING_GAME_PUBLIC_HOST:-node1.ragenodes.dev}
+      - PUBLIC_ENDPOINT_HOST=${STAGING_PUBLIC_ENDPOINT_HOST:-ragenodes.dev}
+      - PUBLIC_ENDPOINT_SCHEME=${PUBLIC_ENDPOINT_SCHEME:-https}
+      - PUBLIC_ENDPOINT_MODE=${PUBLIC_ENDPOINT_MODE:-subdomain}
+      - PUBLIC_ENDPOINT_PREFIX=${PUBLIC_ENDPOINT_PREFIX:-tx}
+      - INSTANCE_DATA_ROOT=/srv/ragenodes-staging-data
+      - MARIADB_HOST=mariadb
+      - DB_HOST=postgres-staging
+      - DB_USER=${POSTGRES_USER}_staging
+      - DB_PASS=${POSTGRES_PASSWORD}_staging
+      - DB_NAME=${POSTGRES_DB}_staging
+      - DATABASE_URL=postgres://${POSTGRES_USER}_staging:${POSTGRES_PASSWORD}_staging@postgres-staging:5432/${POSTGRES_DB}_staging
+      - REDIS_URL=redis://redis-staging:6379
+    command: ["node", "src/worker.js"]
+    networks:
+      - ragenodes_net_staging
+    depends_on:
+      backend-staging:
+        condition: service_started
+      mariadb-staging:
+        condition: service_started
+    volumes:
+      - ${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:${DOCKER_SOCKET:?Set DOCKER_SOCKET to a rootless daemon socket}:ro
+      - /srv/ragenodes-staging-data:/srv/ragenodes-staging-data
+      - ${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}:${BACKUP_ROOT:?Set BACKUP_ROOT to an absolute path}
+      - ./backend/src:/app/src:ro
+      - ./certs:/opt/ragenodes-ultimate/certs:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=512m
+    pids_limit: 256
+    cpu_shares: 1536
+
   worker-docker-events-staging:
     build:
       context: ./backend

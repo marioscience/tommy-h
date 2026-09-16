@@ -626,7 +626,16 @@ function toggleSidebar() {
             btn.disabled = true;
 
             try {
-                await Nexus.api('/api/servers', { method: 'POST', body: JSON.stringify(body) });
+                const deployment = await Nexus.api('/api/servers', {
+                    method: 'POST',
+                    headers: {
+                        'Idempotency-Key': crypto.randomUUID?.()
+                            || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+                    },
+                    body: JSON.stringify(body)
+                });
+                showToast('Despliegue en cola. Puedes mantener esta pestaña abierta.', 'info');
+                await waitForDeployment(deployment.jobId, deployment.statusUrl);
                 showToast('¡Servidor creado con éxito!', 'success');
                 lastDataHash = "";
                 await switchView('servers', document.getElementById('nav-servers'));
@@ -635,6 +644,21 @@ function toggleSidebar() {
                 btn.innerHTML = '<i class="fa-solid fa-plus"></i> Desplegar';
                 btn.disabled = false;
             }
+        }
+
+        async function waitForDeployment(jobId, statusUrl) {
+            const started = Date.now();
+            const timeoutMs = 2 * 60 * 60 * 1000;
+            const endpoint = statusUrl || `/api/servers/deployment-jobs/${encodeURIComponent(jobId)}`;
+            while (Date.now() - started < timeoutMs) {
+                const job = await Nexus.api(endpoint);
+                if (job.status === 'succeeded') return job;
+                if (job.status === 'failed' || job.status === 'cancelled') {
+                    throw new Error(job.last_error || 'El despliegue no pudo completarse.');
+                }
+                await new Promise(resolve => setTimeout(resolve, 2500));
+            }
+            throw new Error('El despliegue continúa en segundo plano. Revisa el panel en unos minutos.');
         }
 
 

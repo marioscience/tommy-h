@@ -3,15 +3,64 @@ import assert from 'node:assert/strict';
 import {
   claimServerRecreation,
   findServerNodeIdByContainer,
-  findSubuserPermissions
+  findSubuserPermissions,
+  listMaintainableServers
 } from '../src/repositories/serverRepository.js';
 import { listActiveNodeIds, updateNode } from '../src/repositories/nodeRepository.js';
 import { activateEdgeProxy, updateEdgeProxy } from '../src/repositories/edgeProxyRepository.js';
 import { updateAdminUser } from '../src/repositories/userRepository.js';
 import { createNotification, listClientNotifications } from '../src/repositories/notificationRepository.js';
 import { recordBackup } from '../src/repositories/backupRepository.js';
+import {
+  claimDeployment,
+  enqueueDeployment,
+  failDeployment,
+  recoverStaleDeployments
+} from '../src/repositories/deploymentJobRepository.js';
 
 describe('SQL repositories', () => {
+  it('enqueues deployments idempotently and claims them with SKIP LOCKED', async () => {
+    const statements = [];
+    const db = async (sql, parameters) => {
+      statements.push({ sql, parameters });
+      return { rows: [{ id: 'job-1' }] };
+    };
+    const job = await enqueueDeployment(9, 'request-1', { template: 'ark' }, db);
+    assert.equal(job.id, 'job-1');
+    assert.match(statements[0].sql, /ON CONFLICT \(owner_id, idempotency_key\)/);
+    assert.deepEqual(statements[0].parameters, [9, 'request-1', '{"template":"ark"}', null]);
+
+    const claimed = await claimDeployment('worker-a', async (callback) => callback(db));
+    assert.equal(claimed.id, 'job-1');
+    assert.match(statements[1].sql, /FOR UPDATE SKIP LOCKED/);
+    assert.match(statements[1].sql, /attempts = attempts \+ 1/);
+  });
+
+  it('backs failed deployments off and recovers abandoned leases', async () => {
+    const statements = [];
+    const db = async (sql, parameters) => {
+      statements.push({ sql, parameters });
+      return { rows: [{ id: 'job-1', status: 'queued' }] };
+    };
+    await failDeployment('job-1', 'temporary', db);
+    await recoverStaleDeployments(45, db);
+    assert.match(statements[0].sql, /POWER\(2, GREATEST\(attempts - 1, 0\)\)/);
+    assert.equal(statements[0].parameters[2], 'temporary');
+    assert.match(statements[1].sql, /claimed_at < NOW\(\) -/);
+    assert.deepEqual(statements[1].parameters, [45]);
+  });
+
+  it('does not auto-heal servers while creation or recreation owns their runtime', async () => {
+    const calls = [];
+    const db = async (sql, parameters) => {
+      calls.push({ sql, parameters });
+      return { rows: [] };
+    };
+
+    await listMaintainableServers(db);
+    assert.match(calls[0].sql, /'creating', 'recreating'/);
+  });
+
   it('claims server recreation atomically', async () => {
     const calls = [];
     const db = async (sql, parameters) => {
@@ -60,6 +109,17 @@ describe('SQL repositories', () => {
   it('maps active node rows to identifiers', async () => {
     const ids = await listActiveNodeIds(async () => ({ rows: [{ id: 2 }, { id: 5 }] }));
     assert.deepEqual(ids, [2, 5]);
+  });
+
+  it('avoids WAL writes when node capacity did not change', async () => {
+    const calls = [];
+    const { updateNodeCapacity } = await import('../src/repositories/nodeRepository.js');
+    await updateNodeCapacity(3, 64, 16, async (sql, parameters) => {
+      calls.push({ sql, parameters });
+      return { rowCount: 0 };
+    });
+    assert.match(calls[0].sql, /IS DISTINCT FROM/);
+    assert.deepEqual(calls[0].parameters, [64, 16, 3]);
   });
 
   it('activates an edge proxy inside one transaction and rejects a missing target', async () => {
