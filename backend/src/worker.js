@@ -29,6 +29,14 @@ process.on('unhandledRejection', (reason) => {
 const role = process.env.RAGENODES_ROLE || process.argv[2] || 'worker-backups';
 assertSecureConfig();
 
+function superviseLongRunningTask(name, promise) {
+  void promise.catch((error) => {
+    console.error(`[Worker] Tarea crítica ${name} finalizada inesperadamente:`, error);
+    process.exitCode = 1;
+    setImmediate(() => process.exit(1));
+  });
+}
+
 async function boot() {
   await waitForDb();
   console.log(`[Worker] RageNodes iniciando rol: ${role}`);
@@ -39,7 +47,7 @@ async function boot() {
       startBillingScheduler();
       startCronManager();
       startDbMaintenance();
-      void startBackupWorker();
+      superviseLongRunningTask('backup-queue', startBackupWorker());
       break;
     case 'worker-docker-events':
       patchExistingContainers();

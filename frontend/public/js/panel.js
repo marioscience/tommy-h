@@ -656,6 +656,17 @@ function toggleSidebar() {
                 if (job.status === 'failed' || job.status === 'cancelled') {
                     throw new Error(job.last_error || 'El despliegue no pudo completarse.');
                 }
+                const labels = {
+                    queued: 'En cola', preparing: 'Preparando archivos',
+                    starting: 'Iniciando servidor', ready: 'Listo'
+                };
+                const phase = labels[job.phase] || labels[job.status] || 'Procesando';
+                const queue = job.status === 'queued' && job.queue_position
+                    ? ` · posición ${job.queue_position} de ${job.queue_depth || job.queue_position}` : '';
+                const eta = job.estimated_wait_seconds > 0
+                    ? ` · espera estimada ${Math.max(1, Math.ceil(job.estimated_wait_seconds / 60))} min` : '';
+                const btn = document.getElementById('btn-deploy');
+                if (btn) btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${phase}${queue}${eta}`;
                 await new Promise(resolve => setTimeout(resolve, 2500));
             }
             throw new Error('El despliegue continúa en segundo plano. Revisa el panel en unos minutos.');

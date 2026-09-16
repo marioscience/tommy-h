@@ -279,6 +279,7 @@ for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
   const deploy = files[deployFile];
   const redisService = deployFile === 'deploy.sh' ? 'redis' : 'redis-staging';
   const runtimeInitService = deployFile === 'deploy.sh' ? 'oxide_game_runtime_init' : 'oxide_game_runtime_init_staging';
+  const deploymentWorker = deployFile === 'deploy.sh' ? 'worker-deployments' : 'worker-deployments-staging';
   assert(deploy.includes('bash ./scripts/ensure_base_images.sh'), `${deployFile} prepares game images before application services`);
   assert(deploy.indexOf('bash ./scripts/ensure_base_images.sh') < deploy.indexOf('build "${APP_SERVICES[@]}"'), `${deployFile} cannot publish a backend before its game images exist`);
   assert(deploy.includes(`STATE_SERVICES=(\n  ${redisService}\n)`), `${deployFile} declares Redis as required deployment state`);
@@ -286,6 +287,8 @@ for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
   assert(deploy.includes(`run --rm --no-deps ${runtimeInitService}`), `${deployFile} prepares the persistent OxideProxy runtime volume`);
   assert(deploy.indexOf(`run --rm --no-deps ${runtimeInitService}`) < deploy.indexOf('up -d --no-deps "${APP_SERVICES[@]}"'), `${deployFile} prepares OxideProxy storage before application startup`);
   assert(deploy.includes(`wait_for_service ${redisService} 60`), `${deployFile} waits for Redis readiness before application startup`);
+  assert(deploy.includes(`  ${deploymentWorker}\n`), `${deployFile} always deploys the durable provisioning worker`);
+  assert(deploy.includes(`wait_for_service ${deploymentWorker} 60`), `${deployFile} verifies the durable provisioning worker`);
   assert(deploy.includes('wait_for_http()'), `${deployFile} waits for HTTP readiness instead of checking only once`);
   assert(/wait_for_http http:\/\/127\.0\.0\.1:\d+\/healthz 90/.test(deploy), `${deployFile} retries the health endpoint during startup`);
   assert(/wait_for_http http:\/\/127\.0\.0\.1:\d+\/readyz 90/.test(deploy), `${deployFile} retries the readiness endpoint during startup`);
@@ -297,6 +300,8 @@ assert(files['docker-compose.staging.yml'].includes('phpmyadmin-staging:'), 'sta
 assert(/phpmyadmin-staging:[\s\S]*?aliases:\s*\n\s*- phpmyadmin/.test(files['docker-compose.staging.yml']), 'staging exposes phpMyAdmin through the internal proxy alias');
 assert(files['docker-compose.staging.yml'].includes('STAGING_PUBLIC_BASE_URL:-https://panel.ragenodes.dev'), 'staging phpMyAdmin keeps redirects on the staging panel origin');
 assert(files['deploy_staging.sh'].includes('  phpmyadmin-staging'), 'staging deploys phpMyAdmin automatically');
+assert(files['docker-compose.staging.yml'].includes("fetch('http://127.0.0.1:3006/healthz')"), 'staging backend exposes a migration-aware health gate');
+assert(!/backend-staging:\s*\n\s*condition: service_started/.test(files['docker-compose.staging.yml']), 'staging dependants wait until backend migrations finish');
 for (const composeFile of ['docker-compose.yml', 'docker-compose.staging.yml']) {
   const compose = files[composeFile];
   assert(compose.includes('chown -R 0:${APP_GID:-1000} /runtime'), `${composeFile} grants the unprivileged control panel group access to runtime telemetry`);

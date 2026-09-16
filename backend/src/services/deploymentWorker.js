@@ -4,19 +4,27 @@ import {
   claimDeployment,
   completeDeployment,
   failDeployment,
-  recoverStaleDeployments
+  recoverStaleDeployments,
+  updateDeploymentPhase
 } from '../repositories/deploymentJobRepository.js';
 
 const minimumPollMs = Math.max(500, Number(process.env.DEPLOYMENT_POLL_INTERVAL_MS || 1500));
 const maximumPollMs = Math.max(minimumPollMs, Number(process.env.DEPLOYMENT_MAX_IDLE_POLL_MS || 30000));
 const staleMinutes = Math.max(5, Number(process.env.DEPLOYMENT_STALE_MINUTES || 45));
 
-export async function processNextDeployment(workerId) {
-  const job = await claimDeployment(workerId);
+export async function processNextDeployment(workerId, options = {}) {
+  const job = await claimDeployment(workerId, options);
   if (!job) return false;
 
   try {
-    const server = await createServerForUser(job.owner_id, job.payload);
+    if (job.server_id) {
+      await completeDeployment(job.id, job.server_id);
+      return true;
+    }
+    await updateDeploymentPhase(job.id, 'starting');
+    const server = await createServerForUser(job.owner_id, {
+      ...job.payload, nodeId: job.node_id, deploymentJobId: job.id
+    });
     await completeDeployment(job.id, server.id);
   } catch (error) {
     console.error(`[DeploymentWorker] Falló ${job.id}:`, error);
@@ -25,9 +33,17 @@ export async function processNextDeployment(workerId) {
   return true;
 }
 
-/** Runs one job at a time per process; scale workers only within node capacity. */
+/** Runs bounded local slots; database leases enforce class, node and global capacity. */
 export async function startDeploymentWorker() {
   const workerId = `${os.hostname()}:${process.pid}`;
+  const configuredNode = process.env.DEPLOYMENT_NODE_ID;
+  const nodeId = configuredNode === undefined || configuredNode === '' ? null : Number(configuredNode);
+  if (nodeId !== null && (!Number.isInteger(nodeId) || nodeId < 0)) {
+    throw new Error('DEPLOYMENT_NODE_ID debe ser un entero positivo o cero.');
+  }
+  const requestedConcurrency = Number(process.env.DEPLOYMENT_WORKER_CONCURRENCY || 1);
+  const concurrency = Number.isInteger(requestedConcurrency) && requestedConcurrency > 0
+    ? Math.min(16, requestedConcurrency) : 1;
   const recovered = await recoverStaleDeployments(staleMinutes);
   if (recovered.rowCount > 0) {
     console.warn(`[DeploymentWorker] Recuperados ${recovered.rowCount} trabajos abandonados.`);
@@ -38,14 +54,17 @@ export async function startDeploymentWorker() {
   process.once('SIGTERM', stop);
   process.once('SIGINT', stop);
 
-  let idleDelayMs = minimumPollMs;
-  while (!stopped) {
-    const processed = await processNextDeployment(workerId);
-    if (processed) {
-      idleDelayMs = minimumPollMs;
-      continue;
+  const runSlot = async (slot) => {
+    let idleDelayMs = minimumPollMs;
+    while (!stopped) {
+      const processed = await processNextDeployment(`${workerId}:${slot}`, { nodeId });
+      if (processed) {
+        idleDelayMs = minimumPollMs;
+        continue;
+      }
+      await new Promise((resolve) => setTimeout(resolve, idleDelayMs));
+      idleDelayMs = Math.min(maximumPollMs, Math.ceil(idleDelayMs * 1.75));
     }
-    await new Promise((resolve) => setTimeout(resolve, idleDelayMs));
-    idleDelayMs = Math.min(maximumPollMs, Math.ceil(idleDelayMs * 1.75));
-  }
+  };
+  await Promise.all(Array.from({ length: concurrency }, (_, slot) => runSlot(slot + 1)));
 }

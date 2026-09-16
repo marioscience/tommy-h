@@ -18,6 +18,7 @@ APP_SERVICES=(
   worker-backups-staging
   worker-docker-events-staging
   worker-stats-staging
+  worker-deployments-staging
   oxide_control_panel
   oxide_game_staging
   oxide_web_staging
@@ -92,6 +93,7 @@ echo "Preparing the OxideProxy runtime volume."
 "${COMPOSE[@]}" up -d --no-deps "${APP_SERVICES[@]}"
 
 wait_for_service backend-staging 90
+wait_for_service worker-deployments-staging 60
 wait_for_service oxide_control_panel 60
 wait_for_service oxide_game_staging 60
 wait_for_service oxide_web_staging 60

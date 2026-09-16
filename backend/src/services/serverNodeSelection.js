@@ -39,6 +39,18 @@ export async function getNodeRuntimeUsage() {
       : getPlanRamGb(plan);
     nodeUsage.set(nodeId, current);
   }
+  const reservations = await query(`
+    SELECT node_id, requested_ram_gb
+    FROM deployment_jobs
+    WHERE status IN ('queued', 'running') AND node_id IS NOT NULL AND server_id IS NULL
+  `);
+  for (const reservation of reservations.rows) {
+    const nodeId = Number(reservation.node_id);
+    const current = nodeUsage.get(nodeId) || { count: 0, ramGb: 0 };
+    current.count += 1;
+    current.ramGb += Math.max(0, Number(reservation.requested_ram_gb) || 0);
+    nodeUsage.set(nodeId, current);
+  }
   return nodeUsage;
 }
 
@@ -52,6 +64,15 @@ export async function nodeCanAcceptDockerWorkload(node) {
   }
 }
 
+export async function getHealthyDeploymentNodeIds() {
+  const { rows } = await query("SELECT * FROM nodes WHERE status = 'active' OR id = 0 ORDER BY id ASC");
+  const nodes = rows.length > 0 ? rows : [localMasterNode()];
+  const checks = await Promise.all(nodes.map(async (node) => ({
+    id: Number(node.id), healthy: await nodeCanAcceptDockerWorkload(node)
+  })));
+  return checks.filter((item) => item.healthy).map((item) => item.id);
+}
+
 function localMasterNode() {
   return {
     id: 0,
@@ -63,7 +84,9 @@ function localMasterNode() {
   };
 }
 
-export async function selectDeploymentNode(plan, requestedRamGb, template, explicitNodeId = null) {
+export async function selectDeploymentNode(
+  plan, requestedRamGb, template, explicitNodeId = null, reservedRamGb = 0, healthyNodeIds = null
+) {
   const requiredRamGb = Number(requestedRamGb);
   if (!Number.isFinite(requiredRamGb) || requiredRamGb <= 0) {
     throw new Error(`RAM solicitada invalida para ${String(template).toUpperCase()}: ${requestedRamGb}.`);
@@ -75,14 +98,18 @@ export async function selectDeploymentNode(plan, requestedRamGb, template, expli
     const { rows } = await query("SELECT * FROM nodes WHERE id = $1 AND status = 'active'", [targetId]);
     const node = rows[0] || (targetId === 0 ? localMasterNode() : null);
     if (!node) throw new Error(`El nodo id ${targetId} no existe o no esta activo.`);
-    if (!(await nodeCanAcceptDockerWorkload(node))) {
+    const healthy = Array.isArray(healthyNodeIds)
+      ? healthyNodeIds.includes(targetId)
+      : await nodeCanAcceptDockerWorkload(node);
+    if (!healthy) {
       throw new Error(`El nodo seleccionado '${node.name}' no responde o Docker no esta disponible.`);
     }
     const usage = (await getNodeRuntimeUsage()).get(targetId) || { count: 0, ramGb: 0 };
     const localNode = targetId === 0 ? localMasterNode() : null;
     const totalRam = Number(node.ram_total_gb) || localNode?.ram_total_gb || 0;
     const reservableRam = calculateReservableRamGb(totalRam, getNodeRamPolicy());
-    if (reservableRam - usage.ramGb < requiredRamGb) {
+    const effectiveUsageRam = Math.max(0, usage.ramGb - Math.max(0, Number(reservedRamGb) || 0));
+    if (reservableRam - effectiveUsageRam < requiredRamGb) {
       throw new Error(
         `El nodo seleccionado '${node.name}' no tiene capacidad reservable suficiente ` +
         `para ${String(template).toUpperCase()} (${requiredRamGb} GB RAM).`
@@ -103,7 +130,10 @@ export async function selectDeploymentNode(plan, requestedRamGb, template, expli
   let bestScore = Number.NEGATIVE_INFINITY;
 
   for (const node of nodes) {
-    if (!(await nodeCanAcceptDockerWorkload(node))) continue;
+    const healthy = Array.isArray(healthyNodeIds)
+      ? healthyNodeIds.includes(Number(node.id))
+      : await nodeCanAcceptDockerWorkload(node);
+    if (!healthy) continue;
 
     if (Number(node.id) === 0 && node.status !== 'active') {
       await query("UPDATE nodes SET status = 'active' WHERE id = 0");
@@ -153,6 +183,8 @@ export async function getNextAvailablePort(startPort, range = 1, targetNodeId = 
     SELECT txadmin_port AS port FROM servers WHERE txadmin_port IS NOT NULL AND COALESCE(node_id, 0) = $1
     UNION
     SELECT blender_port AS port FROM servers WHERE blender_port IS NOT NULL AND COALESCE(node_id, 0) = $1
+    UNION
+    SELECT port FROM deployment_port_reservations WHERE node_id = $1
   `, [Number(targetNodeId)]);
   rows.forEach(row => usedPorts.add(Number(row.port)));
 

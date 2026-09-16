@@ -205,17 +205,21 @@ export async function createServerForUser(userId, payload = {}) {
       customPlan,
       requestedRamGb,
       template,
-      payload.nodeId ?? payload.explicitNodeId
+      payload.nodeId ?? payload.explicitNodeId,
+      payload.capacityReserved ? requestedRamGb : 0
     );
     const targetNodeId = Number(targetNode.id);
     await assertNodeStartCapacity(targetNodeId, requestedRamGb);
     const portPolicy = getPortAllocationPolicy(template, config);
     const excludedPorts = new Set();
-    let gamePort = await getNextAvailablePort(portPolicy.start, portPolicy.range, targetNodeId, excludedPorts);
-    let txAdminPort = portPolicy.adminStart
+    const reservedPorts = payload.capacityReserved ? payload.reservedPorts : null;
+    let gamePort = Number(reservedPorts?.gamePort)
+      || await getNextAvailablePort(portPolicy.start, portPolicy.range, targetNodeId, excludedPorts);
+    let txAdminPort = Number(reservedPorts?.adminPort) || (portPolicy.adminStart
       ? await getNextAvailablePort(portPolicy.adminStart, 1, targetNodeId, excludedPorts)
-      : gamePort;
-    let blenderPort = await getNextAvailablePort(config.blenderPortStart, 1, targetNodeId, excludedPorts);
+      : gamePort);
+    let blenderPort = Number(reservedPorts?.blenderPort)
+      || await getNextAvailablePort(config.blenderPortStart, 1, targetNodeId, excludedPorts);
 
     const serverId = uuidv4();
     const shortId = serverId.slice(0, 8);
@@ -259,6 +263,13 @@ export async function createServerForUser(userId, payload = {}) {
           requestedRamGb
         ]
       );
+      if (payload.deploymentJobId) {
+        await query(
+          `UPDATE deployment_jobs SET server_id = $2, updated_at = NOW()
+           WHERE id = $1 AND status = 'running'`,
+          [payload.deploymentJobId, serverId]
+        );
+      }
 
       const configuredRetryLimit = Number(process.env.PORT_BIND_RETRY_LIMIT || 8);
       const retryLimit = Number.isInteger(configuredRetryLimit) && configuredRetryLimit > 0
