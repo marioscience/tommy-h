@@ -152,6 +152,16 @@ describe('Backend architecture boundaries', () => {
     assert.match(service, /createGameDatabase/);
   });
 
+  it('keeps backup archive mechanics separate from backup workflows', async () => {
+    const workflow = await readFile(new URL('../src/services/backupService.js', import.meta.url), 'utf8');
+    const archive = await readFile(new URL('../src/services/backupArchiveService.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(workflow, /spawn\(|createReadStream/);
+    assert.match(workflow, /createBackupArchive/);
+    assert.match(archive, /partialPath/);
+    assert.match(archive, /sha256File/);
+    assert.match(archive, /startsWith\(`\$\{backupRoot\}\$\{path\.sep\}`\)/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);
