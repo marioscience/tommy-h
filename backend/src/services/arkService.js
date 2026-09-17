@@ -1,13 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { PLAN_LIMITS } from '../config.js';
-
-// Requisitos mínimos absolutos para desplegar ARK: Survival Ascended
-export const ARK_MINIMUM_REQUIREMENTS = {
-    minRamGB: 16,
-    minCores: 6,
-    minStorageGB: 150,
-};
+export { ARK_MINIMUM_REQUIREMENTS, checkArkRequirements } from './ark/requirements.js';
 
 const DEFAULT_CONFIG = {
     // 1. Platform Options
@@ -266,37 +259,6 @@ const DEFAULT_CONFIG = {
     ActiveResourceCashesMaximum: '10',
     ActiveCityOutpostMaximum: '10',
 };
-
-/**
- * Verifica si un plan cumple los requisitos mínimos para ARK
- */
-export function checkArkRequirements(planName) {
-    if (planName === 'game_ark') {
-        return {
-            passed: true,
-            checks: {
-                ram: { ok: true, have: 16, need: 16, unit: 'GB RAM' },
-                cpu: { ok: true, have: 5, need: 5, unit: 'Cores' },
-                storage: { ok: true, have: 60, need: 60, unit: 'GB Storage' }
-            }
-        };
-    }
-    const plan = PLAN_LIMITS[planName];
-    if (!plan) return { passed: false, reason: 'Plan no encontrado' };
-
-    const ramGB = plan.memoryBytes / (1024 ** 3);
-    const cores = plan.nanoCpus / 10 ** 9;
-    const storageGB = (plan.diskBytes || 0) / (1024 ** 3);
-
-    const checks = {
-        ram: { ok: ramGB >= ARK_MINIMUM_REQUIREMENTS.minRamGB, have: ramGB, need: ARK_MINIMUM_REQUIREMENTS.minRamGB, unit: 'GB RAM' },
-        cpu: { ok: cores >= ARK_MINIMUM_REQUIREMENTS.minCores, have: cores, need: ARK_MINIMUM_REQUIREMENTS.minCores, unit: 'Cores' },
-        storage: { ok: storageGB >= ARK_MINIMUM_REQUIREMENTS.minStorageGB, have: storageGB, need: ARK_MINIMUM_REQUIREMENTS.minStorageGB, unit: 'GB Storage' },
-    };
-
-    const passed = Object.values(checks).every(c => c.ok);
-    return { passed, checks };
-}
 
 /**
  * Lee la configuración de ARK: Survival Ascended desde GameUserSettings.ini
