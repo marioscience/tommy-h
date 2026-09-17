@@ -9,7 +9,8 @@ import { setServerBackupTime, updateServerWebhook, updateServerCluster, updateSe
 import { config } from '../config.js';
 
 // 🚀 AÑADIDO: Todos los servicios de Backups para el cliente (INCLUYENDO deleteBackup)
-import { listServerBackups, restoreBackup, deleteBackup } from '../services/backupService.js';
+import { listServerBackups, deleteBackup } from '../services/backupService.js';
+import { restoreBackup } from '../services/backupRestoreService.js';
 import { backupQueue } from '../services/backupQueue.js';
 import { logAudit } from '../db.js';
 

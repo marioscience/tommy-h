@@ -162,6 +162,15 @@ describe('Backend architecture boundaries', () => {
     assert.match(archive, /startsWith\(`\$\{backupRoot\}\$\{path\.sep\}`\)/);
   });
 
+  it('keeps transactional backup restore isolated with explicit rollback', async () => {
+    const workflow = await readFile(new URL('../src/services/backupService.js', import.meta.url), 'utf8');
+    const restore = await readFile(new URL('../src/services/backupRestoreService.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(workflow, /export async function restoreBackup/);
+    assert.match(restore, /rollbackFiles/);
+    assert.match(restore, /replaceDatabaseFromDump/);
+    assert.match(restore, /maintenanceResume: true/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);

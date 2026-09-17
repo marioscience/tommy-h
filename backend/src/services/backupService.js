@@ -1,6 +1,6 @@
 import path from 'path';
 import fs from 'fs/promises';
-import { config, PLAN_LIMITS } from '../config.js';
+import { config } from '../config.js';
 import { getServerByIdForUser } from './serverService.js';
 import { controlServer } from './serverControlService.js';
 import { logAudit } from '../db.js';
@@ -10,12 +10,10 @@ import { getNodeConnection } from './dockerUtils.js';
 import { normalizeSharedDataPermissions } from './games/BaseGameService.js';
 import { rustUtil } from '../utils/rustUtil.js';
 import {
-    assertBackupIntegrity,
     assertSafeBackupDataPath,
     assertSafeBackupDatabaseName,
     backupDatabaseEnv,
     createBackupArchive,
-    extractBackupArchive,
     getBackupPathForServer,
     runBackupProcess
 } from './backupArchiveService.js';
@@ -189,118 +187,6 @@ export async function listServerBackups(id, userId, isAdmin) {
         }).reverse();
     } catch (e) {
         return [];
-    }
-}
-
-export async function restoreBackup(id, filename, userId, isAdmin) {
-    const s = await getServerByIdForUser(id, userId, isAdmin, 'files');
-    if (!s) throw new Error('Servidor no encontrado');
-    s.data_path = assertSafeBackupDataPath(s.data_path);
-    const includesDatabase = hasManagedDatabase(s);
-    if (includesDatabase) assertSafeBackupDatabaseName(s.db_name);
-
-    const { safeFilename, backupPath } = getBackupPathForServer(s.id, filename);
-    const dbDumpFile = path.join(s.data_path, 'database_dump.sql');
-    const restoreNonce = `${process.pid}-${Date.now()}`;
-    const restorePath = `${s.data_path}.restore-${restoreNonce}`;
-    const previousPath = `${s.data_path}.previous-${restoreNonce}`;
-    const rollbackDbDump = path.join(config.backupRoot, `.restore-db-${s.id}-${restoreNonce}.sql`);
-    let originalMoved = false;
-    let filesSwapped = false;
-    let rollbackDatabaseAvailable = false;
-
-    await controlServer(s.id, userId, 'stop', isAdmin);
-
-    try {
-        await assertBackupIntegrity(s.id, safeFilename, backupPath);
-        await fs.mkdir(restorePath, { recursive: true });
-        const plan = PLAN_LIMITS[String(s.runtime_plan || s.plan || 'hobby').toLowerCase()] || PLAN_LIMITS.hobby;
-        const maxExpandedBytes = Number(plan.diskBytes) + (Number(s.extra_disk_gb || 0) * 1024 ** 3);
-        await extractBackupArchive(backupPath, restorePath, maxExpandedBytes);
-
-        if (includesDatabase) {
-            await runBackupProcess('mariadb-dump', [
-                '--skip-ssl',
-                '-h', process.env.MARIADB_HOST || 'mariadb',
-                '-u', 'root',
-                `--result-file=${rollbackDbDump}`,
-                s.db_name
-            ], { env: backupDatabaseEnv() });
-            rollbackDatabaseAvailable = true;
-        }
-
-        await fs.rename(s.data_path, previousPath);
-        originalMoved = true;
-        await fs.rename(restorePath, s.data_path);
-        filesSwapped = true;
-
-        if (includesDatabase) {
-          try {
-            await fs.access(path.join(s.data_path, 'database_dump.sql'));
-            await runBackupProcess('mariadb', [
-                '--skip-ssl',
-                '-h', process.env.MARIADB_HOST || 'mariadb',
-                '-u', 'root',
-                '-e', `DROP DATABASE IF EXISTS \`${s.db_name}\`; CREATE DATABASE \`${s.db_name}\`;`
-            ], { env: backupDatabaseEnv() });
-            await runBackupProcess('mariadb', [
-                '--skip-ssl',
-                '-h', process.env.MARIADB_HOST || 'mariadb',
-                '-u', 'root',
-                s.db_name
-            ], { env: backupDatabaseEnv(), stdinFile: dbDumpFile });
-            await fs.unlink(dbDumpFile);
-          } catch (dbError) {
-            throw new Error(`No se pudo restaurar la base de datos de ${s.id}: ${dbError.message}`);
-          }
-        }
-
-        await controlServer(s.id, userId, 'start', isAdmin, { maintenanceResume: true });
-        await fs.rm(previousPath, { recursive: true, force: true });
-        await fs.unlink(rollbackDbDump).catch(() => {});
-        await logAudit(userId, 'SERVER.BACKUP.RESTORE', { serverId: s.id, filename: safeFilename });
-        return { success: true, message: 'Sistema restaurado con exito.' };
-    } catch (err) {
-        console.error('Fallo critico en la restauracion:', err);
-
-        if (filesSwapped) {
-            await fs.rm(s.data_path, { recursive: true, force: true }).catch(() => {});
-            await fs.rename(previousPath, s.data_path).catch((rollbackError) => {
-                console.error('Fallo al restaurar la carpeta anterior:', rollbackError);
-            });
-        } else if (originalMoved) {
-            await fs.rename(previousPath, s.data_path).catch((rollbackError) => {
-                console.error('Fallo al recolocar la carpeta original:', rollbackError);
-            });
-            await fs.rm(restorePath, { recursive: true, force: true }).catch(() => {});
-        } else {
-            await fs.rm(restorePath, { recursive: true, force: true }).catch(() => {});
-        }
-
-        if (includesDatabase && rollbackDatabaseAvailable) {
-            try {
-                await runBackupProcess('mariadb', [
-                    '--skip-ssl',
-                    '-h', process.env.MARIADB_HOST || 'mariadb',
-                    '-u', 'root',
-                    '-e', `DROP DATABASE IF EXISTS \`${s.db_name}\`; CREATE DATABASE \`${s.db_name}\`;`
-                ], { env: backupDatabaseEnv() });
-                await runBackupProcess('mariadb', [
-                    '--skip-ssl',
-                    '-h', process.env.MARIADB_HOST || 'mariadb',
-                    '-u', 'root',
-                    s.db_name
-                ], { env: backupDatabaseEnv(), stdinFile: rollbackDbDump });
-            } catch (rollbackError) {
-                console.error('Fallo al restaurar la base de datos anterior:', rollbackError);
-            }
-        }
-
-        await fs.unlink(rollbackDbDump).catch(() => {});
-        await controlServer(s.id, userId, 'start', isAdmin, { maintenanceResume: true }).catch((restartError) => {
-            console.error('Fallo al reanudar el servidor despues del rollback:', restartError);
-        });
-        throw new Error('No se pudo restaurar la copia de seguridad.');
     }
 }
 

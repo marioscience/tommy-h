@@ -20,6 +20,7 @@ const files = Object.fromEntries(await Promise.all([
   'backend/src/services/dockerService.js',
   'backend/src/services/dockerUtils.js',
   'backend/src/services/backupService.js',
+  'backend/src/services/backupRestoreService.js',
   'backend/src/services/serverControlService.js',
   'backend/src/services/serverMaintenanceService.js',
   'backend/src/services/serverMaintenanceScheduler.js',
@@ -149,7 +150,7 @@ assert(files['deploy_staging.sh'].includes('worker-backups-staging'), 'staging d
 assert(files['docker-compose.staging.yml'].includes('RAGENODES_ROLE=worker-backups'), 'staging defines the isolated backup scheduler');
 assert(files['docker-compose.registry.staging.yml'].includes('worker-backups-staging:'), 'staging backup scheduler uses the reviewed backend image');
 assert(files['backend/src/services/backupService.js'].includes('normalizeSharedDataPermissions(container, config.gameContainerSharedGid)'), 'backups repair private game-runtime directories through the bounded shared group');
-assert(files['backend/src/services/backupService.js'].includes('{ maintenanceResume: true }'), 'backup restore resumes its already-admitted server after maintenance');
+assert(files['backend/src/services/backupRestoreService.js'].includes('{ maintenanceResume: true }'), 'backup restore resumes its already-admitted server after maintenance');
 assert(files['backend/src/services/serverControlService.js'].includes('if (!options.maintenanceResume)'), 'normal server starts retain node capacity admission');
 for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
   assert(files[deployFile].includes('prepare_runtime_images.sh'), `${deployFile} prefers reviewed Registry images`);

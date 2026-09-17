@@ -17,7 +17,8 @@ import { buildEvidenceBundle, buildEvidenceZip } from '../services/billingEviden
 import { testNodeConnection } from '../utils/dockerNode.js';
 
 // 🚀 SERVICIOS DE BACKUP
-import { listServerBackups, restoreBackup, migrateResources } from '../services/backupService.js';
+import { listServerBackups, migrateResources } from '../services/backupService.js';
+import { restoreBackup } from '../services/backupRestoreService.js';
 import { backupQueue } from '../services/backupQueue.js';
 import { getServerByIdForUser } from '../services/serverService.js';
 import { createNotification, deleteNotification, listAdminNotifications } from '../repositories/notificationRepository.js';
