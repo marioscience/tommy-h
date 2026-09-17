@@ -198,6 +198,15 @@ describe('Backend architecture boundaries', () => {
     assert.match(policy, /CapDrop: \['ALL'\]/);
   });
 
+  it('keeps node transport and mTLS outside generic Docker utilities', async () => {
+    const utilities = await readFile(new URL('../src/services/dockerUtils.js', import.meta.url), 'utf8');
+    const transport = await readFile(new URL('../src/services/dockerNodeService.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(utilities, /dockerode|PassThrough|findNodeById|allowInsecureDockerNodes/);
+    assert.match(transport, /dockerode/);
+    assert.match(transport, /protocol: 'https'/);
+    assert.match(transport, /faltan certificados mTLS/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);

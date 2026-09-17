@@ -9,6 +9,7 @@ import { exec } from 'child_process';
 import util from 'util';
 
 export * from './dockerUtils.js';
+export * from './dockerNodeService.js';
 export * from './gameRuntimePolicy.js';
 export * from './games/minecraft.js';
 export * from './games/rust.js';
@@ -20,7 +21,8 @@ export * from './games/ark.js';
 export * from './games/fivem.js';
 export * from './games/sdtd.js';
 
-import { getDockerForContainer, recreateContainer, getNodeConnection } from './dockerUtils.js';
+import { getDockerForContainer, recreateContainer } from './dockerUtils.js';
+import { getNodeConnection } from './dockerNodeService.js';
 import { applyRageNodesBranding } from './txAdminBrandingService.js';
 import { createMinecraftContainer } from './games/minecraft.js';
 import { createRustContainer } from './games/rust.js';
