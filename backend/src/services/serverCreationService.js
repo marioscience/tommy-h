@@ -1,8 +1,7 @@
 import os from 'os';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import mysql from 'mysql2/promise';
-import { query, logAudit } from '../db.js';
+import { logAudit } from '../db.js';
 import { config, generateSecurePassword } from '../config.js';
 import * as Docker from './dockerService.js';
 import { GameFactory } from './games/GameFactory.js';
@@ -11,6 +10,17 @@ import { getNextAvailablePort, selectDeploymentNode } from './serverNodeSelectio
 import { isPortBindingConflict } from './portBindingConflict.js';
 import { assertNodeStartCapacity } from './nodeResourcePolicy.js';
 import { purgeServerDataDirectory } from './serverDataCleanup.js';
+import { createGameDatabase, removeGameDatabase } from './gameDatabaseService.js';
+import {
+  attachServerToDeploymentJob,
+  deleteServerRecord,
+  findServerById,
+  findUserDeploymentEntitlements,
+  insertCreatingServer,
+  listServerAllocationsByOwner,
+  updateServerPorts,
+  updateServerStatus
+} from '../repositories/serverRepository.js';
 import {
   getEffectiveServerLimit,
   getPlanRamGb,
@@ -52,40 +62,6 @@ function sanitizeServerName(value) {
     .slice(0, 80);
   if (!safeName) throw new Error('El nombre del servidor es obligatorio.');
   return safeName;
-}
-
-async function createMariaDatabase(dbName, dbUser, dbPass) {
-  const connection = await mysql.createConnection({
-    host: process.env.MARIADB_HOST || 'mariadb',
-    user: 'root',
-    password: config.centralDbPass,
-    port: Number(process.env.MARIADB_PORT || 3306)
-  });
-  try {
-    const escapedDatabase = mysql.escapeId(dbName);
-    const escapedUser = mysql.escape(dbUser);
-    await connection.query(`CREATE DATABASE IF NOT EXISTS ${escapedDatabase} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
-    await connection.query(`CREATE USER IF NOT EXISTS ${escapedUser}@'%' IDENTIFIED BY ?`, [dbPass]);
-    await connection.query(`GRANT ALL PRIVILEGES ON ${escapedDatabase}.* TO ${escapedUser}@'%'`);
-    await connection.query('FLUSH PRIVILEGES');
-  } finally {
-    await connection.end();
-  }
-}
-
-async function removeMariaDatabase(dbName, dbUser) {
-  const connection = await mysql.createConnection({
-    host: process.env.MARIADB_HOST || 'mariadb',
-    user: 'root',
-    password: config.centralDbPass,
-    port: Number(process.env.MARIADB_PORT || 3306)
-  });
-  try {
-    await connection.query(`DROP DATABASE IF EXISTS ${mysql.escapeId(dbName)}`);
-    await connection.query(`DROP USER IF EXISTS ${mysql.escape(dbUser)}@'%'`);
-  } finally {
-    await connection.end();
-  }
 }
 
 async function createGameContainer(template, options) {
@@ -136,14 +112,14 @@ async function rollbackCreation({ serverId, containerName, dataPath, nodeId, dbN
 
   if (dbName && dbUser) {
     try {
-      await removeMariaDatabase(dbName, dbUser);
+      await removeGameDatabase(dbName, dbUser);
     } catch (error) {
       console.warn(`[Rollback] No se pudo retirar la base de datos ${dbName}: ${error.message}`);
     }
   }
 
   try {
-    await query('DELETE FROM servers WHERE id = $1', [serverId]);
+    await deleteServerRecord(serverId);
   } catch (error) {
     console.warn(`[Rollback] No se pudo retirar el registro ${serverId}: ${error.message}`);
   }
@@ -157,13 +133,8 @@ export async function createServerForUser(userId, payload = {}) {
 
   try {
     checkSystemLoad();
-    const userResult = await query(
-      'SELECT plan, server_limit, extra_disk_gb, expires_at FROM users WHERE id = $1',
-      [userId]
-    );
-    if (userResult.rows.length === 0) throw new Error('Usuario no encontrado.');
-
-    const user = userResult.rows[0];
+    const user = await findUserDeploymentEntitlements(userId);
+    if (!user) throw new Error('Usuario no encontrado.');
     const { key: assignedPlan, plan } = resolveServerPlan(user.plan);
     const template = normalizeTemplateKey(payload.template || 'fivem');
     if (!isTemplateAllowed(plan, template)) {
@@ -175,10 +146,7 @@ export async function createServerForUser(userId, payload = {}) {
       plan,
       config.serverLimitPerUser
     );
-    const { rows: currentServers } = await query(
-      'SELECT id, runtime_plan, allocated_ram_gb FROM servers WHERE owner_id = $1',
-      [userId]
-    );
+    const currentServers = await listServerAllocationsByOwner(userId);
     if (currentServers.length >= effectiveServerLimit) {
       throw new Error(`Limite alcanzado: tu plan (${assignedPlan.toUpperCase()}) permite ${effectiveServerLimit} servidor(es).`);
     }
@@ -239,36 +207,20 @@ export async function createServerForUser(userId, payload = {}) {
     const dbPass = needsMariaDatabase ? generateSecurePassword() : null;
 
     try {
-      if (needsMariaDatabase) await createMariaDatabase(dbName, dbUser, dbPass);
+      if (needsMariaDatabase) await createGameDatabase(dbName, dbUser, dbPass);
 
-      await query(
-        `INSERT INTO servers (
-          id, owner_id, name, slug, template, runtime_plan, cpuset, status,
-          fivem_port, txadmin_port, blender_port, blender_pass,
-          container_name, data_path, license_key_hint, txadmin_url,
-          db_name, db_user, db_pass, node_id, expires_at, mc_version, mc_type,
-          allocated_ram_gb
-        ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, 'creating',
-          $8, $9, $10, $11, $12, $13, $14, $15,
-          $16, $17, $18, $19, $20, $21, $22, $23
-        )`,
-        [
-          serverId, userId, safeName, slug, template, assignedPlan, payload.cpuset || null,
-          gamePort, txAdminPort, blenderPort, blenderPass,
-          containerName, dataPath, licenseKeyHint, txAdminUrl,
-          dbName, dbUser, dbPass, targetNodeId, user.expires_at || null,
-          payload.mcVersion || payload.mc_version || '1.21.4',
-          payload.mcType || payload.mc_type || 'PAPER',
-          requestedRamGb
-        ]
-      );
+      await insertCreatingServer({
+        id: serverId, ownerId: userId, name: safeName, slug, template,
+        runtimePlan: assignedPlan, cpuset: payload.cpuset || null, gamePort,
+        txAdminPort, blenderPort, blenderPass, containerName, dataPath,
+        licenseKeyHint, txAdminUrl, dbName, dbUser, dbPass, nodeId: targetNodeId,
+        expiresAt: user.expires_at || null,
+        mcVersion: payload.mcVersion || payload.mc_version || '1.21.4',
+        mcType: payload.mcType || payload.mc_type || 'PAPER',
+        allocatedRamGb: requestedRamGb
+      });
       if (payload.deploymentJobId) {
-        await query(
-          `UPDATE deployment_jobs SET server_id = $2, updated_at = NOW()
-           WHERE id = $1 AND status = 'running'`,
-          [payload.deploymentJobId, serverId]
-        );
+        await attachServerToDeploymentJob(payload.deploymentJobId, serverId);
       }
 
       const configuredRetryLimit = Number(process.env.PORT_BIND_RETRY_LIMIT || 8);
@@ -311,16 +263,11 @@ export async function createServerForUser(userId, payload = {}) {
             : gamePort;
           blenderPort = await getNextAvailablePort(config.blenderPortStart, 1, targetNodeId, excludedPorts);
           txAdminUrl = getPublicEndpointUrl(template === 'fivem' ? txAdminPort : gamePort, { path: '' });
-          await query(
-            `UPDATE servers
-             SET fivem_port = $2, txadmin_port = $3, blender_port = $4, txadmin_url = $5
-             WHERE id = $1`,
-            [serverId, gamePort, txAdminPort, blenderPort, txAdminUrl]
-          );
+          await updateServerPorts(serverId, { gamePort, txAdminPort, blenderPort, txAdminUrl });
           console.warn(`[ServerCreation] Puerto ocupado en el nodo ${targetNodeId}; reintento ${attempt + 1}/${retryLimit}.`);
         }
       }
-      await query("UPDATE servers SET status = 'running' WHERE id = $1", [serverId]);
+      await updateServerStatus(serverId, 'running');
     } catch (error) {
       console.error(`[ServerCreation] Fallo al crear ${serverId}; iniciando rollback:`, error);
       await rollbackCreation({ serverId, containerName, dataPath, nodeId: targetNodeId, dbName, dbUser });
@@ -335,7 +282,7 @@ export async function createServerForUser(userId, payload = {}) {
       nodeId: targetNodeId,
       allocatedRamGb: requestedRamGb
     });
-    return (await query('SELECT * FROM servers WHERE id = $1', [serverId])).rows[0];
+    return findServerById(serverId);
   } finally {
     userCreationLocks.delete(userId);
   }

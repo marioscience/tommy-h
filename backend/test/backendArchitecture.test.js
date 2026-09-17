@@ -135,6 +135,14 @@ describe('Backend architecture boundaries', () => {
     assert.doesNotMatch(creation, /runRemoteCommand\(nodeId,[\s\S]{0,80}rm -rf/);
   });
 
+  it('keeps deployment persistence and game database administration out of orchestration', async () => {
+    const creation = await readFile(new URL('../src/services/serverCreationService.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(creation, /\bquery\s*\(/);
+    assert.doesNotMatch(creation, /mysql2|CREATE DATABASE|DROP DATABASE|CREATE USER|DROP USER/);
+    assert.match(creation, /insertCreatingServer/);
+    assert.match(creation, /createGameDatabase/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);
