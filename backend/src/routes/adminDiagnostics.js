@@ -1,13 +1,9 @@
 import express from 'express';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
 import os from 'os';
-import http from 'http';
-import https from 'https';
 import { query } from '../db.js';
 import { config } from '../config.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
-import { runStagingHealthSuite, getLatestTestResult, generateReportHtml } from '../services/stagingHealthTestRunner.js';
+import { registerDiagnosticSuiteRoutes } from './admin/diagnosticSuiteRoutes.js';
 
 const router = express.Router();
 
@@ -15,7 +11,6 @@ router.use(requireAuth, requireAdmin);
 import {
   onlyValidPorts,
   clampTimeout,
-  safeText,
   runCommand,
   httpProbe
 } from '../services/diagnosticProbeService.js';
@@ -392,29 +387,6 @@ router.get('/quick', async (req, res) => {
   }
 });
 
-// 🚀 RUTAS DE DIAGNÓSTICO ADAPTATIVO Y REPORTES DE DESPLIEGUE (PDF/HTML)
-router.get('/test-suite', async (_req, res) => {
-  let result = getLatestTestResult();
-  if (result.status === 'PENDING') {
-    result = await runStagingHealthSuite('MANUAL_QUERY');
-  }
-  res.json(result);
-});
-
-router.post('/run-suite', async (_req, res) => {
-  const result = await runStagingHealthSuite('MANUAL_TRIGGER');
-  res.json(result);
-});
-
-router.get('/report-pdf', async (_req, res) => {
-  let result = getLatestTestResult();
-  if (result.status === 'PENDING') {
-    result = await runStagingHealthSuite('PDF_REQUEST');
-  }
-  const html = generateReportHtml(result);
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Content-Disposition', `inline; filename="ragenodes_deployment_report_${Date.now()}.html"`);
-  res.send(html);
-});
+registerDiagnosticSuiteRoutes(router);
 
 export default router;

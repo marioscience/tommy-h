@@ -313,6 +313,16 @@ describe('Backend architecture boundaries', () => {
     assert.match(provisioning, /payment\.subscription_success/);
   });
 
+  it('keeps adaptive diagnostic suites outside low-level probe routes', async () => {
+    const diagnostics = await readFile(new URL('../src/routes/adminDiagnostics.js', import.meta.url), 'utf8');
+    const suites = await readFile(new URL('../src/routes/admin/diagnosticSuiteRoutes.js', import.meta.url), 'utf8');
+    assert.match(diagnostics, /registerDiagnosticSuiteRoutes\(router\)/);
+    assert.doesNotMatch(diagnostics, /runStagingHealthSuite|getLatestTestResult|generateReportHtml/);
+    assert.match(suites, /router\.get\('\/test-suite'/);
+    assert.match(suites, /router\.post\('\/run-suite'/);
+    assert.match(suites, /router\.get\('\/report-pdf'/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);
