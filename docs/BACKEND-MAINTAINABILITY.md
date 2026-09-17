@@ -92,6 +92,14 @@ export async function resumeAfterMaintenance(serverId) { /* ... */ }
   uniforme de avisos operativos.
 - `repositories/edgeProxyRepository.js`: inventario del proxy perimetral y
   selección atómica del único proxy activo.
+- `services/dockerTelemetryService.js`: muestreo Docker por lotes, caché y
+  publicación efímera en Redis; no controla el ciclo de vida de contenedores.
+- `services/rcon/sourceRconClient.js`: transporte y framing Source RCON; los
+  parsers y fallbacks específicos de juegos permanecen fuera del protocolo.
+- `services/ark/requirements.js`: política pura de capacidad mínima de ARK.
+- `services/ark/configStore.js`: catálogo y persistencia de GameUserSettings.ini.
+- `migrations/coreSchemaMigration.js`: esquema inicial inmutable, separado de
+  las evoluciones incrementales y operativas.
 
 Este mapa debe actualizarse cuando una nueva separación cambie la ubicación
 esperada de una responsabilidad importante.
@@ -103,6 +111,19 @@ backend, ejecutar también `RUN_INTEGRATION=1 npm run test:integration` dentro
 de un contenedor conectado a PostgreSQL, Redis, Docker y al backend del
 laboratorio. La suite realiza sondas no destructivas, usa claves Redis efímeras
 y revierte cualquier escritura de prueba en PostgreSQL.
+
+`RUN_INTEGRATION=1` habilita todas las pruebas reales. `RUN_DB_INTEGRATION=1`
+se conserva como alias temporal para automatizaciones antiguas que ejecutan
+solo las colas PostgreSQL. Sin uno de esos indicadores, las pruebas se omiten
+explícitamente y nunca intentan conectarse por accidente a infraestructura.
+
+## Cobertura
+
+Ejecuta `npm run test:coverage` para obtener cobertura de líneas, ramas y
+funciones usando el runner nativo de Node. La cobertura es una señal de riesgo,
+no un objetivo para rellenar líneas: cualquier módulo crítico con baja cobertura
+debe recibir primero pruebas de contrato, fallo y rollback antes de imponer un
+umbral global más alto.
 
 ## Transacciones e invariantes
 

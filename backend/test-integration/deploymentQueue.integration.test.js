@@ -7,7 +7,7 @@ import {
   enqueueDeployment
 } from '../src/repositories/deploymentJobRepository.js';
 
-const enabled = process.env.RUN_DB_INTEGRATION === '1';
+const enabled = process.env.RUN_INTEGRATION === '1' || process.env.RUN_DB_INTEGRATION === '1';
 
 test('deployment queue is idempotent and claims jobs concurrently', { skip: !enabled }, async () => {
   await runMigrations(query, withTransaction);

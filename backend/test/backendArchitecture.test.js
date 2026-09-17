@@ -453,4 +453,24 @@ describe('Backend architecture boundaries', () => {
     assert.doesNotMatch(service, /new net\.Socket\(\)/);
     assert.doesNotMatch(client, /parseZomboidPlayers/);
   });
+
+  it('keeps ARK capacity policy separate from INI persistence', async () => {
+    const facade = await readFile(new URL('../src/services/arkService.js', import.meta.url), 'utf8');
+    const requirements = await readFile(new URL('../src/services/ark/requirements.js', import.meta.url), 'utf8');
+    const store = await readFile(new URL('../src/services/ark/configStore.js', import.meta.url), 'utf8');
+    assert.match(facade, /from '.\/ark\/requirements\.js'/);
+    assert.match(facade, /from '.\/ark\/configStore\.js'/);
+    assert.match(requirements, /checkArkRequirements/);
+    assert.match(store, /saveARKConfig/);
+    assert.doesNotMatch(requirements, /fs\/promises/);
+    assert.doesNotMatch(store, /PLAN_LIMITS/);
+  });
+
+  it('keeps the immutable core schema outside incremental migrations', async () => {
+    const catalogue = await readFile(new URL('../src/migrations/migrationStatements.js', import.meta.url), 'utf8');
+    const core = await readFile(new URL('../src/migrations/coreSchemaMigration.js', import.meta.url), 'utf8');
+    assert.match(catalogue, /coreSchemaMigration/);
+    assert.match(core, /202601010001_initial_core_schema/);
+    assert.doesNotMatch(catalogue, /CREATE TABLE IF NOT EXISTS users/);
+  });
 });
