@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import { backupQueue } from './backupQueue.js';
 import * as serverService from './serverService.js';
-import { syncBackupsToRemote } from './backupService.js';
+import { syncBackupsToRemote } from './backupRemoteService.js';
 import { config } from '../config.js';
 
 const PLAN_BACKUP_INTERVAL_HOURS = {

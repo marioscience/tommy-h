@@ -2,7 +2,6 @@ import path from 'path';
 import fs from 'fs/promises';
 import { config } from '../config.js';
 import { getServerByIdForUser } from './serverService.js';
-import { controlServer } from './serverControlService.js';
 import { logAudit } from '../db.js';
 import { deleteBackupRecord, recordBackup } from '../repositories/backupRepository.js';
 import { hasManagedDatabase } from './backupPolicy.js';
@@ -29,37 +28,6 @@ async function prepareBackupReadAccess(server) {
         console.warn(`[Backup] No se pudieron normalizar los permisos de ${server.id}: ${error.message}`);
     }
 }
-
-export async function syncBackupsToRemote() {
-    if (!config.backupRemoteEnabled) {
-        return { success: true, skipped: true, reason: 'disabled' };
-    }
-
-    const remoteName = String(config.backupRemoteName || '').trim();
-    const remotePath = String(config.backupRemotePath || '').replace(/^\/+|\/+$/g, '');
-    if (!/^[a-zA-Z0-9_-]+$/.test(remoteName) || !remotePath) {
-        throw new Error('Configuracion de backup remoto invalida.');
-    }
-
-    const configStat = await fs.stat(config.rcloneConfigPath).catch(() => null);
-    if (!configStat?.isFile()) {
-        throw new Error(`RClone no esta configurado: falta un archivo regular en ${config.rcloneConfigPath}.`);
-    }
-
-    console.log(`[BackupRemote] Sincronizando backups con ${remoteName}:${remotePath}...`);
-    await runBackupProcess('rclone', [
-        '--config', config.rcloneConfigPath,
-        'sync',
-        config.backupRoot,
-        `${remoteName}:${remotePath}`
-    ]);
-    console.log('[BackupRemote] Sincronizacion completada.');
-    return { success: true, skipped: false };
-}
-
-// Compatibilidad con integraciones antiguas; la implementacion ya no depende de Google Drive.
-export const syncBackupsToGDrive = syncBackupsToRemote;
-
 export async function createFullBackup(id, userId, isAdmin, customName = null) {
     const s = await getServerByIdForUser(id, userId, isAdmin, 'files');
     if (!s) throw new Error('Servidor no encontrado');
@@ -204,60 +172,4 @@ export async function deleteBackup(id, filename, userId, isAdmin) {
 
     await logAudit(userId, 'SERVER.BACKUP.DELETE', { serverId: s.id, filename: safeFilename });
     return { success: true };
-}
-
-export async function migrateResources(oldServerId, newServerId, isAdmin) {
-    if (!isAdmin) throw new Error('Solo el administrador puede migrar nodos.');
-
-    const oldSrv = await getServerByIdForUser(oldServerId, null, true);
-    const newSrv = await getServerByIdForUser(newServerId, null, true);
-
-    if (!oldSrv || !newSrv) throw new Error('IDs de servidor no validos.');
-    oldSrv.data_path = assertSafeBackupDataPath(oldSrv.data_path);
-    newSrv.data_path = assertSafeBackupDataPath(newSrv.data_path);
-    const migrateDatabase = hasManagedDatabase(oldSrv) && hasManagedDatabase(newSrv);
-    if (migrateDatabase) {
-        assertSafeBackupDatabaseName(oldSrv.db_name);
-        assertSafeBackupDatabaseName(newSrv.db_name);
-    }
-
-    await controlServer(oldSrv.id, null, 'stop', true);
-    await controlServer(newSrv.id, null, 'stop', true);
-
-    const tmpDump = `/tmp/mig_${oldSrv.id}.sql`;
-
-    try {
-        await runBackupProcess('rsync', [
-            '-a',
-            `${path.join(oldSrv.data_path, 'resources')}${path.sep}`,
-            `${path.join(newSrv.data_path, 'resources')}${path.sep}`
-        ]);
-
-        await fs.copyFile(path.join(oldSrv.data_path, 'server.cfg'), path.join(newSrv.data_path, 'server.cfg'));
-
-        if (migrateDatabase) {
-            await runBackupProcess('mariadb-dump', [
-                '--skip-ssl',
-                '-h', process.env.MARIADB_HOST || 'mariadb',
-                '-u', 'root',
-                `--result-file=${tmpDump}`,
-                oldSrv.db_name
-            ], { env: backupDatabaseEnv() });
-
-            await runBackupProcess('mariadb', [
-                '--skip-ssl',
-                '-h', process.env.MARIADB_HOST || 'mariadb',
-                '-u', 'root',
-                newSrv.db_name
-            ], { env: backupDatabaseEnv(), stdinFile: tmpDump });
-        }
-
-        await fs.unlink(tmpDump).catch(() => {});
-        await controlServer(newSrv.id, null, 'start', true);
-        return { success: true, message: 'Recursos y BD migrados al nuevo contenedor.' };
-    } catch (e) {
-        await fs.unlink(tmpDump).catch(() => {});
-        console.error('Error en migracion rsync/mysql:', e);
-        throw new Error('Fallo en la transferencia de recursos.');
-    }
 }

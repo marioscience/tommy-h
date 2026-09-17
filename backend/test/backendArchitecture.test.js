@@ -171,6 +171,16 @@ describe('Backend architecture boundaries', () => {
     assert.match(restore, /maintenanceResume: true/);
   });
 
+  it('keeps remote sync and server migration outside core backup workflows', async () => {
+    const workflow = await readFile(new URL('../src/services/backupService.js', import.meta.url), 'utf8');
+    const remote = await readFile(new URL('../src/services/backupRemoteService.js', import.meta.url), 'utf8');
+    const migration = await readFile(new URL('../src/services/serverResourceMigrationService.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(workflow, /rclone|rsync|migrateResources|syncBackupsToRemote/);
+    assert.match(remote, /rclone/);
+    assert.match(migration, /rsync/);
+    assert.match(migration, /assertSafeBackupDataPath/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);
