@@ -1,11 +1,17 @@
 import { existsSync } from 'fs';
 import { getFolderSize } from './serverNodeSelection.js';
 import path from 'path';
-import mysql from 'mysql2/promise';
-import { query, queryCached } from '../db.js';
 import { config, PLAN_LIMITS, generateSecurePassword } from '../config.js';
 import * as Docker from './dockerService.js';
 import net from 'net';
+import { createGameDatabase } from './gameDatabaseService.js';
+import {
+  findServerAccessibleToUser,
+  listAllServers,
+  listServersAccessibleToUser,
+  listServerStatsHistory,
+  updateServerDatabaseCredentials
+} from '../repositories/serverRepository.js';
 
 export const repairBackoffCache = new Map();
 const MAX_REPAIRS_PER_HOUR = 3;
@@ -69,8 +75,7 @@ const PLANS = Object.entries(PLAN_LIMITS).reduce((acc, [key, val]) => {
 const DOCKER_QUERY_CHUNK_SIZE = Math.max(1, Number(process.env.DOCKER_QUERY_CHUNK_SIZE || 5));
 
 export async function getServersForUser(userId, isAdmin = false) {
-  const sql = isAdmin ? 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id ORDER BY servers.created_at DESC' : 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id WHERE servers.owner_id = $1 OR servers.id IN (SELECT server_id FROM subusers WHERE user_id = $1) ORDER BY servers.created_at DESC';
-  const servers = (await queryCached(sql, isAdmin ? [] : [userId], 3)).rows;
+  const servers = await listServersAccessibleToUser(userId, isAdmin);
 
   // Lotes (chunks) para no saturar Docker con Promesas concurrentes masivas
   const CHUNK_SIZE = DOCKER_QUERY_CHUNK_SIZE;
@@ -132,14 +137,7 @@ export async function getServersForUser(userId, isAdmin = false) {
 }
 
 export async function getServerByIdForUser(id, userId, isAdmin = false, requiredPermission = null) {
-  const sql = isAdmin
-    ? 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id WHERE servers.id = $1'
-    : `SELECT servers.*, users.extra_disk_gb, su.permissions AS subuser_permissions
-       FROM servers
-       LEFT JOIN users ON servers.owner_id = users.id
-       LEFT JOIN subusers su ON su.server_id = servers.id AND su.user_id = $2
-       WHERE servers.id = $1 AND (servers.owner_id = $2 OR su.user_id = $2)`;
-  const server = (await queryCached(sql, isAdmin ? [id] : [id, userId], 2)).rows[0];
+  const server = await findServerAccessibleToUser(id, userId, isAdmin);
   if (!server || isAdmin || server.owner_id === userId || !requiredPermission) return server;
 
   const permissions = Array.isArray(server.subuser_permissions) ? server.subuser_permissions : [];
@@ -158,17 +156,8 @@ export async function getServerDetails(id, userId, isAdmin) {
     const dbUser = `usr_${shortId}`;
     const dbPass = generateSecurePassword();
     try {
-        const dbConnection = await mysql.createConnection({
-            host: 'mariadb', user: 'root', password: config.centralDbPass
-        });
-        const escapedDbName = mysql.escapeId(dbName);
-        await dbConnection.query(`CREATE DATABASE IF NOT EXISTS ${escapedDbName}`);
-        await dbConnection.query(`CREATE USER IF NOT EXISTS ?@'%' IDENTIFIED BY ?`, [dbUser, dbPass]);
-        await dbConnection.query(`GRANT ALL PRIVILEGES ON ${escapedDbName}.* TO ?@'%'`, [dbUser]);
-        await dbConnection.query(`FLUSH PRIVILEGES`);
-        await dbConnection.end();
-
-        await query('UPDATE servers SET db_name = $1, db_user = $2, db_pass = $3 WHERE id = $4', [dbName, dbUser, dbPass, s.id]);
+        await createGameDatabase(dbName, dbUser, dbPass);
+        await updateServerDatabaseCredentials(s.id, { dbName, dbUser, dbPass });
         s.db_name = dbName;
         s.db_user = dbUser;
         s.db_pass = dbPass;
@@ -226,13 +215,11 @@ export async function getServerLogs(id, userId, isAdmin) {
 }
 
 export async function getAllServers() {
-  const { rows } = await query('SELECT * FROM servers');
-  return rows;
+  return listAllServers();
 }
 
 export async function getServerStatsHistory(id, userId, isAdmin) {
     const s = await getServerByIdForUser(id, userId, isAdmin);
     if (!s) throw new Error("Servidor no encontrado");
-    const { rows } = await query('SELECT cpu, ram, ram_gb, created_at FROM server_stats_history WHERE server_id = $1 ORDER BY created_at DESC LIMIT 50', [s.id]);
-    return rows.reverse();
+    return (await listServerStatsHistory(s.id)).reverse();
 }

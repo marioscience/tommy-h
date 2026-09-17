@@ -144,6 +144,14 @@ describe('Backend architecture boundaries', () => {
     assert.doesNotMatch(creation, /GameFactory|createPalworldContainer|purgeServerDataDirectory/);
   });
 
+  it('keeps server presentation free of SQL and duplicate database administration', async () => {
+    const service = await readFile(new URL('../src/services/serverService.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(service, /\bquery(?:Cached)?\s*\(/);
+    assert.doesNotMatch(service, /mysql2|CREATE DATABASE|CREATE USER|GRANT ALL PRIVILEGES/);
+    assert.match(service, /findServerAccessibleToUser/);
+    assert.match(service, /createGameDatabase/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);

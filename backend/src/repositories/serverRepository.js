@@ -1,4 +1,4 @@
-import { query } from '../db.js';
+import { query, queryCached } from '../db.js';
 
 export async function findSubuserPermissions(serverId, userId, db = query) {
   const result = await db(
@@ -130,4 +130,40 @@ export async function updateServerPorts(serverId, ports, db = query) {
 
 export async function findServerById(serverId, db = query) {
   return (await db('SELECT * FROM servers WHERE id = $1', [serverId])).rows[0] ?? null;
+}
+
+export async function listServersAccessibleToUser(userId, isAdmin = false) {
+  const sql = isAdmin
+    ? 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id ORDER BY servers.created_at DESC'
+    : 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id WHERE servers.owner_id = $1 OR servers.id IN (SELECT server_id FROM subusers WHERE user_id = $1) ORDER BY servers.created_at DESC';
+  return (await queryCached(sql, isAdmin ? [] : [userId], 3)).rows;
+}
+
+export async function findServerAccessibleToUser(serverId, userId, isAdmin = false) {
+  const sql = isAdmin
+    ? 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id WHERE servers.id = $1'
+    : `SELECT servers.*, users.extra_disk_gb, su.permissions AS subuser_permissions
+       FROM servers
+       LEFT JOIN users ON servers.owner_id = users.id
+       LEFT JOIN subusers su ON su.server_id = servers.id AND su.user_id = $2
+       WHERE servers.id = $1 AND (servers.owner_id = $2 OR su.user_id = $2)`;
+  return (await queryCached(sql, isAdmin ? [serverId] : [serverId, userId], 2)).rows[0];
+}
+
+export async function updateServerDatabaseCredentials(serverId, credentials, db = query) {
+  return db(
+    'UPDATE servers SET db_name = $1, db_user = $2, db_pass = $3 WHERE id = $4',
+    [credentials.dbName, credentials.dbUser, credentials.dbPass, serverId]
+  );
+}
+
+export async function listAllServers(db = query) {
+  return (await db('SELECT * FROM servers')).rows;
+}
+
+export async function listServerStatsHistory(serverId, db = query) {
+  return (await db(
+    'SELECT cpu, ram, ram_gb, created_at FROM server_stats_history WHERE server_id = $1 ORDER BY created_at DESC LIMIT 50',
+    [serverId]
+  )).rows;
 }
