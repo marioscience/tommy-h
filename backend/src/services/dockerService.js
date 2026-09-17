@@ -23,7 +23,6 @@ export * from './games/sdtd.js';
 
 import { getDockerForContainer, recreateContainer } from './dockerUtils.js';
 import { getNodeConnection } from './dockerNodeService.js';
-import { applyRageNodesBranding } from './txAdminBrandingService.js';
 import { createMinecraftContainer } from './games/minecraft.js';
 import { createRustContainer } from './games/rust.js';
 import { createPalworldContainer } from './games/palworld.js';
@@ -147,24 +146,6 @@ export function startNodeMonitor() {
             }
         } catch (e) {}
     }, 60000);
-}
-
-export async function patchExistingContainers() {
-    try {
-        const nodeIds = await listActiveNodeIds();
-        for (const nodeId of nodeIds) {
-            try {
-                const docker = await getNodeConnection(nodeId);
-                const containers = await docker.listContainers();
-                for (const containerInfo of containers) {
-                    if (containerInfo.Names[0].startsWith('/ragenodes-')) {
-                        const container = docker.getContainer(containerInfo.Id);
-                        applyRageNodesBranding(container, containerInfo.Names[0]);
-                    }
-                }
-            } catch (e) {}
-        }
-    } catch (e) {}
 }
 
 export async function getContainerStats(name, { force = false } = {}) {

@@ -1,3 +1,6 @@
+import { listActiveNodeIds } from '../repositories/nodeRepository.js';
+import { getNodeConnection } from './dockerNodeService.js';
+
 const TXADMIN_INDEX_PATH = '/opt/fivem/alpine/opt/cfx-server/citizen/system_resources/monitor/panel/index.html';
 
 const BRANDING_MARKUP = `
@@ -66,4 +69,21 @@ export async function applyRageNodesBranding(container, _name = 'Unknown', retri
     } catch {}
     await new Promise((resolve) => setTimeout(resolve, 5000));
   }
+}
+
+export async function patchExistingContainers() {
+  try {
+    const nodeIds = await listActiveNodeIds();
+    for (const nodeId of nodeIds) {
+      try {
+        const docker = await getNodeConnection(nodeId);
+        const containers = await docker.listContainers();
+        for (const containerInfo of containers) {
+          if (containerInfo.Names[0].startsWith('/ragenodes-')) {
+            applyRageNodesBranding(docker.getContainer(containerInfo.Id), containerInfo.Names[0]);
+          }
+        }
+      } catch {}
+    }
+  } catch {}
 }

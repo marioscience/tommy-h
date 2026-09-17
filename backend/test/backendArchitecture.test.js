@@ -207,6 +207,15 @@ describe('Backend architecture boundaries', () => {
     assert.match(transport, /faltan certificados mTLS/);
   });
 
+  it('keeps txAdmin fleet patching with the branding owner', async () => {
+    const dockerService = await readFile(new URL('../src/services/dockerService.js', import.meta.url), 'utf8');
+    const branding = await readFile(new URL('../src/services/txAdminBrandingService.js', import.meta.url), 'utf8');
+    const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(dockerService, /patchExistingContainers/);
+    assert.match(branding, /export async function patchExistingContainers/);
+    assert.match(worker, /txAdminBrandingService/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);
