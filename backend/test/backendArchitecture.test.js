@@ -216,6 +216,15 @@ describe('Backend architecture boundaries', () => {
     assert.match(worker, /txAdminBrandingService/);
   });
 
+  it('keeps Blender runtime outside generic Docker lifecycle operations', async () => {
+    const dockerService = await readFile(new URL('../src/services/dockerService.js', import.meta.url), 'utf8');
+    const blender = await readFile(new URL('../src/services/blenderRuntimeService.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(dockerService, /toggleBlender|blenderBaseImage/);
+    assert.match(blender, /export async function toggleBlender/);
+    assert.match(blender, /no-new-privileges:true/);
+    assert.match(blender, /Memory: 4 \* 1024 \* 1024 \* 1024/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);

@@ -18,6 +18,7 @@ const files = Object.fromEntries(await Promise.all([
   'auto_update_prod.sh',
   'auto_update_staging.sh',
   'backend/src/services/dockerService.js',
+  'backend/src/services/blenderRuntimeService.js',
   'backend/src/services/dockerUtils.js',
   'backend/src/services/gameRuntimePolicy.js',
   'backend/src/services/backupService.js',
@@ -249,8 +250,8 @@ const stagingLoadEnv = files['deploy_staging.sh'].indexOf('load_env_file');
 const stagingPreflight = files['deploy_staging.sh'].indexOf('production_preflight.sh');
 assert(stagingLoadEnv !== -1 && stagingPreflight !== -1 && stagingLoadEnv < stagingPreflight, 'staging loads dotenv before production preflight');
 assert(files['.env.example'].includes('PORT_BIND_RETRY_LIMIT=8'), 'port binding retries are explicitly documented');
-assert(files['backend/src/services/dockerService.js'].includes('[config.dockerNetwork]: {}'), 'Blender joins the configured runtime network');
-assert(!files['backend/src/services/dockerService.js'].includes("'ragenodes_net': {}"), 'Blender does not hardcode the production network');
+assert(files['backend/src/services/blenderRuntimeService.js'].includes('[config.dockerNetwork]: {}'), 'Blender joins the configured runtime network');
+assert(!files['backend/src/services/blenderRuntimeService.js'].includes("'ragenodes_net': {}"), 'Blender does not hardcode the production network');
 assert(files['backend/src/services/gameRuntimePolicy.js'].includes('deriveServiceIdentifier'), 'game instances can derive stable unique identifiers');
 assert(files['backend/src/services/games/minecraft.js'].includes("DIFFICULTY=${opts.difficulty || 'normal'}"), 'Minecraft defaults to normal difficulty');
 assert(files['backend/src/services/games/minecraft.js'].includes("'ONLINE_MODE=TRUE'"), 'Minecraft identity verification is enabled by default');
