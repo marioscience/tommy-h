@@ -19,7 +19,8 @@ export * from './games/ark.js';
 export * from './games/fivem.js';
 export * from './games/sdtd.js';
 
-import { getDockerForContainer, applyRageNodesBranding, recreateContainer, getNodeConnection } from './dockerUtils.js';
+import { getDockerForContainer, recreateContainer, getNodeConnection } from './dockerUtils.js';
+import { applyRageNodesBranding } from './txAdminBrandingService.js';
 import { createMinecraftContainer } from './games/minecraft.js';
 import { createRustContainer } from './games/rust.js';
 import { createPalworldContainer } from './games/palworld.js';

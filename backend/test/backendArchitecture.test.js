@@ -181,6 +181,14 @@ describe('Backend architecture boundaries', () => {
     assert.match(migration, /assertSafeBackupDataPath/);
   });
 
+  it('keeps txAdmin presentation patches out of generic Docker utilities', async () => {
+    const utilities = await readFile(new URL('../src/services/dockerUtils.js', import.meta.url), 'utf8');
+    const branding = await readFile(new URL('../src/services/txAdminBrandingService.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(utilities, /RAGENODES_WHITE_LABEL_PATCH/);
+    assert.match(branding, /RAGENODES_WHITE_LABEL_PATCH_START/);
+    assert.match(branding, /txadmin-white-label|txAdmin|TXADMIN_INDEX_PATH/i);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);
