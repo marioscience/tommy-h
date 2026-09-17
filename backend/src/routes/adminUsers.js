@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { logAudit, withTransaction } from '../db.js';
 import { signToken, setSessionCookie } from '../middleware/auth.js';
-import { deleteServer } from '../services/serverService.js';
+import { deleteServer } from '../services/serverControlService.js';
 import {
   createAdminUser,
   createInviteKey,

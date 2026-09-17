@@ -82,10 +82,6 @@ const DOCKER_QUERY_CHUNK_SIZE = Math.max(1, Number(process.env.DOCKER_QUERY_CHUN
 const MAINTENANCE_CHUNK_SIZE = Math.max(1, Number(process.env.MAINTENANCE_CHUNK_SIZE || 3));
 const MAINTENANCE_INTERVAL_MS = Math.max(300000, Number(process.env.MAINTENANCE_INTERVAL_MS || 600000)); // 10 minutes default
 
-export { getFolderSize, getNodeRuntimeUsage, nodeCanAcceptDockerWorkload, selectDeploymentNode, getNextAvailablePort } from './serverNodeSelection.js';
-export { getSubusersForServer, addSubuserToServer, removeSubuserFromServer } from './serverSubusers.js';
-export { setServerBackupTime, updateServerWebhook, updateServerCluster, updateServerAutoRestart, toggleBlenderForServer, renewBlenderHeartbeat } from './serverSettings.js';
-
 export async function getServersForUser(userId, isAdmin = false) {
   const sql = isAdmin ? 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id ORDER BY servers.created_at DESC' : 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id WHERE servers.owner_id = $1 OR servers.id IN (SELECT server_id FROM subusers WHERE user_id = $1) ORDER BY servers.created_at DESC';
   const servers = (await queryCached(sql, isAdmin ? [] : [userId], 3)).rows;
@@ -213,8 +209,6 @@ async function getNextAvailablePort(startPort, range = 1, targetNodeId = 0) {
   throw new Error(`No hay puertos disponibles entre ${startPort} y ${endPort} para un bloque de ${range}. Libera puertos o amplía PORT_SCAN_LIMIT.`);
 }
 
-export { createServerForUser } from './serverCreationService.js';
-
 export async function getServerDetails(id, userId, isAdmin) {
   const s = await getServerByIdForUser(id, userId, isAdmin);
   if (!s) return null;
@@ -305,5 +299,3 @@ export async function getServerStatsHistory(id, userId, isAdmin) {
     const { rows } = await query('SELECT cpu, ram, ram_gb, created_at FROM server_stats_history WHERE server_id = $1 ORDER BY created_at DESC LIMIT 50', [s.id]);
     return rows.reverse();
 }
-
-export { controlServer, deleteServer, repairServer, repairOneServer } from './serverControlService.js';

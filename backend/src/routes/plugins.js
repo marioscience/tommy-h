@@ -1,6 +1,7 @@
 import express from 'express';
 import { requireAuth } from '../middleware/auth.js';
-import { getServerByIdForUser, controlServer } from '../services/serverService.js';
+import { getServerByIdForUser } from '../services/serverService.js';
+import { controlServer } from '../services/serverControlService.js';
 import { runRemoteCommand } from '../services/dockerService.js';
 import { logAudit } from '../db.js';
 

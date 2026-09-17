@@ -3,6 +3,7 @@ import Docker from 'dockerode';
 import { config } from '../config.js';
 import { query } from '../db.js';
 import * as serverService from '../services/serverService.js';
+import { controlServer, repairServer } from '../services/serverControlService.js';
 import { verifyDiscordApiKey as verifyApiKey } from '../middleware/discordApiKey.js';
 import { getDiscordUserDiagnostics } from '../services/discordDiagnosticsService.js';
 import { registerVendorRoutes } from './discord/vendorRoutes.js';
@@ -201,7 +202,7 @@ router.post('/control/:serverId/:action', verifyApiKey, async (req, res) => {
     const { serverId, action } = req.params;
     try {
         // En la API de Discord asumimos privilegios de Admin para el bot
-        const result = await serverService.controlServer(serverId, 'DISCORD_BOT', action, true);
+        const result = await controlServer(serverId, 'DISCORD_BOT', action, true);
         res.json(result);
     } catch (error) {
         console.error(`❌ Error controlando server ${serverId}:`, error);
@@ -215,7 +216,7 @@ router.post('/control/:serverId/:action', verifyApiKey, async (req, res) => {
 router.post('/repair/:serverId', verifyApiKey, async (req, res) => {
     const { serverId } = req.params;
     try {
-        const result = await serverService.repairServer(serverId, 'DISCORD_BOT', true);
+        const result = await repairServer(serverId, 'DISCORD_BOT', true);
         res.json(result);
     } catch (error) {
         console.error(`❌ Error reparando server ${serverId}:`, error);

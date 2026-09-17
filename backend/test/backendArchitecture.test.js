@@ -4,6 +4,13 @@ import { readFile } from 'node:fs/promises';
 import { buildRestartOptions } from '../src/services/serverRestartOptions.js';
 
 describe('Backend architecture boundaries', () => {
+  it('keeps lifecycle control dependent on server queries without a reverse dependency', async () => {
+    const queries = await readFile(new URL('../src/services/serverService.js', import.meta.url), 'utf8');
+    const control = await readFile(new URL('../src/services/serverControlService.js', import.meta.url), 'utf8');
+    assert.match(control, /from '.\/serverService\.js'/);
+    assert.doesNotMatch(queries, /server(?:ControlService|Settings|Subusers)/);
+  });
+
   it('keeps periodic maintenance owned by the worker scheduler', async () => {
     const control = await readFile(new URL('../src/services/serverControlService.js', import.meta.url), 'utf8');
     const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
