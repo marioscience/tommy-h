@@ -1,21 +1,11 @@
 import { existsSync } from 'fs';
 import { getFolderSize } from './serverNodeSelection.js';
-import fs from 'fs/promises';
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
 import mysql from 'mysql2/promise';
-import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
-import { query, queryCached, logAudit } from '../db.js';
+import { query, queryCached } from '../db.js';
 import { config, PLAN_LIMITS, generateSecurePassword } from '../config.js';
 import * as Docker from './dockerService.js';
-import { execFile } from 'child_process';
-import { GameFactory } from './games/GameFactory.js';
-import { sendTeamInviteEmail } from './emailService.js';
-import os from 'os';
 import net from 'net';
-import dgram from 'dgram';
-import util from 'util';
 
 export const repairBackoffCache = new Map();
 const MAX_REPAIRS_PER_HOUR = 3;
@@ -61,8 +51,6 @@ export function verifyServerPort(ip, port, type) {
     });
 }
 
-const execFilePromise = util.promisify(execFile);
-
 // 🧠 TRACKER DE ACTIVIDAD PARA ENTORNOS 3D (Auto-apagado por inactividad)
 export const blenderActivity = new Map();
 const BLENDER_INACTIVITY_MS = 30 * 60 * 1000; // 30 minutos
@@ -79,8 +67,6 @@ const PLANS = Object.entries(PLAN_LIMITS).reduce((acc, [key, val]) => {
   return acc;
 }, {});
 const DOCKER_QUERY_CHUNK_SIZE = Math.max(1, Number(process.env.DOCKER_QUERY_CHUNK_SIZE || 5));
-const MAINTENANCE_CHUNK_SIZE = Math.max(1, Number(process.env.MAINTENANCE_CHUNK_SIZE || 3));
-const MAINTENANCE_INTERVAL_MS = Math.max(300000, Number(process.env.MAINTENANCE_INTERVAL_MS || 600000)); // 10 minutes default
 
 export async function getServersForUser(userId, isAdmin = false) {
   const sql = isAdmin ? 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id ORDER BY servers.created_at DESC' : 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id WHERE servers.owner_id = $1 OR servers.id IN (SELECT server_id FROM subusers WHERE user_id = $1) ORDER BY servers.created_at DESC';
@@ -158,55 +144,6 @@ export async function getServerByIdForUser(id, userId, isAdmin = false, required
 
   const permissions = Array.isArray(server.subuser_permissions) ? server.subuser_permissions : [];
   return permissions.includes(requiredPermission) ? server : undefined;
-}
-
-async function getNextAvailablePort(startPort, range = 1, targetNodeId = 0) {
-    const nodeOffset = Number(targetNodeId) * 1000;
-    startPort = startPort + nodeOffset + (config.portBaseOffset || 0);
-
-    const maxScan = Number(process.env.PORT_SCAN_LIMIT || 5000);
-    const endPort = Math.min(65535, startPort + maxScan);
-  if (!Number.isInteger(startPort) || startPort <= 0 || startPort > 65535) {
-    throw new Error(`Puerto inicial inválido: ${startPort}`);
-  }
-  if (!Number.isInteger(range) || range <= 0 || startPort + range - 1 > 65535) {
-    throw new Error(`Rango de puertos inválido: inicio=${startPort}, rango=${range}`);
-  }
-
-  const { rows } = await query(`
-    SELECT fivem_port as port FROM servers WHERE fivem_port IS NOT NULL
-    UNION
-    SELECT txadmin_port as port FROM servers WHERE txadmin_port IS NOT NULL
-    UNION
-    SELECT blender_port as port FROM servers WHERE blender_port IS NOT NULL
-  `);
-  const usedPorts = new Set(rows.map(r => Number(r.port)).filter(Boolean));
-
-  try {
-      const containers = await Docker.localDocker.listContainers();
-      for (const c of containers) {
-          if (c.Ports) {
-              for (const p of c.Ports) {
-                  if (p.PublicPort) usedPorts.add(Number(p.PublicPort));
-              }
-          }
-      }
-  } catch (e) {
-      console.warn('[Ports] No se pudieron leer puertos publicados desde Docker:', e.message);
-  }
-
-  for (let port = startPort; port + range - 1 <= endPort; port++) {
-    let blockFree = true;
-    for (let i = 0; i < range; i++) {
-        if (usedPorts.has(port + i)) {
-            blockFree = false;
-            break;
-        }
-    }
-    if (blockFree) return port;
-  }
-
-  throw new Error(`No hay puertos disponibles entre ${startPort} y ${endPort} para un bloque de ${range}. Libera puertos o amplía PORT_SCAN_LIMIT.`);
 }
 
 export async function getServerDetails(id, userId, isAdmin) {
