@@ -9,7 +9,7 @@
     "db:migrate": "node src/scripts/migrate.js",
     "test": "npm run audit:structure && node --test test/**/*.test.js",
     "test:integration": "node --test test-integration/**/*.test.js",
-    "test:coverage": "node --experimental-test-coverage --test test/**/*.test.js",
+    "test:coverage": "node --experimental-test-coverage --test-coverage-lines=45 --test-coverage-functions=30 --test-coverage-branches=65 --test test/**/*.test.js",
     "audit:structure": "node scripts/check-module-size.mjs",
     "worker:backups": "RAGENODES_ROLE=worker-backups node src/worker.js",
     "worker:docker-events": "RAGENODES_ROLE=worker-docker-events node src/worker.js",

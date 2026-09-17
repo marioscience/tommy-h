@@ -125,6 +125,12 @@ no un objetivo para rellenar líneas: cualquier módulo crítico con baja cobert
 debe recibir primero pruebas de contrato, fallo y rollback antes de imponer un
 umbral global más alto.
 
+Línea base del 17 de septiembre de 2026: 46,51% de líneas, 70,69% de ramas y
+31,98% de funciones. El comando protege mínimos de 45%, 65% y 30%
+respectivamente. Eleva estos umbrales únicamente después de añadir pruebas que
+ejecuten comportamiento real; nunca excluyas módulos críticos para mejorar el
+porcentaje de forma artificial.
+
 ## Transacciones e invariantes
 
 Una transacción protege una regla de negocio que abarque varias escrituras; no
