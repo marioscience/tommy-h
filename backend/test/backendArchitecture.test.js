@@ -414,4 +414,13 @@ describe('Backend architecture boundaries', () => {
     assert.match(ark, /-ServerPlatform=ALL/);
     assert.doesNotMatch(ark, /chmod 0777/);
   });
+
+  it('keeps environment loading separate from deployment security policy', async () => {
+    const entrypoint = await readFile(new URL('../src/config.js', import.meta.url), 'utf8');
+    const security = await readFile(new URL('../src/config/security.js', import.meta.url), 'utf8');
+    assert.match(entrypoint, /validateSecureConfig\(config\)/);
+    assert.match(security, /export function validateSecureConfig\(config\)/);
+    assert.doesNotMatch(security, /process\.env/);
+    assert.doesNotMatch(security, /dotenv/);
+  });
 });
