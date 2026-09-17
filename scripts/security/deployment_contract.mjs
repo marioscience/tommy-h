@@ -21,6 +21,7 @@ const files = Object.fromEntries(await Promise.all([
   'backend/src/services/dockerUtils.js',
   'backend/src/services/backupService.js',
   'backend/src/services/serverControlService.js',
+  'backend/src/services/serverMaintenanceService.js',
   'backend/src/services/serverMaintenanceScheduler.js',
   'backend/src/services/txAdminCookieService.js',
   'backend/src/worker.js',
@@ -258,11 +259,11 @@ assert(
     && files['backend/src/worker.js'].includes('startServerMaintenance()'),
   'game maintenance has a single worker owner'
 );
-assert(files['backend/src/services/serverControlService.js'].includes("hasFatalLog && containerHealth === 'unhealthy'"), 'stale fatal log text cannot recreate a healthy game server');
+assert(files['backend/src/services/serverMaintenanceService.js'].includes("hasFatalLog && containerHealth === 'unhealthy'"), 'stale fatal log text cannot recreate a healthy game server');
 assert(!files['backend/src/services/txAdminCookieService.js'].includes("sameSite:\\\"lax\\\"/sameSite:\\\"none\\\",secure:true,partitioned:true"), 'FiveM startup cannot force txAdmin OAuth cookies into a partitioned store');
 assert(
   files['backend/src/services/txAdminCookieService.js'].includes("SameSite=None;Secure;Partitioned/SameSite=Lax")
-    && files['backend/src/services/serverControlService.js'].includes('scheduleEmbeddedTxAdminCookieRepair(s)'),
+    && files['backend/src/services/serverControlService.js'].includes('scheduleEmbeddedTxAdminCookieRepair(server)'),
   'FiveM startup repairs legacy partitioned txAdmin bundles'
 );
 assert(files['backend/src/services/games/rust.js'].includes("deriveServiceIdentifier('rust'"), 'Rust identity is unique per server');
