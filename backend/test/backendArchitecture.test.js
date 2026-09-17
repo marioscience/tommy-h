@@ -189,6 +189,15 @@ describe('Backend architecture boundaries', () => {
     assert.match(branding, /txadmin-white-label|txAdmin|TXADMIN_INDEX_PATH/i);
   });
 
+  it('keeps game identity and sandbox policy independent from Docker transport', async () => {
+    const utilities = await readFile(new URL('../src/services/dockerUtils.js', import.meta.url), 'utf8');
+    const policy = await readFile(new URL('../src/services/gameRuntimePolicy.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(utilities, /deriveServicePassword|GAME_SECURITY_CONFIG/);
+    assert.match(policy, /createHmac/);
+    assert.match(policy, /no-new-privileges:true/);
+    assert.match(policy, /CapDrop: \['ALL'\]/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);

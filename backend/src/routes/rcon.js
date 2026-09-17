@@ -3,7 +3,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { getServerByIdForUser } from '../services/serverService.js';
 import { executeRconCommand, getLivePlayers, getLiveChat, getRustKillFeed, getPalworldGuilds, getValheimLists, updateValheimList } from '../services/rconService.js';
 import { query, logAudit } from '../db.js';
-import { deriveServicePassword } from '../services/dockerUtils.js';
+import { deriveServicePassword } from '../services/gameRuntimePolicy.js';
 import { config } from '../config.js';
 
 const router = express.Router();

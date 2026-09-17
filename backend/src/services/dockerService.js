@@ -9,6 +9,7 @@ import { exec } from 'child_process';
 import util from 'util';
 
 export * from './dockerUtils.js';
+export * from './gameRuntimePolicy.js';
 export * from './games/minecraft.js';
 export * from './games/rust.js';
 export * from './games/palworld.js';

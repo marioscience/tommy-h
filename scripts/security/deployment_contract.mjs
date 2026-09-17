@@ -19,6 +19,7 @@ const files = Object.fromEntries(await Promise.all([
   'auto_update_staging.sh',
   'backend/src/services/dockerService.js',
   'backend/src/services/dockerUtils.js',
+  'backend/src/services/gameRuntimePolicy.js',
   'backend/src/services/backupService.js',
   'backend/src/services/backupRestoreService.js',
   'backend/src/services/serverControlService.js',
@@ -250,7 +251,7 @@ assert(stagingLoadEnv !== -1 && stagingPreflight !== -1 && stagingLoadEnv < stag
 assert(files['.env.example'].includes('PORT_BIND_RETRY_LIMIT=8'), 'port binding retries are explicitly documented');
 assert(files['backend/src/services/dockerService.js'].includes('[config.dockerNetwork]: {}'), 'Blender joins the configured runtime network');
 assert(!files['backend/src/services/dockerService.js'].includes("'ragenodes_net': {}"), 'Blender does not hardcode the production network');
-assert(files['backend/src/services/dockerUtils.js'].includes('deriveServiceIdentifier'), 'game instances can derive stable unique identifiers');
+assert(files['backend/src/services/gameRuntimePolicy.js'].includes('deriveServiceIdentifier'), 'game instances can derive stable unique identifiers');
 assert(files['backend/src/services/games/minecraft.js'].includes("DIFFICULTY=${opts.difficulty || 'normal'}"), 'Minecraft defaults to normal difficulty');
 assert(files['backend/src/services/games/minecraft.js'].includes("'ONLINE_MODE=TRUE'"), 'Minecraft identity verification is enabled by default');
 assert(files['backend/src/services/games/minecraft.js'].includes("'PAUSE_WHEN_EMPTY_SECONDS=-1'"), 'Minecraft stays active while empty');
