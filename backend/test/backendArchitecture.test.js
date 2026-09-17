@@ -302,6 +302,17 @@ describe('Backend architecture boundaries', () => {
     assert.match(context, /export function cleanAgreementValue/);
   });
 
+  it('keeps paid account provisioning outside the payment route composer', async () => {
+    const payments = await readFile(new URL('../src/routes/payments.js', import.meta.url), 'utf8');
+    const provisioning = await readFile(new URL('../src/routes/payments/provisioningRoutes.js', import.meta.url), 'utf8');
+    assert.match(payments, /registerProvisioningRoutes\(router, checkoutLimiter\)/);
+    assert.doesNotMatch(payments, /bcrypt|withTransaction|INSERT INTO users|INSERT INTO invoices/);
+    assert.match(provisioning, /router\.post\('\/register-subscription'/);
+    assert.match(provisioning, /CHECKOUT_ALREADY_CONSUMED/);
+    assert.match(provisioning, /pg_advisory_xact_lock/);
+    assert.match(provisioning, /payment\.subscription_success/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);
