@@ -1,5 +1,8 @@
 # Backend mantenible y auditable
 
+El resumen completo de la refactorización, sus resultados y pasos de revisión
+está en [BACKEND-REFACTOR-OVERVIEW.md](./BACKEND-REFACTOR-OVERVIEW.md).
+
 Esta guía define cómo ampliar el backend sin volver a concentrar rutas, reglas de
 negocio e infraestructura en archivos monolíticos. El objetivo no es producir
 archivos pequeños por sí mismos, sino módulos con una responsabilidad clara,
