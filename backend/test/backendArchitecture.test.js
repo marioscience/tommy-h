@@ -225,6 +225,16 @@ describe('Backend architecture boundaries', () => {
     assert.match(blender, /Memory: 4 \* 1024 \* 1024 \* 1024/);
   });
 
+  it('keeps Discord knowledge persistence outside infrastructure routes', async () => {
+    const routes = await readFile(new URL('../src/routes/discord.js', import.meta.url), 'utf8');
+    const knowledge = await readFile(new URL('../src/routes/discord/knowledgeRoutes.js', import.meta.url), 'utf8');
+    assert.match(routes, /registerKnowledgeRoutes\(router, verifyApiKey\)/);
+    assert.doesNotMatch(routes, /bot_knowledge|bot_ticket_logs|bot_stats/);
+    assert.match(knowledge, /router\.post\('\/aprender'/);
+    assert.match(knowledge, /router\.post\('\/ticket-log'/);
+    assert.match(knowledge, /router\.get\('\/estadisticas'/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);
