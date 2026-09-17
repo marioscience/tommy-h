@@ -433,4 +433,14 @@ describe('Backend architecture boundaries', () => {
     assert.doesNotMatch(composer, /controlServer\(/);
     assert.doesNotMatch(composer, /repairServer\(/);
   });
+
+  it('keeps Docker telemetry outside the container lifecycle facade', async () => {
+    const facade = await readFile(new URL('../src/services/dockerService.js', import.meta.url), 'utf8');
+    const telemetry = await readFile(new URL('../src/services/dockerTelemetryService.js', import.meta.url), 'utf8');
+    assert.match(facade, /export \* from '.\/dockerTelemetryService\.js'/);
+    assert.match(telemetry, /startDockerTelemetryCollector/);
+    assert.match(telemetry, /getContainerStats/);
+    assert.doesNotMatch(facade, /calculateStatsBatch/);
+    assert.doesNotMatch(facade, /ragenodes:stats:/);
+  });
 });
