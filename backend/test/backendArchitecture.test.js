@@ -235,6 +235,17 @@ describe('Backend architecture boundaries', () => {
     assert.match(knowledge, /router\.get\('\/estadisticas'/);
   });
 
+  it('keeps the admin commercial catalog separate from server operations', async () => {
+    const admin = await readFile(new URL('../src/routes/admin.js', import.meta.url), 'utf8');
+    const catalog = await readFile(new URL('../src/routes/admin/catalogRoutes.js', import.meta.url), 'utf8');
+    assert.match(admin, /registerCatalogRoutes\(router\)/);
+    assert.doesNotMatch(admin, /hosting_plans|disk_plans|marketplace_scripts|createBillingPlan/);
+    assert.match(catalog, /router\.get\('\/hosting-plans'/);
+    assert.match(catalog, /router\.get\('\/disk-plans'/);
+    assert.match(catalog, /router\.put\('\/marketplace\/scripts\/:id'/);
+    assert.match(catalog, /router\.post\('\/paypal\/sync-plans'/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);
