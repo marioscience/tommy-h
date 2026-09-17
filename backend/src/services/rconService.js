@@ -1,9 +1,6 @@
-import net from 'net';
 import { sendCommandToContainer, fetchContainerLogs } from './dockerService.js';
-import { encodeSourceRconPacket, SourceRconDecoder } from '../utils/sourceRconProtocol.js';
-
-const RCON_TIMEOUT_MS = 3000;
-export const SOURCE_RCON_GAMES = Object.freeze(['cs2', 'palworld', 'ark', 'zomboid']);
+import { executeRconCommand } from './rcon/sourceRconClient.js';
+export { executeRconCommand, SOURCE_RCON_GAMES } from './rcon/sourceRconClient.js';
 
 export function parseZomboidPlayers(output = '') {
     const players = [];
@@ -14,112 +11,6 @@ export function parseZomboidPlayers(output = '') {
         if (name) players.push({ name, steamId: name });
     }
     return players;
-}
-
-/**
- * Ejecuta un comando RCON utilizando el protocolo de Source Engine (usado por ARK, CS2, Rust, SDTD).
- */
-function sendRconPacket(socket, id, type, body) {
-    socket.write(encodeSourceRconPacket(id, type, body));
-}
-
-export async function executeRconCommand(host, port, password, command, containerName = null, template = null) {
-    if (port === 0 || (template && !SOURCE_RCON_GAMES.includes(template))) {
-        if (command === 'GetChat' || command === 'ListPlayers' || command === 'ShowPlayers' || command === 'status') {
-            throw new Error('RCON de lectura no disponible por red directa para este servidor.');
-        }
-        if (containerName) {
-            await sendCommandToContainer(containerName, command);
-            return 'Comando enviado al contenedor.';
-        }
-        throw new Error('No se puede ejecutar el comando sin contenedor.');
-    }
-
-    return new Promise((resolve, reject) => {
-        const socket = new net.Socket();
-        socket.setTimeout(RCON_TIMEOUT_MS);
-
-        let authenticated = false;
-        let responseData = '';
-        const decoder = new SourceRconDecoder();
-        const reqId = Math.floor(Math.random() * 1000) + 1;
-
-        const cleanup = () => {
-            socket.destroy();
-        };
-
-        socket.on('connect', () => {
-            // Enviar paquete de autenticación (Type 3: SERVERDATA_AUTH)
-            sendRconPacket(socket, reqId, 3, password);
-        });
-
-        socket.on('data', (data) => {
-            try {
-              for (const { id, type, body, size } of decoder.push(data)) {
-                if (type === 2) { // SERVERDATA_AUTH_RESPONSE
-                    if (id === -1) {
-                        cleanup();
-                        return reject(new Error('Autenticación RCON fallida (contraseña incorrecta).'));
-                    } else {
-                        authenticated = true;
-                        // Autenticado correctamente, enviar comando (Type 2: SERVERDATA_EXECCOMMAND)
-                        sendRconPacket(socket, reqId + 1, 2, command);
-                    }
-                } else if (type === 0) { // SERVERDATA_RESPONSE_VALUE
-                    if (authenticated) {
-                        responseData += body;
-                        // Some Source RCON servers emit an empty response frame
-                        // before the command payload. It is framing, not the result.
-                        if (body.length > 0 && size < 4000) {
-                            cleanup();
-                            return resolve(responseData.trim());
-                        }
-                    }
-                }
-
-              }
-            } catch (error) {
-                cleanup();
-                reject(error);
-            }
-        });
-
-        socket.on('timeout', async () => {
-            cleanup();
-            if (command === 'GetChat' || command === 'ListPlayers') {
-                return reject(new Error('Tiempo de espera agotado para la conexión RCON.'));
-            }
-            if (containerName) {
-                console.warn(`[RCON] Timeout conectando a ${host}:${port}. Usando fallback a Docker stdin...`);
-                try {
-                    await sendCommandToContainer(containerName, command);
-                    return resolve('Comando enviado al contenedor (fallback).');
-                } catch (e) {
-                    return reject(new Error(`Timeout RCON y fallo en fallback: ${e.message}`));
-                }
-            }
-            reject(new Error('Tiempo de espera agotado para la conexión RCON.'));
-        });
-
-        socket.on('error', async (err) => {
-            cleanup();
-            if (command === 'GetChat' || command === 'ListPlayers') {
-                return reject(err);
-            }
-            if (containerName) {
-                console.warn(`[RCON] Error conectando a ${host}:${port} (${err.message}). Usando fallback a Docker stdin...`);
-                try {
-                    await sendCommandToContainer(containerName, command);
-                    return resolve('Comando enviado al contenedor (fallback).');
-                } catch (e) {
-                    return reject(new Error(`Error RCON y fallo en fallback: ${e.message}`));
-                }
-            }
-            reject(err);
-        });
-
-        socket.connect(port, host);
-    });
 }
 
 /**

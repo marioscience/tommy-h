@@ -443,4 +443,14 @@ describe('Backend architecture boundaries', () => {
     assert.doesNotMatch(facade, /calculateStatsBatch/);
     assert.doesNotMatch(facade, /ragenodes:stats:/);
   });
+
+  it('keeps Source RCON transport separate from game response parsing', async () => {
+    const service = await readFile(new URL('../src/services/rconService.js', import.meta.url), 'utf8');
+    const client = await readFile(new URL('../src/services/rcon/sourceRconClient.js', import.meta.url), 'utf8');
+    assert.match(service, /from '.\/rcon\/sourceRconClient\.js'/);
+    assert.match(client, /new net\.Socket\(\)/);
+    assert.match(client, /SourceRconDecoder/);
+    assert.doesNotMatch(service, /new net\.Socket\(\)/);
+    assert.doesNotMatch(client, /parseZomboidPlayers/);
+  });
 });
