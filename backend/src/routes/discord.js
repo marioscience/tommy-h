@@ -2,13 +2,10 @@ import express from 'express';
 import Docker from 'dockerode';
 import { config } from '../config.js';
 import { query } from '../db.js';
-import * as serverService from '../services/serverService.js';
-import { controlServer } from '../services/serverControlService.js';
-import { repairServer } from '../services/serverRepairService.js';
 import { verifyDiscordApiKey as verifyApiKey } from '../middleware/discordApiKey.js';
-import { getDiscordUserDiagnostics } from '../services/discordDiagnosticsService.js';
 import { registerVendorRoutes } from './discord/vendorRoutes.js';
 import { registerKnowledgeRoutes } from './discord/knowledgeRoutes.js';
+import { registerServerOperationsRoutes } from './discord/serverOperationsRoutes.js';
 import { findActiveEdgeProxy } from '../repositories/edgeProxyRepository.js';
 
 const router = express.Router();
@@ -25,53 +22,8 @@ router.get('/ping', (req, res) => {
     res.status(200).json({ status: 'ok', message: 'RageNodes Bot API Online' });
 });
 
-// ============================================================================
-// 🚀 RUTA 2: EXTRACCIÓN TOTAL (!ip, !miperfil, !diagnostico)
-// ============================================================================
-router.get('/diagnostico/:discordId', verifyApiKey, async (req, res) => {
-    const { discordId } = req.params;
-    try {
-        const diagnostics = await getDiscordUserDiagnostics(discordId);
-        if (!diagnostics) {
-            return res.status(404).json({ error: 'Usuario no encontrado o no vinculado.' });
-        }
-        res.json(diagnostics);
-    } catch (error) {
-        console.error(`❌ Error fatal consultando datos para Discord ID ${discordId}:`, error);
-        res.status(500).json({ error: 'Error interno conectando a la base de datos.' });
-    }
-});
-
+registerServerOperationsRoutes(router, verifyApiKey);
 registerKnowledgeRoutes(router, verifyApiKey);
-
-// ============================================================================
-// 🎮 RUTA 10: CONTROL DE SERVIDORES (Iniciar, Parar, Reiniciar)
-// ============================================================================
-router.post('/control/:serverId/:action', verifyApiKey, async (req, res) => {
-    const { serverId, action } = req.params;
-    try {
-        // En la API de Discord asumimos privilegios de Admin para el bot
-        const result = await controlServer(serverId, 'DISCORD_BOT', action, true);
-        res.json(result);
-    } catch (error) {
-        console.error(`❌ Error controlando server ${serverId}:`, error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ============================================================================
-// 🛠️ RUTA 11: REPARACIÓN AUTOMÁTICA
-// ============================================================================
-router.post('/repair/:serverId', verifyApiKey, async (req, res) => {
-    const { serverId } = req.params;
-    try {
-        const result = await repairServer(serverId, 'DISCORD_BOT', true);
-        res.json(result);
-    } catch (error) {
-        console.error(`❌ Error reparando server ${serverId}:`, error);
-        res.status(500).json({ error: error.message });
-    }
-});
 
 // ============================================================================
 // 🛒 RUTA 12: APROBACIÓN DE VENDEDORES (MARKETPLACE)

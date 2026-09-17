@@ -423,4 +423,14 @@ describe('Backend architecture boundaries', () => {
     assert.doesNotMatch(security, /process\.env/);
     assert.doesNotMatch(security, /dotenv/);
   });
+
+  it('keeps Discord server operations outside the proxy route composer', async () => {
+    const composer = await readFile(new URL('../src/routes/discord.js', import.meta.url), 'utf8');
+    const operations = await readFile(new URL('../src/routes/discord/serverOperationsRoutes.js', import.meta.url), 'utf8');
+    assert.match(composer, /registerServerOperationsRoutes\(router, verifyApiKey\)/);
+    assert.match(operations, /\/control\/:serverId\/:action/);
+    assert.match(operations, /\/repair\/:serverId/);
+    assert.doesNotMatch(composer, /controlServer\(/);
+    assert.doesNotMatch(composer, /repairServer\(/);
+  });
 });
