@@ -257,6 +257,18 @@ describe('Backend architecture boundaries', () => {
     assert.match(observability, /admin\.audit\.clear_all/);
   });
 
+  it('keeps privileged admin server operations in route-specificity order', async () => {
+    const admin = await readFile(new URL('../src/routes/admin.js', import.meta.url), 'utf8');
+    const servers = await readFile(new URL('../src/routes/admin/serverRoutes.js', import.meta.url), 'utf8');
+    assert.match(admin, /registerServerRoutes\(router\)/);
+    assert.doesNotMatch(admin, /controlServer|restoreBackup|executeCommandInContainer/);
+    const restoreIndex = servers.indexOf("router.post('/servers/:id/backups/restore'");
+    const actionIndex = servers.indexOf("router.post('/servers/:id/:action'");
+    assert.ok(restoreIndex >= 0 && actionIndex > restoreIndex);
+    assert.match(servers, /backupQueue\.enqueue/);
+    assert.match(servers, /admin\.server\.exec/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);

@@ -4,21 +4,15 @@ import adminUsersRouter from './adminUsers.js';
 import adminDisputesRouter from './adminDisputes.js';
 import adminVendorsRouter from './adminVendors.js';
 import express from 'express';
-import { query, logAudit } from '../db.js';
+import { query } from '../db.js';
 import { requireAuth, requireAdmin, signToken } from '../middleware/auth.js';
-import { controlServer } from '../services/serverControlService.js';
-import { deleteServer } from '../services/serverDeletionService.js';
 
 // 🚀 SERVICIOS DE BACKUP
-import { listServerBackups } from '../services/backupService.js';
-import { restoreBackup } from '../services/backupRestoreService.js';
-import { migrateResources } from '../services/serverResourceMigrationService.js';
 import { backupQueue } from '../services/backupQueue.js';
-import { getServerByIdForUser } from '../services/serverService.js';
-import { findUsernameById } from '../repositories/userRepository.js';
 import { getDeploymentQueueMetrics } from '../repositories/deploymentJobRepository.js';
 import { registerCatalogRoutes } from './admin/catalogRoutes.js';
 import { registerObservabilityRoutes } from './admin/observabilityRoutes.js';
+import { registerServerRoutes } from './admin/serverRoutes.js';
 
 const router = express.Router();
 
@@ -77,128 +71,7 @@ router.get('/overview', async (_req, res) => {
 
 
 
-router.get('/servers', async (_req, res) => {
-  import('../services/serverService.js').then(async ({ getServersForUser }) => {
-     try {
-         const servers = await getServersForUser(0, true);
-         for (let s of servers) {
-            s.username = await findUsernameById(s.owner_id) || 'Desconocido';
-         }
-         res.json({ items: servers });
-     } catch (e) {
-         res.status(500).json({ error: e.message });
-     }
-  });
-});
-
-router.put('/servers/:id', async (req, res) => {
-  const { name, plan } = req.body;
-  try {
-      if (name) await query('UPDATE servers SET name = $1 WHERE id = $2', [name, req.params.id]);
-      if (plan) await query('UPDATE servers SET runtime_plan = $1 WHERE id = $2', [plan, req.params.id]);
-      res.json({ success: true });
-  } catch (e) {
-      res.status(500).json({ error: "Error al editar el servidor" });
-  }
-});
-
-router.delete('/servers/:id', async (req, res) => {
-  try { await deleteServer(req.params.id, null, true); res.json({ success: true }); }
-  catch(e) { res.status(400).json({ error: e.message }); }
-});
-
-// ==========================================
-// 🚀 RUTAS DE DISASTER RECOVERY & BACKUPS
-// ¡OJO! Estas DEBEN ir antes de /:action
-// ==========================================
-
-// Listar los backups de un servidor
-router.get('/servers/:id/backups', async (req, res) => {
-    try {
-        const items = await listServerBackups(req.params.id, null, true);
-        res.json({ items });
-    } catch (e) {
-        res.status(400).json({ error: e.message });
-    }
-});
-
-// Restaurar un backup
-router.post('/servers/:id/backups/restore', async (req, res) => {
-    try {
-        const result = await restoreBackup(req.params.id, req.body.filename, null, true);
-        await logAudit(req, 'admin.server.restore_backup', { serverId: req.params.id, backup: req.body.filename });
-        res.json(result);
-    } catch (e) {
-        res.status(400).json({ error: e.message });
-    }
-});
-
-// Forzar Backup Manual desde el Panel Admin (Con Cola de Prioridad)
-router.post('/servers/:id/backup', async (req, res) => {
-    try {
-        const s = await getServerByIdForUser(req.params.id, null, true);
-        if (!s) return res.status(404).json({ error: "Servidor no encontrado" });
-
-        const job = await backupQueue.enqueue(
-            req.params.id,
-            req.user.sub,
-            true,
-            'admin_forced',
-            'partner'
-        );
-
-        await logAudit(req, 'admin.server.force_backup.enqueue', { serverId: req.params.id, jobId: job.jobId });
-        res.status(202).json({ ...job, queued: true, statusUrl: `/api/admin/backup-jobs/${job.jobId}` });
-    } catch (e) {
-        console.error("Error en backup manual admin:", e);
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Migrar recursos a otro servidor
-router.post('/servers/:id/migrate', async (req, res) => {
-    try {
-        const result = await migrateResources(req.params.id, req.body.targetServerId, true);
-        await logAudit(req, 'admin.server.migrate', { oldServer: req.params.id, newServer: req.body.targetServerId });
-        res.json(result);
-    } catch (e) {
-        res.status(400).json({ error: e.message });
-    }
-});
-
-// ==========================================
-// 🛑 RUTAS GENÉRICAS (SIEMPRE AL FINAL)
-// ==========================================
-
-// Terminal Web (Ejecutar comandos dentro del contenedor)
-router.post('/servers/:id/exec', async (req, res) => {
-    try {
-        const { command, cwd } = req.body;
-        if (!command) return res.status(400).json({ error: "Falta el comando" });
-
-        // Obtener el nombre del contenedor
-        const srv = await query('SELECT container_name FROM servers WHERE id = $1', [req.params.id]);
-        if (!srv.rowCount) return res.status(404).json({ error: "Servidor no encontrado" });
-        const containerName = srv.rows[0].container_name;
-
-        import('../services/dockerService.js').then(async ({ executeCommandInContainer }) => {
-            try {
-                const result = await executeCommandInContainer(containerName, command, cwd || '/');
-                await logAudit(req, 'admin.server.exec', { serverId: req.params.id, command, cwd });
-                res.json({ stdout: result.stdout || '', stderr: result.stderr || '', cwd: result.cwd, error: null });
-            } catch (error) {
-                res.json({ stdout: '', stderr: '', error: error.message });
-            }
-        });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-router.post('/servers/:id/:action', async (req, res) => {
-  try { res.json({ item: await controlServer(req.params.id, null, req.params.action, true) }); }
-  catch(e) { res.status(400).json({ error: e.message }); }
-});
+registerServerRoutes(router);
 
 registerCatalogRoutes(router);
 
