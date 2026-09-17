@@ -279,6 +279,18 @@ describe('Backend architecture boundaries', () => {
     assert.match(reads, /router\.get\('\/invoices\/:id\.html'/);
   });
 
+  it('keeps authenticated subscription management outside initial checkout', async () => {
+    const payments = await readFile(new URL('../src/routes/payments.js', import.meta.url), 'utf8');
+    const subscriptions = await readFile(new URL('../src/routes/payments/subscriptionRoutes.js', import.meta.url), 'utf8');
+    const validation = await readFile(new URL('../src/routes/payments/paymentValidation.js', import.meta.url), 'utf8');
+    assert.match(payments, /registerSubscriptionRoutes\(router, requireAuth\)/);
+    assert.doesNotMatch(payments, /payment\.disk_subscription|payment\.plan_revised/);
+    assert.match(subscriptions, /router\.post\('\/register-disk-subscription'/);
+    assert.match(subscriptions, /router\.post\('\/revise-plan'/);
+    assert.match(subscriptions, /router\.post\('\/confirm-revise'/);
+    assert.match(validation, /export function isPayPalSubscriptionId/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);
