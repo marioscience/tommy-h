@@ -9,6 +9,8 @@ import { rateLimit } from 'express-rate-limit';
 import { registerPaymentReadRoutes } from './payments/readRoutes.js';
 import { registerSubscriptionRoutes } from './payments/subscriptionRoutes.js';
 import { isPayPalSubscriptionId } from './payments/paymentValidation.js';
+import { registerAgreementRoutes } from './payments/agreementRoutes.js';
+import { cleanAgreementValue, getRequestIp, getRequestUserAgent } from './payments/checkoutContext.js';
 
 const router = express.Router();
 const checkoutLimiter = rateLimit({
@@ -19,114 +21,13 @@ const checkoutLimiter = rateLimit({
     message: { error: 'Demasiadas solicitudes de checkout. Inténtalo más tarde.' }
 });
 
-function getRequestIp(req) {
-    const forwarded = req.headers?.['x-forwarded-for'];
-    return (forwarded ? forwarded.split(',')[0].trim() : req.ip) || req.connection?.remoteAddress || null;
-}
-
-function getRequestUserAgent(req) {
-    return req.headers?.['user-agent'] || null;
-}
-
-function cleanAgreementValue(value = '') {
-    return String(value).trim().slice(0, 160);
-}
-
-async function getActiveLegalDocuments() {
-    const { rows } = await query(`
-        SELECT type, version, title, url, content_hash, published_at
-        FROM legal_documents
-        WHERE is_active = true
-        ORDER BY type, published_at DESC
-    `);
-    const latest = new Map();
-    for (const doc of rows) if (!latest.has(doc.type)) latest.set(doc.type, doc);
-    return Array.from(latest.values());
-}
-
 function buildInvoiceNumber(userId) {
     const now = new Date();
     return `RN-${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, '0')}-${userId}-${String(Date.now()).slice(-8)}`;
 }
 
 registerPaymentReadRoutes(router, requireAuth);
-
-/**
- * 1. Verificar disponibilidad (Usuario y Correo) ANTES de abrir PayPal
- */
-router.post('/check-availability', checkoutLimiter, async (req, res) => {
-    const { username, email } = req.body;
-
-    const existingUser = await query('SELECT id FROM users WHERE username = $1', [username]);
-    if (existingUser.rowCount > 0) return res.status(400).json({ error: 'El nombre de usuario ya está en uso.' });
-
-    const existingEmail = await query('SELECT id FROM users WHERE email = $1', [email]);
-    if (existingEmail.rowCount > 0) return res.status(400).json({ error: 'Este correo electrónico ya está registrado.' });
-
-    res.json({ available: true });
-});
-
-
-/**
- * 1.1 Registrar aceptacion legal antes de abrir PayPal
- */
-router.post('/checkout-agreement', checkoutLimiter, async (req, res) => {
-    const { planId, username, email, acceptedTerms, acceptedPrivacy, acceptedRefund, acceptedImmediateProvision, acceptedRenewal } = req.body;
-    const ip = getRequestIp(req);
-    const ua = getRequestUserAgent(req);
-
-    try {
-        if (!planId || !username || !email) return res.status(400).json({ error: 'Faltan datos del checkout.' });
-        if (!acceptedTerms || !acceptedPrivacy || !acceptedRefund || !acceptedImmediateProvision || !acceptedRenewal) {
-            return res.status(400).json({ error: 'Debes aceptar los acuerdos legales antes de continuar.' });
-        }
-
-        const planResult = await query('SELECT id, name, price, paypal_plan_id, features FROM hosting_plans WHERE id = $1 AND is_active = true', [planId]);
-        if (planResult.rowCount === 0) return res.status(400).json({ error: 'El plan seleccionado no esta disponible.' });
-
-        const docs = await getActiveLegalDocuments();
-        for (const required of ['terms', 'privacy', 'refund']) {
-            if (!docs.some(d => d.type === required)) return res.status(500).json({ error: `Documento legal activo faltante: ${required}` });
-        }
-
-        const plan = planResult.rows[0];
-        const token = crypto.randomBytes(32).toString('hex');
-        const cleanUsername = cleanAgreementValue(username);
-        const cleanEmail = cleanAgreementValue(email).toLowerCase();
-
-        const inserted = await query(
-            `INSERT INTO user_agreements (
-                token, username, email, plan_id, plan_snapshot, document_snapshot,
-                accepted_terms, accepted_privacy, accepted_refund, accepted_immediate_provision, accepted_renewal,
-                ip_address, user_agent
-             ) VALUES ($1,$2,$3,$4,$5,$6,true,true,true,true,true,$7,$8)
-             RETURNING id, accepted_at, expires_at`,
-            [
-                token,
-                cleanUsername,
-                cleanEmail,
-                plan.id,
-                JSON.stringify({ id: plan.id, name: plan.name, price: plan.price, currency: 'USD', paypal_plan_id: plan.paypal_plan_id, features: plan.features }),
-                JSON.stringify(docs),
-                ip,
-                ua
-            ]
-        );
-
-        await logAudit(null, 'legal.checkout_agreement.accepted', {
-            agreementId: inserted.rows[0].id,
-            plan: plan.id,
-            username: cleanUsername,
-            email: cleanEmail,
-            documents: docs.map(d => ({ type: d.type, version: d.version, hash: d.content_hash }))
-        }, ip, ua);
-
-        res.json({ agreementToken: token, agreementId: inserted.rows[0].id, acceptedAt: inserted.rows[0].accepted_at, expiresAt: inserted.rows[0].expires_at });
-    } catch (error) {
-        console.error('[checkout-agreement]', error);
-        res.status(500).json({ error: 'No se pudo registrar la aceptacion legal.' });
-    }
-});
+registerAgreementRoutes(router, checkoutLimiter);
 
 /**
  * 2. VERIFICAR SUSCRIPCION Y CREAR CUENTA

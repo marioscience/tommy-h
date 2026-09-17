@@ -291,6 +291,17 @@ describe('Backend architecture boundaries', () => {
     assert.match(validation, /export function isPayPalSubscriptionId/);
   });
 
+  it('keeps checkout consent capture separate from account provisioning', async () => {
+    const payments = await readFile(new URL('../src/routes/payments.js', import.meta.url), 'utf8');
+    const agreements = await readFile(new URL('../src/routes/payments/agreementRoutes.js', import.meta.url), 'utf8');
+    const context = await readFile(new URL('../src/routes/payments/checkoutContext.js', import.meta.url), 'utf8');
+    assert.match(payments, /registerAgreementRoutes\(router, checkoutLimiter\)/);
+    assert.doesNotMatch(payments, /legal\.checkout_agreement\.accepted|legal_documents/);
+    assert.match(agreements, /router\.post\('\/check-availability'/);
+    assert.match(agreements, /router\.post\('\/checkout-agreement'/);
+    assert.match(context, /export function cleanAgreementValue/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);
