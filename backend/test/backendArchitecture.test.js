@@ -9,10 +9,11 @@ describe('Backend architecture boundaries', () => {
     const control = await readFile(new URL('../src/services/serverControlService.js', import.meta.url), 'utf8');
     assert.match(control, /from '.\/serverService\.js'/);
     assert.doesNotMatch(queries, /server(?:ControlService|Settings|Subusers)/);
+    assert.doesNotMatch(control, /export async function (?:deleteServer|repairServer|repairOneServer|runServerMaintenance)/);
   });
 
   it('keeps periodic maintenance owned by the worker scheduler', async () => {
-    const control = await readFile(new URL('../src/services/serverControlService.js', import.meta.url), 'utf8');
+    const control = await readFile(new URL('../src/services/serverMaintenanceService.js', import.meta.url), 'utf8');
     const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
     assert.doesNotMatch(control, /setInterval\s*\(/);
     assert.match(worker, /startServerMaintenance\(\)/);
@@ -109,6 +110,9 @@ describe('Backend architecture boundaries', () => {
       '../src/middleware/auth.js',
       '../src/services/backupService.js',
       '../src/services/serverControlService.js',
+      '../src/services/serverDeletionService.js',
+      '../src/services/serverMaintenanceService.js',
+      '../src/services/serverRepairService.js',
       '../src/services/stagingHealthTestRunner.js'
     ];
     const source = (await Promise.all(files.map((file) => readFile(new URL(file, import.meta.url), 'utf8')))).join('\n');
@@ -117,9 +121,9 @@ describe('Backend architecture boundaries', () => {
   });
 
   it('purges server data before deleting its database record', async () => {
-    const control = await readFile(new URL('../src/services/serverControlService.js', import.meta.url), 'utf8');
-    const purgeIndex = control.indexOf('await purgeServerDataDirectory(s.node_id, s.id, s.data_path)');
-    const recordIndex = control.indexOf('await deleteServerRecord(s.id)');
+    const control = await readFile(new URL('../src/services/serverDeletionService.js', import.meta.url), 'utf8');
+    const purgeIndex = control.indexOf('await purgeServerDataDirectory(server.node_id, server.id, server.data_path)');
+    const recordIndex = control.indexOf('await deleteServerRecord(server.id)');
     assert.ok(purgeIndex >= 0, 'server deletion must purge persistent data');
     assert.ok(recordIndex > purgeIndex, 'the database record must remain available if data cleanup fails');
     assert.doesNotMatch(control, /fs\.rm\(s\.data_path[\s\S]*catch\s*\{\s*\}/);
@@ -154,15 +158,15 @@ describe('Backend architecture boundaries', () => {
 
   it('does not recreate a server while its initial installation is active', async () => {
     const control = await readFile(new URL('../src/services/serverControlService.js', import.meta.url), 'utf8');
-    assert.match(control, /\['creating', 'recreating'\]\.includes\(s\.status\)/);
+    assert.match(control, /\['creating', 'recreating'\]\.includes\(server\.status\)/);
     assert.match(control, /todavía se está preparando/);
   });
 
   it('targets power operations at the node assigned to the server row', async () => {
     const control = await readFile(new URL('../src/services/serverControlService.js', import.meta.url), 'utf8');
     const lifecycle = await readFile(new URL('../src/services/serverRuntimeLifecycle.js', import.meta.url), 'utf8');
-    assert.match(control, /startContainer\(s\.container_name, \{ nodeId: s\.node_id \}\)/);
-    assert.match(control, /stopContainer\(s\.container_name, \{ nodeId: s\.node_id \}\)/);
+    assert.match(control, /startContainer\(server\.container_name, \{ nodeId: server\.node_id \}\)/);
+    assert.match(control, /stopContainer\(server\.container_name, \{ nodeId: server\.node_id \}\)/);
     assert.match(lifecycle, /inspectContainer\(server\.container_name, \{ nodeId: server\.node_id \}\)/);
   });
 

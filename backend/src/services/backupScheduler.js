@@ -127,7 +127,7 @@ async function processAutoRestarts(currentTime, servers) {
             }
 
             try {
-                const { controlServer } = await import('./serverService.js');
+                const { controlServer } = await import('./serverControlService.js');
                 await controlServer(server.id, server.owner_id, 'restart', true);
             } catch (err) {
                 console.error(`[AutoRestart] Fallo al reiniciar ${server.id}:`, err.message);

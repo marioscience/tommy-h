@@ -1,6 +1,6 @@
 import { rustUtil } from '../utils/rustUtil.js';
 import { query } from '../db.js';
-import { repairOneServer } from './serverControlService.js';
+import { repairOneServer } from './serverMaintenanceService.js';
 
 /**
  * 📡 SERVICIO DE EVENTOS REAL-TIME (DOCKER VIA RUST)
