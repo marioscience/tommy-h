@@ -15,10 +15,10 @@ import { restoreBackup } from '../services/backupRestoreService.js';
 import { migrateResources } from '../services/serverResourceMigrationService.js';
 import { backupQueue } from '../services/backupQueue.js';
 import { getServerByIdForUser } from '../services/serverService.js';
-import { createNotification, deleteNotification, listAdminNotifications } from '../repositories/notificationRepository.js';
 import { findUsernameById } from '../repositories/userRepository.js';
 import { getDeploymentQueueMetrics } from '../repositories/deploymentJobRepository.js';
 import { registerCatalogRoutes } from './admin/catalogRoutes.js';
+import { registerObservabilityRoutes } from './admin/observabilityRoutes.js';
 
 const router = express.Router();
 
@@ -202,56 +202,6 @@ router.post('/servers/:id/:action', async (req, res) => {
 
 registerCatalogRoutes(router);
 
-// RUTAS EXTRA PARA NOTIFICACIONES Y AUDITORÍA
-router.get('/notifications', async (_req, res) => {
-  res.json({ items: await listAdminNotifications() });
-});
-
-router.post('/notifications', async (req, res) => {
-  const { title, content, type, audience } = req.body;
-  await createNotification({ title, content, type: type || 'info', audience: audience || 'client' });
-  res.json({ success: true });
-});
-
-router.delete('/notifications/:id', async (req, res) => {
-  await deleteNotification(req.params.id);
-  res.json({ success: true });
-});
-
-router.get('/audit-logs', async (_req, res) => {
-  const result = await query(`
-    SELECT a.id, a.user_id, a.action, a.details, a.ip_address, a.user_agent, a.created_at, u.username
-    FROM audit_logs a
-    LEFT JOIN users u ON u.id = a.user_id
-    ORDER BY a.created_at DESC
-    LIMIT 500
-  `);
-  res.json({ items: result.rows });
-});
-
-router.delete('/audit-logs', async (req, res) => {
-  await query('DELETE FROM audit_logs');
-  await logAudit(req, 'admin.audit.clear_all');
-  res.json({ success: true });
-});
-
-router.get('/audit-logs/export', async (req, res) => {
-  const result = await query(`
-    SELECT a.created_at, u.username, a.action, a.ip_address, a.details
-    FROM audit_logs a
-    LEFT JOIN users u ON u.id = a.user_id
-    ORDER BY a.created_at DESC
-  `);
-
-  let csv = 'Fecha,Usuario,Accion,IP,Detalles\n';
-  result.rows.forEach(r => {
-    const details = JSON.stringify(r.details).replace(/"/g, '""');
-    csv += `"${r.created_at.toISOString()}","${r.username || 'Sistema'}","${r.action}","${r.ip_address || ''}","${details}"\n`;
-  });
-
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename=auditoria_ragenodes.csv');
-  res.send(csv);
-});
+registerObservabilityRoutes(router);
 
 export default router;

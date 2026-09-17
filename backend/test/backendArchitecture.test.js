@@ -246,6 +246,17 @@ describe('Backend architecture boundaries', () => {
     assert.match(catalog, /router\.post\('\/paypal\/sync-plans'/);
   });
 
+  it('keeps admin notifications and auditing in their observability boundary', async () => {
+    const admin = await readFile(new URL('../src/routes/admin.js', import.meta.url), 'utf8');
+    const observability = await readFile(new URL('../src/routes/admin/observabilityRoutes.js', import.meta.url), 'utf8');
+    assert.match(admin, /registerObservabilityRoutes\(router\)/);
+    assert.doesNotMatch(admin, /createNotification|listAdminNotifications/);
+    assert.doesNotMatch(admin, /router\.(?:get|delete)\('\/audit-logs/);
+    assert.match(observability, /router\.get\('\/notifications'/);
+    assert.match(observability, /router\.get\('\/audit-logs\/export'/);
+    assert.match(observability, /admin\.audit\.clear_all/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);
