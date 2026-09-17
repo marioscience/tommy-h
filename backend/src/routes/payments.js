@@ -5,9 +5,8 @@ import { query, logAudit, withTransaction } from '../db.js';
 import { sendWelcomeEmail, sendVerificationEmail } from '../services/emailService.js';
 import { requireAuth } from '../middleware/auth.js';
 import paypal from '../services/paypalService.js';
-import { config } from '../config.js';
-import { listInvoicesForUser, getInvoiceForUser, renderInvoiceHtml } from '../services/billingEvidenceService.js';
 import { rateLimit } from 'express-rate-limit';
+import { registerPaymentReadRoutes } from './payments/readRoutes.js';
 
 const router = express.Router();
 const checkoutLimiter = rateLimit({
@@ -53,63 +52,7 @@ function isPayPalSubscriptionId(value) {
 }
 
 
-/**
- * 0. Obtener Planes y Precios Dinámicos
- */
-router.get('/client-config', (req, res) => {
-    res.setHeader('Cache-Control', 'no-store');
-    const enabled = Boolean(config.paypalClient && process.env.PAYPAL_SECRET);
-    res.json({
-        enabled,
-        clientId: enabled ? config.paypalClient : null,
-        mode: config.paypalMode
-    });
-});
-
-router.get('/plans', async (req, res) => {
-    try {
-        const result = await query('SELECT * FROM hosting_plans WHERE is_active = true');
-        res.json(result.rows);
-    } catch (error) {
-        res.status(500).json({ error: 'Error al obtener planes.' });
-    }
-});
-
-/**
- * 0.1 Obtener Planes de Disco Activos
- */
-router.get('/disk-plans', async (req, res) => {
-    try {
-        const result = await query('SELECT * FROM disk_plans WHERE is_active = true ORDER BY gb_amount ASC');
-        res.json(result.rows);
-    } catch (error) {
-        res.status(500).json({ error: 'Error al obtener planes de disco.' });
-    }
-});
-
-
-router.get('/invoices', requireAuth, async (req, res) => {
-    try {
-        const invoices = await listInvoicesForUser(req.user.sub);
-        res.json({ items: invoices });
-    } catch (error) {
-        console.error('[invoices:list]', error);
-        res.status(500).json({ error: 'Error al obtener facturas.' });
-    }
-});
-
-router.get('/invoices/:id.html', requireAuth, async (req, res) => {
-    try {
-        const invoice = await getInvoiceForUser(req.params.id, req.user.sub, req.user.role === 'admin');
-        if (!invoice) return res.status(404).send('Factura no encontrada.');
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.setHeader('Content-Disposition', `inline; filename="${invoice.invoice_number || 'factura'}.html"`);
-        res.send(renderInvoiceHtml(invoice));
-    } catch (error) {
-        console.error('[invoices:html]', error);
-        res.status(500).send('Error al generar factura.');
-    }
-});
+registerPaymentReadRoutes(router, requireAuth);
 
 /**
  * 1. Verificar disponibilidad (Usuario y Correo) ANTES de abrir PayPal

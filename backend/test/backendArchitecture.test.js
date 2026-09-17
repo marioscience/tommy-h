@@ -269,6 +269,16 @@ describe('Backend architecture boundaries', () => {
     assert.match(servers, /admin\.server\.exec/);
   });
 
+  it('keeps read-only payment routes outside checkout mutation workflows', async () => {
+    const payments = await readFile(new URL('../src/routes/payments.js', import.meta.url), 'utf8');
+    const reads = await readFile(new URL('../src/routes/payments/readRoutes.js', import.meta.url), 'utf8');
+    assert.match(payments, /registerPaymentReadRoutes\(router, requireAuth\)/);
+    assert.doesNotMatch(payments, /listInvoicesForUser|renderInvoiceHtml|paypalClient/);
+    assert.match(reads, /router\.get\('\/client-config'/);
+    assert.match(reads, /router\.get\('\/plans'/);
+    assert.match(reads, /router\.get\('\/invoices\/:id\.html'/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);
