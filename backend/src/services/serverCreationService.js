@@ -3,17 +3,18 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { logAudit } from '../db.js';
 import { config, generateSecurePassword } from '../config.js';
-import * as Docker from './dockerService.js';
-import { GameFactory } from './games/GameFactory.js';
 import { getPublicEndpointUrl } from './publicEndpointService.js';
 import { getNextAvailablePort, selectDeploymentNode } from './serverNodeSelection.js';
 import { isPortBindingConflict } from './portBindingConflict.js';
 import { assertNodeStartCapacity } from './nodeResourcePolicy.js';
-import { purgeServerDataDirectory } from './serverDataCleanup.js';
-import { createGameDatabase, removeGameDatabase } from './gameDatabaseService.js';
+import { createGameDatabase } from './gameDatabaseService.js';
+import {
+  createGameContainer,
+  removeContainerForPortRetry,
+  rollbackServerCreation
+} from './serverProvisioningRuntime.js';
 import {
   attachServerToDeploymentJob,
-  deleteServerRecord,
   findServerById,
   findUserDeploymentEntitlements,
   insertCreatingServer,
@@ -38,15 +39,6 @@ function excludePortBlock(excludedPorts, start, range = 1) {
   }
 }
 
-async function removeContainerForPortRetry(nodeId, containerName) {
-  try {
-    const docker = await Docker.getNodeConnection(nodeId);
-    await docker.getContainer(containerName).remove({ force: true });
-  } catch (error) {
-    if (error?.statusCode !== 404) throw error;
-  }
-}
-
 export function checkSystemLoad() {
   const load = os.loadavg()[0];
   const cpuCount = Math.max(1, os.cpus()?.length || 1);
@@ -62,67 +54,6 @@ function sanitizeServerName(value) {
     .slice(0, 80);
   if (!safeName) throw new Error('El nombre del servidor es obligatorio.');
   return safeName;
-}
-
-async function createGameContainer(template, options) {
-  if (GameFactory.has(template)) return GameFactory.create(template, options);
-
-  switch (template) {
-    case 'palworld': return Docker.createPalworldContainer(options);
-    case 'cs2': return Docker.createCS2Container(options);
-    case 'valheim': return Docker.createValheimContainer(options);
-    case 'zomboid': return Docker.createProjectZomboidContainer(options);
-    case 'ark': return Docker.createARKContainer(options);
-    case 'sdtd':
-      return Docker.createSDTDContainer(
-        options.containerName,
-        options.serverId,
-        options.gamePort,
-        options.plan,
-        options.dataPath,
-        options.nodeId
-      );
-    case 'discordbot': return Docker.createDiscordBotContainer(options);
-    case 'wordpress': return Docker.createWordPressContainer(options);
-    case 'database': return Docker.createDatabaseContainer(options);
-    default: throw new Error(`Tipo de servidor no soportado: ${template}.`);
-  }
-}
-
-async function rollbackCreation({ serverId, containerName, dataPath, nodeId, dbName, dbUser }) {
-  try {
-    const docker = await Docker.getNodeConnection(nodeId);
-    await docker.getContainer(containerName).remove({ force: true });
-  } catch (error) {
-    if (error?.statusCode !== 404) console.warn(`[Rollback] No se pudo retirar ${containerName}: ${error.message}`);
-  }
-
-  try {
-    const docker = await Docker.getNodeConnection(nodeId);
-    await docker.getContainer(`${containerName}-db`).remove({ force: true });
-  } catch (error) {
-    if (error?.statusCode !== 404) console.warn(`[Rollback] No se pudo retirar ${containerName}-db: ${error.message}`);
-  }
-
-  try {
-    await purgeServerDataDirectory(nodeId, serverId, dataPath);
-  } catch (error) {
-    console.warn(`[Rollback] No se pudo retirar ${dataPath}: ${error.message}`);
-  }
-
-  if (dbName && dbUser) {
-    try {
-      await removeGameDatabase(dbName, dbUser);
-    } catch (error) {
-      console.warn(`[Rollback] No se pudo retirar la base de datos ${dbName}: ${error.message}`);
-    }
-  }
-
-  try {
-    await deleteServerRecord(serverId);
-  } catch (error) {
-    console.warn(`[Rollback] No se pudo retirar el registro ${serverId}: ${error.message}`);
-  }
 }
 
 export async function createServerForUser(userId, payload = {}) {
@@ -270,7 +201,7 @@ export async function createServerForUser(userId, payload = {}) {
       await updateServerStatus(serverId, 'running');
     } catch (error) {
       console.error(`[ServerCreation] Fallo al crear ${serverId}; iniciando rollback:`, error);
-      await rollbackCreation({ serverId, containerName, dataPath, nodeId: targetNodeId, dbName, dbUser });
+      await rollbackServerCreation({ serverId, containerName, dataPath, nodeId: targetNodeId, dbName, dbUser });
       throw new Error('No se pudo iniciar el servidor. La operacion se revirtio de forma segura.');
     }
 

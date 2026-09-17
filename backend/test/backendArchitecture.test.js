@@ -130,9 +130,9 @@ describe('Backend architecture boundaries', () => {
   });
 
   it('uses rootless-safe cleanup when a server creation is rolled back', async () => {
-    const creation = await readFile(new URL('../src/services/serverCreationService.js', import.meta.url), 'utf8');
-    assert.match(creation, /await purgeServerDataDirectory\(nodeId, serverId, dataPath\)/);
-    assert.doesNotMatch(creation, /runRemoteCommand\(nodeId,[\s\S]{0,80}rm -rf/);
+    const runtime = await readFile(new URL('../src/services/serverProvisioningRuntime.js', import.meta.url), 'utf8');
+    assert.match(runtime, /await purgeServerDataDirectory\(nodeId, serverId, dataPath\)/);
+    assert.doesNotMatch(runtime, /runRemoteCommand\(nodeId,[\s\S]{0,80}rm -rf/);
   });
 
   it('keeps deployment persistence and game database administration out of orchestration', async () => {
@@ -141,6 +141,7 @@ describe('Backend architecture boundaries', () => {
     assert.doesNotMatch(creation, /mysql2|CREATE DATABASE|DROP DATABASE|CREATE USER|DROP USER/);
     assert.match(creation, /insertCreatingServer/);
     assert.match(creation, /createGameDatabase/);
+    assert.doesNotMatch(creation, /GameFactory|createPalworldContainer|purgeServerDataDirectory/);
   });
 
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
