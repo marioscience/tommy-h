@@ -323,6 +323,17 @@ describe('Backend architecture boundaries', () => {
     assert.match(suites, /router\.get\('\/report-pdf'/);
   });
 
+  it('keeps host snapshot commands outside admin HTTP routes', async () => {
+    const diagnostics = await readFile(new URL('../src/routes/adminDiagnostics.js', import.meta.url), 'utf8');
+    const snapshots = await readFile(new URL('../src/services/diagnosticSnapshotService.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(diagnostics, /runCommand\(|os\.(?:loadavg|totalmem|freemem)/);
+    assert.match(diagnostics, /getSystemSnapshot\(\)/);
+    assert.match(snapshots, /export async function getDockerPs/);
+    assert.match(snapshots, /export async function getFirewallSnapshot/);
+    assert.match(snapshots, /export async function getNetworkSnapshot/);
+    assert.match(snapshots, /export async function getSystemSnapshot/);
+  });
+
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
     const cs2 = await readFile(new URL('../src/services/games/cs2.js', import.meta.url), 'utf8');
     assert.match(cs2, /runRemoteCommand\(opts\.nodeId \|\| 0, sh`mkdir -p \$\{opts\.dataPath\}`\)/);
