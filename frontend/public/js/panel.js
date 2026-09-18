@@ -199,6 +199,7 @@ function toggleSidebar() {
         }
 
         function getDeploymentMinimumRam(plan, game) {
+            const isDev = window.Nexus?.debugMode || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
             const planMinimums = {
                 community_starter: 4,
                 community_pro: 4,
@@ -212,7 +213,7 @@ function toggleSidebar() {
             const gameMinimums = {
                 rust: 6,
                 palworld: 8,
-                zomboid: 6,
+                zomboid: isDev? 4 : 6, // 4 GB for local dev, 6 GB for production stability!
                 ark: 16,
                 sdtd: 4,
                 minecraft: 2,
@@ -2194,7 +2195,7 @@ function toggleSidebar() {
                                 <i class="fa-solid fa-server" style="font-size: 3rem; color: var(--muted); margin-bottom: 15px; opacity: 0.3;"></i>
                                 <h3 style="color: var(--text); font-size: 1.1rem; margin-bottom: 8px;">Servidor Apagado</h3>
                                 <p class="muted" style="max-width: 250px; line-height: 1.5; margin-bottom: 20px; font-size: 0.8rem;">Inicia el servidor para comenzar a recopilar métricas de CPU, RAM y Disco en tiempo real.</p>
-                                <button class="btn-success" ${rnBind("click", (event, element) => { srvStart((s.id)) })} style="padding: 8px 16px; font-size: 0.8rem; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);">
+                                <button class="btn-success" ${rnBind("click", (event, element) => { srvAction((s.id), 'start' ) })} style="padding: 8px 16px; font-size: 0.8rem; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);">
                                     <i class="fa-solid fa-play" style="margin-right: 6px;"></i> Iniciar Servidor
                                 </button>
                             </div>

@@ -68,9 +68,11 @@ export async function removeServerDataWithDocker({
         Binds: [`${safe.dataRoot}:/instances:rw`],
         NetworkMode: 'none',
         ReadonlyRootfs: true,
-        CapDrop: ['ALL'],
-        CapAdd: ['DAC_OVERRIDE', 'FOWNER'],
-        SecurityOpt: ['no-new-privileges:true']
+        ...(config.nodeEnv === 'production' ? {
+          CapDrop: ['ALL'],
+          CapAdd: ['DAC_OVERRIDE', 'FOWNER'],
+          SecurityOpt: ['no-new-privileges:true']
+        } : {})
       }
     });
     await helper.start();

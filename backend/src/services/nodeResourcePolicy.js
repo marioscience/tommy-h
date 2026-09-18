@@ -10,9 +10,12 @@ function boundedNumber(value, fallback, min, max) {
 }
 
 export function getNodeRamPolicy(env = process.env) {
+  const isDev = env.NODE_ENV !== 'production' && env.NODE_ENV !== 'staging';
+  const defaultReserve = isDev ? 1 : 8;
+  const minReserve = isDev ? 0.25 : 4;
   return {
     overcommitRatio: boundedNumber(env.NODE_RAM_OVERCOMMIT_RATIO, 1.5, 1, 2),
-    hostReserveGb: boundedNumber(env.NODE_HOST_RAM_RESERVE_GB, 8, 4, 32)
+    hostReserveGb: boundedNumber(env.NODE_HOST_RAM_RESERVE_GB, defaultReserve, minReserve, 32)
   };
 }
 

@@ -73,7 +73,13 @@ export async function createProjectZomboidContainer(opts) {
     }
     // Prepare mutable state only after cloning. Creating it first makes the
     // template cloner treat a new instance as populated and skip the master.
-    await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath}/Zomboid/mods && chown -R 1000:1000 ${opts.dataPath}`);
+    // await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath}/Zomboid/mods && chown -R 1000:1000 ${opts.dataPath}`); // [DELETE this line after verification] added creation of serverfiles directory if it doesn't exist, and better error handling for changing permissions.
+    await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath}/Zomboid/mods ${opts.dataPath}/serverfiles`);
+    try {
+        await runRemoteCommand(opts.nodeId || 0, sh`chown -R 1000:1000 ${opts.dataPath} 2>/dev/null || true`);
+    } catch(e) {
+        throw new Error('No se pudo establecer el propietario del directorio de datos de Project Zomboid.');
+    }
 
     try { await docker.getImage(config.zomboidBaseImage).inspect(); }
     catch (e) {
@@ -99,8 +105,8 @@ export async function createProjectZomboidContainer(opts) {
                 `${opts.dataPath}/Zomboid:/home/steam/Zomboid`
             ],
             PortBindings: proxy.bindings,
-            RestartPolicy: { Name: "unless-stopped"},
-            //RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
+            //RestartPolicy: { Name: "unless-stopped"},
+            RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 }, // Needs work for production.
             Memory: opts.plan.memoryBytes,
             NanoCpus: opts.plan.nanoCpus, CpuShares: Math.round((opts.plan.nanoCpus / 10**9) * 1024),
             BlkioWeight: config.dockerBlkioWeight,

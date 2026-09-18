@@ -2,8 +2,160 @@ import path from 'path';
 import { config } from '../config.js';
 import crypto from 'crypto';
 import { findServerNodeIdByContainer } from '../repositories/serverRepository.js';
-import { commandStdout, getNodeConnection, runRemoteCommand } from './dockerNodeService.js';
+
+import { commandStdout, getNodeConnection, runRemoteCommand } from './dockerNodeService.js'; //Why import and export?
 export { commandStdout, getNodeConnection, runRemoteCommand } from './dockerNodeService.js';
+
+const execAsync = util.promisify(exec);
+
+export const localDocker = new Docker({ socketPath: config.dockerSocket });
+export const NODE_CONNECTIONS = new Map();
+
+export function deriveServicePassword(scope, identifier) {
+    return crypto.createHmac('sha256', config.jwtSecret)
+        .update(`${scope}:${identifier}`)
+        .digest('base64url')
+        .slice(0, 32);
+}
+
+export function deriveServiceIdentifier(scope, identifier, maxLength = 32) {
+    const normalizedScope = String(scope || 'server').toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    const suffix = crypto.createHash('sha256')
+        .update(`${normalizedScope}:${identifier}`)
+        .digest('hex')
+        .slice(0, 10);
+    return `${normalizedScope}-${suffix}`.slice(0, Math.max(12, maxLength));
+}
+
+export const GAME_SECURITY_CONFIG = {
+    // SecurityOpt: ["no-new-privileges:true"], // Keeping intact for reference and fallback.
+    // CapDrop: ["ALL"],
+    // CapAdd: ["CHOWN", "FOWNER", "SETUID", "SETGID", "NET_BIND_SERVICE", "KILL", "DAC_OVERRIDE", "DAC_READ_SEARCH"],
+    // LogConfig: {
+    //     Type: 'json-file',
+    //     Config: {
+    //         'max-size': '20m',
+    //         'max-file': '3'
+    //     }
+    // }
+
+    ...(config.nodeEnv === 'production' ? {
+        SecurityOpt: ["no-new-privileges:true"],
+        CapDrop: ["ALL"],
+        CapAdd: ["CHOWN", "FOWNER", "SETUID", "SETGID", "NET_BIND_SERVICE", "KILL", "DAC_OVERRIDE", "DAC_READ_SEARCH"]
+    } : {}),
+    LogConfig: {
+        Type: 'json-file',
+        Config: {
+            'max-size': '20m',
+            'max-file': '3'
+        }
+    }
+
+};
+
+export async function runRemoteCommand(nodeId, command) {
+    if (!nodeId || nodeId == 0 || nodeId == '0') {
+        return execAsync(command);
+    }
+    try {
+        const docker = await getNodeConnection(nodeId);
+        try {
+            await docker.getImage('alpine@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b').inspect();
+        } catch(e) {
+            console.log('[Docker] Pulling alpine on node ' + nodeId + '...');
+            const stream = await docker.pull('alpine@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b');
+            await new Promise((resolve, reject) => {
+                docker.modem.followProgress(stream, (err, res) => err ? reject(err) : resolve(res));
+            });
+        }
+        const container = await docker.createContainer({
+            Image: 'alpine@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b',
+            Cmd: ['sh', '-c', command],
+            HostConfig: {
+                Binds: ['/srv/ragenodes-data:/srv/ragenodes-data'],
+                AutoRemove: true
+            }
+        });
+        const attached = await container.attach({ stream: true, stdout: true, stderr: true });
+        const stdoutStream = new PassThrough();
+        const stderrStream = new PassThrough();
+        const stdoutChunks = [];
+        const stderrChunks = [];
+        stdoutStream.on('data', (chunk) => stdoutChunks.push(Buffer.from(chunk)));
+        stderrStream.on('data', (chunk) => stderrChunks.push(Buffer.from(chunk)));
+        docker.modem.demuxStream(attached, stdoutStream, stderrStream);
+        await container.start();
+        const waitResult = await container.wait();
+        attached.destroy();
+        stdoutStream.end();
+        stderrStream.end();
+        const stdout = Buffer.concat(stdoutChunks).toString('utf8');
+        const stderr = Buffer.concat(stderrChunks).toString('utf8');
+        if (waitResult.StatusCode !== 0) {
+            const detail = stderr.trim() || stdout.trim() || `exit ${waitResult.StatusCode}`;
+            throw new Error(`Comando remoto falló (${waitResult.StatusCode}): ${detail}`);
+        }
+        return { stdout, stderr };
+    } catch (err) {
+        console.error('[NodeHostCmd] Error on node ' + nodeId + ':', err.message);
+        throw err;
+    }
+}
+
+export function commandStdout(result) {
+    if (typeof result === 'string') return result;
+    if (result && typeof result.stdout === 'string') return result.stdout;
+    return '';
+}
+
+export async function getNodeConnection(nodeId = 0) {
+    if (nodeId === 0 || nodeId === '0') return localDocker;
+    if (NODE_CONNECTIONS.has(nodeId)) return NODE_CONNECTIONS.get(nodeId);
+
+    try {
+        const node = await findNodeById(nodeId);
+        if (!node) throw new Error(`Nodo ${nodeId} no encontrado.`);
+        const certsDir = path.join(config.projectRoot, 'certs');
+
+        const dockerOpts = {
+            host: node.ip_address,
+            port: 2376
+        };
+
+        try {
+            const caPath = path.join(certsDir, 'ca', 'ca.pem');
+            const certPath = path.join(certsDir, 'nodes', String(nodeId), 'cert.pem');
+            const keyPath = path.join(certsDir, 'nodes', String(nodeId), 'key.pem');
+
+            const [ca, cert, key] = await Promise.all([
+                fs.readFile(caPath),
+                fs.readFile(certPath),
+                fs.readFile(keyPath)
+            ]);
+
+            dockerOpts.protocol = 'https';
+            dockerOpts.ca = ca;
+            dockerOpts.cert = cert;
+            dockerOpts.key = key;
+            console.log(`🔒 [Docker] Conexión cifrada (mTLS) establecida con Nodo #${nodeId}`);
+        } catch (err) {
+            if (!config.allowInsecureDockerNodes || config.nodeEnv === 'production') {
+                throw new Error(`Nodo #${nodeId} rechazado: faltan certificados mTLS válidos.`);
+            }
+            dockerOpts.protocol = 'http';
+            dockerOpts.port = 2375;
+            console.warn(`⚠️ [Docker] Nodo #${nodeId} usa HTTP sin cifrar por excepción exclusiva de desarrollo.`);
+        }
+
+        const remoteDocker = new Docker(dockerOpts);
+        NODE_CONNECTIONS.set(nodeId, remoteDocker);
+        return remoteDocker;
+    } catch (e) {
+        console.error(`❌ [Docker] Error conectando al nodo ${nodeId}:`, e.message);
+        throw e;
+    }
+}
 
 export async function normalizeBindOwnership(docker, image, dataPath, owner, helperScope = 'service') {
     const safeScope = String(helperScope || 'service').toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 24);

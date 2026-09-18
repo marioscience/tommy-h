@@ -10,8 +10,8 @@ services:
 
   oxide_control_panel:
     init: false
-    security_opt: !reset [ ]
-    cap_drop: !reset [ ]
+    security_opt: !reset []
+    cap_drop: !reset []
     read_only: false
 
   oxide_web:
@@ -21,3 +21,17 @@ services:
 
   postgres:
     ports: !reset []
+
+  worker-deployments:
+    init: false
+    entrypoint: ["node", "--watch", "src/worker.js"]
+    security_opt: !reset []
+    cap_drop: !reset []
+    read_only: false
+
+  worker-stats:
+    init: false
+    entrypoint: ["node", "--watch", "src/worker.js"]
+    security_opt: !reset []
+    cap_drop: !reset []
+    read_only: false
