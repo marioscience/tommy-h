@@ -12,7 +12,8 @@ function toggleSidebar() {
             document.getElementById('profile-dropdown')?.classList.remove('active');
         });
 
-        function showToast(message, type = 'success') {
+        function showToast(message, type = 'success', options = {}) {
+            window.Nexus?.mirrorToast(message, type, options);
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;

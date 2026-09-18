@@ -172,9 +172,35 @@ window.Nexus = {
       });
     }
 
-    // 2. On-screen Toast (if requested and showToast exists in the scope)
+    // 2. On-screen Toast (suppress duplicate console line since reportError already logged the full error payload)
     if (showToast && typeof window.showToast === 'function') {
-      window.showToast(message, 'danger');
+      window.showToast(message, 'danger', { skipConsole: true });
+    }
+  },
+
+  mirrorToast: (message, type = 'success', options = {}) => {
+    if (!Nexus.debugMode || options?.skipConsole) return;
+
+    const now = new Date();
+    const pad = (n, z = 2) => String(n).padStart(z, '0');
+    const timestamp =
+    `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${pad(now.getMilliseconds(), 3)}`;
+    const normalizedType = (type === 'danger' || type === 'error') ? 'error' : (type === 'warning' ? 'warning' : (type === 'info' ? 'info' : 'success'));
+    const badge = `[Toast:${normalizedType} @ ${timestamp}]`;
+    switch (normalizedType) {
+      case 'error':
+        console.error(`%c${badge}%c ${message}`, 'color: #ff5555; font-weight: bold;', 'color: inherit;');
+        break;
+      case 'warning':
+        console.warn(`%c${badge}%c ${message}`, 'color: #ffaa00; font-weight: bold;', 'color: inherit;');
+        break;
+      case 'info':
+        console.info(`%c${badge}%c ${message}`, 'color: #00bbff; font-weight: bold;', 'color: inherit;');
+        break;
+      case 'success':
+      default:
+        console.info(`%c${badge}%c ${message}`, 'color: #55ff55; font-weight: bold;', 'color: inherit;');
+        break;
     }
   },
 
