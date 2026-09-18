@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "sync:qa": "node scripts/sync_qa_readme.mjs",
     "security:routes": "node scripts/security/route_auth_smoke.mjs",
     "security:stack": "docker compose -f docker-compose.yml -f docker-compose.security.yml up -d --build",
     "security:authz-http": "docker compose -f docker-compose.yml -f docker-compose.security.yml exec -T backend node /app/security-tests/authenticated_route_fixture.mjs",
