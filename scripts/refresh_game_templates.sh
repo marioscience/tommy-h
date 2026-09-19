@@ -35,7 +35,12 @@ run_steamcmd() {
     -v "$staging:/template" \
     --entrypoint /bin/sh "$image" -ec '
       steamcmd=""
-      for candidate in /home/steam/steamcmd/steamcmd.sh /steamcmd/steamcmd.sh /opt/steamcmd/steamcmd.sh; do
+      for candidate in \
+        /home/steam/steamcmd/steamcmd.sh \
+        /home/root/.local/steamcmd/steamcmd.sh \
+        /root/.local/share/Steam/steamcmd/steamcmd.sh \
+        /steamcmd/steamcmd.sh \
+        /opt/steamcmd/steamcmd.sh; do
         [ -x "$candidate" ] && steamcmd="$candidate" && break
       done
       [ -n "$steamcmd" ] || { echo "SteamCMD no esta disponible en la imagen" >&2; exit 70; }
