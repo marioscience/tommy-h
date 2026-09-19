@@ -44,7 +44,13 @@ run_steamcmd() {
         [ -r "$candidate" ] && steamcmd="$candidate" && break
       done
       [ -n "$steamcmd" ] || { echo "SteamCMD no esta disponible en la imagen" >&2; exit 70; }
-      exec /bin/bash "$steamcmd" "$@"
+      # Algunas imágenes conservan SteamCMD bajo un home de root con binarios
+      # 0744. Se copia su pequeño runtime a /tmp para ejecutarlo con el UID
+      # aislado, sin modificar la imagen ni elevar privilegios.
+      rm -rf /tmp/ragenodes-steamcmd
+      cp -R "$(dirname "$steamcmd")" /tmp/ragenodes-steamcmd
+      chmod -R u+rwX /tmp/ragenodes-steamcmd
+      exec /bin/bash /tmp/ragenodes-steamcmd/steamcmd.sh "$@"
     ' sh "${platform_args[@]}" +force_install_dir "/template/$install_rel" +login anonymous +app_update "$app_id" validate +quit
 }
 
