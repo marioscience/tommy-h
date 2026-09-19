@@ -41,10 +41,10 @@ run_steamcmd() {
         /root/.local/share/Steam/steamcmd/steamcmd.sh \
         /steamcmd/steamcmd.sh \
         /opt/steamcmd/steamcmd.sh; do
-        [ -x "$candidate" ] && steamcmd="$candidate" && break
+        [ -r "$candidate" ] && steamcmd="$candidate" && break
       done
       [ -n "$steamcmd" ] || { echo "SteamCMD no esta disponible en la imagen" >&2; exit 70; }
-      exec "$steamcmd" "$@"
+      exec /bin/sh "$steamcmd" "$@"
     ' sh "${platform_args[@]}" +force_install_dir "/template/$install_rel" +login anonymous +app_update "$app_id" validate +quit
 }
 
