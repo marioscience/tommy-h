@@ -53,7 +53,7 @@ run_steamcmd() {
       cp -R "$(dirname "$steamcmd")" /tmp/ragenodes-steamcmd
       chmod -R u+rwX /tmp/ragenodes-steamcmd
       exec /bin/bash /tmp/ragenodes-steamcmd/steamcmd.sh "$@"
-    ' sh "${platform_args[@]}" +force_install_dir "/template/$install_rel" +login anonymous +app_update "$app_id" validate +quit
+    ' sh "${platform_args[@]}" +force_install_dir "/template/$install_rel" +login anonymous +app_info_update 1 +app_update "$app_id" validate +quit
 }
 
 refresh_game() {
