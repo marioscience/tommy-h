@@ -54,6 +54,8 @@ const files = Object.fromEntries(await Promise.all([
   'scripts/registry/build_and_push_kaniko.sh',
   'scripts/registry/open_release_manifest_mr.sh',
   '.gitlab-ci.yml',
+  'compose.development.prebuilt.yml',
+  'scripts/dev/cli.mjs',
   'deploy/registry-release.lock',
   'scripts/load_env.sh',
   'scripts/security/production_preflight.sh',
@@ -173,6 +175,10 @@ assert(files['scripts/registry/open_release_manifest_mr.sh'].includes('RAGENODES
 assert(files['.gitlab-ci.yml'].includes('auto_registry_manifest_mr:'), 'dev packaging creates a reviewed automatic release-manifest MR');
 assert(files['.gitlab-ci.yml'].includes('CI_COMMIT_TITLE =~ /^chore\\(release\\): registry manifest /'), 'release-manifest merge commits cannot trigger a recursive image build');
 assert(!/\.registry_publish_niko:[\s\S]*?rules:[\s\S]*?CI_COMMIT_BRANCH == "main"[\s\S]*?script:/.test(files['.gitlab-ci.yml']), 'main promotion reuses dev-built images instead of rebuilding them');
+assert(files['compose.development.prebuilt.yml'].includes('build: !reset null'), 'prebuilt local development disables application image builds');
+assert(files['scripts/dev/cli.mjs'].includes("case 'pull':"), 'local development can download the reviewed dev images explicitly');
+assert(files['scripts/dev/cli.mjs'].includes('org.opencontainers.image.revision'), 'local prebuilt images are checked against the reviewed source revision');
+assert(files['scripts/dev/cli.mjs'].includes("const prebuilt = name === 'prebuilt'"), 'local development exposes an explicit no-build startup mode');
 assert(files['scripts/registry/build_and_push_kaniko.sh'].includes('if ! run_kaniko true'), 'Registry builds detect a failed cached Kaniko attempt');
 assert(files['scripts/registry/build_and_push_kaniko.sh'].includes('run_kaniko false'), 'Registry builds retry once without a potentially corrupt cache');
 assert(files['scripts/registry/build_and_push_kaniko.sh'].includes('rm -f "$digest_file"'), 'Kaniko recovery discards a stale digest before retrying');
