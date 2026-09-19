@@ -123,12 +123,21 @@ export function buildTemplateStreamCommand(masterPath, dataPath) {
     return `(cd ${source} && tar -cf - .) | (cd ${target} && tar -xf -)`;
 }
 
-async function copyTemplateAcrossFilesystems(masterPath, dataPath, nodeId) {
+export function buildTemplateReadLockedCommand(gameName, command) {
+    if (!/^[a-z0-9_-]+$/.test(String(gameName || ''))) {
+        throw new Error('Nombre de juego inválido para el bloqueo de plantilla.');
+    }
+    const lockRoot = path.join(config.instanceDataRoot, 'templates', '.locks');
+    const lockFile = path.join(lockRoot, `${gameName}.lock`);
+    return sh`mkdir -p ${lockRoot} && flock -s ${lockFile} bash -c ${command}`;
+}
+
+async function copyTemplateAcrossFilesystems(masterPath, dataPath, nodeId, gameName) {
     const command = buildTemplateStreamCommand(masterPath, dataPath);
     let lastError;
     for (let attempt = 1; attempt <= 3; attempt++) {
         try {
-            await runRemoteCommand(nodeId, command);
+            await runRemoteCommand(nodeId, buildTemplateReadLockedCommand(gameName, command));
             return;
         } catch (error) {
             lastError = error;
@@ -215,7 +224,7 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0, op
                 console.log(`⚡ [${gameName.toUpperCase()}] Sembrando una única caché local desde la plantilla compartida.`);
                 try {
                     await runRemoteCommand(nodeId, sh`mkdir -p ${cacheRoot} && rm -rf ${cacheTemp} && mkdir -p ${cacheTemp}`);
-                    await copyTemplateAcrossFilesystems(masterPath, cacheTemp, nodeId);
+                    await copyTemplateAcrossFilesystems(masterPath, cacheTemp, nodeId, gameName);
                     await runRemoteCommand(nodeId, sh`printf '%s\n' ${templateFingerprint} > ${path.join(cacheTemp, '.ragenodes-template-fingerprint')}`);
                     await runRemoteCommand(nodeId, sh`if [ -e ${cachePath} ]; then mv ${cachePath} ${cacheOld}; fi; mv ${cacheTemp} ${cachePath}; rm -rf ${cacheOld}`);
                 } catch (error) {
@@ -234,12 +243,18 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0, op
         try {
             await runRemoteCommand(nodeId, sh`rm -rf ${clonePath} && mkdir -p ${clonePath}`);
             try {
-                await runRemoteCommand(nodeId, sh`cp --reflink=always -R -P --preserve=mode,timestamps,links ${cloneSourcePath + '/.'} ${clonePath + '/'}`);
+                const cloneCommand = sh`cp --reflink=always -R -P --preserve=mode,timestamps,links ${cloneSourcePath + '/.'} ${clonePath + '/'}`;
+                await runRemoteCommand(nodeId, cloneSourcePath === masterPath
+                    ? buildTemplateReadLockedCommand(gameName, cloneCommand)
+                    : cloneCommand);
             } catch (reflinkError) {
                 const currentAvailableResult = await runRemoteCommand(nodeId, sh`df -PB1 ${parentPath} | awk 'NR==2 {print $4}'`);
                 selectTemplateCloneStrategy({ sourceDevice: 'copy-source', targetDevice: 'copy-target', templateBytes, availableBytes: numericCommandOutput(currentAvailableResult, 'el espacio disponible después de preparar la caché'), reserveBytes });
                 console.warn(`⚠️ [${gameName.toUpperCase()}] Reflink no disponible; se usará copia independiente con espacio ya validado.`);
-                await runRemoteCommand(nodeId, sh`rm -rf ${clonePath} && mkdir -p ${clonePath} && cp -R -P --preserve=mode,timestamps,links ${cloneSourcePath + '/.'} ${clonePath + '/'}`);
+                const fallbackCommand = sh`rm -rf ${clonePath} && mkdir -p ${clonePath} && cp -R -P --preserve=mode,timestamps,links ${cloneSourcePath + '/.'} ${clonePath + '/'}`;
+                await runRemoteCommand(nodeId, cloneSourcePath === masterPath
+                    ? buildTemplateReadLockedCommand(gameName, fallbackCommand)
+                    : fallbackCommand);
             }
             if (hasExistingData && refreshExisting) {
                 for (const relativePath of preservePaths) {

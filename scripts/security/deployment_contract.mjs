@@ -50,6 +50,7 @@ const files = Object.fromEntries(await Promise.all([
   'frontend/public/games/fivem.html',
   'frontend/public/games/fivem_v3.html',
   'scripts/ensure_base_images.sh',
+  'scripts/refresh_game_templates.sh',
   'scripts/update_image_cache.sh',
   'scripts/registry/prepare_runtime_images.sh',
   'scripts/registry/build_and_push_kaniko.sh',
@@ -232,9 +233,15 @@ assert(files['scripts/ensure_base_images.sh'].includes('docker_runtime pull "$im
 assert(files['scripts/ensure_base_images.sh'].includes('*@sha256:*'), 'external game images reject mutable tags before deployment');
 assert(files['scripts/ensure_base_images.sh'].includes('MINECRAFT_BASE_IMAGE:=itzg/minecraft-server:java25@sha256:'), 'image cache has a digest-pinned default manifest');
 assert(files['scripts/update_image_cache.sh'].includes('load_env_file "$ENV_FILE"'), 'scheduled image refresh loads dotenv without executing it');
+assert(files['scripts/update_image_cache.sh'].includes('refresh_game_templates.sh'), 'scheduled image refresh also maintains SteamCMD templates');
+assert(files['scripts/refresh_game_templates.sh'].includes('flock -x "$lock_fd"'), 'template promotion takes an exclusive per-game lock');
+assert(files['scripts/refresh_game_templates.sh'].includes('mv "$staging" "$master"'), 'validated templates are promoted by an atomic same-filesystem rename');
+assert(files['scripts/refresh_game_templates.sh'].includes('rm -rf "$previous"'), 'the previous template is removed after a successful promotion');
+assert(files['backend/src/services/dockerUtils.js'].includes('flock -s'), 'template cloning takes a shared per-game lock');
 assert(files['ops/systemd/ragenodes-image-cache.timer'].includes('Persistent=true'), 'missed image refreshes run after the host returns');
 assert(files['ops/systemd/ragenodes-image-cache.service'].includes('NoNewPrivileges=true'), 'scheduled image refresh cannot gain privileges');
 assert(files['ops/systemd/ragenodes-image-cache.service'].includes('ProtectSystem=strict'), 'scheduled image refresh has a read-only system view');
+assert(files['ops/systemd/ragenodes-image-cache.service'].includes('/srv/ragenodes-data/templates'), 'scheduled template refresh can only write inside the template store');
 assert(files['runtime-images/fivem/Dockerfile'].includes('ARG FIVEM_DOWNLOAD_URL'), 'FiveM artifact selection is supplied explicitly at build time');
 assert(files['runtime-images/fivem/Dockerfile'].includes('https://runtime.fivem.net/artifacts/fivem/build_proot_linux/master/*'), 'FiveM downloads are restricted to the vendor artifact origin');
 assert(!/chmod\s+(?:-R\s+)?777\b/.test(files['runtime-images/fivem/start.sh']), 'FiveM runtime never grants world-writable permissions');
