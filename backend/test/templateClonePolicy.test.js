@@ -20,8 +20,9 @@ test('template clone refuses unknown device information', () => {
   assert.throws(() => selectTemplateCloneStrategy({ sourceDevice: '', targetDevice: '42', templateBytes: 1, availableBytes: 100 }), /determinar el dispositivo/);
 });
 
-test('local template cache is reused only when its completed byte marker matches', () => {
-  assert.equal(templateCacheMatches('65936591587\n', 65936591587), true);
-  assert.equal(templateCacheMatches('65936591586\n', 65936591587), false);
-  assert.equal(templateCacheMatches('', 65936591587), false);
+test('local template cache is reused only when its content fingerprint matches', () => {
+  const fingerprint = 'a'.repeat(64);
+  assert.equal(templateCacheMatches(`${fingerprint}\n`, fingerprint), true);
+  assert.equal(templateCacheMatches('b'.repeat(64), fingerprint), false);
+  assert.equal(templateCacheMatches('', fingerprint), false);
 });

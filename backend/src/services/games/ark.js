@@ -103,12 +103,9 @@ export async function createARKContainer(opts) {
     // Reuse the shared template cache used by the other game families. When
     // templates live on NFS and instances on local Btrfs, this pays the NFS
     // copy once and then creates each server with an atomic local reflink.
-    const clonedFromMaster = await cloneFromMasterTemplate('ark', opts.dataPath, targetNodeId, {
-        refreshExisting: true,
-        preservePaths: [
-            'common/ARK Survival Ascended Dedicated Server/ShooterGame/Saved'
-        ]
-    });
+    // La plantilla solo acelera la primera creación. Una recreación o reinicio
+    // nunca sustituye el runtime ya actualizado de la instancia.
+    await cloneFromMasterTemplate('ark', opts.dataPath, targetNodeId);
     await prepareArkData({ docker, image: config.arkBaseImage,
         dataRoot: config.instanceDataRoot, dataPath: opts.dataPath });
 
@@ -173,17 +170,14 @@ export async function createARKContainer(opts) {
         Env: [
             `startcommands=${connectionString}`,
             'TZ=UTC',
-            // Instances are immutable clones of a validated master. Updating
-            // here caused every server to contact Steam independently and a
-            // failed manifest request still launched an obsolete build. A
-            // fresh development node has no master yet, so its first instance
-            // must bootstrap the game files from Steam.
-            `updateonstart=${clonedFromMaster ? 'false' : 'true'}`
+            // Steam valida sobre el volumen persistente. Si hay cambios solo
+            // descarga el delta; nunca vuelve a copiar la plantilla maestra.
+            'updateonstart=true'
         ],
-        Cmd: clonedFromMaster ? [
+        Cmd: [
             '/bin/bash', '-c',
-            'touch /home/steam/CONTAINER_ALREADY_STARTED_PLACEHOLDER && cp /home/steam/serverstart.sh /tmp/serverstart.sh && sed -i "s/+force_install_dir/+@sSteamCmdForcePlatformType windows +force_install_dir/g" /tmp/serverstart.sh && sed -i "s/echo .*steam_appid.txt//g" /tmp/serverstart.sh && echo 2399830 | tee "/home/steam/Steam/steamapps/common/ARK Survival Ascended Dedicated Server/ShooterGame/Binaries/Win64/steam_appid.txt" > /dev/null || true && bash /tmp/serverstart.sh'
-        ] : ['/home/steam/serverstart.sh'],
+            'cp /home/steam/serverstart.sh /tmp/serverstart.sh && sed -i "s/+force_install_dir/+@sSteamCmdForcePlatformType windows +force_install_dir/g" /tmp/serverstart.sh && sed -i "s/echo .*steam_appid.txt//g" /tmp/serverstart.sh && echo 2399830 | tee "/home/steam/Steam/steamapps/common/ARK Survival Ascended Dedicated Server/ShooterGame/Binaries/Win64/steam_appid.txt" > /dev/null || true && bash /tmp/serverstart.sh'
+        ],
         ExposedPorts: {
             [`${opts.gamePort}/udp`]: {},
             [`${opts.gamePort + 1}/udp`]: {},

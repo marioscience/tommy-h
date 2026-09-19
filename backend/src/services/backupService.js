@@ -5,8 +5,7 @@ import { getServerByIdForUser } from './serverService.js';
 import { logAudit } from '../db.js';
 import { deleteBackupRecord, recordBackup } from '../repositories/backupRepository.js';
 import { hasManagedDatabase } from './backupPolicy.js';
-import { getNodeConnection } from './dockerUtils.js';
-import { normalizeSharedDataPermissions } from './games/BaseGameService.js';
+import { ensureServerDataAccess } from './serverDataAccessService.js';
 import { rustUtil } from '../utils/rustUtil.js';
 import {
     assertSafeBackupDataPath,
@@ -21,11 +20,9 @@ async function prepareBackupReadAccess(server) {
     if (!server?.container_name) return;
 
     try {
-        const docker = await getNodeConnection(server.node_id || 0);
-        const container = docker.getContainer(server.container_name);
-        await normalizeSharedDataPermissions(container, config.gameContainerSharedGid);
+        await ensureServerDataAccess(server, 'backup');
     } catch (error) {
-        console.warn(`[Backup] No se pudieron normalizar los permisos de ${server.id}: ${error.message}`);
+        throw new Error(`No se pudieron preparar los permisos del backup de ${server.id}: ${error.message}`);
     }
 }
 export async function createFullBackup(id, userId, isAdmin, customName = null) {

@@ -121,8 +121,11 @@ dependency_audit:
   - npm ci --ignore-scripts --cache .npm-cache
   - cd backend && npm ci --ignore-scripts --cache .npm-cache && cd ..
   script:
-  - npm audit --omit=dev --audit-level=high
-  - cd backend && npm audit --omit=dev --audit-level=high
+  # La API publica de advisories puede responder 503 durante mantenimiento.
+  # Solo se reintentan fallos de red/servicio; una vulnerabilidad real sigue
+  # bloqueando el pipeline en el primer intento.
+  - bash scripts/ci/npm_audit_retry.sh .
+  - bash scripts/ci/npm_audit_retry.sh backend
 
 oxide_tests:
   stage: test

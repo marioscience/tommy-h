@@ -92,10 +92,10 @@ export async function createSDTDContainer(containerName, serverId, gamePort, pla
             `SEVEN_DAYS_TO_DIE_SERVER_PORT=${gamePort}`,
             'SEVEN_DAYS_TO_DIE_TELNET_PORT=8081',
             `SEVEN_DAYS_TO_DIE_TELNET_PASSWORD=${telnetPassword}`,
-            // Una plantilla ya instalada debe arrancar en segundos y mantener
-            // su version. Solo una instancia realmente vacia ejecuta SteamCMD.
+            // El runtime persiste en el volumen de la instancia. SteamCMD
+            // valida y descarga únicamente deltas; la plantilla no se reaplica.
             `SEVEN_DAYS_TO_DIE_START_MODE=${installed ? '2' : '0'}`,
-            'SEVEN_DAYS_TO_DIE_UPDATE_CHECKING=0',
+            'SEVEN_DAYS_TO_DIE_UPDATE_CHECKING=1',
             'SEVEN_DAYS_TO_DIE_CONFIG_FILE=/app/.local/share/7DaysToDie/serverconfig.xml',
             'TZ=Europe/Madrid'
         ],
