@@ -32,8 +32,10 @@ run_steamcmd() {
   [ "$game" = ark ] && platform_args=(+@sSteamCmdForcePlatformType windows)
   "$DOCKER_BIN" run --rm --network host \
     --user "$(id -u):$(id -g)" \
+    -e HOME=/tmp/ragenodes-home \
     -v "$staging:/template" \
     --entrypoint /bin/sh "$image" -ec '
+      mkdir -p "$HOME"
       steamcmd=""
       for candidate in \
         /home/steam/steamcmd/steamcmd.sh \
