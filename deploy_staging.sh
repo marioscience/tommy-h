@@ -79,6 +79,31 @@ wait_for_http() {
   return 1
 }
 
+REGISTRY_APP_SERVICES=(
+  backend-staging
+  worker-backups-staging
+  worker-docker-events-staging
+  worker-stats-staging
+  worker-deployments-staging
+  oxide_control_panel
+  oxide_game_staging
+  oxide_web_staging
+)
+
+verify_running_release_revision() {
+  local service container_id image_revision
+  for service in "${REGISTRY_APP_SERVICES[@]}"; do
+    container_id="$("${COMPOSE[@]}" ps -q "$service")"
+    [ -n "$container_id" ] || { echo "ERROR: no running container for $service." >&2; return 1; }
+    image_revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$container_id")"
+    if [ "$image_revision" != "$RAGENODES_RELEASE_REVISION" ]; then
+      echo "ERROR: $service runs revision $image_revision; expected $RAGENODES_RELEASE_REVISION." >&2
+      return 1
+    fi
+  done
+  echo "   OK: all staging application containers run release $RAGENODES_RELEASE_REVISION"
+}
+
 "${COMPOSE[@]}" config --quiet
 "${COMPOSE[@]}" up -d "${STATE_SERVICES[@]}"
 wait_for_service redis-staging 60
@@ -99,6 +124,9 @@ wait_for_service oxide_game_staging 60
 wait_for_service oxide_web_staging 60
 wait_for_http http://127.0.0.1:3011/healthz 90
 wait_for_http http://127.0.0.1:3011/readyz 90
+if [ "$REGISTRY_DEPLOY" = "true" ]; then
+  verify_running_release_revision
+fi
 "${COMPOSE[@]}" exec -T backend-staging node src/verify_production_readiness.js
 
 echo "Staging actualizado y verificado."

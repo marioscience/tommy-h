@@ -407,12 +407,13 @@ Deployments are transactional at the host level. Before advancing Git, each upda
 
 Release synchronization is content-based: `dev`, `staging` and `main` may have different merge commits and `deploy/registry-release.lock` revisions, but their application build contexts must remain identical. Only already-merged, non-protected topic branches may be removed; never delete `dev`, `staging`, `main` or a branch containing commits absent from all three protected branches.
 
-The `niko-local` integration branch builds the backend, bot, OxideProxy and
-Oxide control-panel containers once and publishes them to the private GitLab
-Container Registry. A reviewed release promotes exact `sha256` references into
-`deploy/registry-release.lock`; `dev`, staging and production therefore consume
-the same immutable application images without recompiling. Target hosts verify
-every digest before replacement and use read-only Registry credentials. Staging
+The `dev` pipeline builds the backend, bot, OxideProxy and Oxide control-panel
+containers once and publishes them to the private GitLab Container Registry.
+After the build succeeds, the release bot opens a lock-only MR with the exact
+`sha256` references and auto-merges it after its validation pipeline passes;
+staging and production therefore consume the same immutable application images
+without recompiling. Target hosts verify every digest and source-revision label
+before and after replacement and use read-only Registry credentials. Staging
 and production run with `RAGENODES_REGISTRY_REQUIRED=true`, so a missing image or
 invalid credential stops the deployment instead of silently compiling different
 artifacts. Source builds remain an explicitly configured recovery path for other
@@ -882,12 +883,14 @@ Los despliegues son transaccionales en cada host. Antes de avanzar Git, el actua
 
 La sincronización de releases se verifica por contenido: `dev`, `staging` y `main` pueden tener commits de merge y versiones de `deploy/registry-release.lock` diferentes, pero sus contextos de compilación deben ser idénticos. Solo se eliminan ramas de trabajo no protegidas que ya estén fusionadas; nunca se borran `dev`, `staging`, `main` ni ramas con commits ausentes de las tres ramas protegidas.
 
-La rama de integración `niko-local` construye una sola vez los contenedores de
-backend, bot, OxideProxy y panel de control de Oxide, y los publica en el GitLab
-Container Registry privado. Una release revisada promociona referencias
-`sha256` exactas a `deploy/registry-release.lock`; `dev`, staging y producción
-consumen así las mismas imágenes inmutables sin recompilar. Cada host verifica
-todos los digests antes de reemplazar servicios y accede al Registry con una
+El pipeline de `dev` construye una sola vez los contenedores de backend, bot,
+OxideProxy y panel de control de Oxide, y los publica en el GitLab Container
+Registry privado. Cuando la compilación termina correctamente, el bot de
+releases abre un MR que solo actualiza las referencias `sha256` y lo fusiona
+automáticamente después de que su pipeline de validación quede en verde;
+staging y producción consumen así las mismas imágenes inmutables sin recompilar.
+Cada host verifica todos los digests y la revisión de origen antes y después de
+reemplazar servicios, y accede al Registry con una
 credencial independiente de solo lectura. Staging y producción usan
 `RAGENODES_REGISTRY_REQUIRED=true`, por lo que una imagen ausente o una
 credencial inválida detiene el despliegue en vez de compilar artefactos distintos

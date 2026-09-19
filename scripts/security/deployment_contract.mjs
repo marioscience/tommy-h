@@ -52,6 +52,8 @@ const files = Object.fromEntries(await Promise.all([
   'scripts/update_image_cache.sh',
   'scripts/registry/prepare_runtime_images.sh',
   'scripts/registry/build_and_push_kaniko.sh',
+  'scripts/registry/open_release_manifest_mr.sh',
+  '.gitlab-ci.yml',
   'deploy/registry-release.lock',
   'scripts/load_env.sh',
   'scripts/security/production_preflight.sh',
@@ -158,12 +160,19 @@ for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
   assert(files[deployFile].includes('prepare_runtime_images.sh'), `${deployFile} prefers reviewed Registry images`);
   assert(files[deployFile].includes('RAGENODES_REGISTRY_REQUIRED'), `${deployFile} supports fail-closed Registry deployment`);
   assert(files[deployFile].includes('REGISTRY_DEPLOY=false'), `${deployFile} retains an explicit source-build recovery path`);
+  assert(files[deployFile].includes('verify_running_release_revision'), `${deployFile} verifies the revision of every deployed application container`);
 }
 for (const ref of files['deploy/registry-release.lock'].match(/registry\.gitlab\.com[^\r\n]+/g) || []) {
   assert(/@sha256:[0-9a-f]{64}$/.test(ref), 'reviewed Registry release uses an immutable digest');
 }
 assert(files['scripts/registry/prepare_runtime_images.sh'].includes('docker pull "$ref"'), 'Registry release images are downloaded before application recreation');
 assert(files['scripts/registry/prepare_runtime_images.sh'].includes('grep -Fx "$ref"'), 'downloaded Registry images are verified against the reviewed digest');
+assert(files['scripts/registry/prepare_runtime_images.sh'].includes('org.opencontainers.image.revision'), 'downloaded Registry images are verified against the reviewed source revision');
+assert(files['scripts/registry/open_release_manifest_mr.sh'].includes('merge_request.merge_when_pipeline_succeeds'), 'release bot enables auto-merge only after the manifest MR pipeline succeeds');
+assert(files['scripts/registry/open_release_manifest_mr.sh'].includes('RAGENODES_RELEASE_REVISION=$CI_COMMIT_SHA'), 'release bot binds the manifest to the packaging pipeline commit');
+assert(files['.gitlab-ci.yml'].includes('auto_registry_manifest_mr:'), 'dev packaging creates a reviewed automatic release-manifest MR');
+assert(files['.gitlab-ci.yml'].includes('CI_COMMIT_TITLE =~ /^chore\\(release\\): registry manifest /'), 'release-manifest merge commits cannot trigger a recursive image build');
+assert(!/\.registry_publish_niko:[\s\S]*?rules:[\s\S]*?CI_COMMIT_BRANCH == "main"[\s\S]*?script:/.test(files['.gitlab-ci.yml']), 'main promotion reuses dev-built images instead of rebuilding them');
 assert(files['scripts/registry/build_and_push_kaniko.sh'].includes('if ! run_kaniko true'), 'Registry builds detect a failed cached Kaniko attempt');
 assert(files['scripts/registry/build_and_push_kaniko.sh'].includes('run_kaniko false'), 'Registry builds retry once without a potentially corrupt cache');
 assert(files['scripts/registry/build_and_push_kaniko.sh'].includes('rm -f "$digest_file"'), 'Kaniko recovery discards a stale digest before retrying');
