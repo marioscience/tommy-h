@@ -99,6 +99,20 @@ wait_for_http() {
   return 1
 }
 
+verify_running_release_revision() {
+  local service container_id image_revision
+  for service in "${APP_SERVICES[@]}"; do
+    container_id="$("${COMPOSE[@]}" ps -q "$service")"
+    [ -n "$container_id" ] || { echo "ERROR: no running container for $service." >&2; return 1; }
+    image_revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$container_id")"
+    if [ "$image_revision" != "$RAGENODES_RELEASE_REVISION" ]; then
+      echo "ERROR: $service runs revision $image_revision; expected $RAGENODES_RELEASE_REVISION." >&2
+      return 1
+    fi
+  done
+  echo "   OK: all application containers run release $RAGENODES_RELEASE_REVISION"
+}
+
 echo "==> 🛡️ MODO SAFE UPDATE ACTIVADO..."
 echo "==> Los servidores FiveM de los clientes NO serán destruidos ni interrumpidos."
 echo "==> Los volúmenes de base de datos (Postgres/MariaDB) están protegidos."
@@ -133,6 +147,9 @@ wait_for_service oxide_game 60
 wait_for_service oxide_web 60
 wait_for_http http://127.0.0.1:3010/healthz 90
 wait_for_http http://127.0.0.1:3010/readyz 90
+if [ "$REGISTRY_DEPLOY" = "true" ]; then
+  verify_running_release_revision
+fi
 
 echo "==> 🛡️ Verificando integridad de producción y migraciones SQL..."
 "${COMPOSE[@]}" exec -T backend node src/verify_production_readiness.js
