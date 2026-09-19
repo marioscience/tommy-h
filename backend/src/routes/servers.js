@@ -19,6 +19,7 @@ import { getDeploymentForOwner } from '../repositories/deploymentJobRepository.j
 import { planAndEnqueueDeployment } from '../services/deploymentPlanner.js';
 
 const router = express.Router();
+const SERVER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 router.use(requireAuth);
 
@@ -105,6 +106,12 @@ router.post('/:id/backup', async (req, res) => {
 
 // 3. Restaurar un backup
 router.post('/:id/backups/restore', async (req, res) => {
+    if (!SERVER_ID_PATTERN.test(req.params.id)) {
+        return res.status(400).json({ error: 'Identificador de servidor inválido.' });
+    }
+    if (!req.body?.filename || typeof req.body.filename !== 'string') {
+        return res.status(400).json({ error: 'Nombre de backup inválido.' });
+    }
     try {
         const result = await restoreBackup(req.params.id, req.body.filename, req.user.sub, req.user.role === 'admin');
         await logAudit(req, 'server.backup.restore', { serverId: req.params.id, filename: req.body.filename });
