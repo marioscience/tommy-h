@@ -4,6 +4,7 @@ import { resolveDataSubdirectory } from '../src/services/games/BaseGameService.j
 import { buildTemplateStreamCommand, commandStdout, sh } from '../src/services/dockerUtils.js';
 import { buildSDTDInstallationCheck } from '../src/services/games/sdtd.js';
 import { buildARKHostConfig } from '../src/services/games/ark.js';
+import { config } from '../src/config.js';
 
 describe('Preparación segura de directorios de juego', () => {
   it('construye txData dentro de la ruta asignada sin comillas anidadas', () => {
@@ -60,6 +61,7 @@ describe('Preparación segura de directorios de juego', () => {
     assert.ok(hostConfig.CapAdd.includes('SETGID'));
     assert.equal(hostConfig.NetworkMode, undefined);
     assert.deepEqual(hostConfig.PortBindings, bindings);
+    if (!config.dockerBlkioWeight) assert.equal(hostConfig.BlkioWeight, undefined);
   });
 
   it('rechaza rutas relativas, absolutas anidadas y traversal', () => {

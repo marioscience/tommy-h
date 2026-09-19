@@ -1,21 +1,17 @@
 import { existsSync } from 'fs';
 import { getFolderSize } from './serverNodeSelection.js';
-import fs from 'fs/promises';
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
-import mysql from 'mysql2/promise';
-import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
-import { query, queryCached, logAudit } from '../db.js';
 import { config, PLAN_LIMITS, generateSecurePassword } from '../config.js';
 import * as Docker from './dockerService.js';
-import { execFile } from 'child_process';
-import { GameFactory } from './games/GameFactory.js';
-import { sendTeamInviteEmail } from './emailService.js';
-import os from 'os';
 import net from 'net';
-import dgram from 'dgram';
-import util from 'util';
+import { createGameDatabase } from './gameDatabaseService.js';
+import {
+  findServerAccessibleToUser,
+  listAllServers,
+  listServersAccessibleToUser,
+  listServerStatsHistory,
+  updateServerDatabaseCredentials
+} from '../repositories/serverRepository.js';
 
 export const repairBackoffCache = new Map();
 const MAX_REPAIRS_PER_HOUR = 3;
@@ -61,8 +57,6 @@ export function verifyServerPort(ip, port, type) {
     });
 }
 
-const execFilePromise = util.promisify(execFile);
-
 // 🧠 TRACKER DE ACTIVIDAD PARA ENTORNOS 3D (Auto-apagado por inactividad)
 export const blenderActivity = new Map();
 const BLENDER_INACTIVITY_MS = 30 * 60 * 1000; // 30 minutos
@@ -79,16 +73,9 @@ const PLANS = Object.entries(PLAN_LIMITS).reduce((acc, [key, val]) => {
   return acc;
 }, {});
 const DOCKER_QUERY_CHUNK_SIZE = Math.max(1, Number(process.env.DOCKER_QUERY_CHUNK_SIZE || 5));
-const MAINTENANCE_CHUNK_SIZE = Math.max(1, Number(process.env.MAINTENANCE_CHUNK_SIZE || 3));
-const MAINTENANCE_INTERVAL_MS = Math.max(300000, Number(process.env.MAINTENANCE_INTERVAL_MS || 600000)); // 10 minutes default
-
-export { getFolderSize, getNodeRuntimeUsage, nodeCanAcceptDockerWorkload, selectDeploymentNode, getNextAvailablePort } from './serverNodeSelection.js';
-export { getSubusersForServer, addSubuserToServer, removeSubuserFromServer } from './serverSubusers.js';
-export { setServerBackupTime, updateServerWebhook, updateServerCluster, updateServerAutoRestart, toggleBlenderForServer, renewBlenderHeartbeat } from './serverSettings.js';
 
 export async function getServersForUser(userId, isAdmin = false) {
-  const sql = isAdmin ? 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id ORDER BY servers.created_at DESC' : 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id WHERE servers.owner_id = $1 OR servers.id IN (SELECT server_id FROM subusers WHERE user_id = $1) ORDER BY servers.created_at DESC';
-  const servers = (await queryCached(sql, isAdmin ? [] : [userId], 3)).rows;
+  const servers = await listServersAccessibleToUser(userId, isAdmin);
 
   // Lotes (chunks) para no saturar Docker con Promesas concurrentes masivas
   const CHUNK_SIZE = DOCKER_QUERY_CHUNK_SIZE;
@@ -150,70 +137,12 @@ export async function getServersForUser(userId, isAdmin = false) {
 }
 
 export async function getServerByIdForUser(id, userId, isAdmin = false, requiredPermission = null) {
-  const sql = isAdmin
-    ? 'SELECT servers.*, users.extra_disk_gb FROM servers LEFT JOIN users ON servers.owner_id = users.id WHERE servers.id = $1'
-    : `SELECT servers.*, users.extra_disk_gb, su.permissions AS subuser_permissions
-       FROM servers
-       LEFT JOIN users ON servers.owner_id = users.id
-       LEFT JOIN subusers su ON su.server_id = servers.id AND su.user_id = $2
-       WHERE servers.id = $1 AND (servers.owner_id = $2 OR su.user_id = $2)`;
-  const server = (await queryCached(sql, isAdmin ? [id] : [id, userId], 2)).rows[0];
+  const server = await findServerAccessibleToUser(id, userId, isAdmin);
   if (!server || isAdmin || server.owner_id === userId || !requiredPermission) return server;
 
   const permissions = Array.isArray(server.subuser_permissions) ? server.subuser_permissions : [];
   return permissions.includes(requiredPermission) ? server : undefined;
 }
-
-async function getNextAvailablePort(startPort, range = 1, targetNodeId = 0) {
-    const nodeOffset = Number(targetNodeId) * 1000;
-    startPort = startPort + nodeOffset + (config.portBaseOffset || 0);
-
-    const maxScan = Number(process.env.PORT_SCAN_LIMIT || 5000);
-    const endPort = Math.min(65535, startPort + maxScan);
-  if (!Number.isInteger(startPort) || startPort <= 0 || startPort > 65535) {
-    throw new Error(`Puerto inicial inválido: ${startPort}`);
-  }
-  if (!Number.isInteger(range) || range <= 0 || startPort + range - 1 > 65535) {
-    throw new Error(`Rango de puertos inválido: inicio=${startPort}, rango=${range}`);
-  }
-
-  const { rows } = await query(`
-    SELECT fivem_port as port FROM servers WHERE fivem_port IS NOT NULL
-    UNION
-    SELECT txadmin_port as port FROM servers WHERE txadmin_port IS NOT NULL
-    UNION
-    SELECT blender_port as port FROM servers WHERE blender_port IS NOT NULL
-  `);
-  const usedPorts = new Set(rows.map(r => Number(r.port)).filter(Boolean));
-
-  try {
-      const containers = await Docker.localDocker.listContainers();
-      for (const c of containers) {
-          if (c.Ports) {
-              for (const p of c.Ports) {
-                  if (p.PublicPort) usedPorts.add(Number(p.PublicPort));
-              }
-          }
-      }
-  } catch (e) {
-      console.warn('[Ports] No se pudieron leer puertos publicados desde Docker:', e.message);
-  }
-
-  for (let port = startPort; port + range - 1 <= endPort; port++) {
-    let blockFree = true;
-    for (let i = 0; i < range; i++) {
-        if (usedPorts.has(port + i)) {
-            blockFree = false;
-            break;
-        }
-    }
-    if (blockFree) return port;
-  }
-
-  throw new Error(`No hay puertos disponibles entre ${startPort} y ${endPort} para un bloque de ${range}. Libera puertos o amplía PORT_SCAN_LIMIT.`);
-}
-
-export { createServerForUser } from './serverCreationService.js';
 
 export async function getServerDetails(id, userId, isAdmin) {
   const s = await getServerByIdForUser(id, userId, isAdmin);
@@ -227,17 +156,8 @@ export async function getServerDetails(id, userId, isAdmin) {
     const dbUser = `usr_${shortId}`;
     const dbPass = generateSecurePassword();
     try {
-        const dbConnection = await mysql.createConnection({
-            host: 'mariadb', user: 'root', password: config.centralDbPass
-        });
-        const escapedDbName = mysql.escapeId(dbName);
-        await dbConnection.query(`CREATE DATABASE IF NOT EXISTS ${escapedDbName}`);
-        await dbConnection.query(`CREATE USER IF NOT EXISTS ?@'%' IDENTIFIED BY ?`, [dbUser, dbPass]);
-        await dbConnection.query(`GRANT ALL PRIVILEGES ON ${escapedDbName}.* TO ?@'%'`, [dbUser]);
-        await dbConnection.query(`FLUSH PRIVILEGES`);
-        await dbConnection.end();
-
-        await query('UPDATE servers SET db_name = $1, db_user = $2, db_pass = $3 WHERE id = $4', [dbName, dbUser, dbPass, s.id]);
+        await createGameDatabase(dbName, dbUser, dbPass);
+        await updateServerDatabaseCredentials(s.id, { dbName, dbUser, dbPass });
         s.db_name = dbName;
         s.db_user = dbUser;
         s.db_pass = dbPass;
@@ -295,15 +215,11 @@ export async function getServerLogs(id, userId, isAdmin) {
 }
 
 export async function getAllServers() {
-  const { rows } = await query('SELECT * FROM servers');
-  return rows;
+  return listAllServers();
 }
 
 export async function getServerStatsHistory(id, userId, isAdmin) {
     const s = await getServerByIdForUser(id, userId, isAdmin);
     if (!s) throw new Error("Servidor no encontrado");
-    const { rows } = await query('SELECT cpu, ram, ram_gb, created_at FROM server_stats_history WHERE server_id = $1 ORDER BY created_at DESC LIMIT 50', [s.id]);
-    return rows.reverse();
+    return (await listServerStatsHistory(s.id)).reverse();
 }
-
-export { controlServer, deleteServer, repairServer, repairOneServer } from './serverControlService.js';

@@ -1,5 +1,6 @@
 import { query, logAudit } from '../db.js';
-import { controlServer, deleteServer } from './serverService.js';
+import { controlServer } from './serverControlService.js';
+import { deleteServer } from './serverDeletionService.js';
 
 /**
  * Motor de Suspensión Automática (Billing Scheduler)
