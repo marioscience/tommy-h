@@ -391,11 +391,13 @@ describe('Backend architecture boundaries', () => {
     assert.match(arkData, /find "\$target" -mindepth 1 -exec chown -h 1000:1000/);
   });
 
-  it('starts ARK from the validated master without per-instance Steam updates', async () => {
+  it('starts ARK from a validated master and bootstraps only when the master is absent', async () => {
     const ark = await readFile(new URL('../src/services/games/ark.js', import.meta.url), 'utf8');
     const arkData = await readFile(new URL('../src/services/games/arkData.js', import.meta.url), 'utf8');
-    assert.match(ark, /'updateonstart=false'/);
-    assert.doesNotMatch(ark, /'updateonstart=true'/);
+    assert.match(ark, /const clonedFromMaster = await cloneFromMasterTemplate/);
+    assert.match(ark, /`updateonstart=\$\{clonedFromMaster \? 'false' : 'true'\}`/);
+    assert.match(ark, /Cmd: clonedFromMaster \?/);
+    assert.match(ark, /:\s*\['\/home\/steam\/serverstart\.sh'\]/);
     assert.match(ark, /echo 2399830 \| tee/);
     assert.match(arkData, /printf '2399830\\\\n'/);
     assert.doesNotMatch(ark, /echo 2430930 \| tee/);

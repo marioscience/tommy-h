@@ -49,7 +49,7 @@ const ARK_CAPABILITIES = [
 ];
 
 export function buildARKHostConfig(opts, clusterBinds = [], portBindings = {}) {
-    return {
+    const hostConfig = {
         Binds: [`${opts.dataPath}:/home/steam/Steam/steamapps`, ...clusterBinds],
         PortBindings: portBindings,
         RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
@@ -57,7 +57,6 @@ export function buildARKHostConfig(opts, clusterBinds = [], portBindings = {}) {
         NanoCpus: opts.plan.nanoCpus,
         CpuShares: Math.round((opts.plan.nanoCpus / 10**9) * 1024),
         ShmSize: 1024 * 1024 * 1024,
-        BlkioWeight: 100,
         ...GAME_SECURITY_CONFIG,
         // Proton/Wine necesita preparar su prefix con cambios de identidad.
         // Esta excepcion se limita a ARK; el resto de servicios conserva NNP.
@@ -66,6 +65,14 @@ export function buildARKHostConfig(opts, clusterBinds = [], portBindings = {}) {
         PidsLimit: 2048,
         Init: true
     };
+
+    // Docker Desktop/WSL can expose a cgroup v2 hierarchy without io.weight.
+    // Only request block-I/O weighting when the runtime explicitly enables it.
+    if (config.dockerBlkioWeight && Number(config.dockerBlkioWeight) > 0) {
+        hostConfig.BlkioWeight = Number(config.dockerBlkioWeight);
+    }
+
+    return hostConfig;
 }
 
 function normalizeArkMapName(value) {
@@ -96,7 +103,7 @@ export async function createARKContainer(opts) {
     // Reuse the shared template cache used by the other game families. When
     // templates live on NFS and instances on local Btrfs, this pays the NFS
     // copy once and then creates each server with an atomic local reflink.
-    await cloneFromMasterTemplate('ark', opts.dataPath, targetNodeId, {
+    const clonedFromMaster = await cloneFromMasterTemplate('ark', opts.dataPath, targetNodeId, {
         refreshExisting: true,
         preservePaths: [
             'common/ARK Survival Ascended Dedicated Server/ShooterGame/Saved'
@@ -168,13 +175,15 @@ export async function createARKContainer(opts) {
             'TZ=UTC',
             // Instances are immutable clones of a validated master. Updating
             // here caused every server to contact Steam independently and a
-            // failed manifest request still launched an obsolete build.
-            'updateonstart=false'
+            // failed manifest request still launched an obsolete build. A
+            // fresh development node has no master yet, so its first instance
+            // must bootstrap the game files from Steam.
+            `updateonstart=${clonedFromMaster ? 'false' : 'true'}`
         ],
-        Cmd: [
+        Cmd: clonedFromMaster ? [
             '/bin/bash', '-c',
             'touch /home/steam/CONTAINER_ALREADY_STARTED_PLACEHOLDER && cp /home/steam/serverstart.sh /tmp/serverstart.sh && sed -i "s/+force_install_dir/+@sSteamCmdForcePlatformType windows +force_install_dir/g" /tmp/serverstart.sh && sed -i "s/echo .*steam_appid.txt//g" /tmp/serverstart.sh && echo 2399830 | tee "/home/steam/Steam/steamapps/common/ARK Survival Ascended Dedicated Server/ShooterGame/Binaries/Win64/steam_appid.txt" > /dev/null || true && bash /tmp/serverstart.sh'
-        ],
+        ] : ['/home/steam/serverstart.sh'],
         ExposedPorts: {
             [`${opts.gamePort}/udp`]: {},
             [`${opts.gamePort + 1}/udp`]: {},
