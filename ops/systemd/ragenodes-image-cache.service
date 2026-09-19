@@ -10,7 +10,7 @@ Group=niko
 WorkingDirectory=/opt/ragenodes-ultimate
 Environment=PROJECT_ROOT=/opt/ragenodes-ultimate
 Environment=RAGENODES_ENV_FILE=/opt/ragenodes-ultimate/.env
-ExecStart=/opt/ragenodes-ultimate/scripts/update_image_cache.sh
+ExecStart=/usr/bin/bash /opt/ragenodes-ultimate/scripts/update_image_cache.sh
 Nice=10
 IOSchedulingClass=best-effort
 IOSchedulingPriority=7
