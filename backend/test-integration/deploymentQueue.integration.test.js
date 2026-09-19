@@ -19,22 +19,34 @@ test('deployment queue is idempotent and claims jobs concurrently', { skip: !ena
     [`queue-a-${suffix}`, `queue-a-${suffix}@example.invalid`, `queue-b-${suffix}`, `queue-b-${suffix}@example.invalid`]
   );
   const [firstUser, secondUser] = users.rows.map((row) => row.id);
+  const node = await query(
+    `INSERT INTO nodes (name, ip_address, api_key, status, ram_total_gb, cpu_cores)
+     VALUES ($1, $2, 'integration-only', 'active', 64, 8)
+     RETURNING id`,
+    [`queue-node-${suffix}`, `integration-${suffix}.invalid`]
+  );
+  const nodeId = node.rows[0].id;
 
   try {
     const first = await enqueueDeployment(firstUser, 'same-request', {
       template: 'fivem',
       licenseKey: 'cfxk_integration-secret'
-    });
+    }, { nodeId });
     const duplicate = await enqueueDeployment(firstUser, 'same-request', {
       template: 'fivem',
       licenseKey: 'different-value-must-not-replace-original'
-    });
-    await enqueueDeployment(secondUser, 'second-request', { template: 'minecraft' });
+    }, { nodeId });
+    await enqueueDeployment(
+      secondUser,
+      'second-request',
+      { template: 'minecraft' },
+      { nodeId }
+    );
     assert.equal(first.id, duplicate.id);
 
     const [claimedA, claimedB] = await Promise.all([
-      claimDeployment('integration-worker-a'),
-      claimDeployment('integration-worker-b')
+      claimDeployment('integration-worker-a', { nodeId }),
+      claimDeployment('integration-worker-b', { nodeId })
     ]);
     assert.ok(claimedA && claimedB);
     assert.notEqual(claimedA.id, claimedB.id);
@@ -50,6 +62,7 @@ test('deployment queue is idempotent and claims jobs concurrently', { skip: !ena
   } finally {
     await query('DELETE FROM deployment_jobs WHERE owner_id = ANY($1::int[])', [[firstUser, secondUser]]);
     await query('DELETE FROM users WHERE id = ANY($1::int[])', [[firstUser, secondUser]]);
+    await query('DELETE FROM nodes WHERE id = $1', [nodeId]);
     await pool.end();
   }
 });
