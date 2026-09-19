@@ -4,8 +4,16 @@ import { readFile } from 'node:fs/promises';
 import { buildRestartOptions } from '../src/services/serverRestartOptions.js';
 
 describe('Backend architecture boundaries', () => {
-  it('keeps periodic maintenance owned by the worker scheduler', async () => {
+  it('keeps lifecycle control dependent on server queries without a reverse dependency', async () => {
+    const queries = await readFile(new URL('../src/services/serverService.js', import.meta.url), 'utf8');
     const control = await readFile(new URL('../src/services/serverControlService.js', import.meta.url), 'utf8');
+    assert.match(control, /from '.\/serverService\.js'/);
+    assert.doesNotMatch(queries, /server(?:ControlService|Settings|Subusers)/);
+    assert.doesNotMatch(control, /export async function (?:deleteServer|repairServer|repairOneServer|runServerMaintenance)/);
+  });
+
+  it('keeps periodic maintenance owned by the worker scheduler', async () => {
+    const control = await readFile(new URL('../src/services/serverMaintenanceService.js', import.meta.url), 'utf8');
     const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
     assert.doesNotMatch(control, /setInterval\s*\(/);
     assert.match(worker, /startServerMaintenance\(\)/);
@@ -102,6 +110,9 @@ describe('Backend architecture boundaries', () => {
       '../src/middleware/auth.js',
       '../src/services/backupService.js',
       '../src/services/serverControlService.js',
+      '../src/services/serverDeletionService.js',
+      '../src/services/serverMaintenanceService.js',
+      '../src/services/serverRepairService.js',
       '../src/services/stagingHealthTestRunner.js'
     ];
     const source = (await Promise.all(files.map((file) => readFile(new URL(file, import.meta.url), 'utf8')))).join('\n');
@@ -110,18 +121,217 @@ describe('Backend architecture boundaries', () => {
   });
 
   it('purges server data before deleting its database record', async () => {
-    const control = await readFile(new URL('../src/services/serverControlService.js', import.meta.url), 'utf8');
-    const purgeIndex = control.indexOf('await purgeServerDataDirectory(s.node_id, s.id, s.data_path)');
-    const recordIndex = control.indexOf('await deleteServerRecord(s.id)');
+    const control = await readFile(new URL('../src/services/serverDeletionService.js', import.meta.url), 'utf8');
+    const purgeIndex = control.indexOf('await purgeServerDataDirectory(server.node_id, server.id, server.data_path)');
+    const recordIndex = control.indexOf('await deleteServerRecord(server.id)');
     assert.ok(purgeIndex >= 0, 'server deletion must purge persistent data');
     assert.ok(recordIndex > purgeIndex, 'the database record must remain available if data cleanup fails');
     assert.doesNotMatch(control, /fs\.rm\(s\.data_path[\s\S]*catch\s*\{\s*\}/);
   });
 
   it('uses rootless-safe cleanup when a server creation is rolled back', async () => {
+    const runtime = await readFile(new URL('../src/services/serverProvisioningRuntime.js', import.meta.url), 'utf8');
+    assert.match(runtime, /await purgeServerDataDirectory\(nodeId, serverId, dataPath\)/);
+    assert.doesNotMatch(runtime, /runRemoteCommand\(nodeId,[\s\S]{0,80}rm -rf/);
+  });
+
+  it('keeps deployment persistence and game database administration out of orchestration', async () => {
     const creation = await readFile(new URL('../src/services/serverCreationService.js', import.meta.url), 'utf8');
-    assert.match(creation, /await purgeServerDataDirectory\(nodeId, serverId, dataPath\)/);
-    assert.doesNotMatch(creation, /runRemoteCommand\(nodeId,[\s\S]{0,80}rm -rf/);
+    assert.doesNotMatch(creation, /\bquery\s*\(/);
+    assert.doesNotMatch(creation, /mysql2|CREATE DATABASE|DROP DATABASE|CREATE USER|DROP USER/);
+    assert.match(creation, /insertCreatingServer/);
+    assert.match(creation, /createGameDatabase/);
+    assert.doesNotMatch(creation, /GameFactory|createPalworldContainer|purgeServerDataDirectory/);
+  });
+
+  it('keeps server presentation free of SQL and duplicate database administration', async () => {
+    const service = await readFile(new URL('../src/services/serverService.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(service, /\bquery(?:Cached)?\s*\(/);
+    assert.doesNotMatch(service, /mysql2|CREATE DATABASE|CREATE USER|GRANT ALL PRIVILEGES/);
+    assert.match(service, /findServerAccessibleToUser/);
+    assert.match(service, /createGameDatabase/);
+  });
+
+  it('keeps backup archive mechanics separate from backup workflows', async () => {
+    const workflow = await readFile(new URL('../src/services/backupService.js', import.meta.url), 'utf8');
+    const archive = await readFile(new URL('../src/services/backupArchiveService.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(workflow, /spawn\(|createReadStream/);
+    assert.match(workflow, /createBackupArchive/);
+    assert.match(archive, /partialPath/);
+    assert.match(archive, /sha256File/);
+    assert.match(archive, /startsWith\(`\$\{backupRoot\}\$\{path\.sep\}`\)/);
+  });
+
+  it('keeps transactional backup restore isolated with explicit rollback', async () => {
+    const workflow = await readFile(new URL('../src/services/backupService.js', import.meta.url), 'utf8');
+    const restore = await readFile(new URL('../src/services/backupRestoreService.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(workflow, /export async function restoreBackup/);
+    assert.match(restore, /rollbackFiles/);
+    assert.match(restore, /replaceDatabaseFromDump/);
+    assert.match(restore, /maintenanceResume: true/);
+  });
+
+  it('keeps remote sync and server migration outside core backup workflows', async () => {
+    const workflow = await readFile(new URL('../src/services/backupService.js', import.meta.url), 'utf8');
+    const remote = await readFile(new URL('../src/services/backupRemoteService.js', import.meta.url), 'utf8');
+    const migration = await readFile(new URL('../src/services/serverResourceMigrationService.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(workflow, /rclone|rsync|migrateResources|syncBackupsToRemote/);
+    assert.match(remote, /rclone/);
+    assert.match(migration, /rsync/);
+    assert.match(migration, /assertSafeBackupDataPath/);
+  });
+
+  it('keeps txAdmin presentation patches out of generic Docker utilities', async () => {
+    const utilities = await readFile(new URL('../src/services/dockerUtils.js', import.meta.url), 'utf8');
+    const branding = await readFile(new URL('../src/services/txAdminBrandingService.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(utilities, /RAGENODES_WHITE_LABEL_PATCH/);
+    assert.match(branding, /RAGENODES_WHITE_LABEL_PATCH_START/);
+    assert.match(branding, /txadmin-white-label|txAdmin|TXADMIN_INDEX_PATH/i);
+  });
+
+  it('keeps game identity and sandbox policy independent from Docker transport', async () => {
+    const utilities = await readFile(new URL('../src/services/dockerUtils.js', import.meta.url), 'utf8');
+    const policy = await readFile(new URL('../src/services/gameRuntimePolicy.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(utilities, /deriveServicePassword|GAME_SECURITY_CONFIG/);
+    assert.match(policy, /createHmac/);
+    assert.match(policy, /no-new-privileges:true/);
+    assert.match(policy, /CapDrop: \['ALL'\]/);
+  });
+
+  it('keeps node transport and mTLS outside generic Docker utilities', async () => {
+    const utilities = await readFile(new URL('../src/services/dockerUtils.js', import.meta.url), 'utf8');
+    const transport = await readFile(new URL('../src/services/dockerNodeService.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(utilities, /dockerode|PassThrough|findNodeById|allowInsecureDockerNodes/);
+    assert.match(transport, /dockerode/);
+    assert.match(transport, /protocol: 'https'/);
+    assert.match(transport, /faltan certificados mTLS/);
+  });
+
+  it('keeps txAdmin fleet patching with the branding owner', async () => {
+    const dockerService = await readFile(new URL('../src/services/dockerService.js', import.meta.url), 'utf8');
+    const branding = await readFile(new URL('../src/services/txAdminBrandingService.js', import.meta.url), 'utf8');
+    const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(dockerService, /patchExistingContainers/);
+    assert.match(branding, /export async function patchExistingContainers/);
+    assert.match(worker, /txAdminBrandingService/);
+  });
+
+  it('keeps Blender runtime outside generic Docker lifecycle operations', async () => {
+    const dockerService = await readFile(new URL('../src/services/dockerService.js', import.meta.url), 'utf8');
+    const blender = await readFile(new URL('../src/services/blenderRuntimeService.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(dockerService, /toggleBlender|blenderBaseImage/);
+    assert.match(blender, /export async function toggleBlender/);
+    assert.match(blender, /no-new-privileges:true/);
+    assert.match(blender, /Memory: 4 \* 1024 \* 1024 \* 1024/);
+  });
+
+  it('keeps Discord knowledge persistence outside infrastructure routes', async () => {
+    const routes = await readFile(new URL('../src/routes/discord.js', import.meta.url), 'utf8');
+    const knowledge = await readFile(new URL('../src/routes/discord/knowledgeRoutes.js', import.meta.url), 'utf8');
+    assert.match(routes, /registerKnowledgeRoutes\(router, verifyApiKey\)/);
+    assert.doesNotMatch(routes, /bot_knowledge|bot_ticket_logs|bot_stats/);
+    assert.match(knowledge, /router\.post\('\/aprender'/);
+    assert.match(knowledge, /router\.post\('\/ticket-log'/);
+    assert.match(knowledge, /router\.get\('\/estadisticas'/);
+  });
+
+  it('keeps the admin commercial catalog separate from server operations', async () => {
+    const admin = await readFile(new URL('../src/routes/admin.js', import.meta.url), 'utf8');
+    const catalog = await readFile(new URL('../src/routes/admin/catalogRoutes.js', import.meta.url), 'utf8');
+    assert.match(admin, /registerCatalogRoutes\(router\)/);
+    assert.doesNotMatch(admin, /hosting_plans|disk_plans|marketplace_scripts|createBillingPlan/);
+    assert.match(catalog, /router\.get\('\/hosting-plans'/);
+    assert.match(catalog, /router\.get\('\/disk-plans'/);
+    assert.match(catalog, /router\.put\('\/marketplace\/scripts\/:id'/);
+    assert.match(catalog, /router\.post\('\/paypal\/sync-plans'/);
+  });
+
+  it('keeps admin notifications and auditing in their observability boundary', async () => {
+    const admin = await readFile(new URL('../src/routes/admin.js', import.meta.url), 'utf8');
+    const observability = await readFile(new URL('../src/routes/admin/observabilityRoutes.js', import.meta.url), 'utf8');
+    assert.match(admin, /registerObservabilityRoutes\(router\)/);
+    assert.doesNotMatch(admin, /createNotification|listAdminNotifications/);
+    assert.doesNotMatch(admin, /router\.(?:get|delete)\('\/audit-logs/);
+    assert.match(observability, /router\.get\('\/notifications'/);
+    assert.match(observability, /router\.get\('\/audit-logs\/export'/);
+    assert.match(observability, /admin\.audit\.clear_all/);
+  });
+
+  it('keeps privileged admin server operations in route-specificity order', async () => {
+    const admin = await readFile(new URL('../src/routes/admin.js', import.meta.url), 'utf8');
+    const servers = await readFile(new URL('../src/routes/admin/serverRoutes.js', import.meta.url), 'utf8');
+    assert.match(admin, /registerServerRoutes\(router\)/);
+    assert.doesNotMatch(admin, /controlServer|restoreBackup|executeCommandInContainer/);
+    const restoreIndex = servers.indexOf("router.post('/servers/:id/backups/restore'");
+    const actionIndex = servers.indexOf("router.post('/servers/:id/:action'");
+    assert.ok(restoreIndex >= 0 && actionIndex > restoreIndex);
+    assert.match(servers, /backupQueue\.enqueue/);
+    assert.match(servers, /admin\.server\.exec/);
+  });
+
+  it('keeps read-only payment routes outside checkout mutation workflows', async () => {
+    const payments = await readFile(new URL('../src/routes/payments.js', import.meta.url), 'utf8');
+    const reads = await readFile(new URL('../src/routes/payments/readRoutes.js', import.meta.url), 'utf8');
+    assert.match(payments, /registerPaymentReadRoutes\(router, requireAuth\)/);
+    assert.doesNotMatch(payments, /listInvoicesForUser|renderInvoiceHtml|paypalClient/);
+    assert.match(reads, /router\.get\('\/client-config'/);
+    assert.match(reads, /router\.get\('\/plans'/);
+    assert.match(reads, /router\.get\('\/invoices\/:id\.html'/);
+  });
+
+  it('keeps authenticated subscription management outside initial checkout', async () => {
+    const payments = await readFile(new URL('../src/routes/payments.js', import.meta.url), 'utf8');
+    const subscriptions = await readFile(new URL('../src/routes/payments/subscriptionRoutes.js', import.meta.url), 'utf8');
+    const validation = await readFile(new URL('../src/routes/payments/paymentValidation.js', import.meta.url), 'utf8');
+    assert.match(payments, /registerSubscriptionRoutes\(router, requireAuth\)/);
+    assert.doesNotMatch(payments, /payment\.disk_subscription|payment\.plan_revised/);
+    assert.match(subscriptions, /router\.post\('\/register-disk-subscription'/);
+    assert.match(subscriptions, /router\.post\('\/revise-plan'/);
+    assert.match(subscriptions, /router\.post\('\/confirm-revise'/);
+    assert.match(validation, /export function isPayPalSubscriptionId/);
+  });
+
+  it('keeps checkout consent capture separate from account provisioning', async () => {
+    const payments = await readFile(new URL('../src/routes/payments.js', import.meta.url), 'utf8');
+    const agreements = await readFile(new URL('../src/routes/payments/agreementRoutes.js', import.meta.url), 'utf8');
+    const context = await readFile(new URL('../src/routes/payments/checkoutContext.js', import.meta.url), 'utf8');
+    assert.match(payments, /registerAgreementRoutes\(router, checkoutLimiter\)/);
+    assert.doesNotMatch(payments, /legal\.checkout_agreement\.accepted|legal_documents/);
+    assert.match(agreements, /router\.post\('\/check-availability'/);
+    assert.match(agreements, /router\.post\('\/checkout-agreement'/);
+    assert.match(context, /export function cleanAgreementValue/);
+  });
+
+  it('keeps paid account provisioning outside the payment route composer', async () => {
+    const payments = await readFile(new URL('../src/routes/payments.js', import.meta.url), 'utf8');
+    const provisioning = await readFile(new URL('../src/routes/payments/provisioningRoutes.js', import.meta.url), 'utf8');
+    assert.match(payments, /registerProvisioningRoutes\(router, checkoutLimiter\)/);
+    assert.doesNotMatch(payments, /bcrypt|withTransaction|INSERT INTO users|INSERT INTO invoices/);
+    assert.match(provisioning, /router\.post\('\/register-subscription'/);
+    assert.match(provisioning, /CHECKOUT_ALREADY_CONSUMED/);
+    assert.match(provisioning, /pg_advisory_xact_lock/);
+    assert.match(provisioning, /payment\.subscription_success/);
+  });
+
+  it('keeps adaptive diagnostic suites outside low-level probe routes', async () => {
+    const diagnostics = await readFile(new URL('../src/routes/adminDiagnostics.js', import.meta.url), 'utf8');
+    const suites = await readFile(new URL('../src/routes/admin/diagnosticSuiteRoutes.js', import.meta.url), 'utf8');
+    assert.match(diagnostics, /registerDiagnosticSuiteRoutes\(router\)/);
+    assert.doesNotMatch(diagnostics, /runStagingHealthSuite|getLatestTestResult|generateReportHtml/);
+    assert.match(suites, /router\.get\('\/test-suite'/);
+    assert.match(suites, /router\.post\('\/run-suite'/);
+    assert.match(suites, /router\.get\('\/report-pdf'/);
+  });
+
+  it('keeps host snapshot commands outside admin HTTP routes', async () => {
+    const diagnostics = await readFile(new URL('../src/routes/adminDiagnostics.js', import.meta.url), 'utf8');
+    const snapshots = await readFile(new URL('../src/services/diagnosticSnapshotService.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(diagnostics, /runCommand\(|os\.(?:loadavg|totalmem|freemem)/);
+    assert.match(diagnostics, /getSystemSnapshot\(\)/);
+    assert.match(snapshots, /export async function getDockerPs/);
+    assert.match(snapshots, /export async function getFirewallSnapshot/);
+    assert.match(snapshots, /export async function getNetworkSnapshot/);
+    assert.match(snapshots, /export async function getSystemSnapshot/);
   });
 
   it('keeps CS2 port retries idempotent after rootless ownership normalization', async () => {
@@ -147,15 +357,15 @@ describe('Backend architecture boundaries', () => {
 
   it('does not recreate a server while its initial installation is active', async () => {
     const control = await readFile(new URL('../src/services/serverControlService.js', import.meta.url), 'utf8');
-    assert.match(control, /\['creating', 'recreating'\]\.includes\(s\.status\)/);
+    assert.match(control, /\['creating', 'recreating'\]\.includes\(server\.status\)/);
     assert.match(control, /todavía se está preparando/);
   });
 
   it('targets power operations at the node assigned to the server row', async () => {
     const control = await readFile(new URL('../src/services/serverControlService.js', import.meta.url), 'utf8');
     const lifecycle = await readFile(new URL('../src/services/serverRuntimeLifecycle.js', import.meta.url), 'utf8');
-    assert.match(control, /startContainer\(s\.container_name, \{ nodeId: s\.node_id \}\)/);
-    assert.match(control, /stopContainer\(s\.container_name, \{ nodeId: s\.node_id \}\)/);
+    assert.match(control, /startContainer\(server\.container_name, \{ nodeId: server\.node_id \}\)/);
+    assert.match(control, /stopContainer\(server\.container_name, \{ nodeId: server\.node_id \}\)/);
     assert.match(lifecycle, /inspectContainer\(server\.container_name, \{ nodeId: server\.node_id \}\)/);
   });
 
@@ -181,11 +391,13 @@ describe('Backend architecture boundaries', () => {
     assert.match(arkData, /find "\$target" -mindepth 1 -exec chown -h 1000:1000/);
   });
 
-  it('starts ARK from the validated master without per-instance Steam updates', async () => {
+  it('starts ARK from a validated master and bootstraps only when the master is absent', async () => {
     const ark = await readFile(new URL('../src/services/games/ark.js', import.meta.url), 'utf8');
     const arkData = await readFile(new URL('../src/services/games/arkData.js', import.meta.url), 'utf8');
-    assert.match(ark, /'updateonstart=false'/);
-    assert.doesNotMatch(ark, /'updateonstart=true'/);
+    assert.match(ark, /const clonedFromMaster = await cloneFromMasterTemplate/);
+    assert.match(ark, /`updateonstart=\$\{clonedFromMaster \? 'false' : 'true'\}`/);
+    assert.match(ark, /Cmd: clonedFromMaster \?/);
+    assert.match(ark, /:\s*\['\/home\/steam\/serverstart\.sh'\]/);
     assert.match(ark, /echo 2399830 \| tee/);
     assert.match(arkData, /printf '2399830\\\\n'/);
     assert.doesNotMatch(ark, /echo 2430930 \| tee/);
@@ -203,5 +415,64 @@ describe('Backend architecture boundaries', () => {
     assert.match(ark, /'ragenodes\.game': 'ark'/);
     assert.match(ark, /-ServerPlatform=ALL/);
     assert.doesNotMatch(ark, /chmod 0777/);
+  });
+
+  it('keeps environment loading separate from deployment security policy', async () => {
+    const entrypoint = await readFile(new URL('../src/config.js', import.meta.url), 'utf8');
+    const security = await readFile(new URL('../src/config/security.js', import.meta.url), 'utf8');
+    assert.match(entrypoint, /validateSecureConfig\(config\)/);
+    assert.match(security, /export function validateSecureConfig\(config\)/);
+    assert.doesNotMatch(security, /process\.env/);
+    assert.doesNotMatch(security, /dotenv/);
+  });
+
+  it('keeps Discord server operations outside the proxy route composer', async () => {
+    const composer = await readFile(new URL('../src/routes/discord.js', import.meta.url), 'utf8');
+    const operations = await readFile(new URL('../src/routes/discord/serverOperationsRoutes.js', import.meta.url), 'utf8');
+    assert.match(composer, /registerServerOperationsRoutes\(router, verifyApiKey\)/);
+    assert.match(operations, /\/control\/:serverId\/:action/);
+    assert.match(operations, /\/repair\/:serverId/);
+    assert.doesNotMatch(composer, /controlServer\(/);
+    assert.doesNotMatch(composer, /repairServer\(/);
+  });
+
+  it('keeps Docker telemetry outside the container lifecycle facade', async () => {
+    const facade = await readFile(new URL('../src/services/dockerService.js', import.meta.url), 'utf8');
+    const telemetry = await readFile(new URL('../src/services/dockerTelemetryService.js', import.meta.url), 'utf8');
+    assert.match(facade, /export \* from '.\/dockerTelemetryService\.js'/);
+    assert.match(telemetry, /startDockerTelemetryCollector/);
+    assert.match(telemetry, /getContainerStats/);
+    assert.doesNotMatch(facade, /calculateStatsBatch/);
+    assert.doesNotMatch(facade, /ragenodes:stats:/);
+  });
+
+  it('keeps Source RCON transport separate from game response parsing', async () => {
+    const service = await readFile(new URL('../src/services/rconService.js', import.meta.url), 'utf8');
+    const client = await readFile(new URL('../src/services/rcon/sourceRconClient.js', import.meta.url), 'utf8');
+    assert.match(service, /from '.\/rcon\/sourceRconClient\.js'/);
+    assert.match(client, /new net\.Socket\(\)/);
+    assert.match(client, /SourceRconDecoder/);
+    assert.doesNotMatch(service, /new net\.Socket\(\)/);
+    assert.doesNotMatch(client, /parseZomboidPlayers/);
+  });
+
+  it('keeps ARK capacity policy separate from INI persistence', async () => {
+    const facade = await readFile(new URL('../src/services/arkService.js', import.meta.url), 'utf8');
+    const requirements = await readFile(new URL('../src/services/ark/requirements.js', import.meta.url), 'utf8');
+    const store = await readFile(new URL('../src/services/ark/configStore.js', import.meta.url), 'utf8');
+    assert.match(facade, /from '.\/ark\/requirements\.js'/);
+    assert.match(facade, /from '.\/ark\/configStore\.js'/);
+    assert.match(requirements, /checkArkRequirements/);
+    assert.match(store, /saveARKConfig/);
+    assert.doesNotMatch(requirements, /fs\/promises/);
+    assert.doesNotMatch(store, /PLAN_LIMITS/);
+  });
+
+  it('keeps the immutable core schema outside incremental migrations', async () => {
+    const catalogue = await readFile(new URL('../src/migrations/migrationStatements.js', import.meta.url), 'utf8');
+    const core = await readFile(new URL('../src/migrations/coreSchemaMigration.js', import.meta.url), 'utf8');
+    assert.match(catalogue, /coreSchemaMigration/);
+    assert.match(core, /202601010001_initial_core_schema/);
+    assert.doesNotMatch(catalogue, /CREATE TABLE IF NOT EXISTS users/);
   });
 });

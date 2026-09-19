@@ -1,4 +1,4 @@
-import { runServerMaintenance } from './serverControlService.js';
+import { runServerMaintenance } from './serverMaintenanceService.js';
 
 const intervalMs = Math.max(300000, Number(process.env.MAINTENANCE_INTERVAL_MS || 600000));
 let timer;

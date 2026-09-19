@@ -1,6 +1,8 @@
 import os from 'os';
 import path from 'node:path';
-import { getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, applyRageNodesBranding, sh } from '../dockerUtils.js';
+import { getNodeConnection, runRemoteCommand, sh } from '../dockerUtils.js';
+import { GAME_SECURITY_CONFIG } from '../gameRuntimePolicy.js';
+import { applyRageNodesBranding } from '../txAdminBrandingService.js';
 import { config } from '../../config.js';
 import { prepareGameProxyBindings } from '../gameProxyPolicy.js';
 

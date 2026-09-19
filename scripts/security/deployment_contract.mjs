@@ -18,9 +18,13 @@ const files = Object.fromEntries(await Promise.all([
   'auto_update_prod.sh',
   'auto_update_staging.sh',
   'backend/src/services/dockerService.js',
+  'backend/src/services/blenderRuntimeService.js',
   'backend/src/services/dockerUtils.js',
+  'backend/src/services/gameRuntimePolicy.js',
   'backend/src/services/backupService.js',
+  'backend/src/services/backupRestoreService.js',
   'backend/src/services/serverControlService.js',
+  'backend/src/services/serverMaintenanceService.js',
   'backend/src/services/serverMaintenanceScheduler.js',
   'backend/src/services/txAdminCookieService.js',
   'backend/src/worker.js',
@@ -148,7 +152,7 @@ assert(files['deploy_staging.sh'].includes('worker-backups-staging'), 'staging d
 assert(files['docker-compose.staging.yml'].includes('RAGENODES_ROLE=worker-backups'), 'staging defines the isolated backup scheduler');
 assert(files['docker-compose.registry.staging.yml'].includes('worker-backups-staging:'), 'staging backup scheduler uses the reviewed backend image');
 assert(files['backend/src/services/backupService.js'].includes('normalizeSharedDataPermissions(container, config.gameContainerSharedGid)'), 'backups repair private game-runtime directories through the bounded shared group');
-assert(files['backend/src/services/backupService.js'].includes('{ maintenanceResume: true }'), 'backup restore resumes its already-admitted server after maintenance');
+assert(files['backend/src/services/backupRestoreService.js'].includes('{ maintenanceResume: true }'), 'backup restore resumes its already-admitted server after maintenance');
 assert(files['backend/src/services/serverControlService.js'].includes('if (!options.maintenanceResume)'), 'normal server starts retain node capacity admission');
 for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
   assert(files[deployFile].includes('prepare_runtime_images.sh'), `${deployFile} prefers reviewed Registry images`);
@@ -246,9 +250,9 @@ const stagingLoadEnv = files['deploy_staging.sh'].indexOf('load_env_file');
 const stagingPreflight = files['deploy_staging.sh'].indexOf('production_preflight.sh');
 assert(stagingLoadEnv !== -1 && stagingPreflight !== -1 && stagingLoadEnv < stagingPreflight, 'staging loads dotenv before production preflight');
 assert(files['.env.example'].includes('PORT_BIND_RETRY_LIMIT=8'), 'port binding retries are explicitly documented');
-assert(files['backend/src/services/dockerService.js'].includes('[config.dockerNetwork]: {}'), 'Blender joins the configured runtime network');
-assert(!files['backend/src/services/dockerService.js'].includes("'ragenodes_net': {}"), 'Blender does not hardcode the production network');
-assert(files['backend/src/services/dockerUtils.js'].includes('deriveServiceIdentifier'), 'game instances can derive stable unique identifiers');
+assert(files['backend/src/services/blenderRuntimeService.js'].includes('[config.dockerNetwork]: {}'), 'Blender joins the configured runtime network');
+assert(!files['backend/src/services/blenderRuntimeService.js'].includes("'ragenodes_net': {}"), 'Blender does not hardcode the production network');
+assert(files['backend/src/services/gameRuntimePolicy.js'].includes('deriveServiceIdentifier'), 'game instances can derive stable unique identifiers');
 assert(files['backend/src/services/games/minecraft.js'].includes("DIFFICULTY=${opts.difficulty || 'normal'}"), 'Minecraft defaults to normal difficulty');
 assert(files['backend/src/services/games/minecraft.js'].includes("'ONLINE_MODE=TRUE'"), 'Minecraft identity verification is enabled by default');
 assert(files['backend/src/services/games/minecraft.js'].includes("'PAUSE_WHEN_EMPTY_SECONDS=-1'"), 'Minecraft stays active while empty');
@@ -258,11 +262,11 @@ assert(
     && files['backend/src/worker.js'].includes('startServerMaintenance()'),
   'game maintenance has a single worker owner'
 );
-assert(files['backend/src/services/serverControlService.js'].includes("hasFatalLog && containerHealth === 'unhealthy'"), 'stale fatal log text cannot recreate a healthy game server');
+assert(files['backend/src/services/serverMaintenanceService.js'].includes("hasFatalLog && containerHealth === 'unhealthy'"), 'stale fatal log text cannot recreate a healthy game server');
 assert(!files['backend/src/services/txAdminCookieService.js'].includes("sameSite:\\\"lax\\\"/sameSite:\\\"none\\\",secure:true,partitioned:true"), 'FiveM startup cannot force txAdmin OAuth cookies into a partitioned store');
 assert(
   files['backend/src/services/txAdminCookieService.js'].includes("SameSite=None;Secure;Partitioned/SameSite=Lax")
-    && files['backend/src/services/serverControlService.js'].includes('scheduleEmbeddedTxAdminCookieRepair(s)'),
+    && files['backend/src/services/serverControlService.js'].includes('scheduleEmbeddedTxAdminCookieRepair(server)'),
   'FiveM startup repairs legacy partitioned txAdmin bundles'
 );
 assert(files['backend/src/services/games/rust.js'].includes("deriveServiceIdentifier('rust'"), 'Rust identity is unique per server');

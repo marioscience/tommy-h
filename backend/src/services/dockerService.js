@@ -1,14 +1,11 @@
-import Docker from 'dockerode';
-import fs from 'fs/promises';
-import path from 'path';
 import { config } from '../config.js';
-import { rustUtil } from '../utils/rustUtil.js';
-import { redisClient } from '../db.js';
-import { saveSDTDConfig } from './sdtdService.js';
-import { exec } from 'child_process';
-import util from 'util';
+import { promiseWithTimeout } from '../utils/promiseWithTimeout.js';
 
 export * from './dockerUtils.js';
+export * from './dockerNodeService.js';
+export * from './gameRuntimePolicy.js';
+export * from './dockerTelemetryService.js';
+export { promiseWithTimeout } from '../utils/promiseWithTimeout.js';
 export * from './games/minecraft.js';
 export * from './games/rust.js';
 export * from './games/palworld.js';
@@ -19,7 +16,8 @@ export * from './games/ark.js';
 export * from './games/fivem.js';
 export * from './games/sdtd.js';
 
-import { getDockerForContainer, applyRageNodesBranding, recreateContainer, getNodeConnection } from './dockerUtils.js';
+import { getDockerForContainer, recreateContainer } from './dockerUtils.js';
+import { getNodeConnection } from './dockerNodeService.js';
 import { createMinecraftContainer } from './games/minecraft.js';
 import { createRustContainer } from './games/rust.js';
 import { createPalworldContainer } from './games/palworld.js';
@@ -32,23 +30,7 @@ import { createSDTDContainer } from './games/sdtd.js';
 import { createDiscordBotContainer } from './games/discordbot.js';
 import { createWordPressContainer } from './games/wordpress.js';
 import { createDatabaseContainer } from './games/database.js';
-import {
-    listActiveNodeIds,
-    listActiveNodes,
-    updateNodeCapacity
-} from '../repositories/nodeRepository.js';
 import { findServerWebhookByContainer } from '../repositories/serverRepository.js';
-
-const execAsync = util.promisify(exec);
-
-export function promiseWithTimeout(promise, ms, timeoutErrorMsg = 'Operation timed out') {
-    return Promise.race([
-        promise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error(timeoutErrorMsg)), ms))
-    ]);
-}
-
-const STATS_CACHE = new Map();
 const CONTAINER_INSPECT_CACHE = new Map();
 const CONTAINER_STATE_CACHE_MS = Math.max(0, Number(process.env.CONTAINER_STATE_CACHE_MS || 4000));
 
@@ -71,148 +53,6 @@ const CONTAINER_STATE_CACHE_MS = Math.max(0, Number(process.env.CONTAINER_STATE_
 
 
 
-
-export async function startDockerTelemetryCollector() {
-    console.log("📊 [StatsCollector] Iniciando recolector de telemetría multi-nodo...");
-    while (true) {
-        try {
-            const nodeIds = await listActiveNodeIds();
-            for (const nodeId of nodeIds) {
-                try {
-                    const docker = await getNodeConnection(nodeId);
-                    const containers = await docker.listContainers();
-                    const ragenodeContainers = containers.filter(c =>
-                        c.Names[0].startsWith('/' + config.containerPrefix) &&
-                        !c.Names[0].startsWith('/ragenodes-blender-')
-                    );
-
-                    for (let i = 0; i < ragenodeContainers.length; i += 15) {
-                        const batch = ragenodeContainers.slice(i, i + 15);
-                        const samples = await Promise.all(batch.map(async (cInfo) => {
-                            try {
-                                const container = docker.getContainer(cInfo.Id);
-                                const stats = await container.stats({ stream: false });
-                                return { cInfo, stats };
-                            } catch (e) { return null; }
-                        }));
-                        const available = samples.filter(Boolean);
-                        const results = await rustUtil.calculateStatsBatch(available.map(sample => sample.stats));
-                        for (let index = 0; index < available.length; index += 1) {
-                            const result = results[index];
-                            if (!result) continue;
-                            const key = available[index].cInfo.Names[0].replace('/', '');
-                            const payload = {
-                                cpu: result.cpu,
-                                ram: result.ram,
-                                ramGb: result.ram_gb,
-                                net_rx: result.net_rx,
-                                net_tx: result.net_tx,
-                                disk: "0.0",
-                                diskGb: "0.0",
-                                updatedAt: Date.now(),
-                                nodeId
-                            };
-                            STATS_CACHE.set(key, payload);
-                            if (redisClient?.isOpen) {
-                                redisClient.setEx('ragenodes:stats:' + key, 60, JSON.stringify(payload)).catch(() => {});
-                            }
-                        }
-                    }
-                } catch (nodeErr) {
-                    console.error(`⚠️ [Stats] Error en nodo ${nodeId}:`, nodeErr.message);
-                }
-            }
-        } catch (e) {
-            console.error("❌ Error en StatsCollector:", e);
-        }
-        await new Promise(r => setTimeout(r, 30000));
-    }
-}
-
-export function startNodeMonitor() {
-    console.log("🖥️ [NodeMonitor] Iniciando monitoreo de nodos...");
-    setInterval(async () => {
-        try {
-            const nodes = await listActiveNodes();
-            for (const node of nodes) {
-                try {
-                    const docker = await getNodeConnection(node.id);
-                    const info = await docker.info();
-                    await updateNodeCapacity(node.id, Math.round(info.MemTotal / 1024**3), info.NCPU);
-                } catch (e) {}
-            }
-        } catch (e) {}
-    }, 60000);
-}
-
-export async function patchExistingContainers() {
-    try {
-        const nodeIds = await listActiveNodeIds();
-        for (const nodeId of nodeIds) {
-            try {
-                const docker = await getNodeConnection(nodeId);
-                const containers = await docker.listContainers();
-                for (const containerInfo of containers) {
-                    if (containerInfo.Names[0].startsWith('/ragenodes-')) {
-                        const container = docker.getContainer(containerInfo.Id);
-                        applyRageNodesBranding(container, containerInfo.Names[0]);
-                    }
-                }
-            } catch (e) {}
-        }
-    } catch (e) {}
-}
-
-export async function getContainerStats(name, { force = false } = {}) {
-    const cached = STATS_CACHE.get(name);
-    const cacheAgeMs = cached?.updatedAt ? Date.now() - cached.updatedAt : Number.POSITIVE_INFINITY;
-
-    if (!force && cached && cacheAgeMs < 15000) {
-        return cached;
-    }
-
-    // 🚀 Intentar leer de Redis (donde worker-stats escribe periódicamente)
-    if (!force && redisClient?.isOpen) {
-        try {
-            const rawRedis = await promiseWithTimeout(redisClient.get('ragenodes:stats:' + name), 300);
-            if (rawRedis) {
-                const parsed = JSON.parse(rawRedis);
-                STATS_CACHE.set(name, parsed);
-                return parsed;
-            }
-        } catch (e) {}
-    }
-
-    try {
-        const docker = await getDockerForContainer(name);
-        const container = docker.getContainer(name);
-        // Timeout estricto de 2.5s para no bloquear peticiones HTTP concurrentes
-        const stats = await promiseWithTimeout(container.stats({ stream: false }), 2500, 'Docker stats timeout');
-        const result = await rustUtil.calculateStats(stats);
-
-        if (result) {
-            const normalized = {
-                cpu: result.cpu ?? "0.0",
-                ram: result.ram ?? "0.0",
-                ramGb: result.ram_gb ?? result.ramGb ?? "0.0",
-                net_rx: result.net_rx ?? "0",
-                net_tx: result.net_tx ?? "0",
-                disk: cached?.disk ?? "0.0",
-                diskGb: cached?.diskGb ?? "0.0",
-                updatedAt: Date.now()
-            };
-            STATS_CACHE.set(name, normalized);
-            if (redisClient?.isOpen) {
-                redisClient.setEx('ragenodes:stats:' + name, 60, JSON.stringify(normalized)).catch(() => {});
-            }
-            return normalized;
-        }
-    } catch (e) {
-        if (cached) return cached;
-    }
-
-    return { cpu: "0.0", ram: "0.0", ramGb: "0.0", disk: cached?.disk ?? "0.0", diskGb: cached?.diskGb ?? "0.0", updatedAt: Date.now() };
-}
 
 /**
  * 🔍 BUSCADOR DE NODOS POR CONTENEDOR
@@ -373,70 +213,6 @@ export async function fetchContainerLogs(name) {
         return "";
     }
 }
-
-export async function toggleBlender(opts, action) {
-    const docker = await getNodeConnection(opts.nodeId || 0);
-    const shortId = opts.serverId.slice(0, 8);
-    const containerName = `ragenodes-blender-${shortId}`;
-
-    if (action === 'stop') {
-        try {
-            const container = docker.getContainer(containerName);
-            await container.stop({ t: 5 });
-            await container.remove({ force: true });
-            return { success: true };
-        } catch (e) {
-            return { success: true };
-        }
-    }
-
-    try {
-        try {
-            const existing = docker.getContainer(containerName);
-            await existing.stop({ t: 2 }).catch(() => { });
-            await existing.remove({ force: true }).catch(() => { });
-        } catch (e) { }
-
-        const container = await docker.createContainer({
-            Image: config.blenderBaseImage,
-            name: containerName,
-            Env: [
-                `PASSWORD=${opts.blenderPass}`,
-                `SUBFOLDER=/blender/${shortId}/`,
-                `TITLE=RageNodes 3D - ${shortId.toUpperCase()}`
-            ],
-            ExposedPorts: { '3000/tcp': {} },
-            NetworkingConfig: {
-                EndpointsConfig: {
-                    [config.dockerNetwork]: {}
-                }
-            },
-            HostConfig: {
-                Binds: [
-                    `${opts.dataPath}:/config/workspace`
-                ],
-                PortBindings: {
-                    '3000/tcp': [{ HostIp: "0.0.0.0", HostPort: String(opts.blenderPort) }]
-                },
-                RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
-                Memory: 4 * 1024 * 1024 * 1024,
-                NanoCpus: 2 * 10 ** 9, CpuShares: 2048,
-                // CpuShares: 512,
-                BlkioWeight: config.dockerBlkioWeight,
-                ShmSize: 1024 * 1024 * 1024,
-                SecurityOpt: ["no-new-privileges:true"]
-            }
-        });
-
-        await container.start();
-        return { success: true };
-    } catch (e) {
-        console.error(`[Blender] Error starting ${containerName}:`, e.message);
-        throw e;
-    }
-}
-
-
 
 // 🚀 ABSTRACCIÓN: Recreación genérica de contenedores (Multi-Nodo)
 

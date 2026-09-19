@@ -4,7 +4,7 @@ import { pool, query, withTransaction } from '../src/db.js';
 import { runMigrations } from '../src/migrations.js';
 import { claimNextBackup, enqueueBackup } from '../src/repositories/backupJobRepository.js';
 
-const enabled = process.env.RUN_DB_INTEGRATION === '1';
+const enabled = process.env.RUN_INTEGRATION === '1' || process.env.RUN_DB_INTEGRATION === '1';
 
 test('backup queue persists jobs and excludes concurrent claims', { skip: !enabled }, async () => {
   await runMigrations(query, withTransaction);

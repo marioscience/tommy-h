@@ -1,4 +1,5 @@
-import { getNodeConnection, runRemoteCommand, commandStdout, GAME_SECURITY_CONFIG, cloneFromMasterTemplate, deriveServicePassword, sh } from '../dockerUtils.js';
+import { getNodeConnection, runRemoteCommand, commandStdout, cloneFromMasterTemplate, sh } from '../dockerUtils.js';
+import { GAME_SECURITY_CONFIG, deriveServicePassword } from '../gameRuntimePolicy.js';
 import { config } from '../../config.js';
 import { saveSDTDConfig } from '../sdtdService.js';
 import { prepareGameProxyBindings } from '../gameProxyPolicy.js';
