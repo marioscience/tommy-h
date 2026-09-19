@@ -382,27 +382,25 @@ describe('Backend architecture boundaries', () => {
     const ark = await readFile(new URL('../src/services/games/ark.js', import.meta.url), 'utf8');
     const arkData = await readFile(new URL('../src/services/games/arkData.js', import.meta.url), 'utf8');
     assert.match(ark, /mkdir -p \$\{opts\.dataPath\}/);
-    assert.match(ark, /cloneFromMasterTemplate\('ark', opts\.dataPath, targetNodeId, \{/);
-    assert.match(ark, /refreshExisting: true/);
-    assert.match(ark, /ShooterGame\/Saved/);
+    assert.match(ark, /cloneFromMasterTemplate\('ark', opts\.dataPath, targetNodeId\)/);
+    assert.doesNotMatch(ark, /refreshExisting: true/);
     assert.doesNotMatch(ark, /chmod 0?777/);
     assert.doesNotMatch(ark, /chmod 0?755/);
     assert.match(arkData, /chown -h 1000:1000 "\$target"/);
     assert.match(arkData, /find "\$target" -mindepth 1 -exec chown -h 1000:1000/);
   });
 
-  it('starts ARK from a validated master and bootstraps only when the master is absent', async () => {
+  it('uses the ARK master only for first creation and keeps the instance updated persistently', async () => {
     const ark = await readFile(new URL('../src/services/games/ark.js', import.meta.url), 'utf8');
     const arkData = await readFile(new URL('../src/services/games/arkData.js', import.meta.url), 'utf8');
-    assert.match(ark, /const clonedFromMaster = await cloneFromMasterTemplate/);
-    assert.match(ark, /`updateonstart=\$\{clonedFromMaster \? 'false' : 'true'\}`/);
-    assert.match(ark, /Cmd: clonedFromMaster \?/);
-    assert.match(ark, /:\s*\['\/home\/steam\/serverstart\.sh'\]/);
+    assert.match(ark, /await cloneFromMasterTemplate\('ark', opts\.dataPath, targetNodeId\)/);
+    assert.match(ark, /'updateonstart=true'/);
+    assert.doesNotMatch(ark, /Cmd: clonedFromMaster \?/);
     assert.match(ark, /echo 2399830 \| tee/);
     assert.match(arkData, /printf '2399830\\\\n'/);
     assert.doesNotMatch(ark, /echo 2430930 \| tee/);
     assert.doesNotMatch(arkData, /printf '2430930\\\\n'/);
-    assert.match(ark, /touch \/home\/steam\/CONTAINER_ALREADY_STARTED_PLACEHOLDER/);
+    assert.doesNotMatch(ark, /touch \/home\/steam\/CONTAINER_ALREADY_STARTED_PLACEHOLDER/);
     assert.match(ark, /-Port=\$\{opts\.gamePort\}/);
     assert.doesNotMatch(ark, /\?Port=\$\{opts\.gamePort\}/);
   });
@@ -470,6 +468,8 @@ describe('Backend architecture boundaries', () => {
 
   it('keeps the immutable core schema outside incremental migrations', async () => {
     const catalogue = await readFile(new URL('../src/migrations/migrationStatements.js', import.meta.url), 'utf8');
+    assert.match(catalogue, /202609190001_repair_legacy_backups_schema/);
+    assert.match(catalogue, /ALTER TABLE backups ADD COLUMN IF NOT EXISTS name TEXT/);
     const core = await readFile(new URL('../src/migrations/coreSchemaMigration.js', import.meta.url), 'utf8');
     assert.match(catalogue, /coreSchemaMigration/);
     assert.match(core, /202601010001_initial_core_schema/);

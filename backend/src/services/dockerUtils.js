@@ -1,4 +1,3 @@
-import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config.js';
 import crypto from 'crypto';
@@ -30,6 +29,41 @@ export async function normalizeBindOwnership(docker, image, dataPath, owner, hel
         const result = await helper.wait();
         if (Number(result?.StatusCode) !== 0) {
             throw new Error(`el normalizador de permisos termino con codigo ${result?.StatusCode}`);
+        }
+    } finally {
+        if (helper) await helper.remove({ force: true }).catch(() => {});
+    }
+}
+
+export async function normalizeBindAccess(docker, image, dataPath, sharedGid, helperScope = 'files') {
+    const gid = Number(sharedGid);
+    if (!Number.isInteger(gid) || gid < 0 || gid > 65535) {
+        throw new TypeError('El grupo compartido del contenedor no es valido.');
+    }
+    const safeScope = String(helperScope || 'files').toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 24);
+    const helperName = `ragenodes-${safeScope}-access-${crypto.randomBytes(6).toString('hex')}`;
+    let helper;
+    try {
+        helper = await docker.createContainer({
+            Image: image,
+            name: helperName,
+            User: '0:0',
+            Entrypoint: ['/bin/sh', '-c'],
+            Cmd: [`chgrp -R ${gid} /target && chmod -R g+rwX,o= /target && find /target -type d -exec chmod g+s {} \\;`],
+            HostConfig: {
+                Binds: [`${dataPath}:/target`],
+                NetworkMode: 'none',
+                ReadonlyRootfs: true,
+                AutoRemove: false,
+                CapDrop: ['ALL'],
+                CapAdd: ['CHOWN', 'FOWNER', 'DAC_OVERRIDE'],
+                SecurityOpt: ['no-new-privileges:true']
+            }
+        });
+        await helper.start();
+        const result = await helper.wait();
+        if (Number(result?.StatusCode) !== 0) {
+            throw new Error(`el normalizador de acceso termino con codigo ${result?.StatusCode}`);
         }
     } finally {
         if (helper) await helper.remove({ force: true }).catch(() => {});
@@ -71,9 +105,10 @@ export function selectTemplateCloneStrategy({ sourceDevice, targetDevice, templa
     return source === target ? 'reflink' : 'copy';
 }
 
-export function templateCacheMatches(markerValue, templateBytes) {
-    const markerBytes = Number.parseInt(String(markerValue || '').trim(), 10);
-    return Number.isSafeInteger(markerBytes) && markerBytes === Number(templateBytes);
+export function templateCacheMatches(markerValue, templateFingerprint) {
+    const marker = String(markerValue || '').trim();
+    const fingerprint = String(templateFingerprint || '').trim();
+    return marker.length > 0 && marker === fingerprint;
 }
 
 function numericCommandOutput(result, label) {
@@ -118,31 +153,52 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0, op
 
     const masterPath = path.join(config.instanceDataRoot, 'templates', `${gameName}-master`);
     try {
-        const files = await fs.readdir(dataPath).catch(() => []);
-        if (files.length > 0 && !refreshExisting) {
+        const dataState = commandStdout(await runRemoteCommand(
+            nodeId,
+            sh`if [ -d ${dataPath} ] && [ -n "$(find ${dataPath} -mindepth 1 -print -quit 2>/dev/null)" ]; then printf populated; else printf empty; fi`
+        )).trim();
+        const hasExistingData = dataState === 'populated';
+        if (hasExistingData && !refreshExisting) {
             console.log(`ℹ️ [${gameName.toUpperCase()}] El directorio ${dataPath} ya contiene datos. Se preserva sin volver a clonar.`);
             return true;
         }
-        if (files.length > 0) {
+        if (hasExistingData) {
             console.log(`⚡ [${gameName.toUpperCase()}] Actualizando runtime desde la plantilla y preservando datos mutables.`);
         }
-        const masterStats = await fs.stat(masterPath).catch((error) => error?.code === 'ENOENT' ? null : Promise.reject(error));
-        if (!masterStats?.isDirectory()) {
+        const masterState = commandStdout(await runRemoteCommand(
+            nodeId,
+            sh`if [ -d ${masterPath} ] && [ -n "$(find ${masterPath} -mindepth 1 -print -quit 2>/dev/null)" ]; then printf ready; else printf missing; fi`
+        )).trim();
+        if (masterState !== 'ready') {
             console.log(`ℹ️ [${gameName.toUpperCase()}] Plantilla maestra no encontrada en ${masterPath}. Se descargará desde cero.`);
+            return false;
+        }
+
+        const validatedMarker = path.join(masterPath, '.ragenodes-template-validated-at');
+        const freshnessResult = await runRemoteCommand(nodeId, sh`if [ -r ${validatedMarker} ]; then cat ${validatedMarker}; else find ${masterPath} -type f -printf '%T@\n' | sort -nr | head -1; fi`);
+        const validatedAtSeconds = Number.parseFloat(commandStdout(freshnessResult).trim());
+        const maxAgeDays = Math.max(1, Number(process.env.TEMPLATE_MAX_AGE_DAYS || 14));
+        if (!Number.isFinite(validatedAtSeconds) || Date.now() - validatedAtSeconds * 1000 > maxAgeDays * 86400000) {
+            console.warn(`⚠️ [${gameName.toUpperCase()}] Plantilla maestra sin validar o con más de ${maxAgeDays} días; la instancia descargará una versión actual.`);
             return false;
         }
 
         const parentPath = path.dirname(dataPath);
         await runRemoteCommand(nodeId, sh`mkdir -p ${parentPath}`);
-        const [sourceDeviceResult, targetDeviceResult, templateSizeResult, availableSizeResult] = await Promise.all([
+        const [sourceDeviceResult, targetDeviceResult, templateSizeResult, availableSizeResult, templateFingerprintResult] = await Promise.all([
             runRemoteCommand(nodeId, sh`stat -c %d ${masterPath}`),
             runRemoteCommand(nodeId, sh`stat -c %d ${parentPath}`),
             runRemoteCommand(nodeId, sh`du -sb ${masterPath} | cut -f1`),
-            runRemoteCommand(nodeId, sh`df -PB1 ${parentPath} | awk 'NR==2 {print $4}'`)
+            runRemoteCommand(nodeId, sh`df -PB1 ${parentPath} | awk 'NR==2 {print $4}'`),
+            runRemoteCommand(nodeId, sh`cd ${masterPath} && find . -type f -printf '%P\\0%s\\0%T@\\0' | sort -z | sha256sum | cut -d' ' -f1`)
         ]);
         const sourceDevice = commandStdout(sourceDeviceResult).trim();
         const targetDevice = commandStdout(targetDeviceResult).trim();
         const templateBytes = numericCommandOutput(templateSizeResult, 'el tamaño de la plantilla');
+        const templateFingerprint = commandStdout(templateFingerprintResult).trim();
+        if (!/^[0-9a-f]{64}$/.test(templateFingerprint)) {
+            throw new Error(`No se pudo calcular la huella de la plantilla ${gameName}.`);
+        }
         const availableBytes = numericCommandOutput(availableSizeResult, 'el espacio disponible');
         const reserveBytes = Math.max(1, Number(process.env.TEMPLATE_CLONE_FREE_RESERVE_GB || 15)) * 1024 ** 3;
         let cloneSourcePath = masterPath;
@@ -151,16 +207,16 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0, op
         if (strategy === 'copy') {
             const cacheRoot = path.join(config.instanceDataRoot, '.template-cache');
             const cachePath = path.join(cacheRoot, `${gameName}-master`);
-            const cacheMarker = path.join(cachePath, '.ragenodes-template-bytes');
+            const cacheMarker = path.join(cachePath, '.ragenodes-template-fingerprint');
             const markerResult = await runRemoteCommand(nodeId, sh`cat ${cacheMarker} 2>/dev/null || true`);
-            if (!templateCacheMatches(commandStdout(markerResult), templateBytes)) {
+            if (!templateCacheMatches(commandStdout(markerResult), templateFingerprint)) {
                 const cacheTemp = `${cachePath}.seed-${crypto.randomUUID()}`;
                 const cacheOld = `${cachePath}.old-${crypto.randomUUID()}`;
                 console.log(`⚡ [${gameName.toUpperCase()}] Sembrando una única caché local desde la plantilla compartida.`);
                 try {
                     await runRemoteCommand(nodeId, sh`mkdir -p ${cacheRoot} && rm -rf ${cacheTemp} && mkdir -p ${cacheTemp}`);
                     await copyTemplateAcrossFilesystems(masterPath, cacheTemp, nodeId);
-                    await runRemoteCommand(nodeId, sh`printf '%s\n' ${String(templateBytes)} > ${path.join(cacheTemp, '.ragenodes-template-bytes')}`);
+                    await runRemoteCommand(nodeId, sh`printf '%s\n' ${templateFingerprint} > ${path.join(cacheTemp, '.ragenodes-template-fingerprint')}`);
                     await runRemoteCommand(nodeId, sh`if [ -e ${cachePath} ]; then mv ${cachePath} ${cacheOld}; fi; mv ${cacheTemp} ${cachePath}; rm -rf ${cacheOld}`);
                 } catch (error) {
                     await runRemoteCommand(nodeId, sh`rm -rf ${cacheTemp}`).catch(() => {});
@@ -185,7 +241,7 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0, op
                 console.warn(`⚠️ [${gameName.toUpperCase()}] Reflink no disponible; se usará copia independiente con espacio ya validado.`);
                 await runRemoteCommand(nodeId, sh`rm -rf ${clonePath} && mkdir -p ${clonePath} && cp -R -P --preserve=mode,timestamps,links ${cloneSourcePath + '/.'} ${clonePath + '/'}`);
             }
-            if (files.length > 0 && refreshExisting) {
+            if (hasExistingData && refreshExisting) {
                 for (const relativePath of preservePaths) {
                     const source = path.join(dataPath, relativePath);
                     const destination = path.join(clonePath, relativePath);
@@ -193,7 +249,7 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0, op
                     await runRemoteCommand(nodeId, sh`if [ -e ${source} ]; then rm -rf ${destination}; mkdir -p ${destinationParent}; cp --reflink=always -R -P --preserve=mode,timestamps,links ${source} ${destination}; fi`);
                 }
                 const oldPath = `${dataPath}.old-${crypto.randomUUID()}`;
-                await runRemoteCommand(nodeId, sh`test -n "$(find ${clonePath} -mindepth 1 -print -quit)" || exit 1; rm -f ${path.join(clonePath, '.ragenodes-template-bytes')}; test ! -e ${oldPath}; mv ${dataPath} ${oldPath}; if mv ${clonePath} ${dataPath}; then true; else mv ${oldPath} ${dataPath}; exit 1; fi`);
+                await runRemoteCommand(nodeId, sh`test -n "$(find ${clonePath} -mindepth 1 -print -quit)" || exit 1; rm -f ${path.join(clonePath, '.ragenodes-template-bytes')} ${path.join(clonePath, '.ragenodes-template-fingerprint')}; test ! -e ${oldPath}; mv ${dataPath} ${oldPath}; if mv ${clonePath} ${dataPath}; then true; else mv ${oldPath} ${dataPath}; exit 1; fi`);
                 // Runtime files created by rootless Proton may not be removable
                 // by the backend uid. Cleanup is best effort and must never
                 // turn an already successful atomic promotion into a rollback.
@@ -201,7 +257,7 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0, op
                     console.warn(`[Templates] Runtime anterior pendiente de limpieza (${oldPath}): ${cleanupError.message}`);
                 });
             } else {
-                await runRemoteCommand(nodeId, sh`test -n "$(find ${clonePath} -mindepth 1 -print -quit)" || exit 1; rm -f ${path.join(clonePath, '.ragenodes-template-bytes')}; if [ -d ${dataPath} ]; then rmdir ${dataPath}; fi; test ! -e ${dataPath}; mv ${clonePath} ${dataPath}`);
+                await runRemoteCommand(nodeId, sh`test -n "$(find ${clonePath} -mindepth 1 -print -quit)" || exit 1; rm -f ${path.join(clonePath, '.ragenodes-template-bytes')} ${path.join(clonePath, '.ragenodes-template-fingerprint')}; if [ -d ${dataPath} ]; then rmdir ${dataPath}; fi; test ! -e ${dataPath}; mv ${clonePath} ${dataPath}`);
             }
         } catch (error) {
             await runRemoteCommand(nodeId, sh`rm -rf ${clonePath}`).catch(() => {});

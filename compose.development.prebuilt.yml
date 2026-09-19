@@ -1,0 +1,9 @@
+# Overlay for the fast local-development path. The immutable dev release
+# supplies dependencies and binaries; local source mounts remain active.
+services:
+  backend:
+    image: ${RAGENODES_BACKEND_IMAGE:?Run ./dev pull}
+    build: !reset null
+  proxy:
+    image: ${RAGENODES_OXIDEPROXY_IMAGE:?Run ./dev pull}
+    build: !reset null

@@ -2,6 +2,9 @@
 
 For the quick component workflow run `bash dev setup`, `bash dev doctor`, then
 `bash dev up frontend` (mock) or `bash dev up core` (real API and databases).
+To avoid the initial application build, authenticate to the private GitLab
+Registry with a read-only token and run `bash dev pull` followed by
+`bash dev up prebuilt`. Local backend and frontend source mounts remain active.
 See [local development](../docs/LOCAL-DEVELOPMENT.md). Forwarded ports are
 13010, 18088 and 18089. eBPF setup is now opt-in:
 `bash .devcontainer/setup-ebpf.sh`. The full integration workflow below is optional.

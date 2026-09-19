@@ -1,6 +1,7 @@
 > **Desarrollo local rápido / Quick local development:** `bash dev setup`,
-> `bash dev doctor`, `bash dev up frontend` (simulado) o `bash dev up core`
-> (backend real con BD). Logs: `bash dev logs backend`.
+> `bash dev doctor`, `bash dev up prebuilt` (release de `dev` sin compilar),
+> `bash dev up frontend` (simulado) o `bash dev up core` (compilación local).
+> Logs: `bash dev logs backend`.
 > Consulta [la guía de desarrollo local](docs/LOCAL-DEVELOPMENT.md) para Linux,
 > WSL2, Dev Container, componentes, escenarios y solución de problemas.
 > Este flujo ligero utiliza `compose.development.yml` y `.env.development`;
@@ -199,6 +200,25 @@ cd ..
 ```
 
 ### 4. Start the Local Docker Stack
+
+For the fastest start, authenticate once with a read-only GitLab Registry token
+and reuse the immutable images already built and validated on `dev`. Local
+`backend/src` and `frontend/public` remain mounted with live reload:
+
+```bash
+docker login registry.gitlab.com
+./dev setup
+./dev doctor
+./dev pull
+./dev up prebuilt
+```
+
+Rebuild only when changing dependencies, a Dockerfile or Rust: use
+`./dev up backend` or `./dev up proxy`. The official reproducible build runs
+again in GitLab after the feature MR reaches `dev`.
+
+For full game-runtime integration from local source, use the larger stack:
+
 ```bash
 # Build the RageNodes-only images before starting the stack. These names are
 # local build targets and are intentionally not pulled from Docker Hub.
@@ -250,7 +270,10 @@ docker image inspect ragenodes/oxide-control-panel:1.0.0-local >/dev/null
 docker image inspect ragenodes/oxideproxy:1.0.0-local >/dev/null
 ```
 
-If a private, prebuilt GitLab image is intentionally required instead, use the registry-specific Compose overlay and authenticate with GitLab's registry. That is a separate deployment workflow; `docker login` is not required for the normal source-based local workflow.
+For the recommended prebuilt workflow use `./dev pull` and `./dev up prebuilt`;
+the helper validates immutable digests and image revision labels automatically.
+`docker login` is unnecessary only when using the source-build or frontend-mock
+workflow.
 
 #### Start only the component being developed
 
@@ -407,12 +430,13 @@ Deployments are transactional at the host level. Before advancing Git, each upda
 
 Release synchronization is content-based: `dev`, `staging` and `main` may have different merge commits and `deploy/registry-release.lock` revisions, but their application build contexts must remain identical. Only already-merged, non-protected topic branches may be removed; never delete `dev`, `staging`, `main` or a branch containing commits absent from all three protected branches.
 
-The `niko-local` integration branch builds the backend, bot, OxideProxy and
-Oxide control-panel containers once and publishes them to the private GitLab
-Container Registry. A reviewed release promotes exact `sha256` references into
-`deploy/registry-release.lock`; `dev`, staging and production therefore consume
-the same immutable application images without recompiling. Target hosts verify
-every digest before replacement and use read-only Registry credentials. Staging
+The `dev` pipeline builds the backend, bot, OxideProxy and Oxide control-panel
+containers once and publishes them to the private GitLab Container Registry.
+After the build succeeds, the release bot opens a lock-only MR with the exact
+`sha256` references and auto-merges it after its validation pipeline passes;
+staging and production therefore consume the same immutable application images
+without recompiling. Target hosts verify every digest and source-revision label
+before and after replacement and use read-only Registry credentials. Staging
 and production run with `RAGENODES_REGISTRY_REQUIRED=true`, so a missing image or
 invalid credential stops the deployment instead of silently compiling different
 artifacts. Source builds remain an explicitly configured recovery path for other
@@ -653,6 +677,27 @@ cd ..
 ```
 
 ### 4. Levantar el Stack Completo en Local
+
+Para comenzar lo antes posible, inicia sesión una vez con un token de solo
+lectura del Registry de GitLab y reutiliza las imágenes inmutables ya compiladas
+y validadas en `dev`. `backend/src` y `frontend/public` continúan montados desde
+la copia local con recarga automática:
+
+```bash
+docker login registry.gitlab.com
+./dev setup
+./dev doctor
+./dev pull
+./dev up prebuilt
+```
+
+Solo debes reconstruir si modificas dependencias, un Dockerfile o Rust: utiliza
+`./dev up backend` o `./dev up proxy`. GitLab volverá a ejecutar la compilación
+oficial reproducible cuando el MR de la función llegue a `dev`.
+
+Para integración completa de servidores de juego desde código local utiliza el
+stack ampliado:
+
 ```bash
 # Construye primero las imágenes propias de RageNodes. Estos nombres son
 # destinos locales y no deben descargarse desde Docker Hub.
@@ -704,7 +749,10 @@ docker image inspect ragenodes/oxide-control-panel:1.0.0-local >/dev/null
 docker image inspect ragenodes/oxideproxy:1.0.0-local >/dev/null
 ```
 
-Si se quieren usar deliberadamente imágenes privadas precompiladas de GitLab, se debe utilizar el overlay de Compose específico del registro e iniciar sesión en el registro de GitLab. Ese es otro flujo de despliegue; el desarrollo local normal desde el código fuente no necesita `docker login`.
+Para el flujo precompilado recomendado usa `./dev pull` y `./dev up prebuilt`;
+el asistente valida automáticamente los digests inmutables y las etiquetas de
+revisión. `docker login` solo deja de ser necesario al usar la compilación desde
+código o el frontend simulado.
 
 #### Levantar solamente el componente en desarrollo
 
@@ -882,12 +930,14 @@ Los despliegues son transaccionales en cada host. Antes de avanzar Git, el actua
 
 La sincronización de releases se verifica por contenido: `dev`, `staging` y `main` pueden tener commits de merge y versiones de `deploy/registry-release.lock` diferentes, pero sus contextos de compilación deben ser idénticos. Solo se eliminan ramas de trabajo no protegidas que ya estén fusionadas; nunca se borran `dev`, `staging`, `main` ni ramas con commits ausentes de las tres ramas protegidas.
 
-La rama de integración `niko-local` construye una sola vez los contenedores de
-backend, bot, OxideProxy y panel de control de Oxide, y los publica en el GitLab
-Container Registry privado. Una release revisada promociona referencias
-`sha256` exactas a `deploy/registry-release.lock`; `dev`, staging y producción
-consumen así las mismas imágenes inmutables sin recompilar. Cada host verifica
-todos los digests antes de reemplazar servicios y accede al Registry con una
+El pipeline de `dev` construye una sola vez los contenedores de backend, bot,
+OxideProxy y panel de control de Oxide, y los publica en el GitLab Container
+Registry privado. Cuando la compilación termina correctamente, el bot de
+releases abre un MR que solo actualiza las referencias `sha256` y lo fusiona
+automáticamente después de que su pipeline de validación quede en verde;
+staging y producción consumen así las mismas imágenes inmutables sin recompilar.
+Cada host verifica todos los digests y la revisión de origen antes y después de
+reemplazar servicios, y accede al Registry con una
 credencial independiente de solo lectura. Staging y producción usan
 `RAGENODES_REGISTRY_REQUIRED=true`, por lo que una imagen ausente o una
 credencial inválida detiene el despliegue en vez de compilar artefactos distintos

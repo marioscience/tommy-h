@@ -1,7 +1,7 @@
 # GitLab Container Registry deployments
 
 RageNodes uses a build-once deployment path for its application containers. A
-successful pipeline on `niko-local` builds the backend/workers, bot,
+successful pipeline on `dev` builds the backend/workers, bot,
 OxideProxy and OxideProxy control-panel images once, pushes them to the private
 GitLab Container Registry and emits `registry-release.env` with digest-pinned
 references.
@@ -38,11 +38,19 @@ Set `RAGENODES_REGISTRY_REQUIRED=true` after read-only private-registry
 credentials have been installed on a target to prevent silent source-build
 fallback. The normal production data volumes are not stored in the registry.
 
-For every application release, promote the `registry-release.env` artifact
-created by the successful `niko-local` package pipeline to
-`deploy/registry-release.lock` in the reviewed merge request. Never edit a
-digest by hand or point this lock at mutable tags. Staging and production then
-consume the same four digests, preserving build-once semantics.
+After a successful `dev` package pipeline, the release bot validates the four
+digests and their source revision, creates a lock-only
+`release/registry-manifest-*` merge request and enables auto-merge after that
+MR's complete pipeline succeeds. Configure `GITLAB_TOKEN` as a masked,
+protected CI variable with permission to push branches and create merge
+requests. The merge pipeline is deliberately prevented from rebuilding the
+same images, so this process cannot create a release-manifest loop.
+
+Never edit a digest by hand or point the lock at mutable tags. `staging` and
+`main` do not rebuild application images: they consume the exact four digests
+created on `dev`. Before and after recreation, deployment checks both the
+digest and the `org.opencontainers.image.revision` label. A healthy endpoint
+is therefore insufficient to accept an old or mixed release.
 
 ## Master game images
 

@@ -38,14 +38,15 @@ mantiene fallbacks portables si el artefacto Linux/musl no está disponible, por
 lo que no es necesario compilar Rust para trabajar en frontend o en rutas HTTP.
 Las instrucciones reproducibles y los perfiles están en
 [`benchmarks/rust-runtime/README.md`](../benchmarks/rust-runtime/README.md).
-La primera descarga/construcción depende de la conexión y CPU. Los siguientes
-arranques reutilizan imágenes y datos. No hace falta iniciar sesión en un registry
-para construir imágenes internas desde este repositorio.
+La primera descarga o construcción depende de la conexión. Los siguientes
+arranques reutilizan imágenes y datos. El modo precompilado requiere acceso de
+lectura al Registry privado; el modo desde código continúa funcionando sin él.
 
 ## Elegir qué ejecutar
 
 | Comando | Qué inicia | URL predeterminada |
 | --- | --- | --- |
+| `./dev up prebuilt` | Backend y OxideProxy oficiales de `dev`, BD y código local montado; no compila | `http://localhost:18089` |
 | `./dev up frontend` | HTML/JS actuales + API simulada, sin BD ni juegos | `http://localhost:18088/panel` |
 | `./dev up backend` o `./dev up core` | Backend real, PostgreSQL, MariaDB y Redis; sirve también frontend | `http://localhost:13010/login` |
 | `./dev up data` | Solo las tres bases de datos/servicios de datos | Sin puertos públicos |
@@ -56,6 +57,36 @@ No se presupone React/Vite ni se modifica la rama de frontend de otros autores.
 El backend usa `node --watch`: editar `backend/src` reinicia el proceso. Cambiar
 dependencias requiere repetir `./dev up backend` para reconstruir. Cambiar Rust
 requiere repetir `./dev up proxy`; el perfil prueba HTTP, no XDP/NIC reales.
+
+## Empezar sin compilar
+
+Después de actualizar una rama desde `origin/dev`, inicia sesión una vez con una
+credencial de lectura del Container Registry y levanta la release validada:
+
+```bash
+docker login registry.gitlab.com
+git fetch origin
+git rebase origin/dev
+./dev pull
+./dev up prebuilt
+```
+
+`./dev pull` lee `deploy/registry-release.lock`, acepta únicamente referencias
+por digest, descarga solo backend y OxideProxy y comprueba que la etiqueta de
+revisión de ambas imágenes coincide con el manifiesto. No utiliza `latest` ni
+elige una imagen distinta por máquina.
+
+Aunque los binarios y dependencias proceden de la imagen, `backend/src` y
+`frontend/public` siguen montados desde la copia local. El backend conserva
+`node --watch` y el frontend aparece al refrescar, así que esos cambios no
+requieren recompilación. Si modificas `package.json`, el Dockerfile o Rust,
+reconstruye únicamente esa parte con `./dev up backend` o `./dev up proxy`.
+Antes del MR ejecuta las pruebas y al menos una compilación del componente
+modificado; la compilación oficial y reproducible vuelve a realizarse en `dev`.
+
+El acceso al Registry es personal: usa un Deploy Token de solo lectura o un
+token propio con `read_registry`. No guardes esa credencial en
+`.env.development`, en el repositorio ni en capturas de pantalla.
 
 `setup` genera `.env.development` con secretos aleatorios exclusivos de esa copia
 del repositorio y conserva el archivo si ya existe. No modifica `.env`, no necesita

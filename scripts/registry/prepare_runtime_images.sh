@@ -43,6 +43,11 @@ for ref in \
     echo "ERROR: pulled image digest does not match the reviewed release." >&2
     exit 3
   }
+  image_revision="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$ref")"
+  if [ "$image_revision" != "$RAGENODES_RELEASE_REVISION" ]; then
+    echo "ERROR: image revision $image_revision does not match reviewed release $RAGENODES_RELEASE_REVISION." >&2
+    exit 4
+  fi
 done
 
-echo "Registry release $RAGENODES_RELEASE_REVISION downloaded and digest-verified."
+echo "Registry release $RAGENODES_RELEASE_REVISION downloaded, digest-verified and revision-verified."
