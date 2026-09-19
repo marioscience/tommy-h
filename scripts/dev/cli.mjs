@@ -6,7 +6,8 @@ import path from 'node:path';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 process.chdir(root);
 const envFile = path.join(root, '.env.development');
-const groups = { frontend: ['frontend'], backend: ['backend'], core: ['backend'], data: ['postgres', 'mariadb', 'redis'], proxy: ['proxy'] };
+const releaseFile = path.join(root, 'deploy', 'registry-release.lock');
+const groups = { frontend: ['frontend'], backend: ['backend'], core: ['backend'], data: ['postgres', 'mariadb', 'redis'], proxy: ['proxy'], prebuilt: ['proxy'] };
 const services = new Set(['frontend', 'backend', 'postgres', 'mariadb', 'redis', 'proxy']);
 function envValue(name) {
   if (!existsSync(envFile)) return undefined;
@@ -20,8 +21,12 @@ function projectName() {
   }
   return name;
 }
-function compose() {
-  return ['compose', '--project-name', projectName(), '--env-file', envFile, '-f', 'compose.development.yml'];
+function compose(prebuilt = false) {
+  const args = ['compose', '--project-name', projectName(), '--env-file', envFile];
+  if (prebuilt) args.push('--env-file', releaseFile);
+  args.push('-f', 'compose.development.yml');
+  if (prebuilt) args.push('-f', 'compose.development.prebuilt.yml');
+  return args;
 }
 function run(args, capture = false) {
   const r = spawnSync('docker', args, { stdio: capture ? 'pipe' : 'inherit', encoding: 'utf8' });
@@ -37,6 +42,38 @@ function setup() {
     console.log('Creado .env.development con credenciales locales. No se modifica .env.');
   } else console.log('Se conserva .env.development existente.');
   run([...compose(), 'config', '--quiet']);
+}
+function releaseManifest() {
+  if (!existsSync(releaseFile)) throw new Error('Falta deploy/registry-release.lock. Actualiza tu rama desde origin/dev.');
+  const values = Object.fromEntries(readFileSync(releaseFile, 'utf8').split(/\r?\n/).filter(line => /^[A-Z0-9_]+=/.test(line)).map(line => {
+    const separator = line.indexOf('=');
+    return [line.slice(0, separator), line.slice(separator + 1)];
+  }));
+  const expected = {
+    RAGENODES_BACKEND_IMAGE: 'backend',
+    RAGENODES_BOT_IMAGE: 'bot',
+    RAGENODES_OXIDEPROXY_IMAGE: 'oxideproxy',
+    RAGENODES_OXIDE_CONTROL_PANEL_IMAGE: 'oxide-control-panel'
+  };
+  for (const [variable, component] of Object.entries(expected)) {
+    const pattern = new RegExp(`^registry\\.gitlab\\.com/mariomatos/ragenodesultimate/${component}@sha256:[0-9a-f]{64}$`);
+    if (!pattern.test(values[variable] || '')) throw new Error(`Referencia inmutable inválida: ${variable}`);
+  }
+  if (!/^[0-9a-f]{40}$/.test(values.RAGENODES_RELEASE_REVISION || '')) throw new Error('Revisión inválida en deploy/registry-release.lock.');
+  return values;
+}
+function pullPrebuilt() {
+  setup();
+  const manifest = releaseManifest();
+  run([...compose(true), 'config', '--quiet']);
+  run([...compose(true), 'pull', 'backend', 'proxy']);
+  for (const variable of ['RAGENODES_BACKEND_IMAGE', 'RAGENODES_OXIDEPROXY_IMAGE']) {
+    const revision = run(['image', 'inspect', '--format', '{{index .Config.Labels "org.opencontainers.image.revision"}}', manifest[variable]], true).trim();
+    if (revision !== manifest.RAGENODES_RELEASE_REVISION) {
+      throw new Error(`${variable} pertenece a ${revision || 'una revisión sin etiqueta'}, no a ${manifest.RAGENODES_RELEASE_REVISION}.`);
+    }
+  }
+  console.log(`Imágenes de dev verificadas: ${manifest.RAGENODES_RELEASE_REVISION.slice(0, 12)}.`);
 }
 function select(name, fallback = 'core') {
   const selected = groups[name || fallback];
@@ -59,7 +96,18 @@ try {
       console.log('Si un puerto está ocupado, cambia DEV_*_PORT en .env.development. Las imágenes internas se construyen desde código; no requieren docker login.');
       break;
     }
-    case 'up': setup(); run([...compose(), 'up', '-d', '--build', '--wait', '--wait-timeout', '180', ...select(name)]); console.log('Listo. ./dev status muestra los puertos; ./dev logs backend muestra los logs. Frontend mock: /panel. API real: /login.'); break;
+    case 'pull':
+      if (name && name !== 'prebuilt') throw new Error('Usa ./dev pull o ./dev pull prebuilt.');
+      pullPrebuilt();
+      break;
+    case 'up': {
+      const prebuilt = name === 'prebuilt';
+      if (prebuilt) pullPrebuilt(); else setup();
+      const buildArgs = prebuilt ? [] : ['--build'];
+      run([...compose(prebuilt), 'up', '-d', ...buildArgs, '--wait', '--wait-timeout', '180', ...select(name)]);
+      console.log(prebuilt ? 'Listo con imágenes verificadas de dev y código local montado. Edita backend/src o frontend/public sin recompilar.' : 'Listo. ./dev status muestra los puertos; ./dev logs backend muestra los logs. Frontend mock: /panel. API real: /login.');
+      break;
+    }
     case 'logs': if (name && name !== 'all' && !services.has(name)) throw new Error('Servicio desconocido'); run([...compose(), 'logs', '--tail', '100', '-f', ...(name && name !== 'all' ? [name] : [])]); break;
     case 'status': run([...compose(), 'ps', '--all']); break;
     case 'stop': run([...compose(), 'stop', ...(name ? select(name) : [])]); break;
@@ -70,6 +118,6 @@ try {
       if (!allowed.includes(name)) throw new Error(`Escenarios: ${allowed.join(', ')}`);
       run([...compose(), 'exec', '-T', 'frontend', 'node', '-e', `fetch('http://127.0.0.1:8080/__dev/scenario',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scenario:process.argv[1]})}).then(async r=>{console.log(await r.text());if(!r.ok)process.exitCode=1}).catch(()=>process.exitCode=1)`, name]); break;
     }
-    default: if (command !== 'help') throw new Error('Comando desconocido'); console.log('RageNodes local (Linux, WSL, Dev Container)\n./dev setup | doctor | up [frontend|backend|core|data|proxy]\n./dev logs [servicio|all] | status | stop [componente] | down | credentials\n./dev scenario minecraft-running|node-full|node-offline|backup-failed\nFrontend: simulación sin Docker socket. Core/backend: API real y BD, sin juegos.\nLos datos se conservan al detener. Integración completa: sigue README, con .env.local.example.');
+    default: if (command !== 'help') throw new Error('Comando desconocido'); console.log('RageNodes local (Linux, WSL, Dev Container)\n./dev setup | doctor | pull [prebuilt] | up [prebuilt|frontend|backend|core|data|proxy]\n./dev logs [servicio|all] | status | stop [componente] | down | credentials\n./dev scenario minecraft-running|node-full|node-offline|backup-failed\nPrebuilt: imágenes verificadas de dev con backend/src y frontend/public locales.\nFrontend: simulación sin Docker socket. Core/backend: API real y BD, sin juegos.\nLos datos se conservan al detener. Integración completa: sigue README, con .env.local.example.');
   }
 } catch (error) { console.error(error.message); process.exitCode = 1; }

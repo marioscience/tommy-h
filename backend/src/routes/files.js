@@ -8,6 +8,7 @@ import { query, logAudit } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { getServerByIdForUser } from '../services/serverService.js';
 import { rustUtil } from '../utils/rustUtil.js';
+import { withServerDataAccess } from '../services/serverDataAccessService.js';
 import {
     activeDownloads,
     storageCache,
@@ -29,7 +30,7 @@ router.get('/list', requireAuth, async (req, res) => {
     try {
         const reqPath = req.query.path || '/';
         const targetPath = getSafePath(row.data_path, reqPath);
-        const items = await fsPromises.readdir(targetPath, { withFileTypes: true });
+        const items = await withServerDataAccess(row, () => fsPromises.readdir(targetPath, { withFileTypes: true }));
         
         let formatted = items.map(item => ({
             name: item.name,
@@ -59,7 +60,7 @@ router.get('/read', requireAuth, async (req, res) => {
         }
         
         const targetPath = getSafePath(row.data_path, reqPath);
-        const content = await fsPromises.readFile(targetPath, 'utf8');
+        const content = await withServerDataAccess(row, () => fsPromises.readFile(targetPath, 'utf8'));
         res.json({ content });
     } catch(e) { res.status(500).json({error: `Error de lectura: ${e.message}`}); }
 });
@@ -75,7 +76,7 @@ router.put('/write', requireAuth, async (req, res) => {
 
         await checkStorageLimit(row, 1024 * 1024);
         const targetPath = getSafePath(row.data_path, reqPath);
-        await fsPromises.writeFile(targetPath, req.body.content, 'utf8');
+        await withServerDataAccess(row, () => fsPromises.writeFile(targetPath, req.body.content, 'utf8'));
         res.json({ success: true });
     } catch(e) {
         res.status(500).json({error: e.message || "Error guardando el archivo"});
@@ -94,13 +95,13 @@ router.post('/action', requireAuth, async (req, res) => {
         const targetPath = getSafePath(row.data_path, reqPath);
 
         if (req.body.action === 'mkdir') {
-            await fsPromises.mkdir(targetPath, { recursive: true });
+            await withServerDataAccess(row, () => fsPromises.mkdir(targetPath, { recursive: true }));
         }
         else if (req.body.action === 'delete') {
-            await fsPromises.rm(targetPath, { recursive: true, force: true });
+            await withServerDataAccess(row, () => fsPromises.rm(targetPath, { recursive: true, force: true }));
         }
         else if (req.body.action === 'createFile') {
-            await fsPromises.writeFile(targetPath, '', 'utf8');
+            await withServerDataAccess(row, () => fsPromises.writeFile(targetPath, '', 'utf8'));
         }
         else if (req.body.action === 'rename') {
             if (!req.body.newName) throw new Error("Nuevo nombre no proporcionado");
@@ -112,7 +113,7 @@ router.post('/action', requireAuth, async (req, res) => {
             }
 
             const newPath = getSafePath(baseDir, req.body.newName);
-            await fsPromises.rename(targetPath, newPath);
+            await withServerDataAccess(row, () => fsPromises.rename(targetPath, newPath));
         }
         else if (req.body.action === 'move') {
             if (!req.body.newPath) throw new Error("Ruta de destino no proporcionada");
@@ -122,8 +123,10 @@ router.post('/action', requireAuth, async (req, res) => {
             }
 
             const newPath = getSafePath(row.data_path, req.body.newPath);
-            await fsPromises.mkdir(path.dirname(newPath), { recursive: true });
-            await fsPromises.rename(targetPath, newPath);
+            await withServerDataAccess(row, async () => {
+                await fsPromises.mkdir(path.dirname(newPath), { recursive: true });
+                await fsPromises.rename(targetPath, newPath);
+            });
         }
         else if (req.body.action === 'unzip') {
              const extractDir = path.dirname(targetPath);
@@ -149,8 +152,10 @@ router.post('/upload', requireAuth, upload.single('file'), async (req, res) => {
         await checkStorageLimit(row, req.file.size);
 
         const targetPath = getSafePath(row.data_path, req.body.path);
-        await fsPromises.mkdir(path.dirname(targetPath), { recursive: true });
-        await fsPromises.copyFile(req.file.path, targetPath);
+        await withServerDataAccess(row, async () => {
+            await fsPromises.mkdir(path.dirname(targetPath), { recursive: true });
+            await fsPromises.copyFile(req.file.path, targetPath);
+        });
         await fsPromises.unlink(req.file.path);
         res.json({ success: true });
     } catch(e) {
@@ -185,7 +190,14 @@ router.post('/upload-finish', requireAuth, async (req, res) => {
 
         const targetPath = getSafePath(row.data_path, destPath);
         const finalPath = getSafePath(path.dirname(targetPath), fileName);
-        await fsPromises.mkdir(path.dirname(finalPath), { recursive: true });
+        // Preflight the destination through the same bounded permission repair
+        // used by regular uploads.  The chunks remain untouched so a failed
+        // preflight cannot leave a partially consumed upload behind.
+        await withServerDataAccess(row, async () => {
+            await fsPromises.mkdir(path.dirname(finalPath), { recursive: true });
+            const handle = await fsPromises.open(finalPath, 'a');
+            await handle.close();
+        });
 
         const writeStream = createWriteStream(finalPath, { flags: 'w' });
         

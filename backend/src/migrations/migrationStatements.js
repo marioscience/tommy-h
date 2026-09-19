@@ -134,6 +134,25 @@ export const migrations = [
     ]
   },
   {
+    id: '202609190001_repair_legacy_backups_schema',
+    description: 'Completa instalaciones antiguas cuya tabla backups precede al esquema actual',
+    statements: [
+      'ALTER TABLE backups ADD COLUMN IF NOT EXISTS name TEXT',
+      'ALTER TABLE backups ADD COLUMN IF NOT EXISTS filename TEXT',
+      'ALTER TABLE backups ADD COLUMN IF NOT EXISTS size_bytes BIGINT NOT NULL DEFAULT 0',
+      "ALTER TABLE backups ADD COLUMN IF NOT EXISTS storage_type TEXT NOT NULL DEFAULT 'local'",
+      'ALTER TABLE backups ADD COLUMN IF NOT EXISTS is_automatic BOOLEAN NOT NULL DEFAULT false',
+      'ALTER TABLE backups ADD COLUMN IF NOT EXISTS checksum_sha256 TEXT',
+      `UPDATE backups
+       SET filename = COALESCE(NULLIF(filename, ''), NULLIF(name, ''), 'legacy-' || id::text),
+           name = COALESCE(NULLIF(name, ''), NULLIF(filename, ''), 'legacy-' || id::text)
+       WHERE filename IS NULL OR filename = '' OR name IS NULL OR name = ''`,
+      'ALTER TABLE backups ALTER COLUMN filename SET NOT NULL',
+      'ALTER TABLE backups ALTER COLUMN name SET NOT NULL',
+      'CREATE INDEX IF NOT EXISTS idx_backups_server_id ON backups(server_id)'
+    ]
+  },
+  {
     id: '202606010001_node_telemetry_history',
     description: 'Historial de métricas de telemetría de nodos (CPU, RAM, Disco, Ancho de Banda)',
     statements: [
