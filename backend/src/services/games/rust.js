@@ -1,6 +1,7 @@
 import { BaseGameService } from './BaseGameService.js';
 import { GameFactory } from './GameFactory.js';
-import { cloneFromMasterTemplate, deriveServiceIdentifier, deriveServicePassword } from '../dockerUtils.js';
+import { cloneFromMasterTemplate } from '../dockerUtils.js';
+import { deriveServiceIdentifier, deriveServicePassword } from '../gameRuntimePolicy.js';
 import { config } from '../../config.js';
 
 /**

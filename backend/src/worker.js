@@ -1,11 +1,8 @@
 import 'dotenv/config';
 import { startDbMaintenance, waitForDb } from './db.js';
 import { assertSecureConfig } from './config.js';
-import {
-  patchExistingContainers,
-  startDockerTelemetryCollector,
-  startNodeMonitor
-} from './services/dockerService.js';
+import { startDockerTelemetryCollector, startNodeMonitor } from './services/dockerService.js';
+import { patchExistingContainers } from './services/txAdminBrandingService.js';
 import { startAutoBackups } from './services/backupScheduler.js';
 import { startStatsCollector } from './services/statsCollector.js';
 import { startQueryWarmer } from './services/queryCache.js';

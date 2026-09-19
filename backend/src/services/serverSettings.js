@@ -1,6 +1,6 @@
 import { query, logAudit } from '../db.js';
 import { getServerByIdForUser } from './serverService.js';
-import { toggleBlender as toggleBlenderContainer } from './dockerService.js';
+import { toggleBlender as toggleBlenderContainer } from './blenderRuntimeService.js';
 import { blenderActivity } from './serverService.js';
 
 export async function setServerBackupTime(id, userId, time, isAdmin) {

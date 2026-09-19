@@ -1,5 +1,5 @@
 import { withTransaction } from '../db.js';
-import { controlServer } from './serverService.js';
+import { controlServer } from './serverControlService.js';
 import { sendCommandToContainer } from './dockerService.js';
 
 async function claimDueJobs(timeString, runKey, limit = 50) {

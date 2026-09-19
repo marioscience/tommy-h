@@ -1,11 +1,16 @@
 import express from 'express';
 import crypto from 'crypto';
 import { requireAuth } from '../middleware/auth.js';
-import { getServersForUser, getServerDetails, controlServer, deleteServer, getServerLogs, toggleBlenderForServer, getServerByIdForUser, setServerBackupTime, getServerStatsHistory, renewBlenderHeartbeat, getSubusersForServer, addSubuserToServer, removeSubuserFromServer, updateServerWebhook, updateServerCluster, updateServerAutoRestart } from '../services/serverService.js';
+import { getServersForUser, getServerDetails, getServerLogs, getServerByIdForUser, getServerStatsHistory } from '../services/serverService.js';
+import { controlServer } from '../services/serverControlService.js';
+import { deleteServer } from '../services/serverDeletionService.js';
+import { getSubusersForServer, addSubuserToServer, removeSubuserFromServer } from '../services/serverSubusers.js';
+import { setServerBackupTime, updateServerWebhook, updateServerCluster, updateServerAutoRestart, toggleBlenderForServer, renewBlenderHeartbeat } from '../services/serverSettings.js';
 import { config } from '../config.js';
 
 // 🚀 AÑADIDO: Todos los servicios de Backups para el cliente (INCLUYENDO deleteBackup)
-import { listServerBackups, restoreBackup, deleteBackup } from '../services/backupService.js';
+import { listServerBackups, deleteBackup } from '../services/backupService.js';
+import { restoreBackup } from '../services/backupRestoreService.js';
 import { backupQueue } from '../services/backupQueue.js';
 import { logAudit } from '../db.js';
 

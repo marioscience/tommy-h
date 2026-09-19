@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import { backupQueue } from './backupQueue.js';
 import * as serverService from './serverService.js';
-import { syncBackupsToRemote } from './backupService.js';
+import { syncBackupsToRemote } from './backupRemoteService.js';
 import { config } from '../config.js';
 
 const PLAN_BACKUP_INTERVAL_HOURS = {
@@ -127,7 +127,7 @@ async function processAutoRestarts(currentTime, servers) {
             }
 
             try {
-                const { controlServer } = await import('./serverService.js');
+                const { controlServer } = await import('./serverControlService.js');
                 await controlServer(server.id, server.owner_id, 'restart', true);
             } catch (err) {
                 console.error(`[AutoRestart] Fallo al reiniciar ${server.id}:`, err.message);

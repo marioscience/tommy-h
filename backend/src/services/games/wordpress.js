@@ -1,4 +1,5 @@
-import { deriveServiceIdentifier, deriveServicePassword, getNodeConnection, runRemoteCommand, GAME_SECURITY_CONFIG, normalizeBindOwnership, sh } from '../dockerUtils.js';
+import { getNodeConnection, runRemoteCommand, normalizeBindOwnership, sh } from '../dockerUtils.js';
+import { deriveServiceIdentifier, deriveServicePassword, GAME_SECURITY_CONFIG } from '../gameRuntimePolicy.js';
 import { config } from '../../config.js';
 
 export async function createWordPressContainer(opts) {
