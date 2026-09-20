@@ -6,7 +6,7 @@ test('template clones take a shared per-game lock', () => {
   const command = buildTemplateReadLockedCommand('sdtd', "cp -a '/source/.' '/target/'");
   assert.match(command, /flock -s/);
   assert.match(command, /sdtd\.lock/);
-  assert.match(command, /bash -c/);
+  assert.match(command, /\/bin\/sh -c/);
   assert.match(command, /cp -a/);
 });
 

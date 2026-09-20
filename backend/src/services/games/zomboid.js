@@ -59,7 +59,10 @@ export function buildProjectZomboidRuntime(opts) {
 
 export async function createProjectZomboidContainer(opts) {
     const docker = await getNodeConnection(opts.nodeId || 0);
-    await cloneFromMasterTemplate('zomboid', opts.dataPath, opts.nodeId);
+    const templateApplied = await cloneFromMasterTemplate('zomboid', opts.dataPath, opts.nodeId);
+    if (!templateApplied) {
+        throw new Error('La plantilla validada de Project Zomboid no está disponible. El despliegue se detuvo antes de crear un contenedor incompleto.');
+    }
     // Prepare mutable state only after cloning. Creating it first makes the
     // template cloner treat a new instance as populated and skip the master.
     await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath}/Zomboid/mods && chown -R 1000:1000 ${opts.dataPath}`);
