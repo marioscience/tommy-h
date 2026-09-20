@@ -13,6 +13,7 @@ import { startRuntimeAnomalyMonitor } from './services/runtimeAnomalyScheduler.j
 import { startDeploymentWorker } from './services/deploymentWorker.js';
 import { startCronManager } from './services/cronManager.js';
 import { startBackupWorker } from './services/backupWorker.js';
+import { startDiskUsageCollector } from './services/diskUsageService.js';
 
 process.on('uncaughtException', (err) => {
   console.error('💥 WORKER CRASH (Uncaught Exception):', err);
@@ -56,6 +57,7 @@ async function boot() {
     case 'worker-stats':
       startStatsCollector();
       startDockerTelemetryCollector();
+      startDiskUsageCollector();
       startNodeMonitor();
       break;
     case 'worker-deployments':
