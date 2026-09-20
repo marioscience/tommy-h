@@ -3,6 +3,8 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { gameSmokeMain, GAME_PROFILES } from './game-smoke.mjs';
+import { verifyDevelopment } from './verify.mjs';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 process.chdir(root);
 const envFile = path.join(root, '.env.development');
@@ -33,6 +35,21 @@ function run(args, capture = false) {
   if (r.error) throw r.error;
   if (r.status !== 0) throw new Error(capture ? r.stderr : `Docker terminó con código ${r.status}`);
   return r.stdout;
+}
+function runProcess(command, args) {
+  const executable = process.platform === 'win32' && command === 'npm' ? 'npm.cmd' : command;
+  const r = spawnSync(executable, args, { stdio: 'inherit' });
+  if (r.error) throw r.error;
+  if (r.status !== 0) throw new Error(`${command} terminó con código ${r.status}`);
+}
+function developmentEnvironment() {
+  if (!existsSync(envFile)) return {};
+  return Object.fromEntries(readFileSync(envFile, 'utf8').split(/\r?\n/)
+    .filter(line => /^[A-Z0-9_]+=/.test(line))
+    .map(line => {
+      const separator = line.indexOf('=');
+      return [line.slice(0, separator), line.slice(separator + 1)];
+    }));
 }
 function setup() {
   if (!existsSync(envFile)) {
@@ -82,7 +99,7 @@ function select(name, fallback = 'core') {
 }
 try {
   const [command = 'help', name, ...extra] = process.argv.slice(2);
-  if (extra.length) throw new Error('Argumentos adicionales no admitidos. Ejecuta ./dev help.');
+  if (extra.length && command !== 'clean') throw new Error('Argumentos adicionales no admitidos. Ejecuta ./dev help.');
   switch (command) {
     case 'setup': setup(); break;
     case 'doctor': {
@@ -100,6 +117,7 @@ try {
       if (name && name !== 'prebuilt') throw new Error('Usa ./dev pull o ./dev pull prebuilt.');
       pullPrebuilt();
       break;
+    case 'start':
     case 'up': {
       const prebuilt = name === 'prebuilt';
       if (prebuilt) pullPrebuilt(); else setup();
@@ -110,14 +128,35 @@ try {
     }
     case 'logs': if (name && name !== 'all' && !services.has(name)) throw new Error('Servicio desconocido'); run([...compose(), 'logs', '--tail', '100', '-f', ...(name && name !== 'all' ? [name] : [])]); break;
     case 'status': run([...compose(), 'ps', '--all']); break;
+    case 'test':
+      runProcess(process.execPath, ['scripts/dev/quality-gate.mjs', name || 'all']);
+      break;
+    case 'verify': {
+      setup();
+      const mode = name || 'core';
+      if (!['frontend', 'core'].includes(mode)) throw new Error('Usa ./dev verify frontend o ./dev verify core.');
+      await verifyDevelopment({ composeArgs: compose(), env: developmentEnvironment(), mode });
+      break;
+    }
+    case 'game-smoke':
+      if (!name) throw new Error(`Indica un juego: ${Object.keys(GAME_PROFILES).join(', ')}`);
+      await gameSmokeMain(name);
+      break;
     case 'stop': run([...compose(), 'stop', ...(name ? select(name) : [])]); break;
     case 'down': run([...compose(), 'down']); break;
+    case 'clean':
+      if (name !== '--confirm' || extra.length) {
+        throw new Error('Esta acción borra los datos locales. Confirma explícitamente con ./dev clean --confirm');
+      }
+      run([...compose(), 'down', '--volumes', '--remove-orphans']);
+      console.log(`Datos locales de ${projectName()} eliminados. .env.development se conserva.`);
+      break;
     case 'credentials': console.log('Administrador local: admin\nContraseña: consulta DEV_ADMIN_PASSWORD en .env.development. El frontend simulado usa una identidad ficticia automática.'); break;
     case 'scenario': {
       const allowed = ['minecraft-running', 'node-full', 'node-offline', 'backup-failed'];
       if (!allowed.includes(name)) throw new Error(`Escenarios: ${allowed.join(', ')}`);
       run([...compose(), 'exec', '-T', 'frontend', 'node', '-e', `fetch('http://127.0.0.1:8080/__dev/scenario',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scenario:process.argv[1]})}).then(async r=>{console.log(await r.text());if(!r.ok)process.exitCode=1}).catch(()=>process.exitCode=1)`, name]); break;
     }
-    default: if (command !== 'help') throw new Error('Comando desconocido'); console.log('RageNodes local (Linux, WSL, Dev Container)\n./dev setup | doctor | pull [prebuilt] | up [prebuilt|frontend|backend|core|data|proxy]\n./dev logs [servicio|all] | status | stop [componente] | down | credentials\n./dev scenario minecraft-running|node-full|node-offline|backup-failed\nPrebuilt: imágenes verificadas de dev con backend/src y frontend/public locales.\nFrontend: simulación sin Docker socket. Core/backend: API real y BD, sin juegos.\nLos datos se conservan al detener. Integración completa: sigue README, con .env.local.example.');
+    default: if (command !== 'help') throw new Error('Comando desconocido'); console.log('RageNodes local (Linux, WSL, Dev Container)\n./dev setup | doctor | pull [prebuilt] | up/start [prebuilt|frontend|backend|core|data|proxy]\n./dev test [all|frontend|backend|proxy] | verify [frontend|core]\n./dev game-smoke <juego> (configura GAME_SMOKE_HOST y puertos opcionales)\n./dev logs [servicio|all] | status | stop [componente] | down | clean --confirm | credentials\n./dev scenario minecraft-running|node-full|node-offline|backup-failed\nPrebuilt: imágenes verificadas de dev con backend/src y frontend/public locales.\nFrontend: simulación sin Docker socket. Core/backend: API real y BD, sin juegos.\nLos datos se conservan al detener; clean es la única acción que elimina volúmenes.');
   }
 } catch (error) { console.error(error.message); process.exitCode = 1; }

@@ -1,5 +1,7 @@
 {
   "scripts": {
+    "test:dev": "node --test scripts/dev/*.test.mjs",
+    "test:local": "node scripts/dev/quality-gate.mjs all",
     "sync:qa": "node scripts/sync_qa_readme.mjs",
     "security:routes": "node scripts/security/route_auth_smoke.mjs",
     "security:stack": "docker compose -f docker-compose.yml -f docker-compose.security.yml up -d --build",
@@ -22,5 +24,8 @@
   },
   "dependencies": {
     "jsdom": "^26.1.0"
+  },
+  "devDependencies": {
+    "gamedig": "^5.3.3"
   }
 }
