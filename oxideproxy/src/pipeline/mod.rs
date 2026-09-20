@@ -1,3 +1,4 @@
+pub mod api_backend_pool;
 pub mod http_server;
 pub mod l4_inspector;
 pub mod tls_quic;
@@ -27,7 +28,8 @@ fn tls_client_hello_sni(buffer: &[u8]) -> Option<String> {
     cursor = cursor.checked_add(2 + cipher_len)?;
     let compression_len = *buffer.get(cursor)? as usize;
     cursor = cursor.checked_add(1 + compression_len)?;
-    let extensions_len = u16::from_be_bytes([*buffer.get(cursor)?, *buffer.get(cursor + 1)?]) as usize;
+    let extensions_len =
+        u16::from_be_bytes([*buffer.get(cursor)?, *buffer.get(cursor + 1)?]) as usize;
     cursor += 2;
     let extensions_end = cursor.checked_add(extensions_len)?.min(buffer.len());
 
@@ -43,10 +45,8 @@ fn tls_client_hello_sni(buffer: &[u8]) -> Option<String> {
             let mut name_cursor = cursor.checked_add(2)?;
             while name_cursor.checked_add(3)? <= extension_end {
                 let name_type = buffer[name_cursor];
-                let name_len = u16::from_be_bytes([
-                    buffer[name_cursor + 1],
-                    buffer[name_cursor + 2],
-                ]) as usize;
+                let name_len =
+                    u16::from_be_bytes([buffer[name_cursor + 1], buffer[name_cursor + 2]]) as usize;
                 name_cursor += 3;
                 let name_end = name_cursor.checked_add(name_len)?;
                 if name_end > extension_end {
@@ -67,9 +67,7 @@ fn tls_client_hello_sni(buffer: &[u8]) -> Option<String> {
 }
 
 fn staging_tls_passthrough(buffer: &[u8]) -> Option<String> {
-    if std::env::var("STAGING_MODE")
-        .is_ok_and(|value| value.trim().eq_ignore_ascii_case("true"))
-    {
+    if std::env::var("STAGING_MODE").is_ok_and(|value| value.trim().eq_ignore_ascii_case("true")) {
         return None;
     }
     let upstream = std::env::var("STAGING_TLS_UPSTREAM").ok()?;
@@ -80,7 +78,11 @@ fn staging_tls_passthrough(buffer: &[u8]) -> Option<String> {
         .or_else(|_| std::env::var("STAGING_DOMAINS"))
         .unwrap_or_else(|_| "ragenodes.dev".to_string());
     let matches_staging = domains.split(',').any(|domain| {
-        let domain = domain.trim().trim_start_matches("*.").trim_end_matches('.').to_ascii_lowercase();
+        let domain = domain
+            .trim()
+            .trim_start_matches("*.")
+            .trim_end_matches('.')
+            .to_ascii_lowercase();
         !domain.is_empty()
             && (requested_sni == domain || requested_sni.ends_with(&format!(".{domain}")))
     });
@@ -261,7 +263,17 @@ mod tests {
         hello.extend([0x01, 0, 0, handshake_len as u8, 0x03, 0x03]);
         hello.extend([0u8; 32]);
         hello.extend([0, 0, 2, 0x13, 0x01, 1, 0, 0, extensions_len as u8]);
-        hello.extend([0, 0, 0, extension_len as u8, 0, server_name_len as u8, 0, 0, name.len() as u8]);
+        hello.extend([
+            0,
+            0,
+            0,
+            extension_len as u8,
+            0,
+            server_name_len as u8,
+            0,
+            0,
+            name.len() as u8,
+        ]);
         hello.extend(name);
         hello
     }

@@ -55,27 +55,33 @@ fi
 wait_for_service() {
   local service="$1"
   local timeout_seconds="$2"
-  local container_id status elapsed=0
+  local container_id status elapsed=0 all_ready
+  local -a container_ids
 
-  container_id="$("${COMPOSE[@]}" ps -q "$service")"
-  if [ -z "$container_id" ]; then
+  mapfile -t container_ids < <("${COMPOSE[@]}" ps -q "$service")
+  if [ "${#container_ids[@]}" -eq 0 ]; then
     echo "❌ No se encontró el contenedor del servicio $service."
     return 1
   fi
 
   while [ "$elapsed" -lt "$timeout_seconds" ]; do
-    status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id")"
-    case "$status" in
-      healthy|running)
-        echo "   ✅ $service: $status"
-        return 0
-        ;;
-      unhealthy|exited|dead)
-        echo "❌ $service entró en estado $status."
-        "${COMPOSE[@]}" logs --tail=80 "$service"
-        return 1
-        ;;
-    esac
+    all_ready=true
+    for container_id in "${container_ids[@]}"; do
+      status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id")"
+      case "$status" in
+        healthy|running) ;;
+        unhealthy|exited|dead)
+          echo "❌ $service ($container_id) entró en estado $status."
+          "${COMPOSE[@]}" logs --tail=80 "$service"
+          return 1
+          ;;
+        *) all_ready=false ;;
+      esac
+    done
+    if [ "$all_ready" = true ]; then
+      echo "   ✅ $service: ${#container_ids[@]} réplica(s) disponibles"
+      return 0
+    fi
     sleep 2
     elapsed=$((elapsed + 2))
   done
@@ -101,14 +107,17 @@ wait_for_http() {
 
 verify_running_release_revision() {
   local service container_id image_revision
+  local -a container_ids
   for service in "${APP_SERVICES[@]}"; do
-    container_id="$("${COMPOSE[@]}" ps -q "$service")"
-    [ -n "$container_id" ] || { echo "ERROR: no running container for $service." >&2; return 1; }
-    image_revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$container_id")"
-    if [ "$image_revision" != "$RAGENODES_RELEASE_REVISION" ]; then
-      echo "ERROR: $service runs revision $image_revision; expected $RAGENODES_RELEASE_REVISION." >&2
-      return 1
-    fi
+    mapfile -t container_ids < <("${COMPOSE[@]}" ps -q "$service")
+    [ "${#container_ids[@]}" -gt 0 ] || { echo "ERROR: no running container for $service." >&2; return 1; }
+    for container_id in "${container_ids[@]}"; do
+      image_revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$container_id")"
+      if [ "$image_revision" != "$RAGENODES_RELEASE_REVISION" ]; then
+        echo "ERROR: $service ($container_id) runs revision $image_revision; expected $RAGENODES_RELEASE_REVISION." >&2
+        return 1
+      fi
+    done
   done
   echo "   OK: all application containers run release $RAGENODES_RELEASE_REVISION"
 }
@@ -137,7 +146,9 @@ fi
 echo "==> 🌐 Aplicando solo las imágenes o configuraciones que cambiaron..."
 echo "==> 🧰 Preparando el volumen de ejecución de OxideProxy..."
 "${COMPOSE[@]}" run --rm --no-deps oxide_game_runtime_init
-"${COMPOSE[@]}" up -d --no-deps "${APP_SERVICES[@]}"
+BACKEND_REPLICAS="$(bash ./scripts/deploy/select_backend_replicas.sh)"
+echo "==> ⚖️ Réplicas backend seleccionadas para este nodo: $BACKEND_REPLICAS"
+"${COMPOSE[@]}" up -d --no-deps --scale backend="$BACKEND_REPLICAS" "${APP_SERVICES[@]}"
 
 echo "==> 🩺 Esperando servicios críticos..."
 wait_for_service backend 90
@@ -145,8 +156,8 @@ wait_for_service worker-deployments 60
 wait_for_service oxide_control_panel 60
 wait_for_service oxide_game 60
 wait_for_service oxide_web 60
-wait_for_http http://127.0.0.1:3010/healthz 90
-wait_for_http http://127.0.0.1:3010/readyz 90
+wait_for_http http://127.0.0.1/healthz 90
+wait_for_http http://127.0.0.1/readyz 90
 if [ "$REGISTRY_DEPLOY" = "true" ]; then
   verify_running_release_revision
 fi

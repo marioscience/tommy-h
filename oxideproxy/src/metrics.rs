@@ -62,7 +62,8 @@ fn process_resource_usage() -> (u64, u64, u64) {
         .ok()
         .and_then(|stat| stat.lines().next().map(str::to_string))
         .map(|line| {
-            line.split_whitespace().skip(1)
+            line.split_whitespace()
+                .skip(1)
                 .filter_map(|value| value.parse::<u64>().ok())
                 .sum()
         })
@@ -70,7 +71,9 @@ fn process_resource_usage() -> (u64, u64, u64) {
     let rss_bytes = std::fs::read_to_string("/proc/self/status")
         .ok()
         .and_then(|status| {
-            status.lines().find_map(|line| line.strip_prefix("VmRSS:"))
+            status
+                .lines()
+                .find_map(|line| line.strip_prefix("VmRSS:"))
                 .and_then(|value| value.split_whitespace().next())
                 .and_then(|value| value.parse::<u64>().ok())
         })
@@ -91,17 +94,88 @@ pub fn tcp_open(initial_bytes: usize) {
 }
 
 pub fn tcp_close() {
-    let _ = TCP_ACTIVE.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| value.checked_sub(1));
+    let _ = TCP_ACTIVE.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+        value.checked_sub(1)
+    });
 }
 
-pub fn tcp_ingress(bytes: usize) {
-    TCP_READS_IN.fetch_add(1, Ordering::Relaxed);
-    TCP_BYTES_IN.fetch_add(bytes as u64, Ordering::Relaxed);
+// Publish reads immediately: a relay can remain blocked indefinitely after
+// filling its input buffer, so connection-local batches can hide live traffic.
+pub(crate) struct TcpReadCounters {
+    total_reads: &'static AtomicU64,
+    total_bytes: &'static AtomicU64,
 }
 
-pub fn tcp_egress(bytes: usize) {
-    TCP_READS_OUT.fetch_add(1, Ordering::Relaxed);
-    TCP_BYTES_OUT.fetch_add(bytes as u64, Ordering::Relaxed);
+impl TcpReadCounters {
+    #[cfg(test)]
+    pub(crate) fn with_test_counters(
+        total_reads: &'static AtomicU64,
+        total_bytes: &'static AtomicU64,
+    ) -> Self {
+        Self {
+            total_reads,
+            total_bytes,
+        }
+    }
+
+    pub(crate) fn new(ingress: bool) -> Self {
+        Self {
+            total_reads: if ingress {
+                &TCP_READS_IN
+            } else {
+                &TCP_READS_OUT
+            },
+            total_bytes: if ingress {
+                &TCP_BYTES_IN
+            } else {
+                &TCP_BYTES_OUT
+            },
+        }
+    }
+
+    pub(crate) fn record(&mut self, bytes: usize) {
+        if bytes == 0 {
+            return;
+        }
+        self.total_reads.fetch_add(1, Ordering::Relaxed);
+        self.total_bytes.fetch_add(bytes as u64, Ordering::Relaxed);
+    }
+}
+
+#[cfg(test)]
+mod tcp_counter_tests {
+    use super::*;
+
+    #[test]
+    fn counters_publish_immediately_and_drop_does_not_double_count() {
+        // Private counters avoid interference from concurrently running tests.
+        static READS: AtomicU64 = AtomicU64::new(0);
+        static BYTES: AtomicU64 = AtomicU64::new(0);
+        let mut counters = TcpReadCounters::with_test_counters(&READS, &BYTES);
+        counters.record(0);
+        assert_eq!(READS.load(Ordering::Relaxed), 0);
+        for _ in 0..63 {
+            counters.record(256);
+        }
+        assert_eq!(READS.load(Ordering::Relaxed), 63);
+        counters.record(256);
+        assert_eq!(READS.load(Ordering::Relaxed), 64);
+        assert_eq!(BYTES.load(Ordering::Relaxed), 64 * 256);
+
+        counters.record(7);
+        assert_eq!(READS.load(Ordering::Relaxed), 65);
+        assert_eq!(BYTES.load(Ordering::Relaxed), 64 * 256 + 7);
+
+        counters.record(256 * 1024);
+        assert_eq!(READS.load(Ordering::Relaxed), 66);
+        counters.record(11);
+        drop(counters);
+        assert_eq!(READS.load(Ordering::Relaxed), 67);
+        assert_eq!(
+            BYTES.load(Ordering::Relaxed),
+            64 * 256 + 7 + 256 * 1024 + 11
+        );
+    }
 }
 
 pub fn udp_ingress(bytes: usize) {
@@ -154,7 +228,10 @@ pub async fn write_snapshots(path: String) {
     loop {
         let (process_cpu_ticks, system_cpu_ticks, process_rss_bytes) = process_resource_usage();
         let snapshot = Snapshot {
-            timestamp_ms: SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
+            timestamp_ms: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis(),
             tcp_active: TCP_ACTIVE.load(Ordering::Relaxed),
             tcp_events_in: TCP_EVENTS_IN.load(Ordering::Relaxed),
             tcp_reads_in: TCP_READS_IN.load(Ordering::Relaxed),

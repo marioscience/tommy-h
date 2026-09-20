@@ -7,7 +7,7 @@ import fs from 'fs';
 import { rateLimit } from 'express-rate-limit';
 import { config, assertSecureConfig } from './config.js';
 import { hasSessionCookie } from './middleware/auth.js';
-import { getDbMetrics, initDb, waitForDb, query } from './db.js';
+import { closeDataClients, getDbMetrics, initDb, waitForDb, query } from './db.js';
 
 // Importación de rutas
 import authRoutes from './routes/auth.js';
@@ -40,6 +40,9 @@ import pluginsRoutes from './routes/plugins.js';
 import { runStagingHealthSuite } from './services/stagingHealthTestRunner.js';
 import { logger } from './utils/logger.js';
 import { requestLogger } from './middleware/requestLogger.js';
+import { autoscalingTelemetryMiddleware, getAutoscalingTelemetry, isLoopbackAddress } from './services/autoscalingTelemetry.js';
+import { getDeploymentQueueMetrics } from './repositories/deploymentJobRepository.js';
+import { distributedRateLimitStore } from './services/distributedRateLimitStore.js';
 
 // 🤖 ESCUDO ANTI-CRASHEO SILENCIOSO
 process.on('uncaughtException', (err) => {
@@ -61,6 +64,7 @@ app.use((req, res, next) => {
     next();
 });
 app.use(requestLogger);
+app.use(autoscalingTelemetryMiddleware);
 const PANEL_APP_ORIGIN = 'https://panel.ragenodes.app';
 const PUBLIC_MARKETING_HOSTS = new Set(['ragenodes.com', 'www.ragenodes.com']);
 const panelAppPaths = new Set(['/panel', '/admin']);
@@ -145,6 +149,23 @@ app.use('/api', (req, res, next) => {
 // 🩺 Sondas de Observabilidad y Salud Empresarial (Módulo 4: Production Readiness)
 app.get('/healthz', (req, res) => res.status(200).send('OK'));
 
+app.get('/internal/autoscaling', async (req, res) => {
+    if (!isLoopbackAddress(req.socket.remoteAddress)) return res.status(404).end();
+    let deploymentQueue = [];
+    if (req.query.details === '1') {
+        try {
+            deploymentQueue = await getDeploymentQueueMetrics();
+        } catch (error) {
+            logger.warn({ err: error }, 'No se pudieron leer métricas de cola para autoscaling');
+        }
+    }
+    return res.json({
+        ...getAutoscalingTelemetry(),
+        database_pool: getDbMetrics().pool,
+        deployment_queue: deploymentQueue
+    });
+});
+
 app.get('/readyz', async (req, res) => {
     const checks = {
         database: 'unknown',
@@ -181,14 +202,16 @@ const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
     max: 50, // Limitar a 50 peticiones por IP en 15 mins para endpoints de auth
     message: { error: 'Demasiados intentos de inicio de sesión o registro, por favor intenta de nuevo en 15 minutos.' },
-    skip: (req) => req.path === '/me' || req.originalUrl.includes('/auth/me')
+    skip: (req) => req.path === '/me' || req.originalUrl.includes('/auth/me'),
+    store: distributedRateLimitStore('auth')
 });
 
 // 🔒 Limitador de tasa para rutas de administrador
 const adminLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
     max: 2000, // Aumentado a 2000 porque el panel hace muchas peticiones de actualización
-    message: { error: 'Demasiadas solicitudes a la API de admin, intenta de nuevo en 15 minutos.' }
+    message: { error: 'Demasiadas solicitudes a la API de admin, intenta de nuevo en 15 minutos.' },
+    store: distributedRateLimitStore('admin')
 });
 
 const nodeInstallerLimiter = rateLimit({
@@ -196,7 +219,8 @@ const nodeInstallerLimiter = rateLimit({
     max: 20,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: 'Demasiadas solicitudes al instalador de nodos.' }
+    message: { error: 'Demasiadas solicitudes al instalador de nodos.' },
+    store: distributedRateLimitStore('node-installer')
 });
 
 const serviceApiLimiter = rateLimit({
@@ -204,7 +228,8 @@ const serviceApiLimiter = rateLimit({
     max: 300,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: 'Límite temporal de la API de servicio alcanzado.' }
+    message: { error: 'Límite temporal de la API de servicio alcanzado.' },
+    store: distributedRateLimitStore('service-api')
 });
 
 const ticketLimiter = rateLimit({
@@ -212,7 +237,8 @@ const ticketLimiter = rateLimit({
     max: 10,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: 'Has enviado demasiados tickets. Inténtalo más tarde.' }
+    message: { error: 'Has enviado demasiados tickets. Inténtalo más tarde.' },
+    store: distributedRateLimitStore('tickets')
 });
 
 // Aplicamos el limitador estricto SOLAMENTE a las rutas de autenticación
@@ -282,6 +308,26 @@ app.use((error, req, res, _next) => {
 });
 
 const server = http.createServer(app);
+let shutdownStarted = false;
+
+async function gracefulShutdown(signal) {
+    if (shutdownStarted) return;
+    shutdownStarted = true;
+    logger.info({ signal }, 'API drenando conexiones antes de detenerse.');
+    const forceTimer = setTimeout(() => {
+        logger.error({ signal }, 'Timeout de apagado gradual; cerrando conexiones restantes.');
+        server.closeAllConnections?.();
+        process.exitCode = 1;
+    }, Math.max(5_000, Number(process.env.HTTP_SHUTDOWN_TIMEOUT_MS || 30_000)));
+    forceTimer.unref();
+    server.closeIdleConnections?.();
+    server.close(async (error) => {
+        clearTimeout(forceTimer);
+        if (error) logger.error({ err: error }, 'Error al cerrar el servidor HTTP.');
+        await closeDataClients();
+        process.exitCode = error ? 1 : 0;
+    });
+}
 
 async function bootstrap() {
     try {
@@ -309,7 +355,9 @@ async function bootstrap() {
 }
 
 if (process.env.NODE_ENV !== 'test') {
+    process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.once('SIGINT', () => gracefulShutdown('SIGINT'));
     bootstrap();
 }
 
-export { app, server, bootstrap };
+export { app, server, bootstrap, gracefulShutdown };
