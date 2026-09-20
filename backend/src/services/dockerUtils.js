@@ -129,7 +129,7 @@ export function buildTemplateReadLockedCommand(gameName, command) {
     }
     const lockRoot = path.join(config.instanceDataRoot, 'templates', '.locks');
     const lockFile = path.join(lockRoot, `${gameName}.lock`);
-    return sh`mkdir -p ${lockRoot} && flock -s ${lockFile} bash -c ${command}`;
+    return sh`mkdir -p ${lockRoot} && chmod 2775 ${lockRoot} && flock -s ${lockFile} /bin/sh -c ${command}`;
 }
 
 async function copyTemplateAcrossFilesystems(masterPath, dataPath, nodeId, gameName) {
@@ -244,17 +244,16 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0, op
             await runRemoteCommand(nodeId, sh`rm -rf ${clonePath} && mkdir -p ${clonePath}`);
             try {
                 const cloneCommand = sh`cp --reflink=always -R -P --preserve=mode,timestamps,links ${cloneSourcePath + '/.'} ${clonePath + '/'}`;
-                await runRemoteCommand(nodeId, cloneSourcePath === masterPath
-                    ? buildTemplateReadLockedCommand(gameName, cloneCommand)
-                    : cloneCommand);
+                // La caché local se renueva de forma atómica bajo el mismo
+                // bloqueo que la plantilla. Esto evita cambiarla mientras un
+                // despliegue recorre sus archivos.
+                await runRemoteCommand(nodeId, buildTemplateReadLockedCommand(gameName, cloneCommand));
             } catch (reflinkError) {
                 const currentAvailableResult = await runRemoteCommand(nodeId, sh`df -PB1 ${parentPath} | awk 'NR==2 {print $4}'`);
                 selectTemplateCloneStrategy({ sourceDevice: 'copy-source', targetDevice: 'copy-target', templateBytes, availableBytes: numericCommandOutput(currentAvailableResult, 'el espacio disponible después de preparar la caché'), reserveBytes });
                 console.warn(`⚠️ [${gameName.toUpperCase()}] Reflink no disponible; se usará copia independiente con espacio ya validado.`);
                 const fallbackCommand = sh`rm -rf ${clonePath} && mkdir -p ${clonePath} && cp -R -P --preserve=mode,timestamps,links ${cloneSourcePath + '/.'} ${clonePath + '/'}`;
-                await runRemoteCommand(nodeId, cloneSourcePath === masterPath
-                    ? buildTemplateReadLockedCommand(gameName, fallbackCommand)
-                    : fallbackCommand);
+                await runRemoteCommand(nodeId, buildTemplateReadLockedCommand(gameName, fallbackCommand));
             }
             if (hasExistingData && refreshExisting) {
                 for (const relativePath of preservePaths) {
