@@ -17,6 +17,8 @@ import { logAudit } from '../db.js';
 import { logHub } from '../services/logHub.js';
 import { getDeploymentForOwner } from '../repositories/deploymentJobRepository.js';
 import { planAndEnqueueDeployment } from '../services/deploymentPlanner.js';
+import { deploymentRequest, idempotencyRequest } from '../contracts/requestContracts.js';
+import { validateRequest } from '../middleware/validateRequest.js';
 
 const router = express.Router();
 const SERVER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -45,10 +47,11 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', validateRequest(deploymentRequest), async (req, res) => {
   try {
-    const requestedKey = String(req.get('Idempotency-Key') || '').trim();
-    const idempotencyKey = requestedKey.slice(0, 128) || crypto.randomUUID();
+    const requestedKey = idempotencyRequest.safeParse(req.get('Idempotency-Key') || '');
+    if (!requestedKey.success) return res.status(400).json({ error: 'Idempotency-Key inválido.' });
+    const idempotencyKey = requestedKey.data || crypto.randomUUID();
     const { job, plan } = await planAndEnqueueDeployment(req.user.sub, idempotencyKey, req.body);
     res.status(202).json({
       jobId: job.id,
