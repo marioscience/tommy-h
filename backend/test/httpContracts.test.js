@@ -81,4 +81,48 @@ describe('Critical HTTP contracts', () => {
     assert.equal(res.statusCode, 400);
     assert.deepEqual(res.payload, { error: 'Falta el campo time' });
   });
+
+  it('rejects backup restore paths before touching storage', async () => {
+    const res = responseRecorder();
+    await invokeRoute(serverRouter, 'post', '/:id/backups/restore', {
+      body: { filename: '../../backup.tar.gz' },
+      params: { id: '00000000-0000-4000-8000-000000000000' },
+      user: { sub: 1, role: 'client' }
+    }, res);
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.payload, { error: 'Nombre de backup inválido.' });
+  });
+
+  it('rejects invalid console commands before Docker lookup', async () => {
+    const res = responseRecorder();
+    await invokeRoute(serverRouter, 'post', '/:id/command', {
+      body: { command: 'x'.repeat(257) },
+      params: { id: 'server' },
+      user: { sub: 1, role: 'client' }
+    }, res);
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.payload, { error: 'Comando inválido.' });
+  });
+
+  it('rejects unsupported subuser permissions at the HTTP boundary', async () => {
+    const res = responseRecorder();
+    await invokeRoute(serverRouter, 'post', '/:id/subusers', {
+      body: { usernameOrEmail: 'operator', permissions: ['root'] },
+      params: { id: 'server' },
+      user: { sub: 1, role: 'client' }
+    }, res);
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.payload, { error: 'Datos de solicitud inválidos.' });
+  });
+
+  it('requires a valid time when automatic restart is enabled', async () => {
+    const res = responseRecorder();
+    await invokeRoute(serverRouter, 'post', '/:id/auto-restart', {
+      body: { enabled: true },
+      params: { id: 'server' },
+      user: { sub: 1, role: 'client' }
+    }, res);
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.payload, { error: 'Datos de solicitud inválidos.' });
+  });
 });

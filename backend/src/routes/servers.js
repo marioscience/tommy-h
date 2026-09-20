@@ -17,7 +17,19 @@ import { logAudit } from '../db.js';
 import { logHub } from '../services/logHub.js';
 import { getDeploymentForOwner } from '../repositories/deploymentJobRepository.js';
 import { planAndEnqueueDeployment } from '../services/deploymentPlanner.js';
-import { deploymentRequest, idempotencyRequest } from '../contracts/requestContracts.js';
+import {
+  autoInstallRequest,
+  autoRestartRequest,
+  backupCreateRequest,
+  backupRestoreRequest,
+  backupScheduleRequest,
+  clusterRequest,
+  commandRequest,
+  deploymentRequest,
+  idempotencyRequest,
+  subuserRequest,
+  webhookRequest
+} from '../contracts/requestContracts.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 
 const router = express.Router();
@@ -86,7 +98,7 @@ router.get('/:id/backups', async (req, res) => {
 });
 
 // 2. Generar un backup manual (Con soporte para nombre personalizado y COLA DE PRIORIDAD)
-router.post('/:id/backup', async (req, res) => {
+router.post('/:id/backup', validateRequest(backupCreateRequest), async (req, res) => {
   try {
       const s = await getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'files');
       if (!s) return res.status(404).json({ error: "Servidor no encontrado" });
@@ -108,12 +120,9 @@ router.post('/:id/backup', async (req, res) => {
 });
 
 // 3. Restaurar un backup
-router.post('/:id/backups/restore', async (req, res) => {
+router.post('/:id/backups/restore', validateRequest(backupRestoreRequest, { error: 'Nombre de backup inválido.' }), async (req, res) => {
     if (!SERVER_ID_PATTERN.test(req.params.id)) {
         return res.status(400).json({ error: 'Identificador de servidor inválido.' });
-    }
-    if (!req.body?.filename || typeof req.body.filename !== 'string') {
-        return res.status(400).json({ error: 'Nombre de backup inválido.' });
     }
     try {
         const result = await restoreBackup(req.params.id, req.body.filename, req.user.sub, req.user.role === 'admin');
@@ -138,7 +147,7 @@ router.delete('/:id/backups/:filename', async (req, res) => {
 });
 
 // 5. Configurar hora de backup automático
-router.post('/:id/backup-time', async (req, res) => {
+router.post('/:id/backup-time', validateRequest(backupScheduleRequest, { error: 'Falta el campo time' }), async (req, res) => {
     try {
         if (!req.body.time) return res.status(400).json({ error: "Falta el campo time" });
         const result = await setServerBackupTime(req.params.id, req.user.sub, req.body.time, req.user.role === 'admin');
@@ -215,12 +224,9 @@ router.get('/:id/logs/stream', async (req, res) => {
 router.get('/:id/stats-history', async (req, res) => { try { res.json({ items: await getServerStatsHistory(req.params.id, req.user.sub, req.user.role === 'admin') }); } catch(e) { res.status(400).json({ error: e.message }); } });
 
 // 🎮 COMANDO INTERACTIVO: Enviar comando al stdin del contenedor
-router.post('/:id/command', async (req, res) => {
+router.post('/:id/command', validateRequest(commandRequest, { error: 'Comando inválido.' }), async (req, res) => {
     try {
         const { command } = req.body;
-        if (!command || typeof command !== 'string') return res.status(400).json({ error: 'Comando inválido.' });
-        if (command.length > 256) return res.status(400).json({ error: 'Comando demasiado largo.' });
-
         const s = await getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'console');
         if (!s) return res.status(404).json({ error: 'Servidor no encontrado.' });
         if (s.status !== 'running') return res.status(400).json({ error: 'El servidor debe estar encendido.' });
@@ -264,7 +270,7 @@ router.get('/:id/subusers', async (req, res) => {
     catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-router.post('/:id/subusers', async (req, res) => {
+router.post('/:id/subusers', validateRequest(subuserRequest), async (req, res) => {
     try { res.json(await addSubuserToServer(req.params.id, req.user.sub, req.user.role === 'admin', req.body.usernameOrEmail, req.body.permissions)); }
     catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -275,19 +281,19 @@ router.delete('/:id/subusers/:subuserId', async (req, res) => {
 });
 
 // 2. Webhooks de Discord
-router.post('/:id/webhooks', async (req, res) => {
+router.post('/:id/webhooks', validateRequest(webhookRequest), async (req, res) => {
     try { res.json(await updateServerWebhook(req.params.id, req.user.sub, req.user.role === 'admin', req.body.webhookUrl, req.body.events)); }
     catch (e) { res.status(400).json({ error: e.message }); }
 });
 
 // 3. Clústeres (Cross-ARK)
-router.post('/:id/cluster', async (req, res) => {
+router.post('/:id/cluster', validateRequest(clusterRequest), async (req, res) => {
     try { res.json(await updateServerCluster(req.params.id, req.user.sub, req.user.role === 'admin', req.body.clusterId)); }
     catch (e) { res.status(400).json({ error: e.message }); }
 });
 
 // 4. Reinicios Automáticos
-router.post('/:id/auto-restart', async (req, res) => {
+router.post('/:id/auto-restart', validateRequest(autoRestartRequest), async (req, res) => {
     try { res.json(await updateServerAutoRestart(req.params.id, req.user.sub, req.user.role === 'admin', req.body.time, req.body.enabled, req.body.backupBeforeRestart)); }
     catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -314,7 +320,7 @@ router.post('/:id/force-update-ark', async (req, res) => {
 });
 
 // 6. Instalador automático de dependencias
-router.post('/:id/auto-install', async (req, res) => {
+router.post('/:id/auto-install', validateRequest(autoInstallRequest), async (req, res) => {
     try {
         const s = await getServerByIdForUser(req.params.id, req.user.sub, req.user.role === 'admin', 'files');
         if (!s) return res.status(404).json({ error: 'Servidor no encontrado.' });
