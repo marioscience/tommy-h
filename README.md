@@ -4,6 +4,8 @@
 > Logs: `bash dev logs backend`.
 > Consulta [la guía de desarrollo local](docs/LOCAL-DEVELOPMENT.md) para Linux,
 > WSL2, Dev Container, componentes, escenarios y solución de problemas.
+> Las [puertas automáticas antes de `dev`](docs/AUTOMATED-QUALITY-GATES.md)
+> explican qué se valida localmente, en GitLab y en un laboratorio opcional.
 > Este flujo ligero utiliza `compose.development.yml` y `.env.development`;
 > los comandos del stack completo que siguen son para integración con juegos reales.
 
