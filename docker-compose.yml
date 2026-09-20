@@ -83,8 +83,9 @@ services:
       PUBLIC_ENDPOINT_PREFIX: ${PUBLIC_ENDPOINT_PREFIX:-tx}
       GAME_DATABASE_HOST: ${GAME_DATABASE_HOST:-mariadb}
       GAME_DATABASE_PORT: ${GAME_DATABASE_PORT:-3306}
-    ports:
-      - "127.0.0.1:${HOST_BIND_BACKEND_PORT:-3010}:3006"
+      PG_POOL_MAX: ${BACKEND_PG_POOL_MAX:-10}
+    expose:
+      - "3006"
     networks:
       - ragenodes_net
     extra_hosts:
@@ -346,6 +347,7 @@ services:
       - OXIDE_METRICS_PATH=/app/runtime/game_metrics.json
       - OXIDE_CONFIG_PATH=/app/game_config/oxide_proxy.yml
       - OXIDE_EXIT_ON_CONFIG_CHANGE=true
+      - OXIDE_XDP_OWNER=true
     volumes:
       - ./oxideproxy/game_config:/app/game_config:ro
       - oxide_game_runtime_data:/app/runtime
@@ -408,6 +410,10 @@ services:
       - ACCESS_GATE_FROM_EMAIL=${ACCESS_GATE_FROM_EMAIL:-RageNodes Access <info@ragenodes.com>}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - OXIDE_RUNTIME_BLACKLIST_PATH=/app/runtime/runtime-blacklist.txt
+      - OXIDE_XDP_OWNER=false
+      - OXIDE_API_BACKEND=${OXIDE_API_BACKEND:-backend:3006}
+      - OXIDE_API_DNS_TTL_SECONDS=${OXIDE_API_DNS_TTL_SECONDS:-5}
+      - OXIDE_API_FAILURE_COOLDOWN_SECONDS=${OXIDE_API_FAILURE_COOLDOWN_SECONDS:-5}
     volumes:
       - ./oxideproxy/config/oxide_proxy.yml:/app/config/oxide_proxy.yml:ro
       - oxide_acme_data:/app/acme

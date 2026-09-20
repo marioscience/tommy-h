@@ -1,0 +1,22 @@
+[Unit]
+Description=RageNodes conservative backend autoscaler
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=__RAGENODES_USER__
+Group=__RAGENODES_GROUP__
+EnvironmentFile=-/etc/ragenodes/backend-autoscaler.env
+Environment=BACKEND_AUTOSCALE_STATE_PATH=/var/lib/ragenodes-autoscaler/state.json
+ExecStart=/usr/bin/node /usr/local/lib/ragenodes/backend_autoscaler.mjs
+StateDirectory=ragenodes-autoscaler
+StateDirectoryMode=0750
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/ragenodes-autoscaler
+
+[Install]
+WantedBy=multi-user.target

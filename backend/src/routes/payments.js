@@ -6,6 +6,7 @@ import { registerPaymentReadRoutes } from './payments/readRoutes.js';
 import { registerProvisioningRoutes } from './payments/provisioningRoutes.js';
 import { registerSubscriptionRoutes } from './payments/subscriptionRoutes.js';
 import paymentsWebhookRouter from './paymentsWebhook.js';
+import { distributedRateLimitStore } from '../services/distributedRateLimitStore.js';
 
 const router = express.Router();
 const checkoutLimiter = rateLimit({
@@ -13,7 +14,8 @@ const checkoutLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Demasiadas solicitudes de checkout. Inténtalo más tarde.' }
+  message: { error: 'Demasiadas solicitudes de checkout. Inténtalo más tarde.' },
+  store: distributedRateLimitStore('checkout')
 });
 
 registerPaymentReadRoutes(router, requireAuth);
