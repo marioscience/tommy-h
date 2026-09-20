@@ -10,6 +10,13 @@ import { getServerByIdForUser } from '../services/serverService.js';
 import { rustUtil } from '../utils/rustUtil.js';
 import { withServerDataAccess } from '../services/serverDataAccessService.js';
 import {
+    fileActionRequest,
+    fileWriteRequest,
+    remoteDownloadRequest,
+    uploadFinishRequest
+} from '../contracts/requestContracts.js';
+import { validateRequest } from '../middleware/validateRequest.js';
+import {
     activeDownloads,
     storageCache,
     getSafePath,
@@ -65,7 +72,7 @@ router.get('/read', requireAuth, async (req, res) => {
     } catch(e) { res.status(500).json({error: `Error de lectura: ${e.message}`}); }
 });
 
-router.put('/write', requireAuth, async (req, res) => {
+router.put('/write', requireAuth, validateRequest(fileWriteRequest), async (req, res) => {
     const row = await getServerByIdForUser(req.body.serverId, req.user.sub, req.user.role === 'admin', 'files');
     if (!row) return res.status(404).json({ error: 'No encontrado' });
     try {
@@ -83,7 +90,7 @@ router.put('/write', requireAuth, async (req, res) => {
     }
 });
 
-router.post('/action', requireAuth, async (req, res) => {
+router.post('/action', requireAuth, validateRequest(fileActionRequest), async (req, res) => {
     const row = await getServerByIdForUser(req.body.serverId, req.user.sub, req.user.role === 'admin', 'files');
     if (!row) return res.status(404).json({ error: 'No encontrado' });
     try {
@@ -179,7 +186,7 @@ router.post('/upload-chunk', requireAuth, upload.single('file'), async (req, res
     }
 });
 
-router.post('/upload-finish', requireAuth, async (req, res) => {
+router.post('/upload-finish', requireAuth, validateRequest(uploadFinishRequest), async (req, res) => {
     const { uploadId, totalChunks, serverId, path: destPath, fileName, totalSize } = req.body;
     
     const row = await getServerByIdForUser(serverId, req.user.sub, req.user.role === 'admin', 'files');
@@ -282,15 +289,11 @@ router.get('/download-status', requireAuth, async (req, res) => {
     res.json({ tasks });
 });
 
-router.post('/download-remote', requireAuth, async (req, res) => {
+router.post('/download-remote', requireAuth, validateRequest(remoteDownloadRequest), async (req, res) => {
     const row = await getServerByIdForUser(req.body.serverId, req.user.sub, req.user.role === 'admin', 'files');
     if (!row) return res.status(404).json({ error: 'No encontrado' });
 
     try {
-        if (!req.body.url || !req.body.fileName) {
-            return res.status(400).json({ error: 'URL y nombre de archivo son obligatorios.' });
-        }
-
         await validateRemoteTargetUrl(req.body.url);
 
         const targetDir = getSafePath(row.data_path, req.body.path || '/');

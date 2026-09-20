@@ -94,3 +94,46 @@ export const autoRestartRequest = Object.freeze({
 export const autoInstallRequest = Object.freeze({
   body: z.object({ type: z.enum(['npm', 'pip']).optional().default('npm') }).strip()
 });
+
+const serverId = z.string().trim().min(1).max(128);
+const relativeFilePath = z.string().trim().min(1).max(4096);
+const plainFileName = z.string().trim().min(1).max(255).refine(
+  (value) => !/[\\/]/.test(value) && value !== '.' && value !== '..',
+  'Filename must not contain a path'
+);
+
+export const fileWriteRequest = Object.freeze({
+  body: z.object({
+    serverId,
+    path: relativeFilePath.optional().default('server.cfg'),
+    content: z.string().max(1024 * 1024)
+  }).strip()
+});
+
+export const fileActionRequest = Object.freeze({
+  body: z.discriminatedUnion('action', [
+    z.object({ serverId, path: relativeFilePath, action: z.enum(['mkdir', 'delete', 'createFile', 'unzip']) }),
+    z.object({ serverId, path: relativeFilePath, action: z.literal('rename'), newName: plainFileName }),
+    z.object({ serverId, path: relativeFilePath, action: z.literal('move'), newPath: relativeFilePath })
+  ])
+});
+
+export const uploadFinishRequest = Object.freeze({
+  body: z.object({
+    uploadId: z.string().regex(/^upload_\d+_[a-z0-9]+$/i).max(80),
+    totalChunks: z.number().int().min(1).max(10000),
+    serverId,
+    path: relativeFilePath,
+    fileName: plainFileName,
+    totalSize: z.number().int().positive().max(500 * 1024 ** 3)
+  }).strip()
+});
+
+export const remoteDownloadRequest = Object.freeze({
+  body: z.object({
+    serverId,
+    path: relativeFilePath.optional().default('/'),
+    url: z.string().url().max(2048),
+    fileName: plainFileName
+  }).strip()
+});
