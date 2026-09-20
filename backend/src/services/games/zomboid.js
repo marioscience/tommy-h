@@ -59,8 +59,10 @@ export function buildProjectZomboidRuntime(opts) {
 
 export async function createProjectZomboidContainer(opts) {
     const docker = await getNodeConnection(opts.nodeId || 0);
-    await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath}/Zomboid/mods && chown -R 1000:1000 ${opts.dataPath}`);
     await cloneFromMasterTemplate('zomboid', opts.dataPath, opts.nodeId);
+    // Prepare mutable state only after cloning. Creating it first makes the
+    // template cloner treat a new instance as populated and skip the master.
+    await runRemoteCommand(opts.nodeId || 0, sh`mkdir -p ${opts.dataPath}/Zomboid/mods && chown -R 1000:1000 ${opts.dataPath}`);
 
     try { await docker.getImage(config.zomboidBaseImage).inspect(); }
     catch (e) {
