@@ -17,6 +17,11 @@ import {
 } from '../contracts/requestContracts.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import {
+    cleanupChunkUpload,
+    storeUploadChunk,
+    validateChunkUpload
+} from '../services/chunkUploadService.js';
+import {
     activeDownloads,
     storageCache,
     getSafePath,
@@ -177,12 +182,16 @@ router.post('/upload-chunk', requireAuth, upload.single('file'), async (req, res
     if (!uploadId || chunkIndex === undefined) return res.status(400).json({error: "Faltan parametros de chunk"});
     
     try {
-        const chunkPath = path.join('/tmp/ragenodes_uploads', `${uploadId}.part${chunkIndex}`);
-        await fsPromises.rename(req.file.path, chunkPath);
+        await storeUploadChunk({
+            temporaryPath: req.file.path,
+            uploadId,
+            chunkIndex,
+            userId: req.user.sub
+        });
         res.json({ success: true });
     } catch(e) {
         await fsPromises.unlink(req.file.path).catch(()=>{});
-        res.status(500).json({error: e.message || "Error subiendo chunk."});
+        res.status(400).json({error: e.message || "Error subiendo chunk."});
     }
 });
 
@@ -194,6 +203,7 @@ router.post('/upload-finish', requireAuth, validateRequest(uploadFinishRequest),
 
     try {
         if (totalSize) await checkStorageLimit(row, Number(totalSize));
+        const chunkPaths = await validateChunkUpload({ uploadId, totalChunks, totalSize, userId: req.user.sub });
 
         const targetPath = getSafePath(row.data_path, destPath);
         const finalPath = getSafePath(path.dirname(targetPath), fileName);
@@ -208,8 +218,7 @@ router.post('/upload-finish', requireAuth, validateRequest(uploadFinishRequest),
 
         const writeStream = createWriteStream(finalPath, { flags: 'w' });
         
-        for (let i = 0; i < totalChunks; i++) {
-            const chunkPath = path.join('/tmp/ragenodes_uploads', `${uploadId}.part${i}`);
+        for (const chunkPath of chunkPaths) {
             const data = await fsPromises.readFile(chunkPath);
             writeStream.write(data);
             await fsPromises.unlink(chunkPath).catch(()=>{}); 
@@ -221,11 +230,10 @@ router.post('/upload-finish', requireAuth, validateRequest(uploadFinishRequest),
             writeStream.on('error', reject);
         });
 
+        await cleanupChunkUpload(uploadId, totalChunks, { userId: req.user.sub });
         res.json({ success: true });
     } catch(e) {
-        for (let i = 0; i < totalChunks; i++) {
-            await fsPromises.unlink(path.join('/tmp/ragenodes_uploads', `${uploadId}.part${i}`)).catch(()=>{});
-        }
+        await cleanupChunkUpload(uploadId, totalChunks, { userId: req.user.sub }).catch(() => {});
         res.status(500).json({error: e.message || "Error finalizando subida."});
     }
 });
