@@ -33,11 +33,13 @@ pub async fn start_ingress(
         .unwrap_or("eth0");
     let mut xdp = XdpFilter::new(xdp_interface);
     xdp.reload_from_config(&config_path);
-    let xdp_enabled = config_arc
+    let xdp_configured = config_arc
         .advanced_tuning
         .as_ref()
         .and_then(|advanced| advanced.ebpf_xdp.as_ref())
         .is_some_and(|settings| settings.enabled);
+    let xdp_owner = xdp_owner_enabled(std::env::var("OXIDE_XDP_OWNER").ok().as_deref());
+    let xdp_enabled = xdp_configured && xdp_owner;
     if xdp_enabled {
         match xdp.attach() {
             Ok(mode) => crate::metrics::set_xdp_mode(mode),
@@ -49,6 +51,11 @@ pub async fn start_ingress(
                 crate::metrics::set_xdp_mode(crate::ebpf_xdp::XdpAttachMode::Memory);
             }
         }
+    } else if xdp_configured {
+        crate::metrics::set_xdp_mode(crate::ebpf_xdp::XdpAttachMode::Memory);
+        tracing::info!(
+            "XDP delegado al proceso propietario; esta instancia conserva la mitigación L4 en memoria."
+        );
     } else {
         crate::metrics::set_xdp_mode(crate::ebpf_xdp::XdpAttachMode::Disabled);
         tracing::info!("Mitigación L4/XDP desactivada por configuración.");
@@ -494,6 +501,27 @@ pub async fn start_ingress(
     }
 
     Ok(())
+}
+
+fn xdp_owner_enabled(value: Option<&str>) -> bool {
+    !matches!(
+        value.map(str::trim).map(str::to_ascii_lowercase).as_deref(),
+        Some("0" | "false" | "no" | "off")
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::xdp_owner_enabled;
+
+    #[test]
+    fn xdp_owner_defaults_to_enabled_and_accepts_explicit_opt_out() {
+        assert!(xdp_owner_enabled(None));
+        assert!(xdp_owner_enabled(Some("true")));
+        assert!(!xdp_owner_enabled(Some("false")));
+        assert!(!xdp_owner_enabled(Some(" OFF ")));
+        assert!(!xdp_owner_enabled(Some("0")));
+    }
 }
 
 fn create_reuseport_tcp_listener(addr: SocketAddr) -> Result<TcpListener, std::io::Error> {

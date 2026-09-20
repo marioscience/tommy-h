@@ -129,6 +129,13 @@ export async function ensureRedis() {
   }
 }
 
+export async function closeDataClients() {
+  await Promise.allSettled([
+    pool.end(),
+    redisClient.isOpen ? redisClient.quit() : Promise.resolve()
+  ]);
+}
+
 export async function queryCached(text, params = [], ttlSeconds = 3) {
   try {
     await ensureRedis();
