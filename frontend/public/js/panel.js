@@ -1112,11 +1112,15 @@ function toggleSidebar() {
 
         async function loadClientBackups() {
             if (!currentServerId) return;
+            const backupServerId = currentServerId;
             const tbody = document.getElementById('client-backups-table-body');
             tbody.innerHTML = '<tr><td colspan="3" style="padding: 20px;"><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text" style="width: 80%;"></div></td></tr>';
 
             try {
-                const res = await Nexus.api(`/api/servers/${currentServerId}/backups`);
+                const res = await Nexus.api(`/api/servers/${backupServerId}/backups`);
+                // Una respuesta atrasada de otro servidor nunca debe repintar
+                // acciones que operarían sobre el contexto seleccionado ahora.
+                if (currentServerId !== backupServerId) return;
                 const items = res.items || [];
 
                 // 🚀 NUEVO: Filtramos para contar SOLO los manuales reales
@@ -1164,10 +1168,10 @@ function toggleSidebar() {
                       <td><span class="muted"><i class="fa-regular fa-clock" style="margin-right:5px;"></i>${b.date}</span></td>
                       <td style="text-align: right; padding-right: 20px;">
                           <div style="display:flex; gap:6px; justify-content:flex-end;">
-                              <button class="btn-tbl green" title="Restaurar Copia" ${rnBind("click", (event, element) => { restoreClientBackup((b.filename)) })}>
+                              <button class="btn-tbl green" title="Restaurar Copia" ${rnBind("click", (event, element) => { restoreClientBackup((backupServerId), (b.filename)) })}>
                                   <i class="fa-solid fa-clock-rotate-left"></i>
                               </button>
-                              <button class="btn-tbl red" title="Eliminar Copia" ${rnBind("click", (event, element) => { deleteClientBackup((b.filename)) })}>
+                              <button class="btn-tbl red" title="Eliminar Copia" ${rnBind("click", (event, element) => { deleteClientBackup((backupServerId), (b.filename)) })}>
                                   <i class="fa-solid fa-trash"></i>
                               </button>
                           </div>
@@ -1237,12 +1241,16 @@ function toggleSidebar() {
             throw new Error('El backup sigue en proceso. Revisa la lista en unos minutos.');
         }
 
-        async function restoreClientBackup(filename) {
+        async function restoreClientBackup(serverId, filename) {
+            if (!serverId) {
+                showToast('Selecciona nuevamente el servidor antes de restaurar.', 'warning');
+                return;
+            }
             if (!confirm(`⚠️ PELIGRO DE PÉRDIDA DE DATOS:\n¿Estás seguro de querer restaurar la copia [${filename}]?\n\nEsto apagará el servidor, borrará TODOS tus archivos actuales y sobreescribirá tu Base de Datos. Esta acción es irreversible.`)) return;
 
             try {
                 showToast('Restaurando sistema. Por favor espera...', 'info');
-                await Nexus.api(`/api/servers/${currentServerId}/backups/restore`, {
+                await Nexus.api(`/api/servers/${serverId}/backups/restore`, {
                     method: 'POST',
                     body: JSON.stringify({ filename })
                 });
@@ -1254,11 +1262,15 @@ function toggleSidebar() {
             }
         }
 
-        async function deleteClientBackup(filename) {
+        async function deleteClientBackup(serverId, filename) {
+            if (!serverId) {
+                showToast('Selecciona nuevamente el servidor antes de eliminar la copia.', 'warning');
+                return;
+            }
             if (!confirm(`¿Borrar permanentemente la copia de seguridad ${filename}?`)) return;
 
             try {
-                await Nexus.api(`/api/servers/${currentServerId}/backups/${filename}`, { method: 'DELETE' });
+                await Nexus.api(`/api/servers/${serverId}/backups/${filename}`, { method: 'DELETE' });
                 showToast('✅ Copia de seguridad eliminada.', 'success');
                 loadClientBackups();
             } catch (e) {
