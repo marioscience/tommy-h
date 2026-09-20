@@ -6,8 +6,8 @@ use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine as _};
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use http::header::{
-    HeaderName, HeaderValue, ACCEPT_ENCODING, CACHE_CONTROL, CONTENT_ENCODING, CONTENT_TYPE, ETAG,
-    SET_COOKIE, COOKIE,
+    HeaderName, HeaderValue, ACCEPT_ENCODING, CACHE_CONTROL, CONTENT_ENCODING, CONTENT_TYPE,
+    COOKIE, ETAG, SET_COOKIE,
 };
 use http::{Request, Response, StatusCode};
 use hyper::{service::service_fn, Body};
@@ -82,6 +82,9 @@ struct AllowBlenderApp;
 
 #[derive(Clone)]
 struct TrustedStagingUpstream;
+
+#[derive(Clone, Copy, Debug)]
+struct UpstreamConnectionFailure;
 
 fn env_port(name: &str, default: u16) -> u16 {
     std::env::var(name)
@@ -305,9 +308,7 @@ fn embedded_txadmin_cookie(value: &HeaderValue) -> Option<HeaderValue> {
         .map(str::trim)
         .filter(|part| {
             let lower = part.to_ascii_lowercase();
-            lower != "secure"
-                && lower != "partitioned"
-                && !lower.starts_with("samesite=")
+            lower != "secure" && lower != "partitioned" && !lower.starts_with("samesite=")
         })
         .collect();
     if attributes.is_empty() || !attributes[0].contains('=') {
@@ -974,8 +975,8 @@ async fn handle_http_request(
                 if let Some(port) = requested_port {
                     remember_blender_published_port(short_id, port);
                 }
-                let published_port = requested_port
-                    .or_else(|| remembered_blender_published_port(short_id));
+                let published_port =
+                    requested_port.or_else(|| remembered_blender_published_port(short_id));
                 let target_addr = published_port
                     .map(|port| dynamic_backend_addr(host_without_port, port))
                     .unwrap_or_else(|| format!("ragenodes-blender-{}:3000", short_id));
@@ -996,8 +997,31 @@ async fn handle_http_request(
         || uri_path.starts_with("/api")
         || host_without_port.starts_with("api.")
     {
-        tracing::debug!("Enrutando petición API/Panel al backend Node.js (backend:3006)...");
-        return reverse_proxy_request(req, "backend:3006".to_string(), None, peer_addr).await;
+        let pool = crate::pipeline::api_backend_pool::shared_api_backend_pool();
+        match pool.select().await {
+            Ok(address) => {
+                tracing::debug!("Enrutando petición API/Panel al backend Node.js {address}...");
+                let response =
+                    reverse_proxy_request(req, address.to_string(), None, peer_addr).await;
+                match response {
+                    Ok(response) => {
+                        if response.extensions().get::<UpstreamConnectionFailure>().is_some() {
+                            pool.mark_failed(address).await;
+                        } else {
+                            pool.mark_healthy(address).await;
+                        }
+                        return Ok(response);
+                    }
+                    Err(never) => match never {},
+                }
+            }
+            Err(error) => {
+                tracing::error!("No hay réplicas API disponibles: {error}");
+                let mut response = Response::new(Body::from("503 Service Unavailable"));
+                *response.status_mut() = StatusCode::SERVICE_UNAVAILABLE;
+                return Ok(response);
+            }
+        }
     }
 
     // 2c. Enrutamiento phpMyAdmin (`/pma/...`)
@@ -1177,6 +1201,7 @@ async fn reverse_proxy_request(
                         CONTENT_TYPE,
                         HeaderValue::from_static("text/plain; charset=utf-8"),
                     );
+                    res.extensions_mut().insert(UpstreamConnectionFailure);
                     Ok(res)
                 }
             }
@@ -1412,11 +1437,13 @@ mod tests {
         access_gate_csp, apply_browser_security_headers, blender_app_csp, csp_with_frame_ancestors,
         csp_with_frame_source, dynamic_proxy_port_for_domains, frame_ancestors_policy,
         trusted_upstream_csp, AllowBlenderApp, AllowFiveMIdentityFrames,
-        AllowRageNodesPanelFraming, AllowSameOriginFraming,
-        TrustedStagingUpstream,
+        AllowRageNodesPanelFraming, AllowSameOriginFraming, TrustedStagingUpstream,
     };
     use http::{Response, StatusCode};
-    use hyper::{header::{HeaderValue, SET_COOKIE}, Body};
+    use hyper::{
+        header::{HeaderValue, SET_COOKIE},
+        Body,
+    };
 
     #[test]
     fn cookie_crumbs_are_joined_for_http1_without_changing_values() {
@@ -1427,11 +1454,17 @@ mod tests {
         headers.append(SET_COOKIE, HeaderValue::from_static("response=untouched"));
         super::normalize_request_cookies(&mut headers);
         assert_eq!(headers.get_all("cookie").iter().count(), 1);
-        assert_eq!(headers["cookie"], "session=abc==; other=1; lang=es; token=xyz");
+        assert_eq!(
+            headers["cookie"],
+            "session=abc==; other=1; lang=es; token=xyz"
+        );
         assert!(headers["cookie"].is_sensitive());
         assert_eq!(headers[SET_COOKIE], "response=untouched");
         super::normalize_request_cookies(&mut headers);
-        assert_eq!(headers["cookie"], "session=abc==; other=1; lang=es; token=xyz");
+        assert_eq!(
+            headers["cookie"],
+            "session=abc==; other=1; lang=es; token=xyz"
+        );
     }
 
     #[test]
@@ -1500,9 +1533,7 @@ mod tests {
             "default-src 'self'; frame-src 'self' https://*.ragenodes.app; object-src 'none'",
             "https://idms.fivem.net",
         );
-        assert!(result.contains(
-            "frame-src 'self' https://*.ragenodes.app https://idms.fivem.net"
-        ));
+        assert!(result.contains("frame-src 'self' https://*.ragenodes.app https://idms.fivem.net"));
         assert!(result.contains("object-src 'none'"));
         assert!(!result.contains("default-src 'self' https://idms.fivem.net"));
     }
@@ -1526,8 +1557,7 @@ mod tests {
         let policy = response.headers()["content-security-policy"]
             .to_str()
             .unwrap();
-        assert!(policy
-            .contains("frame-src https://*.ragenodes.app 'self' https://idms.fivem.net"));
+        assert!(policy.contains("frame-src https://*.ragenodes.app 'self' https://idms.fivem.net"));
         assert!(policy.contains("https://idms.fivem.net"));
         let frame_sources = policy
             .split(';')
