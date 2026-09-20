@@ -348,6 +348,14 @@ describe('Backend architecture boundaries', () => {
     assert.doesNotMatch(sdtd.slice(0, cloneIndex), /mkdir -p \$\{dataPath\}/);
   });
 
+  it('clones the Zomboid master before creating mutable instance directories', async () => {
+    const zomboid = await readFile(new URL('../src/services/games/zomboid.js', import.meta.url), 'utf8');
+    const cloneIndex = zomboid.indexOf("cloneFromMasterTemplate('zomboid', opts.dataPath, opts.nodeId)");
+    const mutableIndex = zomboid.indexOf('mkdir -p ${opts.dataPath}/Zomboid/mods');
+    assert.ok(cloneIndex >= 0, 'Zomboid must clone its validated master template');
+    assert.ok(mutableIndex > cloneIndex, 'Zomboid mutable state must be created after the atomic clone');
+  });
+
   it('runs the runtime anomaly monitor only from the docker-events worker', async () => {
     const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
     const scheduler = await readFile(new URL('../src/services/runtimeAnomalyScheduler.js', import.meta.url), 'utf8');

@@ -49,6 +49,60 @@ security_contracts:
   - bash scripts/security/env_loader_contract.sh
   - node --test scripts/dev/mock-server.test.mjs
 
+# Puerta técnica adicional para MRs que pretenden entrar en dev. No modifica ni
+# sustituye la matriz QA manual del equipo: valida únicamente herramientas y
+# contratos automáticos reproducibles antes de aceptar el código.
+developer_experience_gate:
+  stage: test
+  image: node:24-bookworm
+  rules:
+  - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev"'
+  cache:
+    key:
+      files:
+      - package-lock.json
+    paths:
+    - .npm-cache/
+  before_script:
+  - npm ci --ignore-scripts --cache .npm-cache
+  script:
+  - npm run test:dev
+  - node scripts/dev/cli.mjs help
+
+database_integration_gate:
+  stage: test
+  image: node:24-bookworm
+  rules:
+  - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "dev"'
+  services:
+  - name: postgres:17-alpine
+    alias: postgres
+  - name: redis:8-alpine
+    alias: redis
+  variables:
+    POSTGRES_DB: ragenodes
+    POSTGRES_USER: ragenodes
+    POSTGRES_PASSWORD: ci-placeholder
+    DATABASE_URL: postgres://ragenodes:ci-placeholder@postgres:5432/ragenodes
+    REDIS_URL: redis://redis:6379/15
+    RUN_DB_INTEGRATION: '1'
+    JWT_SECRET: ci-placeholder-not-for-production
+    NODE_ENV: test
+  cache:
+    key:
+      files:
+      - backend/package-lock.json
+    paths:
+    - backend/.npm-cache/
+  before_script:
+  - cd backend
+  - npm ci --ignore-scripts --cache .npm-cache
+  script:
+  - node scripts/wait-integration-services.mjs
+  - npm run db:migrate
+  - node --test test-integration/deploymentQueue.integration.test.js
+  - node --test test-integration/backupQueue.integration.test.js
+
 backend_tests:
   stage: test
   image: node:24-bookworm

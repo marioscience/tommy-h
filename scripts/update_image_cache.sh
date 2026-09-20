@@ -12,4 +12,5 @@ load_env_file "$ENV_FILE"
 cd "$PROJECT_ROOT"
 export PROJECT_ROOT
 export RUNTIME_DOCKER_NETWORK="${RUNTIME_DOCKER_NETWORK:-${DOCKER_NETWORK:-ragenodes_net}}"
-exec bash "$PROJECT_ROOT/scripts/ensure_base_images.sh"
+bash "$PROJECT_ROOT/scripts/ensure_base_images.sh"
+exec bash "$PROJECT_ROOT/scripts/refresh_game_templates.sh"

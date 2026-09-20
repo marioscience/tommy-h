@@ -52,6 +52,9 @@ lectura al Registry privado; el modo desde código continúa funcionando sin él
 | `./dev up data` | Solo las tres bases de datos/servicios de datos | Sin puertos públicos |
 | `./dev up proxy` | OxideProxy compilado desde código y backend real con BD | `http://localhost:18089` |
 
+`./dev start` es un alias de `./dev up` para quienes prefieran ese nombre; acepta
+los mismos componentes y no crea un flujo alternativo.
+
 El frontend actual es HTML/JavaScript: editar `frontend/public` y refrescar basta.
 No se presupone React/Vite ni se modifica la rama de frontend de otros autores.
 El backend usa `node --watch`: editar `backend/src` reinicia el proceso. Cambiar
@@ -166,6 +169,81 @@ Las rutas no cubiertas devuelven **501** explícito: al desarrollar otra pantall
 añade su fixture con la forma de respuesta de la ruta real y prueba ambas.
 La simulación se reinicia al reiniciar su proceso.
 
+## Puerta local antes de abrir un merge request
+
+Ejecuta la suite correspondiente al componente modificado. `all` es la opción
+recomendada antes de solicitar integración en `dev`:
+
+```bash
+./dev test frontend
+./dev test backend
+./dev test proxy
+./dev test all
+```
+
+La puerta combina contratos de la herramienta local con las pruebas del
+componente. No despliega en ningún entorno y no utiliza credenciales compartidas.
+Si `cargo` no está instalado, la prueba de OxideProxy utiliza automáticamente el
+toolchain Rust fijado dentro de Docker; un desarrollador de frontend no necesita
+instalar Rust en su sistema.
+GitLab repite automáticamente los contratos portables y las integraciones reales
+de PostgreSQL y Redis en cada merge request cuyo destino sea `dev`. Las pruebas ya
+existentes de backend, OxideProxy, seguridad y Compose continúan siendo obligatorias.
+
+Después de iniciar un perfil, comprueba también sus dependencias reales:
+
+```bash
+./dev up frontend
+./dev verify frontend
+
+./dev up core
+./dev verify core
+```
+
+`verify frontend` comprueba el servidor simulado y su identidad. `verify core`
+comprueba contenedores, `/healthz`, `/readyz`, migraciones, PostgreSQL, Redis y
+MariaDB. El informe termina explícitamente en **apto** o devuelve un código de
+error, por lo que puede utilizarse desde otro editor o automatización.
+
+## Comprobar un servidor de juego
+
+La comprobación usa GameDig mediante un adaptador propio, de modo que la salida es
+estable aunque cambie la biblioteca. No instala ni modifica el juego o el servidor.
+Cada persona proporciona el host de su laboratorio; no hay IP, usuario ni ruta
+predefinidos en el repositorio.
+
+```bash
+export GAME_SMOKE_HOST=servidor-de-pruebas.example
+export GAME_SMOKE_PORT=25565             # opcional
+export GAME_SMOKE_QUERY_PORT=25565       # opcional, si es diferente
+export GAME_SMOKE_TIMEOUT_MS=8000        # opcional
+./dev game-smoke minecraft
+```
+
+Perfiles disponibles: `minecraft`, `fivem`, `rust`, `palworld`, `ark`, `cs2`,
+`7dtd`, `valheim` y `zomboid`. Si un juego usa una configuración no estándar,
+se puede establecer `GAME_SMOKE_TYPE` sin modificar código. Una consulta correcta
+confirma el protocolo público, nombre, mapa y jugadores que el servidor publique;
+no sustituye una sesión real dentro del juego.
+
+Estas comprobaciones constituyen **QA técnica automática** y deliberadamente no
+modifican `docs/qa`, sus playbooks ni el sincronizador creado por el otro equipo.
+En el futuro esa automatización puede consumir el JSON del comando y adjuntarlo a
+su proceso si sus responsables consideran conveniente integrarlo.
+
+## Detener y limpiar sin sorpresas
+
+```bash
+./dev stop backend    # detiene un componente y conserva datos
+./dev down            # detiene todo y conserva los volúmenes
+./dev clean --confirm # elimina solo los volúmenes del proyecto local actual
+```
+
+`clean` exige la confirmación literal, conserva `.env.development` y se limita al
+`DEV_PROJECT_NAME` de esa copia. No actúa sobre otros clones, staging, producción
+ni contenedores ajenos. Úsalo cuando necesites comprobar una instalación realmente
+nueva, nunca como solución automática ante un error.
+
 ## Logs y diagnóstico
 
 ```bash
@@ -198,7 +276,8 @@ del servicio; no elimina datos ni intenta reparar automáticamente el sistema.
   disponible del daemon puede ser menor que la RAM física y debe cubrir las reservas
   de todos los servicios; no desactives los límites de producción para desarrollar.
 
-`down` conserva las bases de datos. No hay borrado automático ni `reset` destructivo.
+`down` conserva las bases de datos. No existe un `reset` ambiguo; la única limpieza
+destructiva es `clean --confirm`, limitada a los volúmenes locales del proyecto.
 Para pruebas con juegos reales, workers, DNS o certificados usa el stack completo
 documentado en README con `.env.local.example`, directorios y socket locales.
 El entorno ligero no cambia esas configuraciones ni instala un nodo real simulado
