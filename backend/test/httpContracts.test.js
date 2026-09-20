@@ -3,11 +3,32 @@ import assert from 'node:assert/strict';
 import authRouter from '../src/routes/auth.js';
 import adminNodesRouter from '../src/routes/adminNodes.js';
 import serverRouter from '../src/routes/servers.js';
+import filesRouter from '../src/routes/files.js';
 
 function handler(router, method, path) {
   const layer = router.stack.find((candidate) => candidate.route?.path === path && candidate.route.methods[method]);
   assert.ok(layer, `missing ${method.toUpperCase()} ${path}`);
   return layer.route.stack.at(-1).handle;
+}
+
+async function invokeRoute(router, method, path, req, res) {
+  const layer = router.stack.find((candidate) => candidate.route?.path === path && candidate.route.methods[method]);
+  assert.ok(layer, `missing ${method.toUpperCase()} ${path}`);
+  let index = 0;
+  const next = async (error) => {
+    if (error) throw error;
+    const entry = layer.route.stack[index++];
+    if (entry) return entry.handle(req, res, next);
+  };
+  return next();
+}
+
+function invokeContract(router, method, path, req, res) {
+  const layer = router.stack.find((candidate) => candidate.route?.path === path && candidate.route.methods[method]);
+  assert.ok(layer, `missing ${method.toUpperCase()} ${path}`);
+  const middleware = layer.route.stack.find((entry) => entry.handle.name === 'requestContractMiddleware');
+  assert.ok(middleware, `missing request contract for ${method.toUpperCase()} ${path}`);
+  return middleware.handle(req, res, () => {});
 }
 
 function responseRecorder() {
@@ -23,9 +44,37 @@ function responseRecorder() {
 describe('Critical HTTP contracts', () => {
   it('rejects malformed login credentials with 401 and the stable public error', async () => {
     const res = responseRecorder();
-    await handler(authRouter, 'post', '/login')({ body: { username: '', password: '' } }, res);
+    await invokeRoute(authRouter, 'post', '/login', { body: { username: '', password: '' } }, res);
     assert.equal(res.statusCode, 401);
     assert.deepEqual(res.payload, { error: 'Credenciales inválidas' });
+  });
+
+  it('rejects malformed deployment payloads before infrastructure is called', async () => {
+    const res = responseRecorder();
+    await invokeRoute(serverRouter, 'post', '/', {
+      body: { template: '../rust', allocatedRamGb: -1 },
+      user: { sub: 1, role: 'client' },
+      get: () => ''
+    }, res);
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.payload, { error: 'Datos de solicitud inválidos.' });
+  });
+
+  it('normalizes shared deployment values while preserving adapter options', async () => {
+    const route = serverRouter.stack.find((candidate) => candidate.route?.path === '/' && candidate.route.methods.post);
+    const middleware = route.route.stack[0].handle;
+    const req = {
+      body: { template: 'rust', allocatedRamGb: '8', nodeId: '2', customAdapterFlag: true }
+    };
+    let continued = false;
+    middleware(req, responseRecorder(), () => { continued = true; });
+    assert.equal(continued, true);
+    assert.deepEqual(req.body, {
+      template: 'rust',
+      allocatedRamGb: 8,
+      nodeId: 2,
+      customAdapterFlag: true
+    });
   });
 
   it('rejects incomplete node creation before touching infrastructure', async () => {
@@ -40,5 +89,89 @@ describe('Critical HTTP contracts', () => {
     await handler(serverRouter, 'post', '/:id/backup-time')({ body: {}, params: { id: 'server' }, user: { sub: 1, role: 'client' } }, res);
     assert.equal(res.statusCode, 400);
     assert.deepEqual(res.payload, { error: 'Falta el campo time' });
+  });
+
+  it('rejects backup restore paths before touching storage', async () => {
+    const res = responseRecorder();
+    await invokeRoute(serverRouter, 'post', '/:id/backups/restore', {
+      body: { filename: '../../backup.tar.gz' },
+      params: { id: '00000000-0000-4000-8000-000000000000' },
+      user: { sub: 1, role: 'client' }
+    }, res);
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.payload, { error: 'Nombre de backup inválido.' });
+  });
+
+  it('rejects invalid console commands before Docker lookup', async () => {
+    const res = responseRecorder();
+    await invokeRoute(serverRouter, 'post', '/:id/command', {
+      body: { command: 'x'.repeat(257) },
+      params: { id: 'server' },
+      user: { sub: 1, role: 'client' }
+    }, res);
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.payload, { error: 'Comando inválido.' });
+  });
+
+  it('rejects unsupported subuser permissions at the HTTP boundary', async () => {
+    const res = responseRecorder();
+    await invokeRoute(serverRouter, 'post', '/:id/subusers', {
+      body: { usernameOrEmail: 'operator', permissions: ['root'] },
+      params: { id: 'server' },
+      user: { sub: 1, role: 'client' }
+    }, res);
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.payload, { error: 'Datos de solicitud inválidos.' });
+  });
+
+  it('requires a valid time when automatic restart is enabled', async () => {
+    const res = responseRecorder();
+    await invokeRoute(serverRouter, 'post', '/:id/auto-restart', {
+      body: { enabled: true },
+      params: { id: 'server' },
+      user: { sub: 1, role: 'client' }
+    }, res);
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.payload, { error: 'Datos de solicitud inválidos.' });
+  });
+
+  it('rejects unknown file actions before filesystem access', async () => {
+    const res = responseRecorder();
+    invokeContract(filesRouter, 'post', '/action', {
+      body: { serverId: 'server', path: '/data', action: 'chmod' },
+      user: { sub: 1, role: 'client' }
+    }, res);
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.payload, { error: 'Datos de solicitud inválidos.' });
+  });
+
+  it('requires rename targets to be plain filenames', async () => {
+    const res = responseRecorder();
+    invokeContract(filesRouter, 'post', '/action', {
+      body: { serverId: 'server', path: '/old', action: 'rename', newName: '../escape' },
+      user: { sub: 1, role: 'client' }
+    }, res);
+    assert.equal(res.statusCode, 400);
+  });
+
+  it('rejects malformed chunk manifests before reading temporary files', async () => {
+    const res = responseRecorder();
+    invokeContract(filesRouter, 'post', '/upload-finish', {
+      body: {
+        uploadId: '../../shared', totalChunks: -1, serverId: 'server',
+        path: '/', fileName: '../payload', totalSize: -1
+      },
+      user: { sub: 1, role: 'client' }
+    }, res);
+    assert.equal(res.statusCode, 400);
+  });
+
+  it('rejects remote download paths disguised as filenames', async () => {
+    const res = responseRecorder();
+    invokeContract(filesRouter, 'post', '/download-remote', {
+      body: { serverId: 'server', path: '/', url: 'https://example.com/file', fileName: '../file' },
+      user: { sub: 1, role: 'client' }
+    }, res);
+    assert.equal(res.statusCode, 400);
   });
 });

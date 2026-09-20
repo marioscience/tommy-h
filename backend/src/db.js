@@ -111,7 +111,7 @@ redisClient.on('error', (err) => {
 let isRedisConnecting = false;
 let redisDisabledUntil = 0;
 
-async function ensureRedis() {
+export async function ensureRedis() {
   if (Date.now() < redisDisabledUntil) return;
   if (!redisClient.isOpen && !isRedisConnecting && process.env.NODE_ENV !== 'test') {
     isRedisConnecting = true;
