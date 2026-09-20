@@ -3,6 +3,7 @@ Description=Refresh RageNodes master game images daily
 
 [Timer]
 OnCalendar=*-*-* 04:15:00
+OnBootSec=5m
 RandomizedDelaySec=30m
 Persistent=true
 Unit=ragenodes-image-cache.service
