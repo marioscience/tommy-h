@@ -24,6 +24,8 @@ import {
   setVerificationToken,
   updateUserEmailVerification
 } from '../repositories/userRepository.js';
+import { loginRequest, registerRequest } from '../contracts/requestContracts.js';
+import { validateRequest } from '../middleware/validateRequest.js';
 
 const router = express.Router();
 const DUMMY_PASSWORD_HASH = '$2a$12$83WzC23z2J7aw0o4AfUZG.kauDaz2kmF.y1QAbYMNgDG6IqYAMuDy';
@@ -43,12 +45,8 @@ function isValidPassword(value) {
 // ==========================================
 // 🟢 LOGIN
 // ==========================================
-router.post('/login', async (req, res) => {
-  const { username, password } = req.body || {};
-  const identifier = String(username || '').trim();
-  if (!identifier || typeof password !== 'string' || password.length > 128) {
-    return res.status(401).json({ error: 'Credenciales inválidas' });
-  }
+router.post('/login', validateRequest(loginRequest, { status: 401, error: 'Credenciales inválidas' }), async (req, res) => {
+  const { username: identifier, password } = req.body;
 
   const user = await findUserByLogin(identifier);
   const passwordMatches = await bcrypt.compare(password, user?.password_hash || DUMMY_PASSWORD_HASH);
@@ -70,12 +68,8 @@ router.post('/logout', (_req, res) => {
 // ==========================================
 // 🟢 REGISTRO (CON BETA KEY)
 // ==========================================
-router.post('/register', async (req, res) => {
-  const { username, email, password, inviteKey } = req.body || {};
-  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
-  if (!isValidUsername(username) || (normalizedEmail && !isValidEmail(normalizedEmail)) || !isValidPassword(password) || typeof inviteKey !== 'string' || inviteKey.length > 128) {
-    return res.status(400).json({ error: 'Datos de registro inválidos.' });
-  }
+router.post('/register', validateRequest(registerRequest, { error: 'Datos de registro inválidos.' }), async (req, res) => {
+  const { username, email: normalizedEmail, password, inviteKey } = req.body;
 
   const hash = await bcrypt.hash(password, 12);
   const expiresAt = new Date();

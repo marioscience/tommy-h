@@ -365,6 +365,14 @@ describe('Backend architecture boundaries', () => {
     assert.match(scheduler, /scanRuntimeAnomalies\(\)/);
   });
 
+  it('keeps recursive disk scans out of customer read requests', async () => {
+    const service = await readFile(new URL('../src/services/serverService.js', import.meta.url), 'utf8');
+    const worker = await readFile(new URL('../src/worker.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(service, /getFolderSize/);
+    assert.match(service, /getCachedDiskUsage/);
+    assert.match(worker, /case 'worker-stats':[\s\S]*startDiskUsageCollector\(\)/);
+  });
+
   it('does not recreate a server while its initial installation is active', async () => {
     const control = await readFile(new URL('../src/services/serverControlService.js', import.meta.url), 'utf8');
     assert.match(control, /\['creating', 'recreating'\]\.includes\(server\.status\)/);

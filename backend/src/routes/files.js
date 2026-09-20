@@ -10,6 +10,18 @@ import { getServerByIdForUser } from '../services/serverService.js';
 import { rustUtil } from '../utils/rustUtil.js';
 import { withServerDataAccess } from '../services/serverDataAccessService.js';
 import {
+    fileActionRequest,
+    fileWriteRequest,
+    remoteDownloadRequest,
+    uploadFinishRequest
+} from '../contracts/requestContracts.js';
+import { validateRequest } from '../middleware/validateRequest.js';
+import {
+    cleanupChunkUpload,
+    storeUploadChunk,
+    validateChunkUpload
+} from '../services/chunkUploadService.js';
+import {
     activeDownloads,
     storageCache,
     getSafePath,
@@ -65,7 +77,7 @@ router.get('/read', requireAuth, async (req, res) => {
     } catch(e) { res.status(500).json({error: `Error de lectura: ${e.message}`}); }
 });
 
-router.put('/write', requireAuth, async (req, res) => {
+router.put('/write', requireAuth, validateRequest(fileWriteRequest), async (req, res) => {
     const row = await getServerByIdForUser(req.body.serverId, req.user.sub, req.user.role === 'admin', 'files');
     if (!row) return res.status(404).json({ error: 'No encontrado' });
     try {
@@ -83,7 +95,7 @@ router.put('/write', requireAuth, async (req, res) => {
     }
 });
 
-router.post('/action', requireAuth, async (req, res) => {
+router.post('/action', requireAuth, validateRequest(fileActionRequest), async (req, res) => {
     const row = await getServerByIdForUser(req.body.serverId, req.user.sub, req.user.role === 'admin', 'files');
     if (!row) return res.status(404).json({ error: 'No encontrado' });
     try {
@@ -170,16 +182,20 @@ router.post('/upload-chunk', requireAuth, upload.single('file'), async (req, res
     if (!uploadId || chunkIndex === undefined) return res.status(400).json({error: "Faltan parametros de chunk"});
     
     try {
-        const chunkPath = path.join('/tmp/ragenodes_uploads', `${uploadId}.part${chunkIndex}`);
-        await fsPromises.rename(req.file.path, chunkPath);
+        await storeUploadChunk({
+            temporaryPath: req.file.path,
+            uploadId,
+            chunkIndex,
+            userId: req.user.sub
+        });
         res.json({ success: true });
     } catch(e) {
         await fsPromises.unlink(req.file.path).catch(()=>{});
-        res.status(500).json({error: e.message || "Error subiendo chunk."});
+        res.status(400).json({error: e.message || "Error subiendo chunk."});
     }
 });
 
-router.post('/upload-finish', requireAuth, async (req, res) => {
+router.post('/upload-finish', requireAuth, validateRequest(uploadFinishRequest), async (req, res) => {
     const { uploadId, totalChunks, serverId, path: destPath, fileName, totalSize } = req.body;
     
     const row = await getServerByIdForUser(serverId, req.user.sub, req.user.role === 'admin', 'files');
@@ -187,6 +203,7 @@ router.post('/upload-finish', requireAuth, async (req, res) => {
 
     try {
         if (totalSize) await checkStorageLimit(row, Number(totalSize));
+        const chunkPaths = await validateChunkUpload({ uploadId, totalChunks, totalSize, userId: req.user.sub });
 
         const targetPath = getSafePath(row.data_path, destPath);
         const finalPath = getSafePath(path.dirname(targetPath), fileName);
@@ -201,8 +218,7 @@ router.post('/upload-finish', requireAuth, async (req, res) => {
 
         const writeStream = createWriteStream(finalPath, { flags: 'w' });
         
-        for (let i = 0; i < totalChunks; i++) {
-            const chunkPath = path.join('/tmp/ragenodes_uploads', `${uploadId}.part${i}`);
+        for (const chunkPath of chunkPaths) {
             const data = await fsPromises.readFile(chunkPath);
             writeStream.write(data);
             await fsPromises.unlink(chunkPath).catch(()=>{}); 
@@ -214,11 +230,10 @@ router.post('/upload-finish', requireAuth, async (req, res) => {
             writeStream.on('error', reject);
         });
 
+        await cleanupChunkUpload(uploadId, totalChunks, { userId: req.user.sub });
         res.json({ success: true });
     } catch(e) {
-        for (let i = 0; i < totalChunks; i++) {
-            await fsPromises.unlink(path.join('/tmp/ragenodes_uploads', `${uploadId}.part${i}`)).catch(()=>{});
-        }
+        await cleanupChunkUpload(uploadId, totalChunks, { userId: req.user.sub }).catch(() => {});
         res.status(500).json({error: e.message || "Error finalizando subida."});
     }
 });
@@ -282,15 +297,11 @@ router.get('/download-status', requireAuth, async (req, res) => {
     res.json({ tasks });
 });
 
-router.post('/download-remote', requireAuth, async (req, res) => {
+router.post('/download-remote', requireAuth, validateRequest(remoteDownloadRequest), async (req, res) => {
     const row = await getServerByIdForUser(req.body.serverId, req.user.sub, req.user.role === 'admin', 'files');
     if (!row) return res.status(404).json({ error: 'No encontrado' });
 
     try {
-        if (!req.body.url || !req.body.fileName) {
-            return res.status(400).json({ error: 'URL y nombre de archivo son obligatorios.' });
-        }
-
         await validateRemoteTargetUrl(req.body.url);
 
         const targetDir = getSafePath(row.data_path, req.body.path || '/');

@@ -1,5 +1,4 @@
 import { existsSync } from 'fs';
-import { getFolderSize } from './serverNodeSelection.js';
 import path from 'path';
 import { config, PLAN_LIMITS, generateSecurePassword } from '../config.js';
 import * as Docker from './dockerService.js';
@@ -12,6 +11,7 @@ import {
   listServerStatsHistory,
   updateServerDatabaseCredentials
 } from '../repositories/serverRepository.js';
+import { getCachedDiskUsage } from './diskUsageService.js';
 
 export const repairBackoffCache = new Map();
 const MAX_REPAIRS_PER_HOUR = 3;
@@ -92,7 +92,8 @@ export async function getServersForUser(userId, isAdmin = false) {
              Docker.resolveContainerState(`ragenodes-blender-${shortId}`),
              Docker.resolveContainerState(s.container_name),
          ]);
-         const usedDiskBytes = await getFolderSize(s.data_path);
+         const diskUsage = await getCachedDiskUsage(s.id);
+         const usedDiskBytes = diskUsage.bytes;
 
          s.blender_status = bState.running ? 'running' : 'stopped';
          let hasIcon = false;
@@ -127,8 +128,10 @@ export async function getServersForUser(userId, isAdmin = false) {
              s.stats = await Docker.getContainerStats(s.container_name);
              s.stats.disk = diskPercent;
              s.stats.diskGb = diskGb;
+             s.stats.diskUpdatedAt = diskUsage.updatedAt;
+             s.stats.diskPending = diskUsage.pending;
          } else {
-             s.stats = { cpu: 0, ram: 0, ramGb: 0, disk: diskPercent, diskGb: diskGb };
+             s.stats = { cpu: 0, ram: 0, ramGb: 0, disk: diskPercent, diskGb, diskUpdatedAt: diskUsage.updatedAt, diskPending: diskUsage.pending };
          }
       }));
   }
@@ -168,7 +171,8 @@ export async function getServerDetails(id, userId, isAdmin) {
 
   const state = await Docker.resolveContainerState(s.container_name);
   s.status = !state.exists ? 'missing' : (state.running ? 'running' : 'stopped');
-  const usedDiskBytes = await getFolderSize(s.data_path);
+  const diskUsage = await getCachedDiskUsage(s.id);
+  const usedDiskBytes = diskUsage.bytes;
   const plan = PLANS[s.runtime_plan] || PLANS.hobby;
   const maxDisk = (plan.diskBytes || (20 * 1024 ** 3)) + ((s.extra_disk_gb || 0) * 1024 ** 3);
   const diskPercent = Math.min(((usedDiskBytes / maxDisk) * 100), 100);
@@ -178,8 +182,10 @@ export async function getServerDetails(id, userId, isAdmin) {
       s.stats = await Docker.getContainerStats(s.container_name);
       s.stats.disk = diskPercent;
       s.stats.diskGb = diskGb;
+      s.stats.diskUpdatedAt = diskUsage.updatedAt;
+      s.stats.diskPending = diskUsage.pending;
   } else {
-      s.stats = { cpu: 0, ram: 0, ramGb: 0, disk: diskPercent, diskGb: diskGb };
+      s.stats = { cpu: 0, ram: 0, ramGb: 0, disk: diskPercent, diskGb, diskUpdatedAt: diskUsage.updatedAt, diskPending: diskUsage.pending };
   }
 
   const bState = await Docker.resolveContainerState(`ragenodes-blender-${s.id.slice(0,8)}`);
