@@ -354,6 +354,8 @@ describe('Backend architecture boundaries', () => {
     const mutableIndex = zomboid.indexOf('mkdir -p ${opts.dataPath}/Zomboid/mods');
     assert.ok(cloneIndex >= 0, 'Zomboid must clone its validated master template');
     assert.ok(mutableIndex > cloneIndex, 'Zomboid mutable state must be created after the atomic clone');
+    assert.match(zomboid, /if \(!templateApplied\)/);
+    assert.match(zomboid, /se detuvo antes de crear un contenedor incompleto/);
   });
 
   it('runs the runtime anomaly monitor only from the docker-events worker', async () => {
