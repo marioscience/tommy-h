@@ -42,6 +42,7 @@ const files = Object.fromEntries(await Promise.all([
   'oxideproxy/src/access_gate.rs',
   'oxideproxy/src/pipeline/mod.rs',
   'oxideproxy/src/pipeline/http_server.rs',
+  'oxideproxy/src/pipeline/api_backend_pool.rs',
   'oxideproxy/node_panel/server.js',
   'oxideproxy/node_panel/Dockerfile',
   'oxideproxy/node_panel/routeReconciliation.js',
@@ -63,6 +64,12 @@ const files = Object.fromEntries(await Promise.all([
   'scripts/security/production_preflight.sh',
   'scripts/security/install_rootless_delegation.sh',
   'ops/systemd/ragenodes-rootless-delegation.conf',
+  'ops/systemd/ragenodes-backend-autoscaler.service',
+  'ops/systemd/ragenodes-backend-autoscaler.timer',
+  'scripts/deploy/backend_autoscaler.mjs',
+  'scripts/deploy/backend_autoscaler.integration.sh',
+  'backend/src/server.js',
+  'backend/src/services/distributedRateLimitStore.js',
   'ops/systemd/ragenodes-image-cache.service',
   'ops/systemd/ragenodes-image-cache.timer'
 ].map(async (file) => [file, await fs.readFile(file, 'utf8')])));
@@ -327,6 +334,16 @@ assert(files['deploy.sh'].includes('--scale backend="$BACKEND_REPLICAS"'), 'prod
 assert(!/backend:[\s\S]*?ports:\s*\n\s*- "127\.0\.0\.1:\$\{HOST_BIND_BACKEND_PORT/.test(files['docker-compose.yml']), 'production backend replicas do not contend for a fixed host port');
 assert(files['docker-compose.yml'].includes('OXIDE_XDP_OWNER=true') && files['docker-compose.yml'].includes('OXIDE_XDP_OWNER=false'), 'production assigns exactly one explicit XDP owner');
 assert(files['oxideproxy/src/pipeline/http_server.rs'].includes('shared_api_backend_pool'), 'OxideProxy distributes API traffic through its native backend pool');
+assert(files['oxideproxy/src/pipeline/api_backend_pool.rs'].includes('keep_stale_or_fail'), 'OxideProxy retains healthy API routes during transient Docker DNS failures');
+assert(files['.env.example'].includes('BACKEND_AUTOSCALE_ENABLED=false'), 'backend autoscaling is fail-closed by default');
+assert(files['backend/src/server.js'].includes("isLoopbackAddress(req.socket.remoteAddress)"), 'autoscaling telemetry remains private to container loopback');
+assert(files['backend/src/server.js'].includes("process.once('SIGTERM'"), 'backend replicas drain HTTP traffic during scale-down');
+assert(files['backend/src/services/distributedRateLimitStore.js'].includes('ragenodes:ratelimit:'), 'backend replicas share security rate limits through Redis');
+assert(files['scripts/deploy/backend_autoscaler.mjs'].includes('evaluation-already-running'), 'autoscaling evaluations cannot overlap');
+assert(files['scripts/deploy/backend_autoscaler.mjs'].includes('waitForHealthyReplicas'), 'autoscaling verifies replica health after a topology change');
+assert(files['scripts/deploy/backend_autoscaler.integration.sh'].includes('mktemp -d'), 'autoscaling integration test uses an isolated temporary project');
+assert(files['ops/systemd/ragenodes-backend-autoscaler.service'].includes('NoNewPrivileges=true'), 'autoscaler systemd service cannot gain privileges');
+assert(files['ops/systemd/ragenodes-backend-autoscaler.timer'].includes('OnUnitActiveSec=30s'), 'autoscaler uses a bounded periodic evaluation');
 
 assert(files['docker-compose.yml'].includes('oxide_game_runtime_init:'), 'production declares an isolated OxideProxy runtime initializer');
 assert(files['docker-compose.staging.yml'].includes('oxide_game_runtime_init_staging:'), 'staging declares an isolated OxideProxy runtime initializer');

@@ -1,0 +1,13 @@
+[Unit]
+Description=Evaluate RageNodes backend capacity every 30 seconds
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=30s
+AccuracySec=2s
+RandomizedDelaySec=3s
+Persistent=true
+Unit=ragenodes-backend-autoscaler.service
+
+[Install]
+WantedBy=timers.target

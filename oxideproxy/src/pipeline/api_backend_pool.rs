@@ -92,15 +92,28 @@ impl ApiBackendPool {
             return Ok(());
         }
 
-        let mut resolved: Vec<_> = lookup_host(&self.target)
+        let lookup = lookup_host(&self.target)
             .await
-            .map_err(|error| format!("no se pudo resolver {}: {error}", self.target))?
-            .collect();
+            .map(|addresses| addresses.collect::<Vec<_>>())
+            .map_err(|error| format!("no se pudo resolver {}: {error}", self.target));
+        self.apply_resolution(lookup).await
+    }
+
+    async fn apply_resolution(
+        &self,
+        lookup: Result<Vec<SocketAddr>, String>,
+    ) -> Result<(), String> {
+        let mut resolved = match lookup {
+            Ok(addresses) if !addresses.is_empty() => addresses,
+            Ok(_) => {
+                return self
+                    .keep_stale_or_fail(format!("{} no resolvió miembros", self.target))
+                    .await
+            }
+            Err(error) => return self.keep_stale_or_fail(error).await,
+        };
         resolved.sort_unstable();
         resolved.dedup();
-        if resolved.is_empty() {
-            return Err(format!("{} no resolvió miembros", self.target));
-        }
 
         let mut state = self.state.write().await;
         state.addresses = resolved;
@@ -109,6 +122,20 @@ impl ApiBackendPool {
         state
             .failed_until
             .retain(|address, _| active_addresses.contains(address));
+        Ok(())
+    }
+
+    async fn keep_stale_or_fail(&self, error: String) -> Result<(), String> {
+        let mut state = self.state.write().await;
+        if state.addresses.is_empty() {
+            return Err(error);
+        }
+        state.resolved_at = Some(Instant::now());
+        tracing::warn!(
+            target = %self.target,
+            error = %error,
+            "Docker DNS falló; conservando el último conjunto de réplicas API válido"
+        );
         Ok(())
     }
 }
@@ -154,5 +181,36 @@ mod tests {
         pool.mark_healthy(first).await;
         assert_eq!(pool.select().await.unwrap(), second);
         assert_eq!(pool.select().await.unwrap(), first);
+    }
+
+    #[tokio::test]
+    async fn retains_last_known_members_during_a_transient_dns_failure() {
+        let address: SocketAddr = "127.0.0.1:3006".parse().unwrap();
+        let pool = ApiBackendPool::new(
+            "backend:3006".into(),
+            Duration::from_secs(5),
+            Duration::from_secs(5),
+        );
+        pool.apply_resolution(Ok(vec![address])).await.unwrap();
+        pool.apply_resolution(Err("temporary DNS failure".into()))
+            .await
+            .unwrap();
+
+        let state = pool.state.read().await;
+        assert_eq!(state.addresses, vec![address]);
+        assert!(state.resolved_at.is_some());
+    }
+
+    #[tokio::test]
+    async fn fails_closed_when_dns_has_never_produced_a_member() {
+        let pool = ApiBackendPool::new(
+            "backend:3006".into(),
+            Duration::from_secs(5),
+            Duration::from_secs(5),
+        );
+        assert!(pool
+            .apply_resolution(Err("DNS unavailable".into()))
+            .await
+            .is_err());
     }
 }
