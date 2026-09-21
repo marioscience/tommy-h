@@ -15,6 +15,7 @@ function toggleSidebar() {
         function showToast(message, type = 'success', options = {}) {
             window.Nexus?.mirrorToast(message, type, options);
             const container = document.getElementById('toast-container');
+            if (!container) return;
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
             const icon = type === 'success' ? 'fa-check-circle' : (type === 'danger' ? 'fa-triangle-exclamation' : 'fa-info-circle');
@@ -22,6 +23,7 @@ function toggleSidebar() {
             container.appendChild(toast);
             setTimeout(() => { toast.remove(); }, 3400);
         }
+        window.showToast = showToast;
 
         function openActionModal(htmlContent, customMaxWidth = '460px') {
             const card = document.querySelector('#action-modal .card');

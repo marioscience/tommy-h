@@ -1271,6 +1271,7 @@
         function showToast(message, type = 'success', options = {}) {
             window.Nexus?.mirrorToast(message, type, options);
             const container = document.getElementById('toast-container');
+            if (!container) return;
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
             const icon = type === 'success' ? 'fa-check-circle' : (type === 'danger' ? 'fa-triangle-exclamation' : (type === 'warning' ? 'fa-circle-exclamation' : 'fa-info-circle'));
@@ -1278,6 +1279,7 @@
             container.appendChild(toast);
             setTimeout(() => { toast.remove(); }, 3400);
         }
+        window.showToast = showToast;
 
         const PATTERN = ['shield', 'bolt', 'key'];
         const POOL = [{id:'shield',icon:'fa-shield-halved'},{id:'bolt',icon:'fa-bolt'},{id:'key',icon:'fa-key'},{id:'fire',icon:'fa-fire'},{id:'heart',icon:'fa-heart'},{id:'cloud',icon:'fa-cloud'},{id:'moon',icon:'fa-moon'},{id:'star',icon:'fa-star'},{id:'eye',icon:'fa-eye'}];

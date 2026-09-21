@@ -20,6 +20,7 @@
     "security:txadmin-launcher": "node scripts/security/txadmin_launcher_contract.mjs",
     "security:secrets": "node scripts/security/secret_contract.mjs",
     "security:deployment": "node scripts/security/deployment_contract.mjs",
+    "security:toast-mirror": "node scripts/security/toast_mirror_contract.mjs",
     "security:migrate-dynamic-handlers": "node scripts/security/migrate_dynamic_template_handlers.mjs",
     "security:migrate-privileged-handlers": "node scripts/security/migrate_privileged_handlers.mjs",
     "security:migrate-public-handlers": "node scripts/security/migrate_public_handlers.mjs",
