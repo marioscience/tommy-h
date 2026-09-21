@@ -29,7 +29,7 @@ test('permite un arranque con margen fisico suficiente', () => {
 
 test('acota configuraciones de sobreasignacion peligrosas', () => {
   assert.deepEqual(
-    getNodeRamPolicy({ NODE_RAM_OVERCOMMIT_RATIO: '9', NODE_HOST_RAM_RESERVE_GB: '1' }),
+    getNodeRamPolicy({ NODE_ENV: 'production', NODE_RAM_OVERCOMMIT_RATIO: '9', NODE_HOST_RAM_RESERVE_GB: '1' }),
     { overcommitRatio: 2, hostReserveGb: 4 }
   );
 });

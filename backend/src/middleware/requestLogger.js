@@ -1,4 +1,4 @@
-﻿import crypto from 'crypto';
+import crypto from 'crypto';
 import { logger } from '../utils/logger.js';
 import { config } from '../config.js';
 
@@ -23,18 +23,21 @@ export function requestLogger(req, res, next) {
   req.log = logger.child({ reqId, path: req.path, method: req.method });
 
   const startAt = process.hrtime.bigint();
-  const originalJson = res.json.bind(res);
+  res.locals = res.locals || {};
 
-  res.json = (body) => {
-      if (body && typeof body === 'object') {
-        if (body.error) {
-          res.locals.errorMessage = typeof body.error === 'string' ? body.error : JSON.stringify(body.error);
-        } else if (body.message && res.statusCode >= 400) {
-          res.locals.errorMessage = typeof body.message === 'string' ? body.message : JSON.stringify(body.message);
+  if (typeof res.json === 'function') {
+    const originalJson = res.json.bind(res);
+    res.json = (body) => {
+        if (body && typeof body === 'object') {
+          if (body.error) {
+            res.locals.errorMessage = typeof body.error === 'string' ? body.error : JSON.stringify(body.error);
+          } else if (body.message && res.statusCode >= 400) {
+            res.locals.errorMessage = typeof body.message === 'string' ? body.message : JSON.stringify(body.message);
+          }
         }
-      }
-      return originalJson(body);
+        return originalJson(body);
     };
+  }
 
   // 3. Registrar al completar la respuesta HTTP
   res.on('finish', () => {

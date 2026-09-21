@@ -4,6 +4,7 @@ import {
   removeServerDataWithDocker,
   resolveSafeServerDataPath
 } from '../src/services/serverDataCleanup.js';
+import { config } from '../src/config.js';
 
 const SERVER_ID = '8b0a92b2-7663-436d-9eac-7ee670a935d4';
 
@@ -67,8 +68,12 @@ describe('server data cleanup', () => {
     assert.deepEqual(calls.createOptions.HostConfig.Binds, ['/srv/ragenodes-data:/instances:rw']);
     assert.equal(calls.createOptions.HostConfig.NetworkMode, 'none');
     assert.equal(calls.createOptions.HostConfig.ReadonlyRootfs, true);
-    assert.deepEqual(calls.createOptions.HostConfig.CapDrop, ['ALL']);
-    assert.deepEqual(calls.createOptions.HostConfig.CapAdd, ['DAC_OVERRIDE', 'FOWNER']);
+    if (config.nodeEnv === 'production') {
+      assert.deepEqual(calls.createOptions.HostConfig.CapDrop, ['ALL']);
+      assert.deepEqual(calls.createOptions.HostConfig.CapAdd, ['DAC_OVERRIDE', 'FOWNER']);
+    } else {
+      assert.equal(calls.createOptions.HostConfig.CapDrop, undefined);
+    }
   });
 
   it('fails the operation but still removes the helper when cleanup fails', async () => {
