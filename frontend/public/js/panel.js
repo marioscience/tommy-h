@@ -1780,6 +1780,32 @@ function toggleSidebar() {
                 const ramPct = calcRamPct > 100 ? 100 : calcRamPct.toFixed(1);
                 const diskPct = calcDiskPct > 100 ? 100 : calcDiskPct.toFixed(1);
 
+                let instanceCores = maxCores;
+                if (s.cpuset) {
+                    try {
+                        const parts = s.cpuset.toString().split(',');
+                        let cores = 0;
+                        for (const part of parts) {
+                            if (part.includes('-')) {
+                                const [start, end] = part.split('-');
+                                cores += (parseInt(end) - parseInt(start) + 1);
+                            } else {
+                                cores += 1;
+                            }
+                        }
+                        if (cores > 0) instanceCores = cores;
+                    } catch(e) {
+                        console.error('Error parsing cpuset:', e);
+                    }
+                }
+                const instanceRam = s.allocated_ram_gb > 0 ? parseFloat(s.allocated_ram_gb) : maxRam;
+
+                let calcInstCpuPct = rawCpu / instanceCores;
+                const instCpuPct = calcInstCpuPct > 100 ? 100 : calcInstCpuPct.toFixed(1);
+
+                let calcInstRamPct = (ramUsedVal / instanceRam) * 100;
+                const instRamPct = calcInstRamPct > 100 ? 100 : calcInstRamPct.toFixed(1);
+
                 const ramText = `${maxRam} GB`;
                 const diskText = `${maxDisk} GB`;
                 const cpuText = `${maxCores} vCPU`;
@@ -2004,26 +2030,28 @@ function toggleSidebar() {
                         const liveView = container.querySelector('#stats-live-view');
                         const updateRing = (type, pct, abs) => {
                             if (!liveView) return;
-                            const barFill = liveView.querySelector(`.bar-${type}-fill`);
-                            const textPct = liveView.querySelector(`.bar-${type}-pct`);
-                            const textAbs = liveView.querySelector(`.bar-${type}-abs`);
+                            const barFills = liveView.querySelectorAll(`.bar-${type}-fill`);
+                            const textPcts = liveView.querySelectorAll(`.bar-${type}-pct`);
+                            const textAbsElems = liveView.querySelectorAll(`.bar-${type}-abs`);
 
-                            if (textPct) textPct.textContent = `${pct}%`;
-                            if (textAbs) textAbs.textContent = abs;
+                            textPcts.forEach(el => el.textContent = `${pct}%`);
+                            textAbsElems.forEach(el => el.textContent = abs);
 
                             const val = parseFloat(pct);
-                            if (barFill) barFill.style.width = val > 0 ? `${Math.max(1, val)}%` : '0%';
-
-                            if (barFill) {
+                            barFills.forEach(barFill => {
+                                barFill.style.width = val > 0 ? `${Math.max(1, val)}%` : '0%';
                                 if (val >= 90) barFill.style.backgroundColor = 'var(--danger)';
                                 else if (val >= 70) barFill.style.backgroundColor = 'var(--warning)';
-                                else barFill.style.backgroundColor = type === 'cpu' ? 'var(--primary)' : (type === 'ram' ? 'var(--info)' : 'var(--success)');
-                            }
+                                else barFill.style.backgroundColor = type.includes('cpu') ? 'var(--primary)' : (type.includes('ram') ? 'var(--info)' : 'var(--success)');
+                            });
                         };
 
                         updateRing('cpu', cpuPct, `${cpuPct}% de ${maxCores} vCPUs`);
                         updateRing('ram', ramPct, `${ramUsedVal.toFixed(2)} GB / ${maxRam} GB`);
                         updateRing('disk', diskPct, `${diskUsedVal.toFixed(2)} GB / ${maxDisk} GB`);
+
+                        updateRing('inst-cpu', instCpuPct, `${instCpuPct}% de ${instanceCores} vCPUs`);
+                        updateRing('inst-ram', instRamPct, `${ramUsedVal.toFixed(2)} GB / ${instanceRam} GB`);
 
                         // 🚀 Actualizar Tacómetros Discretos
                         const tachoContainer = document.getElementById('global-tachometers');
@@ -2157,37 +2185,77 @@ function toggleSidebar() {
                             </div>
 
                             <!-- Gauges en Vivo Inferiores -->
-                            <div id="stats-live-view" style="flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 0;">
-                                <div class="charts-wrapper" style="border-top: none; margin-top: 15px; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 100%;">
-                                    <div class="compact-stat" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-                                        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                                            <span style="font-size:0.75rem; font-weight:700; color:var(--muted);"><i class="fa-solid fa-microchip"></i> CPU</span>
-                                            <span class="bar-cpu-pct" style="font-size:0.75rem; font-weight:700;">${cpuPct}%</span>
+                            <div id="stats-live-view" style="flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 0; gap: 15px;">
+                                <!-- Metricas de Instancia -->
+                                <div>
+                                    <h4 style="font-size: 0.85rem; color: var(--muted); margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 5px;"><i class="fa-solid fa-server"></i> Consumo Relativo (Instancia)</h4>
+                                    <div class="charts-wrapper" style="border-top: none; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 100%;">
+                                        <div class="compact-stat" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                                            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                                                <span style="font-size:0.75rem; font-weight:700; color:var(--muted);"><i class="fa-solid fa-microchip"></i> CPU</span>
+                                                <span class="bar-inst-cpu-pct" style="font-size:0.75rem; font-weight:700;">${instCpuPct}%</span>
+                                            </div>
+                                            <div style="width:100%; background:rgba(255,255,255,0.05); height:8px; border-radius:4px; overflow:hidden;">
+                                                <div class="bar-inst-cpu-fill" style="width:${instCpuPct}%; background:var(--primary); height:100%; transition:width 0.5s;"></div>
+                                            </div>
+                                            <div style="font-size:0.65rem; color:var(--muted); margin-top:8px; text-align:right;" class="bar-inst-cpu-abs">${instCpuPct}% de ${instanceCores} vCPUs</div>
                                         </div>
-                                        <div style="width:100%; background:rgba(255,255,255,0.05); height:8px; border-radius:4px; overflow:hidden;">
-                                            <div class="bar-cpu-fill" style="width:${cpuPct}%; background:var(--primary); height:100%; transition:width 0.5s;"></div>
+                                        <div class="compact-stat" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                                            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                                                <span style="font-size:0.75rem; font-weight:700; color:var(--muted);"><i class="fa-solid fa-memory"></i> RAM</span>
+                                                <span class="bar-inst-ram-pct" style="font-size:0.75rem; font-weight:700;">${instRamPct}%</span>
+                                            </div>
+                                            <div style="width:100%; background:rgba(255,255,255,0.05); height:8px; border-radius:4px; overflow:hidden;">
+                                                <div class="bar-inst-ram-fill" style="width:${instRamPct}%; background:var(--info); height:100%; transition:width 0.5s;"></div>
+                                            </div>
+                                            <div style="font-size:0.65rem; color:var(--muted); margin-top:8px; text-align:right;" class="bar-inst-ram-abs">${ramUsedVal.toFixed(2)} GB / ${instanceRam} GB</div>
                                         </div>
-                                        <div style="font-size:0.65rem; color:var(--muted); margin-top:8px; text-align:right;" class="bar-cpu-abs">${cpuPct}% de ${maxCores} vCPUs</div>
+                                        <div class="compact-stat" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                                            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                                                <span style="font-size:0.75rem; font-weight:700; color:var(--muted);"><i class="fa-solid fa-hard-drive"></i> DISCO</span>
+                                                <span class="bar-disk-pct" style="font-size:0.75rem; font-weight:700;">${diskPct}%</span>
+                                            </div>
+                                            <div style="width:100%; background:rgba(255,255,255,0.05); height:8px; border-radius:4px; overflow:hidden;">
+                                                <div class="bar-disk-fill" style="width:${diskPct}%; background:var(--success); height:100%; transition:width 0.5s;"></div>
+                                            </div>
+                                            <div style="font-size:0.65rem; color:var(--muted); margin-top:8px; text-align:right;" class="bar-disk-abs">${diskUsedVal.toFixed(2)} GB / ${maxDisk} GB</div>
+                                        </div>
                                     </div>
-                                    <div class="compact-stat" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-                                        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                                            <span style="font-size:0.75rem; font-weight:700; color:var(--muted);"><i class="fa-solid fa-memory"></i> RAM</span>
-                                            <span class="bar-ram-pct" style="font-size:0.75rem; font-weight:700;">${ramPct}%</span>
+                                </div>
+                                <!-- Metricas de Plan Global -->
+                                <div>
+                                    <h4 style="font-size: 0.85rem; color: var(--muted); margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 5px;"><i class="fa-solid fa-layer-group"></i> Cuota Global (Plan)</h4>
+                                    <div class="charts-wrapper" style="border-top: none; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 100%;">
+                                        <div class="compact-stat" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                                            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                                                <span style="font-size:0.75rem; font-weight:700; color:var(--muted);"><i class="fa-solid fa-microchip"></i> CPU</span>
+                                                <span class="bar-cpu-pct" style="font-size:0.75rem; font-weight:700;">${cpuPct}%</span>
+                                            </div>
+                                            <div style="width:100%; background:rgba(255,255,255,0.05); height:8px; border-radius:4px; overflow:hidden;">
+                                                <div class="bar-cpu-fill" style="width:${cpuPct}%; background:var(--primary); height:100%; transition:width 0.5s;"></div>
+                                            </div>
+                                            <div style="font-size:0.65rem; color:var(--muted); margin-top:8px; text-align:right;" class="bar-cpu-abs">${cpuPct}% de ${maxCores} vCPUs</div>
                                         </div>
-                                        <div style="width:100%; background:rgba(255,255,255,0.05); height:8px; border-radius:4px; overflow:hidden;">
-                                            <div class="bar-ram-fill" style="width:${ramPct}%; background:var(--info); height:100%; transition:width 0.5s;"></div>
+                                        <div class="compact-stat" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                                            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                                                <span style="font-size:0.75rem; font-weight:700; color:var(--muted);"><i class="fa-solid fa-memory"></i> RAM</span>
+                                                <span class="bar-ram-pct" style="font-size:0.75rem; font-weight:700;">${ramPct}%</span>
+                                            </div>
+                                            <div style="width:100%; background:rgba(255,255,255,0.05); height:8px; border-radius:4px; overflow:hidden;">
+                                                <div class="bar-ram-fill" style="width:${ramPct}%; background:var(--info); height:100%; transition:width 0.5s;"></div>
+                                            </div>
+                                            <div style="font-size:0.65rem; color:var(--muted); margin-top:8px; text-align:right;" class="bar-ram-abs">${ramUsedVal.toFixed(2)} GB / ${maxRam} GB</div>
                                         </div>
-                                        <div style="font-size:0.65rem; color:var(--muted); margin-top:8px; text-align:right;" class="bar-ram-abs">${ramUsedVal.toFixed(2)} GB / ${maxRam} GB</div>
-                                    </div>
-                                    <div class="compact-stat" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-                                        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                                            <span style="font-size:0.75rem; font-weight:700; color:var(--muted);"><i class="fa-solid fa-hard-drive"></i> DISCO</span>
-                                            <span class="bar-disk-pct" style="font-size:0.75rem; font-weight:700;">${diskPct}%</span>
+                                        <div class="compact-stat" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                                            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                                                <span style="font-size:0.75rem; font-weight:700; color:var(--muted);"><i class="fa-solid fa-hard-drive"></i> DISCO</span>
+                                                <span class="bar-disk-pct" style="font-size:0.75rem; font-weight:700;">${diskPct}%</span>
+                                            </div>
+                                            <div style="width:100%; background:rgba(255,255,255,0.05); height:8px; border-radius:4px; overflow:hidden;">
+                                                <div class="bar-disk-fill" style="width:${diskPct}%; background:var(--success); height:100%; transition:width 0.5s;"></div>
+                                            </div>
+                                            <div style="font-size:0.65rem; color:var(--muted); margin-top:8px; text-align:right;" class="bar-disk-abs">${diskUsedVal.toFixed(2)} GB / ${maxDisk} GB</div>
                                         </div>
-                                        <div style="width:100%; background:rgba(255,255,255,0.05); height:8px; border-radius:4px; overflow:hidden;">
-                                            <div class="bar-disk-fill" style="width:${diskPct}%; background:var(--success); height:100%; transition:width 0.5s;"></div>
-                                        </div>
-                                        <div style="font-size:0.65rem; color:var(--muted); margin-top:8px; text-align:right;" class="bar-disk-abs">${diskUsedVal.toFixed(2)} GB / ${maxDisk} GB</div>
                                     </div>
                                 </div>
                             </div>
