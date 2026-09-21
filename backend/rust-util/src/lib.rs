@@ -20,9 +20,9 @@ fn map_err<E: std::fmt::Display>(e: E) -> napi::Error {
 
 #[derive(Deserialize)]
 struct DockerStats {
-    cpu_stats: CpuStats,
+    cpu_stats: Option<CpuStats>,
     precpu_stats: Option<CpuStats>,
-    memory_stats: MemoryStats,
+    memory_stats: Option<MemoryStats>,
     networks: Option<std::collections::HashMap<String, NetworkStats>>,
 }
 
@@ -184,32 +184,36 @@ pub async fn get_dir_size(path: String) -> Result<f64> {
 
 fn calculate_stats_from_parsed(stats: DockerStats) -> StatsResult {
     let mut cpu_percent = 0.0;
-    let cpu_total = stats.cpu_stats.cpu_usage.total_usage;
-    let pre_cpu_total = stats
-        .precpu_stats
-        .as_ref()
-        .map(|s| s.cpu_usage.total_usage)
-        .unwrap_or(0);
+    
+    if let Some(cpu_stats) = stats.cpu_stats {
+        let cpu_total = cpu_stats.cpu_usage.total_usage;
+        let pre_cpu_total = stats
+            .precpu_stats
+            .as_ref()
+            .map(|s| s.cpu_usage.total_usage)
+            .unwrap_or(0);
 
-    let system_total = stats.cpu_stats.system_cpu_usage.unwrap_or(0);
-    let pre_system_total = stats
-        .precpu_stats
-        .as_ref()
-        .and_then(|s| s.system_cpu_usage)
-        .unwrap_or(0);
+        let system_total = cpu_stats.system_cpu_usage.unwrap_or(0);
+        let pre_system_total = stats
+            .precpu_stats
+            .as_ref()
+            .and_then(|s| s.system_cpu_usage)
+            .unwrap_or(0);
 
-    let cpu_delta = cpu_total as i64 - pre_cpu_total as i64;
-    let system_delta = system_total as i64 - pre_system_total as i64;
+        let cpu_delta = cpu_total as i64 - pre_cpu_total as i64;
+        let system_delta = system_total as i64 - pre_system_total as i64;
 
-    if system_delta > 0 && cpu_delta > 0 {
-        let online_cpus = stats.cpu_stats.online_cpus.unwrap_or(1) as f64;
-        cpu_percent = (cpu_delta as f64 / system_delta as f64) * online_cpus * 100.0;
+        if system_delta > 0 && cpu_delta > 0 {
+            let online_cpus = cpu_stats.online_cpus.unwrap_or(1) as f64;
+            cpu_percent = (cpu_delta as f64 / system_delta as f64) * online_cpus * 100.0;
+        }
     }
 
-    let mut mem_usage = stats.memory_stats.usage.unwrap_or(0);
+    let mut mem_usage = stats.memory_stats.as_ref().and_then(|m| m.usage).unwrap_or(0);
     let inactive_file = stats
         .memory_stats
-        .stats
+        .as_ref()
+        .and_then(|m| m.stats.as_ref())
         .and_then(|s| s.inactive_file)
         .unwrap_or(0);
 
@@ -219,7 +223,7 @@ fn calculate_stats_from_parsed(stats: DockerStats) -> StatsResult {
         mem_usage = 0;
     }
 
-    let mem_limit = stats.memory_stats.limit.unwrap_or(1);
+    let mem_limit = stats.memory_stats.as_ref().and_then(|m| m.limit).unwrap_or(1);
     let mem_percent = (mem_usage as f64 / mem_limit as f64) * 100.0;
     let mem_gb = mem_usage as f64 / (1024.0 * 1024.0 * 1024.0);
 
