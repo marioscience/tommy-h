@@ -47,3 +47,6 @@
 - **Command / Action**: `curl -N -H "Accept: text/event-stream" http://localhost:3000/api/servers/1/logs/stream -H "Authorization: Bearer $TOKEN"`
 - **Pass Criteria**: SSE stream emits periodic ": heartbeat <timestamp>" every 15 seconds to prevent NAT timeout.
 
+### Tech Check 5: CI Pipeline Workflow Rules & Merge Request Gates ⚙️
+- **Command / Action**: Push a commit to a feature branch without an MR, then open an MR to `dev`, then merge it.
+- **Pass Criteria**: Pipeline does NOT run on the rogue push. Pipeline RUNS when MR is opened. Pipeline RUNS on merge to `dev`. `dev`, `staging`, and `main` are protected. Local tests pass via `npm run test:local`.

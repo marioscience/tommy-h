@@ -47,3 +47,7 @@
 - **Comando / Acción**: `curl -N -H "Accept: text/event-stream" http://localhost:3000/api/servers/1/logs/stream -H "Authorization: Bearer $TOKEN"`
 - **Criterio de Aprobación**: El flujo SSE emite un pulso ": heartbeat <timestamp>" cada 15 segundos manteniendo la conexión abierta.
 
+### Verificación Técnica 5: Reglas de Flujo de CI y Puertas de Merge Request ⚙️
+- **Comando / Acción**: Hacer push a una rama feature sin MR, luego abrir un MR hacia `dev`, y luego fusionarlo.
+- **Criterio de Aprobación**: El pipeline NO se ejecuta en el push aislado. El pipeline SE EJECUTA al abrir el MR. El pipeline SE EJECUTA al fusionar en `dev`. Las ramas `dev`, `staging` y `main` están protegidas. Las pruebas locales pasan vía `npm run test:local`.
+
