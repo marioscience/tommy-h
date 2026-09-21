@@ -87,4 +87,21 @@ if command -v ss >/dev/null 2>&1 \
   fail "RPC/portmapper escucha en el puerto 111. Deshabilitalo o documenta ALLOW_RPC_PORTMAPPER=true."
 fi
 
+# Un proxy de una instalación anterior (por ejemplo, Docker rootful) puede
+# conservar 80/443 mientras el Compose rootless crea oxide_web sin poderlo
+# iniciar. Eso deja HTTP parcialmente operativo y rompe TLS para txAdmin.
+if command -v ss >/dev/null 2>&1; then
+  managed_edge_running=false
+  while IFS= read -r edge_id; do
+    [ -n "$edge_id" ] || continue
+    [ "$(docker inspect --format '{{.State.Running}}' "$edge_id" 2>/dev/null)" = true ] \
+      && managed_edge_running=true
+  done < <(docker compose -f docker-compose.yml ps -q oxide_web 2>/dev/null || true)
+
+  if [ "$managed_edge_running" != true ] \
+    && ss -H -lnt '( sport = :80 or sport = :443 )' 2>/dev/null | grep -q .; then
+    fail "Los puertos 80/443 están ocupados por un proxy ajeno al Compose rootless administrado. Retira el runtime anterior antes de desplegar; no se permite un frontal TLS dividido."
+  fi
+fi
+
 printf 'Preflight de produccion superado.\n'

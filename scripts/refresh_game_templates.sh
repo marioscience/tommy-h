@@ -7,14 +7,27 @@ LOCK_ROOT="${TEMPLATE_LOCK_ROOT:-$TEMPLATE_ROOT/.locks}"
 GAMES="${TEMPLATE_REFRESH_GAMES:-rust palworld cs2 sdtd valheim zomboid ark}"
 LOCAL_BUILD_GAMES="${TEMPLATE_LOCAL_BUILD_GAMES:-valheim}"
 DOCKER_BIN="${TEMPLATE_REFRESH_DOCKER_BIN:-docker}"
+STEAMCMD_IMAGE="${TEMPLATE_STEAMCMD_IMAGE:-}"
+STEAMCMD_CACHE_ROOT="${TEMPLATE_STEAMCMD_CACHE_ROOT:-${INSTANCE_DATA_ROOT:-/srv/ragenodes-data}/.steamcmd-cache}"
+STEAMCMD_ATTEMPTS="${TEMPLATE_STEAMCMD_ATTEMPTS:-5}"
+STEAMCMD_CONTAINER_USER="${TEMPLATE_STEAMCMD_CONTAINER_USER:-0:0}"
 
 # Garantiza imágenes fijadas incluso cuando un operador no repite todos los
 # valores predeterminados en .env.
 # shellcheck source=game_image_defaults.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/game_image_defaults.sh"
 apply_game_image_defaults
+STEAMCMD_IMAGE="${STEAMCMD_IMAGE:-$CS2_BASE_IMAGE}"
 
-mkdir -p "$TEMPLATE_ROOT" "$BUILD_ROOT" "$LOCK_ROOT"
+case "$STEAMCMD_ATTEMPTS" in
+  ''|*[!0-9]*) echo "TEMPLATE_STEAMCMD_ATTEMPTS debe ser un entero" >&2; exit 2 ;;
+esac
+[ "$STEAMCMD_ATTEMPTS" -ge 1 ] || { echo "TEMPLATE_STEAMCMD_ATTEMPTS debe ser mayor que cero" >&2; exit 2; }
+case "$STEAMCMD_CONTAINER_USER" in
+  *[!0-9:]*|''|:*|*:|*:*:*) echo "TEMPLATE_STEAMCMD_CONTAINER_USER debe usar UID:GID numéricos" >&2; exit 2 ;;
+esac
+
+mkdir -p "$TEMPLATE_ROOT" "$BUILD_ROOT" "$LOCK_ROOT" "$STEAMCMD_CACHE_ROOT/runtime" "$STEAMCMD_CACHE_ROOT/home"
 chmod 2775 "$LOCK_ROOT"
 
 game_config() {
@@ -75,37 +88,40 @@ run_steamcmd() {
   # En Docker rootless, UID 0 del contenedor se mapea al usuario dueño del
   # daemon (nunca a root del host). Un UID distinto se mapearía a un subuid sin
   # acceso al bind mount.
-  for attempt in 1 2 3; do
+  # Todas las plantillas comparten un SteamCMD fijado y persistente. Así una
+  # imagen de juego sin SteamCMD (Rust/Palworld) no bloquea actualizaciones y
+  # el cliente de Valve no vuelve a descargar sus 40 MiB en cada reintento.
+  for attempt in $(seq 1 "$STEAMCMD_ATTEMPTS"); do
     if "$DOCKER_BIN" run --rm --network host \
-      --user 0:0 \
+      --user "$STEAMCMD_CONTAINER_USER" \
       --cap-drop ALL \
       --security-opt no-new-privileges \
-      -e HOME=/tmp/ragenodes-home \
+      -e HOME=/steamcmd-home \
       -v "$staging:/template" \
-      --entrypoint /bin/sh "$image" -ec '
+      -v "$STEAMCMD_CACHE_ROOT/runtime:/steamcmd-cache" \
+      -v "$STEAMCMD_CACHE_ROOT/home:/steamcmd-home" \
+      --entrypoint /bin/sh "$STEAMCMD_IMAGE" -ec '
       mkdir -p "$HOME"
-      steamcmd=""
-      for candidate in \
-        /home/steam/steamcmd/steamcmd.sh \
-        /home/root/.local/steamcmd/steamcmd.sh \
-        /root/.local/share/Steam/steamcmd/steamcmd.sh \
-        /steamcmd/steamcmd.sh \
-        /opt/steamcmd/steamcmd.sh; do
-        [ -r "$candidate" ] && steamcmd="$candidate" && break
-      done
-      [ -n "$steamcmd" ] || { echo "SteamCMD no esta disponible en la imagen" >&2; exit 70; }
-      # Algunas imágenes conservan SteamCMD bajo un home de root con binarios
-      # 0744. Se copia su pequeño runtime a /tmp para ejecutarlo con el UID
-      # aislado, sin modificar la imagen ni elevar privilegios.
-      rm -rf /tmp/ragenodes-steamcmd
-      cp -R "$(dirname "$steamcmd")" /tmp/ragenodes-steamcmd
-      chmod -R u+rwX /tmp/ragenodes-steamcmd
-      exec /bin/bash /tmp/ragenodes-steamcmd/steamcmd.sh "$@"
-    ' sh "${platform_args[@]}" +@ShutdownOnFailedCommand 1 +force_install_dir "/template/$install_rel" +login anonymous +app_info_update 1 +app_update "$app_id" validate +quit; then
+      if [ ! -x /steamcmd-cache/steamcmd.sh ]; then
+        steamcmd=""
+        for candidate in \
+          /home/steam/steamcmd/steamcmd.sh \
+          /home/root/.local/steamcmd/steamcmd.sh \
+          /root/.local/share/Steam/steamcmd/steamcmd.sh \
+          /steamcmd/steamcmd.sh \
+          /opt/steamcmd/steamcmd.sh; do
+          [ -r "$candidate" ] && steamcmd="$candidate" && break
+        done
+        [ -n "$steamcmd" ] || { echo "SteamCMD no esta disponible en la imagen compartida" >&2; exit 70; }
+        cp -R "$(dirname "$steamcmd")/." /steamcmd-cache/
+        chmod -R u+rwX /steamcmd-cache
+      fi
+      exec /bin/bash /steamcmd-cache/steamcmd.sh "$@"
+    ' sh "${platform_args[@]}" +@ShutdownOnFailedCommand 1 +force_install_dir "/template/$install_rel" +login anonymous +app_update "$app_id" validate +quit; then
       return 0
     fi
-    echo "[$game] SteamCMD falló (intento $attempt/3)" >&2
-    [ "$attempt" -eq 3 ] || sleep $((attempt * 5))
+    echo "[$game] SteamCMD falló (intento $attempt/$STEAMCMD_ATTEMPTS)" >&2
+    [ "$attempt" -eq "$STEAMCMD_ATTEMPTS" ] || sleep $((attempt * 10))
   done
   return 1
 }
