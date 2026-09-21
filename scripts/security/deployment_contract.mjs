@@ -327,7 +327,14 @@ for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
   assert(deploy.includes(`wait_for_service ${deploymentWorker} 60`), `${deployFile} verifies the durable provisioning worker`);
   assert(deploy.includes('wait_for_http()'), `${deployFile} waits for HTTP readiness instead of checking only once`);
   assert(/wait_for_http http:\/\/127\.0\.0\.1(?::\d+)?\/healthz 90/.test(deploy), `${deployFile} retries the health endpoint during startup`);
-  assert(/wait_for_http http:\/\/127\.0\.0\.1(?::\d+)?\/readyz 90/.test(deploy), `${deployFile} retries the readiness endpoint during startup`);
+  const retriesReadiness =
+    /wait_for_http http:\/\/127\.0\.0\.1(?::\d+)?\/readyz 90/.test(deploy)
+    || (
+      deploy.includes('wait_for_backend_ready()')
+      && /fetch\(['"]http:\/\/127\.0\.0\.1:3006\/readyz['"]\)/.test(deploy)
+      && /wait_for_backend_ready 90/.test(deploy)
+    );
+  assert(retriesReadiness, `${deployFile} retries the readiness endpoint during startup`);
 }
 
 assert(files['deploy.sh'].includes('--scale backend="$BACKEND_REPLICAS"'), 'production scales backend replicas using the hardware-aware selector');
