@@ -96,7 +96,7 @@ fn env_port(name: &str, default: u16) -> u16 {
 fn dynamic_web_domains() -> Vec<String> {
     std::env::var("OXIDE_DYNAMIC_WEB_DOMAINS")
         .unwrap_or_else(|_| {
-            "ragenodes.app,ragenodes.dev,ragenodes.com,node1.ragenodes.com".to_string()
+            "edge.ragenodes.app,ragenodes.app,ragenodes.dev,ragenodes.com,node1.ragenodes.com".to_string()
         })
         .split(',')
         .map(|domain| domain.trim().trim_end_matches('.').to_ascii_lowercase())
