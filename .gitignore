@@ -61,6 +61,7 @@ oxideproxy/artifacts/
 oxideproxy/config/logs/
 oxideproxy/config/acme/
 oxideproxy/config/runtime-blacklist.txt
+oxideproxy/game_config/oxide_proxy.yml
 frontend/public/backup_parts/
 sync.log
 basura_historica/
