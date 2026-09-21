@@ -5,6 +5,13 @@ project_dir="$(readlink -f "${1:-$PWD}")"
 target_user="${2:-${SUDO_USER:-$USER}}"
 target_group="$(id -gn "$target_user")"
 target_uid="$(id -u "$target_user")"
+compose_project_name="${COMPOSE_PROJECT_NAME:-$(basename "$project_dir")}"
+docker_host="${DOCKER_HOST:-}"
+
+if [ -z "$docker_host" ] && [ -f "$project_dir/.env" ]; then
+  docker_host="$(sed -n 's/^DOCKER_HOST=//p' "$project_dir/.env" | tail -n 1)"
+fi
+docker_host="${docker_host:-unix:///run/user/$target_uid/docker.sock}"
 
 [ -f "$project_dir/docker-compose.yml" ] || { echo "Directorio RageNodes inválido: $project_dir" >&2; exit 2; }
 [[ "$target_user" =~ ^[a-z_][a-z0-9_-]*[$]?$ ]] || { echo "Usuario inválido" >&2; exit 2; }
@@ -22,8 +29,8 @@ env_file=/etc/ragenodes/backend-autoscaler.env
 if [ ! -f "$env_file" ]; then
   printf '%s\n' \
     "RAGENODES_PROJECT_DIR=$project_dir" \
-    "COMPOSE_PROJECT_NAME=ragenodesultimate" \
-    "DOCKER_HOST=unix:///run/user/$target_uid/docker.sock" \
+    "COMPOSE_PROJECT_NAME=$compose_project_name" \
+    "DOCKER_HOST=$docker_host" \
     "BACKEND_AUTOSCALE_ENABLED=false" \
     | sudo tee "$env_file" >/dev/null
   sudo chmod 0640 "$env_file"
