@@ -62,7 +62,7 @@ async function boot() {
       break;
     case 'worker-stats':
       startStatsCollector();
-      startDockerTelemetryCollector(); //TODO: should this be awaited?
+      startDockerTelemetryCollector();
       startDiskUsageCollector();
 
       startNodeMonitor();

@@ -105,8 +105,7 @@ export async function createProjectZomboidContainer(opts) {
                 `${opts.dataPath}/Zomboid:/home/steam/Zomboid`
             ],
             PortBindings: proxy.bindings,
-            //RestartPolicy: { Name: "unless-stopped"},
-            RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 }, // Needs work for production.
+            RestartPolicy: { Name: 'on-failure', MaximumRetryCount: 5 },
             Memory: opts.plan.memoryBytes,
             NanoCpus: opts.plan.nanoCpus, CpuShares: Math.round((opts.plan.nanoCpus / 10**9) * 1024),
             BlkioWeight: config.dockerBlkioWeight,
