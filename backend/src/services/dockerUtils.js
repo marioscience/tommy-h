@@ -111,6 +111,13 @@ export function templateCacheMatches(markerValue, templateFingerprint) {
     return marker.length > 0 && marker === fingerprint;
 }
 
+export function buildTemplateFingerprintCommand(rootPath) {
+    const root = sh`${rootPath}`;
+    // BusyBox find (used by the backend image) lacks GNU formatting actions. Keep this
+    // metadata-only fingerprint portable across BusyBox and GNU userlands.
+    return `cd ${root} && find . -type f ! -name '.ragenodes-template-fingerprint' -exec stat -c '%n|%s|%Y' {} + | LC_ALL=C sort | sha256sum | cut -d' ' -f1`;
+}
+
 function numericCommandOutput(result, label) {
     const value = Number.parseInt(commandStdout(result).trim(), 10);
     if (!Number.isSafeInteger(value) || value < 0) throw new Error(`No se pudo medir ${label}.`);
@@ -184,7 +191,7 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0, op
         }
 
         const validatedMarker = path.join(masterPath, '.ragenodes-template-validated-at');
-        const freshnessResult = await runRemoteCommand(nodeId, sh`if [ -r ${validatedMarker} ]; then cat ${validatedMarker}; else find ${masterPath} -type f -printf '%T@\n' | sort -nr | head -1; fi`);
+        const freshnessResult = await runRemoteCommand(nodeId, sh`if [ -r ${validatedMarker} ]; then cat ${validatedMarker}; else find ${masterPath} -type f -exec stat -c '%Y' {} + | sort -nr | head -1; fi`);
         const validatedAtSeconds = Number.parseFloat(commandStdout(freshnessResult).trim());
         const maxAgeDays = Math.max(1, Number(process.env.TEMPLATE_MAX_AGE_DAYS || 14));
         if (!Number.isFinite(validatedAtSeconds) || Date.now() - validatedAtSeconds * 1000 > maxAgeDays * 86400000) {
@@ -199,7 +206,7 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0, op
             runRemoteCommand(nodeId, sh`stat -c %d ${parentPath}`),
             runRemoteCommand(nodeId, sh`du -sb ${masterPath} | cut -f1`),
             runRemoteCommand(nodeId, sh`df -PB1 ${parentPath} | awk 'NR==2 {print $4}'`),
-            runRemoteCommand(nodeId, sh`cd ${masterPath} && find . -type f -printf '%P\\0%s\\0%T@\\0' | sort -z | sha256sum | cut -d' ' -f1`)
+            runRemoteCommand(nodeId, buildTemplateFingerprintCommand(masterPath))
         ]);
         const sourceDevice = commandStdout(sourceDeviceResult).trim();
         const targetDevice = commandStdout(targetDeviceResult).trim();
@@ -218,7 +225,24 @@ export async function cloneFromMasterTemplate(gameName, dataPath, nodeId = 0, op
             const cachePath = path.join(cacheRoot, `${gameName}-master`);
             const cacheMarker = path.join(cachePath, '.ragenodes-template-fingerprint');
             const markerResult = await runRemoteCommand(nodeId, sh`cat ${cacheMarker} 2>/dev/null || true`);
-            if (!templateCacheMatches(commandStdout(markerResult), templateFingerprint)) {
+            let cacheMatches = templateCacheMatches(commandStdout(markerResult), templateFingerprint);
+            if (!cacheMatches) {
+                // Migrate caches created with the previous GNU-find-only
+                // fingerprint without copying many gigabytes again. A full
+                // metadata comparison is still required before trusting it.
+                const quotedCachePath = sh`${cachePath}`;
+                const cacheFingerprintCommand = buildTemplateFingerprintCommand(cachePath);
+                const cacheFingerprintResult = await runRemoteCommand(
+                    nodeId,
+                    `if [ -d ${quotedCachePath} ]; then ${cacheFingerprintCommand}; fi`
+                );
+                cacheMatches = templateCacheMatches(commandStdout(cacheFingerprintResult), templateFingerprint);
+                if (cacheMatches) {
+                    await runRemoteCommand(nodeId, sh`printf '%s\n' ${templateFingerprint} > ${cacheMarker}`);
+                    console.log(`⚡ [${gameName.toUpperCase()}] Huella de caché migrada sin recopia.`);
+                }
+            }
+            if (!cacheMatches) {
                 const cacheTemp = `${cachePath}.seed-${crypto.randomUUID()}`;
                 const cacheOld = `${cachePath}.old-${crypto.randomUUID()}`;
                 console.log(`⚡ [${gameName.toUpperCase()}] Sembrando una única caché local desde la plantilla compartida.`);

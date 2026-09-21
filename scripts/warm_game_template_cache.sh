@@ -17,7 +17,8 @@ chmod 2775 "$LOCK_ROOT"
 
 fingerprint() {
   local root="$1"
-  (cd "$root" && find . -type f -printf '%P\0%s\0%T@\0' | sort -z | sha256sum | cut -d' ' -f1)
+  (cd "$root" && find . -type f ! -name '.ragenodes-template-fingerprint' \
+    -exec stat -c '%n|%s|%Y' {} + | LC_ALL=C sort | sha256sum | cut -d' ' -f1)
 }
 
 warm_game() {
@@ -54,6 +55,13 @@ warm_game() {
     flock -u "$read_fd"
     exec {read_fd}>&-
     echo "[$game] caché local ya está actualizada"
+    return 0
+  fi
+  if [ -d "$cache" ] && [ "$(fingerprint "$cache")" = "$source_fingerprint" ]; then
+    printf '%s\n' "$source_fingerprint" > "$marker"
+    flock -u "$read_fd"
+    exec {read_fd}>&-
+    echo "[$game] huella de caché migrada sin recopia"
     return 0
   fi
 

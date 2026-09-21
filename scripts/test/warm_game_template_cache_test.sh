@@ -18,6 +18,16 @@ test "$(cat "$cache/7dtd/7DaysToDieServer.x86_64")" = runtime-v1
 test -s "$cache/.ragenodes-template-fingerprint"
 first_marker="$(cat "$cache/.ragenodes-template-fingerprint")"
 
+# Una huella heredada se migra tras comparar todo el árbol, sin reemplazar
+# una caché cuyo contenido ya coincide con la plantilla maestra.
+first_inode="$(stat -c %i "$cache")"
+printf 'legacy-fingerprint\n' > "$cache/.ragenodes-template-fingerprint"
+TEMPLATE_ROOT="$root/templates" TEMPLATE_CACHE_ROOT="$root/cache" \
+TEMPLATE_LOCK_ROOT="$root/locks" TEMPLATE_WARM_GAMES=sdtd \
+TEMPLATE_CLONE_FREE_RESERVE_GB=0 bash "$script"
+test "$(stat -c %i "$cache")" = "$first_inode"
+test "$(cat "$cache/.ragenodes-template-fingerprint")" = "$first_marker"
+
 # Una segunda ejecución reutiliza la caché y no cambia su identidad.
 TEMPLATE_ROOT="$root/templates" TEMPLATE_CACHE_ROOT="$root/cache" \
 TEMPLATE_LOCK_ROOT="$root/locks" TEMPLATE_WARM_GAMES=sdtd \

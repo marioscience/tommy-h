@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { selectTemplateCloneStrategy, templateCacheMatches } from '../src/services/dockerUtils.js';
+import { buildTemplateFingerprintCommand, selectTemplateCloneStrategy, templateCacheMatches } from '../src/services/dockerUtils.js';
 
 const GIB = 1024 ** 3;
 
@@ -25,4 +25,19 @@ test('local template cache is reused only when its content fingerprint matches',
   assert.equal(templateCacheMatches(`${fingerprint}\n`, fingerprint), true);
   assert.equal(templateCacheMatches('b'.repeat(64), fingerprint), false);
   assert.equal(templateCacheMatches('', fingerprint), false);
+});
+
+test('template fingerprint command is portable to BusyBox find', () => {
+  const command = buildTemplateFingerprintCommand('/srv/ragenodes data/templates/sdtd-master');
+  assert.match(command, /find \. -type f/);
+  assert.match(command, /-exec stat -c/);
+  assert.doesNotMatch(command, /-printf/);
+  assert.match(command, /'\/srv\/ragenodes data\/templates\/sdtd-master'/);
+});
+
+test('runtime template policy does not depend on GNU find printf', async () => {
+  const source = await import('node:fs/promises').then(({ readFile }) =>
+    readFile(new URL('../src/services/dockerUtils.js', import.meta.url), 'utf8')
+  );
+  assert.doesNotMatch(source, /find[^\n]*-printf/);
 });
