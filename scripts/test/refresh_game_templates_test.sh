@@ -92,4 +92,13 @@ if INSTANCE_DATA_ROOT="$root/data" \
   exit 1
 fi
 test ! -e "$root/data/templates/sdtd-master/.ragenodes-template-validated-at"
+
+# El actualizador real usa un SteamCMD compartido, persistente y sin forzar
+# app_info_update: esa orden provocaba timeouts 0x206/0x6 antes de app_update.
+refresh_script="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/refresh_game_templates.sh"
+grep -q 'STEAMCMD_IMAGE="${STEAMCMD_IMAGE:-$CS2_BASE_IMAGE}"' "$refresh_script"
+grep -q 'STEAMCMD_CACHE_ROOT/runtime:/steamcmd-cache' "$refresh_script"
+grep -q -- '--user "$STEAMCMD_CONTAINER_USER"' "$refresh_script"
+grep -q '+app_update "$app_id" validate' "$refresh_script"
+! grep -q '+app_info_update 1' "$refresh_script"
 echo 'PASS atomic template refresh'
