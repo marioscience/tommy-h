@@ -105,6 +105,21 @@ wait_for_http() {
   return 1
 }
 
+wait_for_backend_ready() {
+  local timeout_seconds="$1" elapsed=0
+  while [ "$elapsed" -lt "$timeout_seconds" ]; do
+    if "${COMPOSE[@]}" exec -T backend node -e \
+      "fetch('http://127.0.0.1:3006/readyz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; then
+      echo "   OK backend /readyz"
+      return 0
+    fi
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+  echo "ERROR: backend /readyz no respondio correctamente en ${timeout_seconds}s" >&2
+  return 1
+}
+
 verify_running_release_revision() {
   local service container_id image_revision
   local -a container_ids
@@ -157,7 +172,7 @@ wait_for_service oxide_control_panel 60
 wait_for_service oxide_game 60
 wait_for_service oxide_web 60
 wait_for_http http://127.0.0.1/healthz 90
-wait_for_http http://127.0.0.1/readyz 90
+wait_for_backend_ready 90
 if [ "$REGISTRY_DEPLOY" = "true" ]; then
   verify_running_release_revision
 fi
