@@ -39,9 +39,12 @@ services:
     image: goacme/lego:v5.3.1@sha256:f4fd80df0ef94d2f536cc2e7fb5bdbd090fb0aa81b3595226b9fe814bb9a2bfe
     profiles: ["dns-certificate"]
     environment:
-      PDNS_API_URL: http://powerdns-authoritative:8081/api/v1
+      PDNS_API_URL: http://powerdns-authoritative:8081
       PDNS_API_KEY: ${PDNS_API_KEY:?Set PDNS_API_KEY}
+      PDNS_API_VERSION: ${PDNS_API_VERSION:-1}
+      PDNS_SERVER_NAME: ${PDNS_SERVER_NAME:-localhost}
     command:
+      - ${LEGO_ACTION:-run}
       - --accept-tos
       - --server=${LEGO_ACME_SERVER:-https://acme-staging-v02.api.letsencrypt.org/directory}
       - --email=${LEGO_EMAIL:?Set LEGO_EMAIL}
@@ -49,7 +52,6 @@ services:
       - --domains=${POWERDNS_ZONE:?Set POWERDNS_ZONE}
       - --domains=*.${POWERDNS_ZONE:?Set POWERDNS_ZONE}
       - --path=/var/lib/lego
-      - ${LEGO_ACTION:-run}
     volumes:
       - lego_certificates:/var/lib/lego
     networks:

@@ -4,9 +4,12 @@ services:
     profiles: ["edge-certificate"]
     network_mode: host
     environment:
-      PDNS_API_URL: ${PDNS_API_URL:-http://127.0.0.1:8081/api/v1}
+      PDNS_API_URL: ${PDNS_API_URL:-http://127.0.0.1:8081}
       PDNS_API_KEY: ${PDNS_API_KEY:?Set PDNS_API_KEY or PDNS_API_KEY_FILE}
+      PDNS_API_VERSION: ${PDNS_API_VERSION:-1}
+      PDNS_SERVER_NAME: ${PDNS_SERVER_NAME:-localhost}
     command:
+      - ${LEGO_ACTION:-run}
       - --accept-tos
       - --server=${LEGO_ACME_SERVER:-https://acme-v02.api.letsencrypt.org/directory}
       - --email=${LEGO_EMAIL:?Set LEGO_EMAIL}
@@ -14,7 +17,6 @@ services:
       - --domains=${POWERDNS_ZONE:-edge.ragenodes.app}
       - --domains=*.${POWERDNS_ZONE:-edge.ragenodes.app}
       - --path=/var/lib/lego
-      - ${LEGO_ACTION:-renew}
     volumes:
       - edge_lego_certificates:/var/lib/lego
     security_opt:

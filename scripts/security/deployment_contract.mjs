@@ -96,7 +96,10 @@ assert(files['docker-compose.edge-tls.yml'].includes('edge_lego_certificates:/va
 assert(files['docker-compose.edge-tls.yml'].includes('OXIDE_ACME_ENABLED=false'), 'OxideProxy delegates wildcard issuance to the DNS-01 helper');
 assert(files['deploy.sh'].includes('EDGE_TLS_ENABLED:-false'), 'production deploy enables edge TLS explicitly');
 assert(files['deploy.sh'].includes('PDNS_API_KEY_FILE'), 'production deploy can load the PowerDNS secret from a root-managed file');
-assert(files['scripts/ensure-edge-wildcard-certificate.sh'].includes('LEGO_ACTION=renew'), 'edge wildcard certificate is renewed without repeated issuance');
+assert(files['scripts/ensure-edge-wildcard-certificate.sh'].includes('LEGO_ACTION=run'), 'edge wildcard certificate uses the lego v5 issue-or-renew command');
+assert(files['scripts/ensure-edge-wildcard-certificate.sh'].includes('/var/lib/lego/certificates/$POWERDNS_ZONE.crt'), 'edge wildcard verifier checks lego certificate paths inside the mounted volume');
+assert(files['scripts/ensure-edge-wildcard-certificate.sh'].includes('chown -R "0:$1"'), 'edge wildcard certificate remains writable by lego and readable by the unprivileged proxy group');
+assert(files['scripts/ensure-edge-wildcard-certificate.sh'].includes('chmod 0640'), 'edge wildcard private key is not made world-readable');
 
 for (const composeFile of ['docker-compose.yml', 'docker-compose.staging.yml']) {
   const compose = files[composeFile];
