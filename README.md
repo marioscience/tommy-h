@@ -107,6 +107,16 @@ This repository is the control plane for the complete RageNodes service lifecycl
 
 OxideProxy can act as the public ingress for every service that declares routable ports. Depending on the service manifest, a route can be **TCP**, **UDP**, **dual protocol**, or **HTTPS/L7**. Public game ports are owned by the dedicated, host-networked `oxide_game` service, while customer containers bind shifted backend ports to loopback only. The authenticated route inventory is reconciled from PostgreSQL and Docker state, written atomically, and reloaded automatically. This covers single- and multi-port services such as Minecraft, FiveM, Rust, CS2, Valheim, Project Zomboid, 7 Days to Die, Palworld and ARK; txAdmin, Blender, WordPress and other web tools continue through the HTTPS L7 proxy. Existing direct-published containers remain compatible and can be migrated individually. Set `OXIDE_GAME_PROXY_ENABLED=true` only after the dedicated ingress service is healthy.
 
+Production intentionally uses two Docker trust domains. Compose and the
+capability-bounded `oxide_game` data plane run on the host daemon so eBPF/XDP
+can attach to the physical NIC. The backend and workers run as an unprivileged
+UID and receive only the separate rootless Docker socket used for customer game
+instances. `oxide_game` is not privileged, has no Docker socket, drops every
+ambient capability and receives only `NET_ADMIN`, `BPF` and `PERFMON`.
+Deployment fails closed unless the control daemon is rootful, the customer
+runtime is rootless, and a real XDP program is visible on
+`OXIDE_XDP_INTERFACE` (normally `eth0`).
+
 Minecraft deployments pin the requested edition and version in the server data directory. Automatic healing therefore recreates the same runtime instead of silently upgrading it, and hosted servers remain active while empty so proxy handshakes and paused clients are not disconnected.
 
 ---

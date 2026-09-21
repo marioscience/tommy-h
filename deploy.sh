@@ -11,6 +11,11 @@ fi
 source ./scripts/load_env.sh
 load_env_file "${RAGENODES_ENV_FILE:-.env}"
 
+# Pin Compose to the host daemon. DOCKER_SOCKET remains the independent
+# rootless socket mounted read-only into backend/workers for customer games.
+export DOCKER_CONTEXT="${CONTROL_DOCKER_CONTEXT:-default}"
+unset DOCKER_HOST
+
 bash ./scripts/security/production_preflight.sh
 
 : "${INSTANCE_DATA_ROOT:?INSTANCE_DATA_ROOT es obligatorio}"
@@ -120,6 +125,22 @@ wait_for_backend_ready() {
   return 1
 }
 
+verify_host_xdp() {
+  local interface="${OXIDE_XDP_INTERFACE:-eth0}"
+  local container_id
+  if ! ip -details link show "$interface" 2>/dev/null | grep -q 'prog/xdp'; then
+    echo "ERROR: OxideProxy está activo, pero XDP real no está adjunto a $interface." >&2
+    return 1
+  fi
+  container_id="$("${COMPOSE[@]}" ps -q oxide_game)"
+  if [ -z "$container_id" ] \
+    || ! docker logs "$container_id" 2>&1 | grep -Fq "eBPF/XDP real adjuntado a $interface"; then
+    echo "ERROR: el programa XDP de $interface no fue adjuntado por el OxideProxy activo." >&2
+    return 1
+  fi
+  echo "   OK XDP real adjunto a $interface"
+}
+
 verify_running_release_revision() {
   local service container_id image_revision
   local -a container_ids
@@ -170,6 +191,7 @@ wait_for_service backend 90
 wait_for_service worker-deployments 60
 wait_for_service oxide_control_panel 60
 wait_for_service oxide_game 60
+verify_host_xdp
 wait_for_service oxide_web 60
 wait_for_http http://127.0.0.1/healthz 90
 wait_for_backend_ready 90

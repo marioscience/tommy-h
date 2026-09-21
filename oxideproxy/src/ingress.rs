@@ -25,12 +25,21 @@ pub async fn start_ingress(
     let udp_addr = config_arc.ingress.udp_listen_addr;
     let initial_buf_size = config_arc.ingress.initial_buffer_size;
 
-    let xdp_interface = config_arc
+    let configured_xdp_interface = config_arc
         .advanced_tuning
         .as_ref()
         .and_then(|advanced| advanced.ebpf_xdp.as_ref())
         .map(|settings| settings.interface.as_str())
         .unwrap_or("eth0");
+    // The physical NIC name is a node concern, not application configuration.
+    // This override lets the reviewed image run unchanged on eth0, eno1, or a
+    // bonded production interface without rewriting the live route file.
+    let xdp_interface_override = std::env::var("OXIDE_XDP_INTERFACE")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    let xdp_interface = xdp_interface_override
+        .as_deref()
+        .unwrap_or(configured_xdp_interface);
     let mut xdp = XdpFilter::new(xdp_interface);
     xdp.reload_from_config(&config_path);
     let xdp_configured = config_arc

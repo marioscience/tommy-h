@@ -348,6 +348,7 @@ services:
       - OXIDE_CONFIG_PATH=/app/game_config/oxide_proxy.yml
       - OXIDE_EXIT_ON_CONFIG_CHANGE=true
       - OXIDE_XDP_OWNER=true
+      - OXIDE_XDP_INTERFACE=${OXIDE_XDP_INTERFACE:-eth0}
     volumes:
       - ./oxideproxy/game_config:/app/game_config:ro
       - oxide_game_runtime_data:/app/runtime

@@ -12,6 +12,7 @@ const files = Object.fromEntries(await Promise.all([
   'oxideproxy/Dockerfile',
   'oxideproxy/ebpf/src/main.rs',
   'oxideproxy/src/ebpf_xdp.rs',
+  'oxideproxy/src/ingress.rs',
   '.env.example',
   'deploy.sh',
   'deploy_staging.sh',
@@ -216,6 +217,7 @@ assert(files['.env.example'].includes('FRONTEND_BIND_IP=127.0.0.1'), 'auxiliary 
 assert(files['.env.example'].includes('DISCORD_API_KEY=') && files['.env.example'].includes('NODE_ENROLLMENT_API_KEY='), 'Discord and node enrollment use separate credentials');
 assert(!files['docker-compose.yml'].includes('DISCORD_API_KEY:-${API_KEY') && !files['docker-compose.staging.yml'].includes('DISCORD_API_KEY:-${API_KEY'), 'Compose requires the dedicated Discord credential without eager legacy interpolation');
 assert(files['scripts/security/production_preflight.sh'].includes('rootless'), 'production preflight enforces rootless Docker');
+assert(files['scripts/security/production_preflight.sh'].includes('control_security_options') && files['scripts/security/production_preflight.sh'].includes('docker --context'), 'production preflight enforces a separate host control daemon');
 assert(files['scripts/security/production_preflight.sh'].includes("'{{json .Warnings}}'"), 'production preflight inspects Docker resource-controller warnings');
 assert(files['scripts/security/production_preflight.sh'].includes('no cpu cfs quota support'), 'production preflight rejects missing CPU quota delegation');
 assert(files['scripts/security/production_preflight.sh'].includes('no memory limit support'), 'production preflight rejects missing memory limits');
@@ -346,6 +348,11 @@ for (const deployFile of ['deploy.sh', 'deploy_staging.sh']) {
 assert(files['deploy.sh'].includes('--scale backend="$BACKEND_REPLICAS"'), 'production scales backend replicas using the hardware-aware selector');
 assert(!/backend:[\s\S]*?ports:\s*\n\s*- "127\.0\.0\.1:\$\{HOST_BIND_BACKEND_PORT/.test(files['docker-compose.yml']), 'production backend replicas do not contend for a fixed host port');
 assert(files['docker-compose.yml'].includes('OXIDE_XDP_OWNER=true') && files['docker-compose.yml'].includes('OXIDE_XDP_OWNER=false'), 'production assigns exactly one explicit XDP owner');
+assert(files['docker-compose.yml'].includes('OXIDE_XDP_INTERFACE=${OXIDE_XDP_INTERFACE:-eth0}'), 'production binds XDP to the node-specific physical interface');
+assert(files['oxideproxy/src/ingress.rs'].includes('std::env::var("OXIDE_XDP_INTERFACE")'), 'OxideProxy honors the node-specific XDP interface without rewriting routes');
+assert(files['deploy.sh'].includes('verify_host_xdp') && files['deploy.sh'].includes("grep -q 'prog/xdp'"), 'production fails closed unless XDP is attached to the host NIC');
+assert(files['deploy.sh'].includes('eBPF/XDP real adjuntado a $interface'), 'production attributes the attached XDP program to the active OxideProxy container');
+assert(files['deploy.sh'].includes('export DOCKER_CONTEXT="${CONTROL_DOCKER_CONTEXT:-default}"') && files['deploy.sh'].includes('unset DOCKER_HOST'), 'production Compose is pinned to the host daemon');
 assert(files['oxideproxy/src/pipeline/http_server.rs'].includes('shared_api_backend_pool'), 'OxideProxy distributes API traffic through its native backend pool');
 assert(files['oxideproxy/src/pipeline/api_backend_pool.rs'].includes('keep_stale_or_fail'), 'OxideProxy retains healthy API routes during transient Docker DNS failures');
 assert(files['.env.example'].includes('BACKEND_AUTOSCALE_ENABLED=false'), 'backend autoscaling is fail-closed by default');

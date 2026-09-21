@@ -24,6 +24,7 @@ load_env_file "$ENV_FILE"
 : "${BACKUP_ROOT:?BACKUP_ROOT es obligatorio}"
 
 effective_data_root="${PREFLIGHT_INSTANCE_DATA_ROOT:-$INSTANCE_DATA_ROOT}"
+control_docker_context="${CONTROL_DOCKER_CONTEXT:-default}"
 
 [ "$APP_UID" != "0" ] || fail "La aplicacion no puede ejecutarse como root."
 [[ "$DOCKER_SOCKET" =~ ^/run/user/[0-9]+/docker\.sock$ ]] \
@@ -31,6 +32,15 @@ effective_data_root="${PREFLIGHT_INSTANCE_DATA_ROOT:-$INSTANCE_DATA_ROOT}"
 [ "${ALLOW_ROOTFUL_DOCKER_SOCKET:-false}" = "false" ] \
   || fail "ALLOW_ROOTFUL_DOCKER_SOCKET debe permanecer deshabilitado."
 [ -S "$DOCKER_SOCKET" ] || fail "El socket Docker rootless no existe: $DOCKER_SOCKET"
+
+# RageNodes deliberately uses two trust domains: Compose and OxideProxy run in
+# the host daemon so the bounded XDP loader can reach the physical NIC, while
+# the backend receives only the separate rootless runtime socket used for
+# customer game containers.
+control_security_options="$(docker --context "$control_docker_context" info --format '{{json .SecurityOptions}}')"
+case "$control_security_options" in
+  *rootless*) fail "El plano de control debe usar el daemon host; las instancias de clientes usan el socket rootless separado." ;;
+esac
 
 socket_gid="$(stat -c '%g' "$DOCKER_SOCKET")"
 [ "$socket_gid" = "$DOCKER_GID" ] \
