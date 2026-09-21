@@ -29,8 +29,8 @@ services:
 
   oxide_web:
     environment:
-      - OXIDE_ACME_ENABLED=false
       - OXIDE_DYNAMIC_WEB_DOMAINS=${OXIDE_DYNAMIC_WEB_DOMAINS:-edge.ragenodes.app,ragenodes.app,ragenodes.dev,ragenodes.com,node1.ragenodes.com}
+      - OXIDE_TLS_STATIC_DOMAINS=${POWERDNS_ZONE:-edge.ragenodes.app},*.${POWERDNS_ZONE:-edge.ragenodes.app}
       - OXIDE_TLS_CERT_PATH=/var/lib/lego/certificates/${POWERDNS_ZONE:-edge.ragenodes.app}.crt
       - OXIDE_TLS_KEY_PATH=/var/lib/lego/certificates/${POWERDNS_ZONE:-edge.ragenodes.app}.key
     volumes:

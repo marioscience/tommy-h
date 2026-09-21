@@ -4,7 +4,6 @@ use rustls::pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer};
 use rustls::ServerConfig;
 use rustls_acme::caches::DirCache;
 use rustls_acme::{is_tls_alpn_challenge, AcmeConfig};
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
@@ -13,7 +12,7 @@ use tokio_rustls::{server::TlsStream, LazyConfigAcceptor};
 pub struct TlsRuntime {
     default_config: Arc<ServerConfig>,
     challenge_config: Option<Arc<ServerConfig>>,
-    allowed_sni: Option<HashSet<String>>,
+    allowed_sni: Option<Vec<String>>,
 }
 
 impl TlsRuntime {
@@ -99,11 +98,31 @@ impl TlsRuntime {
             .state();
 
         let challenge_config = state.challenge_rustls_config();
+        let acme_resolver: Arc<dyn rustls::server::ResolvesServerCert> = state.resolver();
+        let static_domains = std::env::var("OXIDE_TLS_STATIC_DOMAINS")
+            .unwrap_or_default()
+            .split(',')
+            .map(normalize_sni_pattern)
+            .filter(|domain| !domain.is_empty())
+            .collect::<Vec<_>>();
+        let cert_resolver: Arc<dyn rustls::server::ResolvesServerCert> =
+            if static_domains.is_empty() {
+                acme_resolver
+            } else {
+                let cert_path = PathBuf::from(required_env("OXIDE_TLS_CERT_PATH")?);
+                let key_path = PathBuf::from(required_env("OXIDE_TLS_KEY_PATH")?);
+                Arc::new(HybridCertResolver {
+                    acme_resolver,
+                    static_key: load_certified_key(&cert_path, &key_path)?,
+                    static_domains: static_domains.clone(),
+                })
+            };
+
         let mut default_config =
             ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
                 .with_safe_default_protocol_versions()?
                 .with_no_client_auth()
-                .with_cert_resolver(state.resolver());
+                .with_cert_resolver(cert_resolver);
         default_config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
         tokio::spawn(async move {
@@ -125,7 +144,7 @@ impl TlsRuntime {
         Ok(Self {
             default_config: Arc::new(default_config),
             challenge_config: Some(challenge_config),
-            allowed_sni: Some(domains.into_iter().collect()),
+            allowed_sni: Some(domains.into_iter().chain(static_domains).collect()),
         })
     }
 
@@ -146,10 +165,11 @@ impl TlsRuntime {
                     .client_hello()
                     .server_name()
                     .map(|value| value.trim_end_matches('.').to_ascii_lowercase());
-                if requested_sni
-                    .as_ref()
-                    .is_none_or(|domain| !allowed_sni.contains(domain))
-                {
+                if requested_sni.as_ref().is_none_or(|domain| {
+                    !allowed_sni
+                        .iter()
+                        .any(|pattern| sni_matches_pattern(&domain, pattern))
+                }) {
                     return Err("SNI no autorizado para este OxideProxy".into());
                 }
             }
@@ -179,6 +199,63 @@ impl TlsRuntime {
 #[derive(Debug)]
 struct StaticCertResolver {
     certified_key: Arc<rustls::sign::CertifiedKey>,
+}
+
+#[derive(Debug)]
+struct HybridCertResolver {
+    acme_resolver: Arc<dyn rustls::server::ResolvesServerCert>,
+    static_key: Arc<rustls::sign::CertifiedKey>,
+    static_domains: Vec<String>,
+}
+
+impl rustls::server::ResolvesServerCert for HybridCertResolver {
+    fn resolve(
+        &self,
+        client_hello: rustls::server::ClientHello<'_>,
+    ) -> Option<Arc<rustls::sign::CertifiedKey>> {
+        let use_static = client_hello.server_name().is_some_and(|domain| {
+            let domain = domain.trim_end_matches('.').to_ascii_lowercase();
+            self.static_domains
+                .iter()
+                .any(|pattern| sni_matches_pattern(&domain, pattern))
+        });
+        if use_static {
+            Some(Arc::clone(&self.static_key))
+        } else {
+            self.acme_resolver.resolve(client_hello)
+        }
+    }
+}
+
+fn load_certified_key(
+    cert_path: &Path,
+    key_path: &Path,
+) -> Result<Arc<rustls::sign::CertifiedKey>, Box<dyn std::error::Error + Send + Sync>> {
+    let cert_chain = CertificateDer::pem_file_iter(cert_path)?.collect::<Result<Vec<_>, _>>()?;
+    if cert_chain.is_empty() {
+        return Err("No se encontró un certificado PEM válido".into());
+    }
+    let key = PrivateKeyDer::from_pem_file(key_path)?;
+    let signing_key =
+        any_supported_type(&key).map_err(|_| "Tipo de llave privada no soportada por rustls")?;
+    Ok(Arc::new(rustls::sign::CertifiedKey::new(
+        cert_chain,
+        signing_key,
+    )))
+}
+
+fn normalize_sni_pattern(pattern: &str) -> String {
+    pattern.trim().trim_end_matches('.').to_ascii_lowercase()
+}
+
+fn sni_matches_pattern(domain: &str, pattern: &str) -> bool {
+    if let Some(suffix) = pattern.strip_prefix("*.") {
+        domain
+            .strip_suffix(suffix)
+            .is_some_and(|prefix| prefix.ends_with('.') && prefix.len() > 1)
+    } else {
+        domain == pattern
+    }
 }
 
 impl rustls::server::ResolvesServerCert for StaticCertResolver {
@@ -256,5 +333,34 @@ impl QuicTerminator {
         } else {
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sni_matches_pattern;
+
+    #[test]
+    fn wildcard_static_certificate_matches_only_one_or_more_subdomain_labels() {
+        assert!(sni_matches_pattern(
+            "tx40124.edge.ragenodes.app",
+            "*.edge.ragenodes.app"
+        ));
+        assert!(!sni_matches_pattern(
+            "panel.ragenodes.app",
+            "*.edge.ragenodes.app"
+        ));
+        assert!(!sni_matches_pattern(
+            "edge.ragenodes.app",
+            "*.edge.ragenodes.app"
+        ));
+    }
+
+    #[test]
+    fn exact_static_certificate_pattern_matches_the_zone_apex() {
+        assert!(sni_matches_pattern(
+            "edge.ragenodes.app",
+            "edge.ragenodes.app"
+        ));
     }
 }

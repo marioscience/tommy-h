@@ -892,7 +892,7 @@ function toggleSidebar() {
             }
             const domain = hostname === 'ragenodes.dev' || hostname.endsWith('.ragenodes.dev')
                 ? 'ragenodes.dev'
-                : 'ragenodes.app';
+                : 'edge.ragenodes.app';
             return `https://${prefix}${port}.${domain}`;
         }
 
@@ -903,10 +903,7 @@ function toggleSidebar() {
             if (!isPrivatePanelHost(window.location.hostname) && server.txadmin_url) {
                 try {
                     const candidate = new URL(server.txadmin_url);
-                    const expectedHosts = new Set([
-                        `tx${server.txadmin_port}.ragenodes.app`,
-                        `tx${server.txadmin_port}.ragenodes.dev`
-                    ]);
+                    const expectedHosts = new Set([new URL(canonicalUrl).hostname.toLowerCase()]);
                     if (candidate.protocol === 'https:' &&
                         !candidate.port &&
                         expectedHosts.has(candidate.hostname.toLowerCase())) {

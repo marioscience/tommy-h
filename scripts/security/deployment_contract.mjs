@@ -93,7 +93,10 @@ assert(
 assert(files['docker-compose.edge-tls.yml'].includes('network_mode: host'), 'edge certificate helper reaches the loopback-only PowerDNS API');
 assert(files['docker-compose.edge-tls.yml'].includes('*.${POWERDNS_ZONE:-edge.ragenodes.app}'), 'edge certificate covers the wildcard endpoint namespace');
 assert(files['docker-compose.edge-tls.yml'].includes('edge_lego_certificates:/var/lib/lego:ro'), 'OxideProxy mounts edge certificates read-only');
-assert(files['docker-compose.edge-tls.yml'].includes('OXIDE_ACME_ENABLED=false'), 'OxideProxy delegates wildcard issuance to the DNS-01 helper');
+assert(files['docker-compose.edge-tls.yml'].includes('OXIDE_TLS_STATIC_DOMAINS='), 'OxideProxy selects the DNS-01 wildcard certificate only for the edge namespace');
+assert(!files['docker-compose.edge-tls.yml'].includes('OXIDE_ACME_ENABLED=false'), 'edge wildcard TLS preserves ACME certificates for canonical panel domains');
+assert(files['frontend/public/js/panel.js'].includes("'edge.ragenodes.app'"), 'production txAdmin buttons use the wildcard edge namespace');
+assert(!files['frontend/public/js/panel.js'].includes('`tx${server.txadmin_port}.ragenodes.app`'), 'production txAdmin buttons reject the legacy per-host certificate namespace');
 assert(files['deploy.sh'].includes('EDGE_TLS_ENABLED:-false'), 'production deploy enables edge TLS explicitly');
 assert(files['deploy.sh'].includes('PDNS_API_KEY_FILE'), 'production deploy can load the PowerDNS secret from a root-managed file');
 assert(files['scripts/ensure-edge-wildcard-certificate.sh'].includes('LEGO_ACTION=run'), 'edge wildcard certificate uses the lego v5 issue-or-renew command');
