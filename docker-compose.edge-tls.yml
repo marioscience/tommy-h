@@ -1,0 +1,39 @@
+services:
+  oxide_edge_certificate:
+    image: goacme/lego:v5.3.1@sha256:f4fd80df0ef94d2f536cc2e7fb5bdbd090fb0aa81b3595226b9fe814bb9a2bfe
+    profiles: ["edge-certificate"]
+    network_mode: host
+    environment:
+      PDNS_API_URL: ${PDNS_API_URL:-http://127.0.0.1:8081/api/v1}
+      PDNS_API_KEY: ${PDNS_API_KEY:?Set PDNS_API_KEY or PDNS_API_KEY_FILE}
+    command:
+      - --accept-tos
+      - --server=${LEGO_ACME_SERVER:-https://acme-v02.api.letsencrypt.org/directory}
+      - --email=${LEGO_EMAIL:?Set LEGO_EMAIL}
+      - --dns=pdns
+      - --domains=${POWERDNS_ZONE:-edge.ragenodes.app}
+      - --domains=*.${POWERDNS_ZONE:-edge.ragenodes.app}
+      - --path=/var/lib/lego
+      - ${LEGO_ACTION:-renew}
+    volumes:
+      - edge_lego_certificates:/var/lib/lego
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp
+    pids_limit: 64
+
+  oxide_web:
+    environment:
+      - OXIDE_ACME_ENABLED=false
+      - OXIDE_DYNAMIC_WEB_DOMAINS=${OXIDE_DYNAMIC_WEB_DOMAINS:-edge.ragenodes.app,ragenodes.app,ragenodes.dev,ragenodes.com,node1.ragenodes.com}
+      - OXIDE_TLS_CERT_PATH=/var/lib/lego/certificates/${POWERDNS_ZONE:-edge.ragenodes.app}.crt
+      - OXIDE_TLS_KEY_PATH=/var/lib/lego/certificates/${POWERDNS_ZONE:-edge.ragenodes.app}.key
+    volumes:
+      - edge_lego_certificates:/var/lib/lego:ro
+
+volumes:
+  edge_lego_certificates:
+    name: ${EDGE_TLS_CERT_VOLUME:-ragenodes_edge_tls_certificates}

@@ -5,6 +5,7 @@ const files = Object.fromEntries(await Promise.all([
   'docker-compose.staging.yml',
   'docker-compose.registry.staging.yml',
   'docker-compose.backup-remote.yml',
+  'docker-compose.edge-tls.yml',
   'backend/Dockerfile',
   'runtime-images/fivem/Dockerfile',
   'runtime-images/fivem/start.sh',
@@ -61,6 +62,7 @@ const files = Object.fromEntries(await Promise.all([
   'scripts/dev/cli.mjs',
   'deploy/registry-release.lock',
   'scripts/load_env.sh',
+  'scripts/ensure-edge-wildcard-certificate.sh',
   'scripts/security/production_preflight.sh',
   'scripts/security/install_rootless_delegation.sh',
   'ops/systemd/ragenodes-rootless-delegation.conf',
@@ -87,6 +89,14 @@ assert(
   files['oxideproxy/node_panel/Dockerfile'].includes('COPY --chown=node:node routeReconciliation.js ./'),
   'Oxide control-panel image includes the route reconciliation runtime module'
 );
+
+assert(files['docker-compose.edge-tls.yml'].includes('network_mode: host'), 'edge certificate helper reaches the loopback-only PowerDNS API');
+assert(files['docker-compose.edge-tls.yml'].includes('*.${POWERDNS_ZONE:-edge.ragenodes.app}'), 'edge certificate covers the wildcard endpoint namespace');
+assert(files['docker-compose.edge-tls.yml'].includes('edge_lego_certificates:/var/lib/lego:ro'), 'OxideProxy mounts edge certificates read-only');
+assert(files['docker-compose.edge-tls.yml'].includes('OXIDE_ACME_ENABLED=false'), 'OxideProxy delegates wildcard issuance to the DNS-01 helper');
+assert(files['deploy.sh'].includes('EDGE_TLS_ENABLED:-false'), 'production deploy enables edge TLS explicitly');
+assert(files['deploy.sh'].includes('PDNS_API_KEY_FILE'), 'production deploy can load the PowerDNS secret from a root-managed file');
+assert(files['scripts/ensure-edge-wildcard-certificate.sh'].includes('LEGO_ACTION=renew'), 'edge wildcard certificate is renewed without repeated issuance');
 
 for (const composeFile of ['docker-compose.yml', 'docker-compose.staging.yml']) {
   const compose = files[composeFile];

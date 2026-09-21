@@ -36,6 +36,15 @@ COMPOSE=(docker compose -f docker-compose.yml)
 if [ "${BACKUP_REMOTE_ENABLED:-false}" = "true" ]; then
   COMPOSE+=(-f docker-compose.backup-remote.yml)
 fi
+if [ "${EDGE_TLS_ENABLED:-false}" = "true" ]; then
+  PDNS_API_KEY_FILE="${PDNS_API_KEY_FILE:-/etc/ragenodes/powerdns-api-key}"
+  if [ -z "${PDNS_API_KEY:-}" ] && [ -r "$PDNS_API_KEY_FILE" ]; then
+    PDNS_API_KEY="$(tr -d '\r\n' < "$PDNS_API_KEY_FILE")"
+    export PDNS_API_KEY
+  fi
+  : "${PDNS_API_KEY:?PDNS_API_KEY or readable PDNS_API_KEY_FILE is required when EDGE_TLS_ENABLED=true}"
+  COMPOSE+=(-f docker-compose.edge-tls.yml)
+fi
 
 REGISTRY_DEPLOY=false
 REGISTRY_RELEASE_FILE="${RAGENODES_REGISTRY_RELEASE_FILE:-deploy/registry-release.lock}"
@@ -159,6 +168,11 @@ else
 fi
 
 echo "==> 🌐 Aplicando solo las imágenes o configuraciones que cambiaron..."
+if [ "${EDGE_TLS_ENABLED:-false}" = "true" ]; then
+  export POWERDNS_ZONE EDGE_TLS_CERT_VOLUME
+  # shellcheck disable=SC1091
+  source ./scripts/ensure-edge-wildcard-certificate.sh
+fi
 echo "==> 🧰 Preparando el volumen de ejecución de OxideProxy..."
 "${COMPOSE[@]}" run --rm --no-deps oxide_game_runtime_init
 BACKEND_REPLICAS="$(bash ./scripts/deploy/select_backend_replicas.sh)"

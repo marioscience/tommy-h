@@ -222,6 +222,7 @@ compose_validation:
   - docker compose -f docker-compose.yml -f docker-compose.security.yml config --quiet
   - docker compose -f docker-compose.yml -f docker-compose.backup-remote.yml config --quiet
   - docker compose -f docker-compose.yml -f docker-compose.powerdns.yml --profile dns-authority --profile dns-certificate config --quiet
+  - docker compose -f docker-compose.yml -f docker-compose.edge-tls.yml --profile edge-certificate config --quiet
   - docker compose -f docker-compose.yml -f docker-compose.registry.yml config --quiet
   - docker compose -f docker-compose.staging.yml -f docker-compose.registry.staging.yml config --quiet
 

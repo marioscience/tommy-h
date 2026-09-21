@@ -434,7 +434,7 @@ services:
       - OXIDE_ACME_EMAIL=${OXIDE_ACME_EMAIL:-}
       - OXIDE_ACME_PRODUCTION=${OXIDE_ACME_PRODUCTION:-false}
       - OXIDE_ACME_CACHE_DIR=/app/acme
-      - OXIDE_DYNAMIC_WEB_DOMAINS=${OXIDE_DYNAMIC_WEB_DOMAINS:-ragenodes.dev,ragenodes.app,ragenodes.com,node1.ragenodes.com}
+      - OXIDE_DYNAMIC_WEB_DOMAINS=${OXIDE_DYNAMIC_WEB_DOMAINS:-edge.ragenodes.app,ragenodes.dev,ragenodes.app,ragenodes.com,node1.ragenodes.com}
       - OXIDE_DYNAMIC_BACKEND_HOST=${OXIDE_DYNAMIC_BACKEND_HOST:-host.docker.internal}
       - OXIDE_TXADMIN_PORT_START=${OXIDE_TXADMIN_PORT_START:-40100}
       - OXIDE_TXADMIN_PORT_END=${OXIDE_TXADMIN_PORT_END:-59999}

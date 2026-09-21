@@ -77,7 +77,7 @@ services:
     env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       PORT_SCAN_LIMIT: ${PRODUCTION_PORT_SCAN_LIMIT:-999}
-      PUBLIC_ENDPOINT_HOST: ${PUBLIC_ENDPOINT_HOST:-ragenodes.app}
+      PUBLIC_ENDPOINT_HOST: ${PUBLIC_ENDPOINT_HOST:-edge.ragenodes.app}
       PUBLIC_ENDPOINT_SCHEME: ${PUBLIC_ENDPOINT_SCHEME:-https}
       PUBLIC_ENDPOINT_MODE: ${PUBLIC_ENDPOINT_MODE:-subdomain}
       PUBLIC_ENDPOINT_PREFIX: ${PUBLIC_ENDPOINT_PREFIX:-tx}
@@ -129,7 +129,7 @@ services:
     env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       - RAGENODES_ROLE=worker-deployments
-      - PUBLIC_ENDPOINT_HOST=${PUBLIC_ENDPOINT_HOST:-ragenodes.app}
+      - PUBLIC_ENDPOINT_HOST=${PUBLIC_ENDPOINT_HOST:-edge.ragenodes.app}
       - PUBLIC_ENDPOINT_SCHEME=${PUBLIC_ENDPOINT_SCHEME:-https}
       - PUBLIC_ENDPOINT_MODE=${PUBLIC_ENDPOINT_MODE:-subdomain}
       - PUBLIC_ENDPOINT_PREFIX=${PUBLIC_ENDPOINT_PREFIX:-tx}
@@ -207,7 +207,7 @@ services:
     env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       - RAGENODES_ROLE=worker-docker-events
-      - PUBLIC_ENDPOINT_HOST=${PUBLIC_ENDPOINT_HOST:-ragenodes.app}
+      - PUBLIC_ENDPOINT_HOST=${PUBLIC_ENDPOINT_HOST:-edge.ragenodes.app}
       - PUBLIC_ENDPOINT_SCHEME=${PUBLIC_ENDPOINT_SCHEME:-https}
       - PUBLIC_ENDPOINT_MODE=${PUBLIC_ENDPOINT_MODE:-subdomain}
       - PUBLIC_ENDPOINT_PREFIX=${PUBLIC_ENDPOINT_PREFIX:-tx}
@@ -245,7 +245,7 @@ services:
     env_file: [ "${RAGENODES_ENV_FILE:-.env}" ]
     environment:
       - RAGENODES_ROLE=worker-stats
-      - PUBLIC_ENDPOINT_HOST=${PUBLIC_ENDPOINT_HOST:-ragenodes.app}
+      - PUBLIC_ENDPOINT_HOST=${PUBLIC_ENDPOINT_HOST:-edge.ragenodes.app}
       - PUBLIC_ENDPOINT_SCHEME=${PUBLIC_ENDPOINT_SCHEME:-https}
       - PUBLIC_ENDPOINT_MODE=${PUBLIC_ENDPOINT_MODE:-subdomain}
       - PUBLIC_ENDPOINT_PREFIX=${PUBLIC_ENDPOINT_PREFIX:-tx}
@@ -391,7 +391,7 @@ services:
       - OXIDE_ACME_EMAIL=${OXIDE_ACME_EMAIL:-}
       - OXIDE_ACME_PRODUCTION=${OXIDE_ACME_PRODUCTION:-false}
       - OXIDE_ACME_CACHE_DIR=/app/acme
-      - OXIDE_DYNAMIC_WEB_DOMAINS=${OXIDE_DYNAMIC_WEB_DOMAINS:-ragenodes.app,ragenodes.dev,ragenodes.com,node1.ragenodes.com}
+      - OXIDE_DYNAMIC_WEB_DOMAINS=${OXIDE_DYNAMIC_WEB_DOMAINS:-edge.ragenodes.app,ragenodes.app,ragenodes.dev,ragenodes.com,node1.ragenodes.com}
       - OXIDE_DYNAMIC_BACKEND_HOST=${OXIDE_DYNAMIC_BACKEND_HOST:-host.docker.internal}
       - STAGING_DYNAMIC_DOMAIN=${STAGING_DYNAMIC_DOMAIN:-ragenodes.dev}
       - OXIDE_DYNAMIC_STAGING_BACKEND_HOST=${OXIDE_DYNAMIC_STAGING_BACKEND_HOST:-}
