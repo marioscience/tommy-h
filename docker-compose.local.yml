@@ -1,7 +1,9 @@
 services:
   backend:
     init: false
-    entrypoint: ["node", "--watch", "src/server.js"]
+    entrypoint: ["node", "--inspect=0.0.0.0:9229", "--watch", "src/server.js"]
+    ports:
+      - "127.0.0.1:9229:9229"
     security_opt: !reset []
     cap_drop: !reset []
     read_only: false
