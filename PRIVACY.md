@@ -1,0 +1,1 @@
+This is a personal, self-hosted tool run by Mario Matos. It accesses Google Tasks data via the Google Tasks API solely to sync his own roadmap files with his own Google account. No data is shared with, sold to, or accessible by any third party. Tokens and data stay on his machine.

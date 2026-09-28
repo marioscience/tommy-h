@@ -1,0 +1,23 @@
+# Roadmap markdown content
+*.md
+!README.md
+!PRIVACY.md
+
+# Operations and State
+ops/
+*.json
+!tests/**/*.json
+
+# Config Files (No real toml paths)
+*.toml
+
+# Keys and Credentials
+keys/
+*.key
+credentials.json
+token.json
+
+# Environment
+.env
+.venv
+__pycache__/

@@ -1,0 +1,109 @@
+# Antigravity roadmap sync - Phase 1
+
+This is a read-only exporter. It recursively scans `/home/mario/projects` for Markdown files whose filename contains `roadmap` in any case, parses checkbox tasks, and atomically writes one normalized JSON snapshot. It never changes a roadmap file.
+
+## Snapshot contents
+
+Each task includes:
+
+- stable task ID, task code, title, normalized status, checkbox state, effort, description/scope, and section
+- all labeled Markdown fields, so project-specific metadata is not discarded
+- conversation IDs, Markdown links, and defect codes where present
+- absolute and root-relative source path, project name, line range, original task line, file SHA-256, and task-block SHA-256
+
+The source and block checksums are included for detecting changes now and for optimistic concurrency checks in a later guarded-write phase. A task ID remains stable when its content changes, provided its source path and task code stay the same.
+
+## Install and run
+
+Requires Python 3.10 or newer and no third-party Python packages.
+
+```bash
+mkdir -p ~/.local/lib/roadmap-sync ~/.local/share/roadmap-sync
+cp roadmap_sync.py ~/.local/lib/roadmap-sync/
+chmod +x ~/.local/lib/roadmap-sync/roadmap_sync.py
+
+~/.local/lib/roadmap-sync/roadmap_sync.py \
+  --root /home/mario/projects \
+  --output ~/.local/share/roadmap-sync/roadmap-status.json
+
+python3 -m json.tool ~/.local/share/roadmap-sync/roadmap-status.json >/dev/null
+```
+
+Test it before installing:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+Use `--stdout` for inspection without writing a snapshot. Use `--strict` if a scheduled run should fail when any matching file cannot be read.
+
+## Run automatically with a user-level systemd timer
+
+Create `~/.config/systemd/user/roadmap-sync.service`:
+
+```ini
+[Unit]
+Description=Export Antigravity roadmaps to normalized JSON
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/lib/roadmap-sync/roadmap_sync.py --root /home/mario/projects --output %h/.local/share/roadmap-sync/roadmap-status.json --strict
+```
+
+Create `~/.config/systemd/user/roadmap-sync.timer`:
+
+```ini
+[Unit]
+Description=Export Antigravity roadmaps every 5 minutes
+
+[Timer]
+OnBootSec=2m
+OnUnitActiveSec=5m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Enable it:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now roadmap-sync.timer
+systemctl --user start roadmap-sync.service
+systemctl --user status roadmap-sync.service --no-pager
+```
+
+## Copy the snapshot to Google Drive with rclone
+
+Keep the parser local and read-only. After `rclone config` has a Drive remote, verify its exact name with `rclone listremotes`. Replace `gdrive:` below with that configured name:
+
+```bash
+rclone copyto \
+  ~/.local/share/roadmap-sync/roadmap-status.json \
+  gdrive:Antigravity-Roadmap-Sync/roadmap-status.json
+```
+
+Only add that command after the parser's `ExecStart` once the one-time rclone login and destination are verified. A simple wrapper is safer than shell syntax inside the unit:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+"$HOME/.local/lib/roadmap-sync/roadmap_sync.py" \
+  --root /home/mario/projects \
+  --output "$HOME/.local/share/roadmap-sync/roadmap-status.json" \
+  --strict
+rclone copyto \
+  "$HOME/.local/share/roadmap-sync/roadmap-status.json" \
+  "gdrive:Antigravity-Roadmap-Sync/roadmap-status.json"
+```
+
+Save that as `~/.local/lib/roadmap-sync/run-and-upload.sh`, make it executable, and change the service's `ExecStart` to that path.
+
+## Safety notes
+
+- The script opens roadmap files only for reading.
+- The output is replaced atomically, so a reader never sees a half-written JSON file.
+- The parser copies roadmap text and links into the snapshot. Keep secrets out of roadmap Markdown, and keep the Drive folder private.
+- Files without `roadmap` in the filename are ignored, even if their contents discuss roadmaps.
+- The JSON schema version is `1`. Consumers should reject unsupported future versions rather than guessing.
