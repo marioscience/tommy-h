@@ -2,6 +2,8 @@
 *.md
 !README.md
 !PRIVACY.md
+!docs/index.md
+!docs/privacy.md
 
 # Operations and State
 ops/
